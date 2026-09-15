@@ -1,0 +1,55 @@
+/* Scoped to login's reference composition; registration remains unchanged. */
+.auth-spec-view { height:auto; min-height:100dvh; overflow:visible; }
+@media (min-width:1100px) {
+  .auth-spec-view { --unit:clamp(1px, .07320644vw, 1.4px); }
+  .auth-spec-view .auth-spec-main {
+    max-width:none; padding:0 2.7% 0 4.5%; flex:none;
+  }
+  .auth-spec-view .auth-spec-layout {
+    display:grid; grid-template-columns:minmax(0,29fr) minmax(0,40fr) calc(22 * var(--unit)) minmax(0,31fr); gap:0;
+    height:auto; min-height:calc(660 * var(--unit)); align-items:stretch;
+  }
+  .auth-spec-view .auth-spec-left-panel {
+    width:100%; max-width:none; height:auto; max-height:none;
+    padding:calc(24 * var(--unit)) 0 calc(12 * var(--unit));
+    justify-content:flex-start; position:relative;
+  }
+  .auth-spec-view .auth-spec-brand { margin-bottom:calc(34 * var(--unit)); }
+  .auth-spec-view .auth-spec-brand-icon { width:calc(44 * var(--unit)); height:calc(44 * var(--unit)); font-size:calc(25 * var(--unit)); }
+  .auth-spec-view .auth-spec-brand-name { font-size:calc(24 * var(--unit)); }
+  .auth-spec-view .auth-spec-brand-sub { font-size:calc(8 * var(--unit)); letter-spacing:0; }
+  .auth-spec-view .auth-spec-pill { font-size:calc(10 * var(--unit)); padding:4px 10px; margin-bottom:calc(14 * var(--unit)); }
+  .auth-spec-view .auth-spec-heading { font-size:calc(37 * var(--unit)); line-height:1.1; letter-spacing:-.045em; margin-bottom:calc(18 * var(--unit)); width:112%; }
+  .auth-spec-view .auth-spec-heading span { white-space:nowrap; }
+  .auth-spec-view .auth-spec-desc { max-width:none; width:97%; font-size:calc(13.5 * var(--unit)); line-height:1.48; margin-bottom:calc(19 * var(--unit)); }
+  .auth-spec-view .auth-spec-features { gap:calc(15 * var(--unit)); margin:0; }
+  .auth-spec-view .auth-spec-feat-icon { width:calc(36 * var(--unit)); height:calc(36 * var(--unit)); font-size:calc(22 * var(--unit)); border-radius:8px; }
+  .auth-spec-view .auth-spec-feat-item { gap:calc(18 * var(--unit)); }
+  .auth-spec-view .auth-spec-feat-info strong { font-size:calc(12.5 * var(--unit)); }
+  .auth-spec-view .auth-spec-feat-info span { font-size:calc(11 * var(--unit)); line-height:1.4; }
+  .auth-spec-view .auth-spec-handwritten-wrap { margin-top:calc(23 * var(--unit)); }
+  .auth-spec-view .auth-spec-handwritten-img { width:calc(245 * var(--unit)); }
+  .auth-spec-view .auth-spec-center-panel { grid-column:2; height:auto; max-height:none; align-self:stretch; position:relative; min-width:0; }
+  .auth-spec-view .auth-spec-center-img { position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; object-fit:cover; object-position:center bottom; }
+  .auth-spec-view .auth-spec-card-area { grid-column:4; width:100%; min-width:0; max-width:none; align-self:start; margin-top:calc(80 * var(--unit)); padding:0; }
+  .auth-spec-view .auth-spec-card { max-width:none; padding:calc(23 * var(--unit)); border-radius:calc(13 * var(--unit)); }
+  .auth-spec-view .auth-spec-card-head h2 { font-size:calc(26 * var(--unit)); }
+  .auth-spec-view .auth-spec-card-head p { font-size:calc(10.5 * var(--unit)); }
+  .auth-spec-view .auth-spec-card-head { margin-bottom:calc(18 * var(--unit)); }
+  .auth-spec-view .auth-spec-role-caption { font-size:calc(10 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .auth-role-btn { height:calc(35 * var(--unit)); min-height:35px; font-size:calc(10.5 * var(--unit)); padding:4px; }
+  .auth-spec-view .auth-spec-card .form-stack { gap:calc(14 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .input { height:calc(38 * var(--unit)); min-height:38px; font-size:calc(12 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .field label,
+  .auth-spec-view .auth-spec-card .forgot-pass-btn,
+  .auth-spec-view .auth-spec-card .checkbox-label { font-size:calc(11 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .btn-auth-submit { min-height:calc(40 * var(--unit)); font-size:calc(13 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .auth-divider { margin:calc(17 * var(--unit)) 0; font-size:calc(9 * var(--unit)); }
+  .auth-spec-view .auth-spec-card .social-auth-btn { min-height:calc(38 * var(--unit)); font-size:calc(12 * var(--unit)); }
+}
+@media(max-width:1099px) {
+  .auth-spec-view .auth-spec-main { height:auto; min-height:0; }
+  .auth-spec-view .auth-spec-layout { height:auto; flex-wrap:wrap; align-items:flex-start; }
+  .auth-spec-view .auth-spec-left-panel { height:auto; max-height:none; }
+  .auth-spec-view .auth-spec-center-panel { max-height:none; }
+}

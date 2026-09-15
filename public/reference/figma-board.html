@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCANMS - Figma Screen Flow Matrix Canvas (22 Master Screens)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <style>
+      :root {
+        --canvas-bg: #1e1e1e;
+        --grid-dot: rgba(255, 255, 255, 0.08);
+        --bar-bg: #2c2c2c;
+        --border-color: #3c3c3c;
+        --text-color: #f5f5f5;
+        --text-muted: #8e8e8e;
+        --brand: #10b981;
+        --brand-soft: #064e3b;
+        --frame-label-bg: #0d9488;
+        --frame-border: #444444;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        background-color: var(--canvas-bg);
+        color: var(--text-color);
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        user-select: none;
+      }
+
+      /* TOPBAR FIGMA STYLE */
+      .figma-topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 54px;
+        background: var(--bar-bg);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      }
+
+      .figma-project-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .figma-icon-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border: 1px solid #334155;
+        display: grid;
+        place-items: center;
+        color: #34d399;
+        font-weight: 800;
+        font-size: 16px;
+      }
+
+      .figma-project-title h1 {
+        font-size: 14.5px;
+        font-weight: 700;
+        letter-spacing: -0.2px;
+      }
+
+      .figma-project-title span {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        font-weight: 700;
+      }
+
+      .figma-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .figma-btn {
+        background: #383838;
+        border: 1px solid #4a4a4a;
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+      }
+
+      .figma-btn:hover {
+        background: #484848;
+        border-color: #666;
+      }
+
+      .figma-btn.active {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #000;
+      }
+
+      .view-toggle-group {
+        display: flex;
+        background: #222;
+        border-radius: 6px;
+        padding: 2px;
+        border: 1px solid #444;
+      }
+
+      .view-toggle-btn {
+        background: transparent;
+        border: none;
+        color: #9ca3af;
+        padding: 5px 10px;
+        font-size: 11.5px;
+        font-weight: 700;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.15s ease;
+      }
+
+      .view-toggle-btn.active {
+        background: #3b82f6;
+        color: #ffffff;
+      }
+
+      .figma-zoom-val {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        color: #34d399;
+        min-width: 50px;
+        text-align: center;
+      }
+
+      /* INFINITE CANVAS VIEWPORT */
+      .canvas-viewport {
+        width: 100vw;
+        height: calc(100vh - 54px);
+        margin-top: 54px;
+        overflow: auto;
+        cursor: grab;
+        background-color: var(--canvas-bg);
+        background-image: radial-gradient(var(--grid-dot) 1.5px, transparent 1.5px);
+        background-size: 24px 24px;
+        position: relative;
+      }
+
+      .canvas-viewport:active {
+        cursor: grabbing;
+      }
+
+      /* SCALABLE MATRIX CONTAINER */
+      .canvas-content {
+        padding: 80px 100px 300px 100px;
+        transform-origin: 0 0;
+        transition: transform 0.1s ease-out;
+        display: flex;
+        flex-direction: column;
+        gap: 120px;
+        width: max-content;
+      }
+
+      /* ROW SECTIONS */
+      .matrix-row {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .matrix-row-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .matrix-row-tag {
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 5px 14px;
+        border-radius: 6px;
+        background: #2dd4bf;
+        color: #0f172a;
+      }
+
+      .matrix-row-tag.shop { background: #f59e0b; color: #000; }
+      .matrix-row-tag.admin { background: #818cf8; color: #000; }
+      .matrix-row-tag.shared { background: #a78bfa; color: #000; }
+
+      .matrix-row-header h2 {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+
+      .matrix-row-header p {
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      .matrix-frames-track {
+        display: flex;
+        gap: 60px;
+      }
+
+      /* FIGMA FRAME CARD */
+      .figma-frame-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 1440px;
+        flex-shrink: 0;
+      }
+
+      .figma-frame-titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 4px;
+      }
+
+      .figma-frame-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #d1d5db;
+      }
+
+      .figma-frame-name strong {
+        color: #ffffff;
+      }
+
+      .figma-frame-badge {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: #333;
+        color: #9ca3af;
+      }
+
+      .figma-frame-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .figma-frame-action-btn {
+        background: transparent;
+        border: 1px solid #4b5563;
+        color: #9ca3af;
+        border-radius: 4px;
+        padding: 4px 9px;
+        font-size: 11px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        text-decoration: none;
+        transition: all 0.15s;
+      }
+
+      .figma-frame-action-btn:hover {
+        background: #374151;
+        color: #fff;
+        border-color: #9ca3af;
+      }
+
+      /* FRAME VIEWPORT (1440 x 1024 STANDARD) */
+      .figma-frame-body {
+        width: 1440px;
+        height: 1024px;
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid var(--frame-border);
+        overflow: hidden;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+
+      .figma-frame-img {
+        width: 1440px;
+        height: 1024px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .figma-frame-iframe {
+        width: 1440px;
+        height: 1024px;
+        border: none;
+        display: none;
+        background: #ffffff;
+      }
+
+      /* Khi ở chế độ Live Iframe */
+      body.mode-live .figma-frame-img {
+        display: none;
+      }
+      body.mode-live .figma-frame-iframe {
+        display: block;
+      }
+
+      /* FLOAT QUICK MINIMAP & OVERVIEW */
+      .figma-float-guide {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: rgba(30, 30, 30, 0.94);
+        backdrop-filter: blur(12px);
+        border: 1px solid #444;
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .figma-float-guide strong {
+        color: #34d399;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .figma-float-guide p {
+        color: #9ca3af;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- TOPBAR ĐIỀU KHIỂN CHUẨN FIGMA -->
+    <header class="figma-topbar">
+      <div class="figma-project-title">
+        <div class="figma-icon-badge">❖</div>
+        <h1>SCANMS — Master Screen Flow Matrix (FA26SE032)</h1>
+        <span>23 Artboards (1440 x 1024)</span>
+      </div>
+
+      <div class="figma-controls">
+        <!-- Chuyển đổi hiển thị: Ảnh Figma sắc nét vs Web Tương Tác -->
+        <div class="view-toggle-group">
+          <button class="view-toggle-btn active" id="mode-image-btn" title="Hiển thị bằng ảnh PNG xuất sắc nét 1440x1024 siêu nhẹ">
+            <i class="ph ph-image"></i> Ảnh Figma (1440x1024)
+          </button>
+          <button class="view-toggle-btn" id="mode-live-btn" title="Kích hoạt khung iframe tương tác thật với Prototype">
+            <i class="ph ph-browsers"></i> Web Live Iframe
+          </button>
+        </div>
+
+        <div style="height: 20px; width: 1px; background: #4a4a4a; margin: 0 4px;"></div>
+
+        <!-- Chế độ phóng to/thu nhỏ nhanh -->
+        <button class="figma-btn active" id="btn-zoom-overview" title="Xem toàn cảnh bao quát toàn bộ 22 màn hình">
+          <i class="ph ph-squares-four"></i> Toàn cảnh (14%)
+        </button>
+        <button class="figma-btn" id="btn-zoom-medium" title="Xem mức trung bình 32%">
+          <i class="ph ph-frame-corners"></i> Trung bình (32%)
+        </button>
+        <button class="figma-btn" id="btn-zoom-100" title="Xem độ nét thật 100%">
+          <i class="ph ph-magnifying-glass"></i> Thực tế (100%)
+        </button>
+
+        <div style="height: 20px; width: 1px; background: #4a4a4a; margin: 0 4px;"></div>
+
+        <button class="figma-btn" id="btn-zoom-out" title="Thu nhỏ"><i class="ph ph-minus"></i></button>
+        <span class="figma-zoom-val" id="zoom-text">14%</span>
+        <button class="figma-btn" id="btn-zoom-in" title="Phóng to"><i class="ph ph-plus"></i></button>
+
+        <div style="height: 20px; width: 1px; background: #4a4a4a; margin: 0 4px;"></div>
+
+        <a href="./index.html#kol-dashboard" class="figma-btn" style="background:#0f766e; border-color:#14b8a6; text-decoration:none;">
+          <i class="ph ph-arrow-square-out"></i> Chạy Prototype Web
+        </a>
+      </div>
+    </header>
+
+    <!-- INFINITE CANVAS VIEWPORT -->
+    <div class="canvas-viewport" id="viewport">
+      <main class="canvas-content" id="canvas-content">
+        <!-- ============================================================= -->
+        <!-- HÀNG 1: KHÔNG GIAN CỘNG TÁC VIÊN & KOL (8 MASTER FRAMES)        -->
+        <!-- ============================================================= -->
+        <section class="matrix-row">
+          <div class="matrix-row-header">
+            <span class="matrix-row-tag">HÀNG 1 • KOL / CTV</span>
+            <h2>Phân Hệ Cộng Tác Viên Bán Hàng & KOL Tiếp Thị</h2>
+            <p>Đăng nhập $\rightarrow$ Tổng quan KOL $\rightarrow$ Link & QR $\rightarrow$ Quản lý Kênh $\rightarrow$ Kho nội dung $\rightarrow$ Hàng mẫu $\rightarrow$ Bảng vinh danh $\rightarrow$ Ví tiền.</p>
+          </div>
+
+          <div class="matrix-frames-track">
+            <!-- Frame 01: Auth Login -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-01, FR-03</span>
+                  <strong>01 • Đăng nhập tài khoản phân vai</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/01_Dang_Nhap_Auth.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#auth', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/01_Dang_Nhap_Auth.png" alt="01 Dang Nhap Auth" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#auth" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 01B: Auth Register -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-02</span>
+                  <strong>01B • Đăng ký thành viên mới (KOL & Shop)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/01_Dang_Ky_Register.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#register', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/01_Dang_Ky_Register.png" alt="01 Dang Ky Register" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#register" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 02: Dashboard KOL -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-05, FR-32, FR-33</span>
+                  <strong>02 • Tổng quan KOL Dashboard (Hạng Vàng & 4 KPI)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/02_Tong_Quan_KOL_Dashboard.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#kol-dashboard', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/02_Tong_Quan_KOL_Dashboard.png" alt="02 Tong Quan KOL" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#kol-dashboard" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 03: Link & QR -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-10 $\rightarrow$ FR-14</span>
+                  <strong>03 • Link & QR tiếp thị định danh & Máy tính hoa hồng</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/03_Link_Va_QR_Tiep_Thi.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#links', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/03_Link_Va_QR_Tiep_Thi.png" alt="03 Link Va QR" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#links" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 04: Kênh MXH -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-04</span>
+                  <strong>04 • Quản lý Đa Kênh Mạng Xã Hội (TikTok, FB, Insta, YT)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/04_Quan_Ly_Kenh_MXH.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#channels', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/04_Quan_Ly_Kenh_MXH.png" alt="04 Quan Ly Kenh" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#channels" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 05: Kho nội dung Media Hub -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-08</span>
+                  <strong>05 • Kho nội dung bán hàng Media Hub & Studio Caption SEO</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/05_Kho_Noi_Dung_Media_Hub.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#media', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/05_Kho_Noi_Dung_Media_Hub.png" alt="05 Kho Noi Dung" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#media" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 06: Hàng mẫu dùng thử -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-30</span>
+                  <strong>06 • Hàng mẫu dùng thử (Master-Detail & Timeline GHTK)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/06_Hang_Mau_Dung_Thu_Master_Detail.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#samples', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/06_Hang_Mau_Dung_Thu_Master_Detail.png" alt="06 Hang Mau" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#samples" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 07: Bảng vinh danh -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-33</span>
+                  <strong>07 • Bảng vinh danh Leaderboard (Bục Top 3 & Thưởng nóng)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/07_Bang_Vinh_Danh_Leaderboard.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#leaderboard', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/07_Bang_Vinh_Danh_Leaderboard.png" alt="07 Bang Vinh Danh" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#leaderboard" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 08: Ví tiền & Sổ cái -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-21 $\rightarrow$ FR-26</span>
+                  <strong>08 • Ví của tôi, Đối soát 14 ngày, Thuế TNCN & Rút tiền</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/08_Vi_Tien_Va_Rut_Tien.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#wallet', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/08_Vi_Tien_Va_Rut_Tien.png" alt="08 Vi Tien" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#wallet" loading="lazy"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- HÀNG 2: KHÔNG GIAN CHỦ GIAN HÀNG (SHOP MANAGER - 6 FRAMES)      -->
+        <!-- ============================================================= -->
+        <section class="matrix-row">
+          <div class="matrix-row-header">
+            <span class="matrix-row-tag shop">HÀNG 2 • CHỦ GIAN HÀNG SHOP</span>
+            <h2>Phân Hệ Chủ Gian Hàng / Merchant Sora Skin</h2>
+            <p>Tổng quan Shop $\rightarrow$ Danh mục sản phẩm & % Hoa hồng $\rightarrow$ Đội ngũ CTV $\rightarrow$ Đối soát đơn hàng $\rightarrow$ Duyệt chi trả $\rightarrow$ AI Fraud.</p>
+          </div>
+
+          <div class="matrix-frames-track">
+            <!-- Frame 09: Tổng quan Shop -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-09, FR-34</span>
+                  <strong>09 • Tổng quan Shop (Doanh thu GMV 684tr & Biểu đồ)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/09_Tong_Quan_Shop_Dashboard.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#shop-dashboard', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/09_Tong_Quan_Shop_Dashboard.png" alt="09 Tong Quan Shop" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#shop-dashboard" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 10: Danh mục sản phẩm -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-06, FR-07</span>
+                  <strong>10 • Danh mục sản phẩm & Thiết lập % hoa hồng bậc thang</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/10_Danh_Muc_SanPham_Hoa_Hong.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#catalog', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/10_Danh_Muc_SanPham_Hoa_Hong.png" alt="10 Danh Muc San Pham" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#catalog" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 11: Đội ngũ CTV -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-05, FR-30</span>
+                  <strong>11 • Quản lý Đội ngũ CTV, Duyệt cấp mẫu & Hoa hồng VIP</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/11_Doi_Ngu_CTV_Cap_Mau.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#shop-collaborators', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/11_Doi_Ngu_CTV_Cap_Mau.png" alt="11 Doi Ngu CTV" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#shop-collaborators" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 12: Đối soát đơn hàng -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-19 $\rightarrow$ FR-23</span>
+                  <strong>12 • Đối soát đơn hàng, Last-Click Coupon & Thu hồi đơn hoàn</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/12_Doi_Soat_Don_Hang.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#orders', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/12_Doi_Soat_Don_Hang.png" alt="12 Doi Soat Don Hang" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#orders" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 13: Duyệt chi trả -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-24 $\rightarrow$ FR-28</span>
+                  <strong>13 • Duyệt chi trả hoa hồng, Khấu trừ thuế 10% & Xuất VietQR</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/13_Duyet_Chi_Tra_Hoa_Hong.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#payouts', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/13_Duyet_Chi_Tra_Hoa_Hong.png" alt="13 Duyet Chi Tra" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#payouts" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 14: AI Fraud Sentinel -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-14, FR-35</span>
+                  <strong>14 • AI Fraud Sentinel phát hiện click ảo & Gian lận tự mua</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/14_AI_Fraud_Sentinel.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#fraud', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/14_AI_Fraud_Sentinel.png" alt="14 AI Fraud Sentinel" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#fraud" loading="lazy"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- HÀNG 3: KHÔNG GIAN QUẢN TRỊ SÀN (SUPER ADMIN - 5 FRAMES)        -->
+        <!-- ============================================================= -->
+        <section class="matrix-row">
+          <div class="matrix-row-header">
+            <span class="matrix-row-tag admin">HÀNG 3 • QUẢN TRỊ SÀN SUPER ADMIN</span>
+            <h2>Phân Hệ Quản Trị Hệ Thống & Vận Hành Sàn SCANMS</h2>
+            <p>Tổng quan Sàn (GMV 24,8 tỷ) $\rightarrow$ Quản lý Gian hàng $\rightarrow$ Người dùng & Duyệt KYC $\rightarrow$ Cổng Ngân hàng VietQR $\rightarrow$ Audit Trail SHA-256.</p>
+          </div>
+
+          <div class="matrix-frames-track">
+            <!-- Frame 15: Admin Dashboard -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">ADM-01</span>
+                  <strong>15 • Tổng quan Sàn (GMV 24,8 tỷ, Doanh thu SaaS 3%)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/15_Tong_Quan_San_Super_Admin.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#admin-dashboard', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/15_Tong_Quan_San_Super_Admin.png" alt="15 Tong Quan San" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#admin-dashboard" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 16: Admin Stores -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">ADM-02</span>
+                  <strong>16 • Quản lý & Duyệt mở Gian hàng mới (Store Onboarding)</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/16_Quan_Ly_Gian_Hang_Moi.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#admin-stores', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/16_Quan_Ly_Gian_Hang_Moi.png" alt="16 Quan Ly Gian Hang" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#admin-stores" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 17: Admin Users -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">ADM-03</span>
+                  <strong>17 • Quản trị Người dùng, Duyệt hồ sơ KYC CCCD & MST</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/17_Nguoi_Dung_Duyet_KYC.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#admin-users', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/17_Nguoi_Dung_Duyet_KYC.png" alt="17 Nguoi Dung KYC" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#admin-users" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 18: Admin Banks -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">ADM-04</span>
+                  <strong>18 • Cổng Ngân hàng Napas247 / VietQR Giám sát Pool 8,4 tỷ</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/18_Cong_Ngan_Hang_Napas.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#admin-banks', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/18_Cong_Ngan_Hang_Napas.png" alt="18 Cong Ngan Hang" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#admin-banks" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 19: Admin Audit -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">ADM-05</span>
+                  <strong>19 • Nhật ký An ninh Audit Trail chuỗi khối SHA-256</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/19_Nhat_Ky_Audit_Trail.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#admin-audit', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/19_Nhat_Ky_Audit_Trail.png" alt="19 Nhat Ky Audit" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#admin-audit" loading="lazy"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- HÀNG 4: CHỨC NĂNG DÙNG CHUNG & KHÁCH MUA (3 FRAMES)             -->
+        <!-- ============================================================= -->
+        <section class="matrix-row">
+          <div class="matrix-row-header">
+            <span class="matrix-row-tag shared">HÀNG 4 • DÙNG CHUNG & KHÁCH MUA</span>
+            <h2>Chức Năng Dùng Chung & Trải Nghiệm Khách Mua Hàng</h2>
+            <p>Tin nhắn Chat trực tiếp Brief $\rightarrow$ Storefront mua hàng ghi nhận Cookie 30 ngày $\rightarrow$ Tra cứu hành trình bưu tá GHN/GHTK.</p>
+          </div>
+
+          <div class="matrix-frames-track">
+            <!-- Frame 20: Chat -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-29, FR-31</span>
+                  <strong>20 • Tin nhắn trực tiếp giữa Shop và KOL trao đổi brief</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/20_Tin_Nhan_Chat_Brief.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#chat', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/20_Tin_Nhan_Chat_Brief.png" alt="20 Tin Nhan Chat" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#chat" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 21: Storefront -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-15, FR-16</span>
+                  <strong>21 • Trang mua hàng Storefront ghi nhận Cookie tiếp thị 30 ngày</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/21_Storefront_Mua_Hang.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#storefront', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/21_Storefront_Mua_Hang.png" alt="21 Storefront Mua Hang" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#storefront" loading="lazy"></iframe>
+              </div>
+            </article>
+
+            <!-- Frame 22: Tracking -->
+            <article class="figma-frame-card">
+              <div class="figma-frame-titlebar">
+                <div class="figma-frame-name">
+                  <span class="figma-frame-badge">FR-17, FR-18</span>
+                  <strong>22 • Tra cứu hành trình giao hàng bưu tá GHN / GHTK</strong>
+                </div>
+                <div class="figma-frame-actions">
+                  <a class="figma-frame-action-btn" href="./figma-exports/22_Tra_Cuu_Van_Don_GHN_GHTK.png" target="_blank" download><i class="ph ph-download-simple"></i> Tải ảnh</a>
+                  <button class="figma-frame-action-btn" onclick="window.open('./index.html#tracking', '_blank')"><i class="ph ph-arrow-square-out"></i> Mở tab</button>
+                </div>
+              </div>
+              <div class="figma-frame-body">
+                <img class="figma-frame-img" src="./figma-exports/22_Tra_Cuu_Van_Don_GHN_GHTK.png" alt="22 Tra Cuu Van Don" loading="lazy" />
+                <iframe class="figma-frame-iframe" src="./index.html#tracking" loading="lazy"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- HƯỚNG DẪN & ĐIỀU HƯỚNG NHANH -->
+    <div class="figma-float-guide">
+      <strong><i class="ph ph-cursor"></i> Thao tác Canvas Figma:</strong>
+      <p>• <strong>Kéo chuột:</strong> Di chuyển toàn bộ khung vẽ (Pan).<br>
+         • <strong>Ctrl + Cuộn chuột:</strong> Thu nhỏ / phóng to tự do.<br>
+         • <strong>Nút 14%:</strong> Ngắm toàn cảnh 22 màn hình theo đúng 4 hàng Figma.<br>
+         • <strong>Nút Tải ảnh:</strong> Tải riêng từng màn hình 1440x1024 sắc nét vào Figma!</p>
+    </div>
+
+    <script>
+      const viewport = document.getElementById("viewport");
+      const content = document.getElementById("canvas-content");
+      const zoomText = document.getElementById("zoom-text");
+
+      let scale = 0.14; // Default 14% to fit all in 1 view
+
+      function applyScale() {
+        content.style.transform = `scale(${scale})`;
+        zoomText.textContent = `${Math.round(scale * 100)}%`;
+      }
+
+      // Switch View Modes: Image (Fast, Crisp) vs Live Iframe (Interactive)
+      const modeImageBtn = document.getElementById("mode-image-btn");
+      const modeLiveBtn = document.getElementById("mode-live-btn");
+
+      modeImageBtn.onclick = () => {
+        document.body.classList.remove("mode-live");
+        modeImageBtn.classList.add("active");
+        modeLiveBtn.classList.remove("active");
+      };
+
+      modeLiveBtn.onclick = () => {
+        document.body.classList.add("mode-live");
+        modeLiveBtn.classList.add("active");
+        modeImageBtn.classList.remove("active");
+      };
+
+      // Zoom presets
+      document.getElementById("btn-zoom-overview").onclick = () => {
+        scale = 0.14;
+        applyScale();
+        viewport.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+        setActiveBtn("btn-zoom-overview");
+      };
+
+      document.getElementById("btn-zoom-medium").onclick = () => {
+        scale = 0.32;
+        applyScale();
+        setActiveBtn("btn-zoom-medium");
+      };
+
+      document.getElementById("btn-zoom-100").onclick = () => {
+        scale = 1.0;
+        applyScale();
+        setActiveBtn("btn-zoom-100");
+      };
+
+      document.getElementById("btn-zoom-in").onclick = () => {
+        if (scale < 1.5) { scale += 0.08; applyScale(); }
+      };
+
+      document.getElementById("btn-zoom-out").onclick = () => {
+        if (scale > 0.08) { scale -= 0.08; applyScale(); }
+      };
+
+      function setActiveBtn(id) {
+        document.querySelectorAll(".figma-controls .figma-btn").forEach(b => b.classList.remove("active"));
+        const target = document.getElementById(id);
+        if (target) target.classList.add("active");
+      }
+
+      // Kéo thả Canvas bằng chuột
+      let isPanning = false;
+      let startX = 0;
+      let startY = 0;
+      let scrollLeft = 0;
+      let scrollTop = 0;
+
+      viewport.addEventListener("mousedown", (e) => {
+        if (e.target.tagName === "IFRAME" || e.target.tagName === "A" || e.target.tagName === "BUTTON") return;
+        isPanning = true;
+        startX = e.pageX - viewport.offsetLeft;
+        startY = e.pageY - viewport.offsetTop;
+        scrollLeft = viewport.scrollLeft;
+        scrollTop = viewport.scrollTop;
+      });
+
+      viewport.addEventListener("mouseleave", () => { isPanning = false; });
+      viewport.addEventListener("mouseup", () => { isPanning = false; });
+
+      viewport.addEventListener("mousemove", (e) => {
+        if (!isPanning) return;
+        e.preventDefault();
+        const x = e.pageX - viewport.offsetLeft;
+        const y = e.pageY - viewport.offsetTop;
+        const walkX = (x - startX) * 1.5;
+        const walkY = (y - startY) * 1.5;
+        viewport.scrollLeft = scrollLeft - walkX;
+        viewport.scrollTop = scrollTop - walkY;
+      });
+
+      // Lăn chuột phóng to / thu nhỏ khi giữ phím Ctrl
+      viewport.addEventListener("wheel", (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          if (e.deltaY < 0 && scale < 1.5) {
+            scale += 0.04;
+          } else if (e.deltaY > 0 && scale > 0.08) {
+            scale -= 0.04;
+          }
+          applyScale();
+        }
+      }, { passive: false });
+
+      // Khởi tạo
+      applyScale();
+    </script>
+  </body>
+</html>
