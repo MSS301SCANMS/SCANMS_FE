@@ -13,6 +13,7 @@ const RedirectHandlerPage = lazy(() => import('../pages/RedirectHandlerPage'));
 
 const UiReferencePage = lazy(() => import('../pages/UiReferencePage'));
 const MarketplacePage = lazy(() => import('../pages/public/MarketplacePage'));
+const BuyerVouchersPage = lazy(() => import('../pages/public/BuyerVouchersPage'));
 
 const ProductManagementPage = lazy(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazy(() => import('../pages/merchant/ShopDashboardPage'));
@@ -62,6 +63,8 @@ function AppRoutes() {
 
         <Route path="/tracking" element={<OrderTrackingPage />} />
         <Route path="/order-tracking" element={<OrderTrackingPage />} />
+        <Route path="/my-orders" element={<OrderTrackingPage />} />
+        <Route path="/my-vouchers" element={<BuyerVouchersPage />} />
 
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

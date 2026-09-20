@@ -6,12 +6,67 @@ export interface UserProfile {
   fullName: string;
   role: 'SYSTEM_ADMIN' | 'SYSTEM_MANAGER' | 'SHOP_MANAGER' | 'COLLABORATOR';
   phoneNumber?: string;
+  address?: string;
+  shippingAddress?: string;
+  addressLine?: string;
+  province?: string;
+  provinceCode?: string | number;
+  district?: string;
+  districtCode?: string | number;
+  ward?: string;
+  wardCode?: string | number;
+  profile?: {
+    phoneNumber?: string;
+    address?: string;
+    shippingAddress?: string;
+    addressLine?: string;
+    province?: string;
+    provinceCode?: string | number;
+    district?: string;
+    districtCode?: string | number;
+    ward?: string;
+    wardCode?: string | number;
+  };
+  addresses?: Array<{
+    isDefault?: boolean;
+    address?: string;
+    addressLine?: string;
+    province?: string;
+    provinceCode?: string | number;
+    district?: string;
+    districtCode?: string | number;
+    ward?: string;
+    wardCode?: string | number;
+  }>;
   stores?: any[];
   collaboratorProfile?: any;
   wallet?: any;
 }
 
 export const authService = {
+  loginFrontendDemoBuyer(): UserProfile {
+    const user: UserProfile = {
+      id: 'frontend-demo-buyer',
+      email: 'user.demo@scanms.local',
+      fullName: 'Người dùng Demo',
+      role: 'COLLABORATOR',
+      phoneNumber: '0901234567',
+      addressLine: '123 Nguyễn Huệ',
+      province: 'Thành phố Hồ Chí Minh',
+      district: 'Quận 1',
+      ward: 'Phường Bến Nghé',
+    };
+    localStorage.setItem('token', 'frontend-demo-buyer-token');
+    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('scanms-current-role', 'customer');
+    localStorage.removeItem('current_store_id');
+    return user;
+  },
+
+  isFrontendDemoSession() {
+    return localStorage.getItem('token') === 'frontend-demo-buyer-token';
+  },
+
   async sendOtp(email: string) {
     return api.post('/auth/send-otp', { email });
   },
@@ -108,5 +163,9 @@ export const authService = {
     } catch {
       return null;
     }
+  },
+
+  isAuthenticated() {
+    return Boolean(localStorage.getItem('token'));
   },
 };

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Sparkles,
   Store,
@@ -20,9 +20,12 @@ import {
 import { authService } from '../../services/auth.service';
 import { triggerGoogleSignIn } from '../../utils/googleAuth';
 import { toast } from '../../utils/toast';
+import { getSafeRedirect } from '../../utils/authRedirect';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = getSafeRedirect(searchParams.get('redirect'));
   const [role, setRole] = useState<'kol' | 'shop' | 'admin'>('kol');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -87,7 +90,9 @@ export default function LoginPage() {
         setSuccessNotice(`Đăng nhập thành công với vai trò ${user?.fullName || targetEmail}!`);
 
         setTimeout(() => {
-          if (user?.role === 'SHOP_MANAGER') {
+          if (returnTo) {
+            navigate(returnTo, { replace: true });
+          } else if (user?.role === 'SHOP_MANAGER') {
             navigate('/merchant/dashboard');
           } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
             navigate('/admin/analytics');
@@ -121,7 +126,9 @@ export default function LoginPage() {
       setSuccessNotice('Đăng nhập thành công! Đang chuyển hướng...');
 
       setTimeout(() => {
-        if (user?.role === 'SHOP_MANAGER') {
+        if (returnTo) {
+          navigate(returnTo, { replace: true });
+        } else if (user?.role === 'SHOP_MANAGER') {
           navigate('/merchant/dashboard');
         } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
           navigate('/admin/analytics');
@@ -151,7 +158,9 @@ export default function LoginPage() {
             role === 'kol' ? 'COLLABORATOR' : role === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
           const res: any = await authService.googleLogin(idToken, apiRole);
           const user = res?.data?.user || res?.user;
-          if (user?.role === 'SHOP_MANAGER') {
+          if (returnTo) {
+            navigate(returnTo, { replace: true });
+          } else if (user?.role === 'SHOP_MANAGER') {
             navigate('/merchant/dashboard');
           } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
             navigate('/admin/analytics');
@@ -169,6 +178,15 @@ export default function LoginPage() {
         setLoading(false);
       }
     );
+  };
+
+  const handleFrontendDemoBuyerLogin = () => {
+    setError(null);
+    setLoading(false);
+    const user = authService.loginFrontendDemoBuyer();
+    setEmail(user.email);
+    setSuccessNotice('Đã đăng nhập tài khoản Người dùng Demo trên frontend.');
+    navigate(returnTo || '/marketplace', { replace: true });
   };
 
   return (
@@ -363,6 +381,31 @@ export default function LoginPage() {
               </div>
             )}
 
+            {import.meta.env.DEV && (
+              <div className="rounded-2xl border-2 border-[#C59B58] bg-[#FBF5EB] p-3.5 shadow-xs">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-sm font-black text-[#1A1612]">Tài khoản Người dùng Demo FE</strong>
+                    <span className="mt-0.5 block text-[11px] text-[#7D715E]">
+                      Có sẵn SĐT và địa chỉ, không cần backend để đăng nhập.
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-[#C59B58] px-2 py-0.5 text-[9px] font-black uppercase text-white">DEV</span>
+                </div>
+                <div className="mb-2 rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 text-[11px] text-[#7D715E]">
+                  <strong className="text-[#1A1612]">user.demo@scanms.local</strong> · 0901234567
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFrontendDemoBuyerLogin}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#C59B58] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#B88E4F]"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Đăng nhập User Demo ngay
+                </button>
+              </div>
+            )}
+
             <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-[11px] font-extrabold text-[#B88E4F] uppercase tracking-wider flex items-center gap-1">
@@ -538,7 +581,7 @@ export default function LoginPage() {
                         Khách mua hàng trực tiếp
                       </strong>
                       <span className="text-[11px] text-[#7D715E] block truncate">
-                        Không cần đăng nhập để đặt mua sản phẩm
+                        Đăng nhập để lưu đơn hàng, voucher và theo dõi giao nhận
                       </span>
                     </div>
                   </div>

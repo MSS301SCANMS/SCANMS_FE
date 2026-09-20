@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search,
   Store,
@@ -30,8 +30,10 @@ import {
   CalendarDays,
   Minus,
   Plus,
+  ZoomIn,
 } from 'lucide-react';
 import api from '../../services/api';
+import { authService } from '../../services/auth.service';
 import { GuestCheckoutModal, type CheckoutProductItem, type CheckoutStoreInfo } from '../../components/checkout/GuestCheckoutModal';
 import {
   marketplaceProducts,
@@ -40,8 +42,13 @@ import {
 import { formatMoney, normalizeSearch } from '../../features/marketplace/marketplaceUtils';
 import type { Product, ReviewVideo } from '../../features/marketplace/marketplace.types';
 import { toast } from '../../utils/toast';
+import { buyerVoucherService } from '../../services/buyer-voucher.service';
+import { buildLoginUrl, hasAuthenticatedSession } from '../../utils/authRedirect';
+import { ProductImageLightbox } from '../../components/common/ProductImageLightbox';
 
 export default function MarketplacePage() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<Product[]>(marketplaceProducts);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -51,6 +58,7 @@ export default function MarketplacePage() {
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
   const [activeVideo, setActiveVideo] = useState<ReviewVideo | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ src: string; alt: string } | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeCheckoutProduct, setActiveCheckoutProduct] = useState<{
     product: CheckoutProductItem;
@@ -62,6 +70,16 @@ export default function MarketplacePage() {
   const [trackQuery, setTrackQuery] = useState('');
   const [trackResult, setTrackResult] = useState<any | null>(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
+  const [recentOrderCode, setRecentOrderCode] = useState(() => {
+    try {
+      const saved =
+        localStorage.getItem('scanms-recent-order') ||
+        localStorage.getItem('scanms-recent-guest-order');
+      return saved ? String(JSON.parse(saved)?.publicOrderCode || '') : '';
+    } catch {
+      return '';
+    }
+  });
 
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
@@ -210,8 +228,18 @@ export default function MarketplacePage() {
     });
   };
 
-  const handleOpenDirectCheckout = (product: Product) => {
-    if (!product.storeId) {
+  const requireLoginForPurchase = () => {
+    if (hasAuthenticatedSession()) return true;
+    toast.info('Vui lòng đăng nhập để mua hàng và theo dõi đơn trong tài khoản.');
+    navigate(buildLoginUrl(`${location.pathname}${location.search}`));
+    return false;
+  };
+
+  const handleOpenDirectCheckout = (product: Product, quantity = 1) => {
+    if (!requireLoginForPurchase()) return;
+    const isDemoSession = authService.isFrontendDemoSession();
+    const checkoutStoreId = product.storeId || (isDemoSession ? 'frontend-demo-store' : undefined);
+    if (!checkoutStoreId) {
       toast.error('Sản phẩm mẫu này chưa được liên kết với gian hàng thật nên chưa thể đặt hàng.');
       return;
     }
@@ -223,14 +251,15 @@ export default function MarketplacePage() {
         price: product.price,
         originalPrice: product.origPrice,
         imageUrl: product.image,
-        stockQuantity: product.stockQuantity || 0,
+        stockQuantity: product.stockQuantity || (isDemoSession ? 99 : 0),
         variants: product.variants,
       },
       store: {
-        id: product.storeId,
+        id: checkoutStoreId,
         name: product.brand,
       },
       couponCode: product.kol?.coupon || '',
+      quantity,
     });
   };
 
@@ -465,7 +494,9 @@ const ROTATING_DEALS: FlashDealProduct[] = [
 ];
 
   const [countdown, setCountdown] = useState({ hours: 2, minutes: 59, seconds: 50 });
-  const [isVoucherSaved, setIsVoucherSaved] = useState(false);
+  const [isVoucherSaved, setIsVoucherSaved] = useState(() =>
+    hasAuthenticatedSession() && buyerVoucherService.isSaved('SCANMS50K'),
+  );
   const [activeDealIndex, setActiveDealIndex] = useState(0);
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
   const [isDealAutoPlayPaused, setIsDealAutoPlayPaused] = useState(false);
@@ -578,9 +609,74 @@ const ROTATING_DEALS: FlashDealProduct[] = [
     };
   }, [currentDeal, currentVariant, heroVoucherId, appliedCustomCoupon]);
 
+  useEffect(() => {
+    const savedCode = new URLSearchParams(location.search).get('voucher')?.trim().toUpperCase();
+    if (!savedCode || !buyerVoucherService.isSaved(savedCode)) return;
+    setCustomCouponInput(savedCode);
+    if (savedCode === 'SCANMS50K') {
+      setHeroVoucherId('platform');
+      setAppliedCustomCoupon({
+        code: savedCode,
+        discountAmount: 50000,
+        description: 'Voucher đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
+      });
+    } else if (savedCode === 'SORASKIN5') {
+      setHeroVoucherId('shop');
+      setAppliedCustomCoupon({
+        code: savedCode,
+        discountAmount: Math.round(currentVariant.origPrice * 0.05),
+        description: 'Voucher Shop đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
+      });
+    } else {
+      setHeroVoucherId('creator');
+      setAppliedCustomCoupon({
+        code: savedCode,
+        discountAmount: Math.round(currentVariant.origPrice * 0.1),
+        description: 'Voucher Creator đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
+      });
+    }
+  }, [location.search, currentVariant.origPrice]);
+
   const handleSaveVoucher = () => {
+    if (!requireLoginForPurchase()) return;
+    buyerVoucherService.save({
+      id: 'platform-scanms50k',
+      code: 'SCANMS50K',
+      title: 'Giảm 50.000₫ cho đơn đủ điều kiện',
+      description: 'Voucher toàn sàn cho đơn từ 250.000₫, được xác thực lại khi thanh toán.',
+      scope: 'PLATFORM',
+      minimumOrderAmount: 250000,
+      expiresAt: '2026-09-30T23:59:59+07:00',
+    });
     setIsVoucherSaved(true);
     toast.success('Đã lưu mã voucher SCANMS50K vào ví của bạn.');
+  };
+
+  const saveHeroVoucher = (scope: 'platform' | 'creator' | 'shop') => {
+    if (!requireLoginForPurchase()) return false;
+    if (scope === 'platform') {
+      handleSaveVoucher();
+      return true;
+    }
+    if (scope === 'creator') {
+      buyerVoucherService.save({
+        id: `creator-${currentDeal.creator.coupon}`,
+        code: currentDeal.creator.coupon,
+        title: 'Giảm 10% từ Creator',
+        description: `Ưu đãi được giới thiệu bởi ${currentDeal.creator.name}, tối đa 50.000₫.`,
+        scope: 'CREATOR',
+      });
+    } else {
+      buyerVoucherService.save({
+        id: 'store-soraskin5',
+        code: 'SORASKIN5',
+        title: 'Giảm 5% tại Sora Skin',
+        description: 'Voucher gian hàng, giảm tối đa 30.000₫.',
+        scope: 'STORE',
+      });
+    }
+    toast.success('Đã lưu voucher vào ví của bạn.');
+    return true;
   };
 
   const handleCopyCoupon = (code: string) => {
@@ -660,6 +756,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
   };
 
   const handleHeroBuyNow = () => {
+    if (!requireLoginForPurchase()) return;
     const targetProduct = items.find(
       (p) =>
         p.id === currentDeal.id ||
@@ -667,7 +764,9 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         p.name.toLowerCase().includes(currentDeal.shortTitle.toLowerCase())
     );
 
-    if (!targetProduct?.storeId) {
+    const isDemoSession = authService.isFrontendDemoSession();
+    const checkoutStoreId = targetProduct?.storeId || (isDemoSession ? 'frontend-demo-store' : undefined);
+    if (!targetProduct || !checkoutStoreId) {
       toast.error('Deal này chưa được liên kết với sản phẩm thật nên chưa thể đặt hàng.');
       return;
     }
@@ -687,11 +786,11 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         price: selectedRealVariant?.price ?? targetProduct.price,
         originalPrice: targetProduct.origPrice,
         imageUrl: currentDeal.images[heroGalleryIndex]?.src || currentDeal.images[0].src,
-        stockQuantity: selectedRealVariant?.stockQuantity ?? targetProduct.stockQuantity ?? 0,
+        stockQuantity: selectedRealVariant?.stockQuantity ?? targetProduct.stockQuantity ?? (isDemoSession ? 99 : 0),
         variants: selectedRealVariant ? [selectedRealVariant] : undefined,
       },
       store: {
-        id: targetProduct.storeId,
+        id: checkoutStoreId,
         name: targetProduct.brand,
       },
       couponCode: heroProductData.activeCoupon,
@@ -773,6 +872,24 @@ const ROTATING_DEALS: FlashDealProduct[] = [
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {hasAuthenticatedSession() && (
+              <>
+                <Link
+                  to="/my-vouchers"
+                  className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition"
+                >
+                  <Gift className="w-4 h-4 text-[#B88E4F]" />
+                  <span>Voucher của tôi</span>
+                </Link>
+                <Link
+                  to="/my-orders"
+                  className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition"
+                >
+                  <Package className="w-4 h-4 text-[#B88E4F]" />
+                  <span>Đơn mua</span>
+                </Link>
+              </>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -1012,7 +1129,23 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         </div>
       </div>
     </div>
-  </header>
+      </header>
+
+      {recentOrderCode && (
+        <div className="border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2.5">
+          <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-[#7A561B]">
+              Đơn hàng vừa đặt: <strong className="font-mono text-[#1A1612]">#{recentOrderCode}</strong>
+            </span>
+            <Link
+              to={`/tracking?sn=${encodeURIComponent(recentOrderCode)}`}
+              className="inline-flex items-center gap-1.5 font-black text-[#8C6226] hover:underline"
+            >
+              <Truck className="h-3.5 w-3.5" /> Theo dõi tiến trình
+            </Link>
+          </div>
+        </div>
+      )}
 
       <section ref={heroSectionRef} className="relative bg-gradient-to-b from-[#F3EFE6] via-[#FAF8F5] to-[#FAF8F5] border-b border-[#EAE4D7] py-8 sm:py-10 overflow-hidden text-left">
         {/* Subtle Luxury Golden Ambient Glow Orbs */}
@@ -1495,7 +1628,9 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                         </div>
                         <button
                           type="button"
-                          onClick={() => setIsVoucherWalletOpen(true)}
+                          onClick={() => {
+                            if (requireLoginForPurchase()) setIsVoucherWalletOpen(true);
+                          }}
                           className="text-[11px] font-bold text-[#7D715E] hover:text-[#B88E4F] flex items-center gap-0.5 transition cursor-pointer"
                         >
                           <span>Xem tất cả voucher</span>
@@ -1883,7 +2018,12 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 className="bg-white border border-[#EAE4D7] rounded-2xl overflow-hidden shadow-2xs hover:shadow-md hover:border-[#C59B58]/80 transition duration-200 flex flex-col justify-between group"
               >
                 <div>
-                  <div className="relative aspect-square bg-[#FAF8F5] overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setImagePreview({ src: p.image, alt: p.name })}
+                    aria-label={`Xem ảnh lớn ${p.name}`}
+                    className="relative aspect-square w-full bg-[#FAF8F5] overflow-hidden cursor-zoom-in text-left"
+                  >
                     <img
                       src={p.image}
                       alt={p.name}
@@ -1898,7 +2038,10 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                     <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-black border border-rose-200">
                       -15%
                     </span>
-                  </div>
+                    <span className="absolute bottom-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100">
+                      <ZoomIn className="h-4 w-4" />
+                    </span>
+                  </button>
 
                   <div className="p-4 flex flex-col gap-2 text-left">
                     <div className="flex items-center justify-between text-[11px] text-[#7D715E]">
@@ -2248,7 +2391,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                   type="button"
                   onClick={() => {
                     setIsCartOpen(false);
-                    handleOpenDirectCheckout(cart[0].product);
+                    handleOpenDirectCheckout(cart[0].product, cart[0].quantity);
                   }}
                   className="w-full py-3 rounded-xl bg-[#C59B58] text-white text-xs sm:text-sm font-black hover:bg-[#B88E4F] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -2367,7 +2510,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <div>
                   <strong className="block font-bold">Ưu Đãi Độc Quyền Trừ Thẳng Vào Đơn</strong>
                   <span className="text-[#7D715E] mt-0.5 block leading-relaxed">
-                    Mã voucher từ các Nhà sáng tạo (KOL) được trừ trực tiếp vào hóa đơn thanh toán COD hoặc VietQR, minh bạch và không phát sinh phụ phí.
+                    Mã voucher từ các Nhà sáng tạo (KOL) được trừ trực tiếp vào hóa đơn thanh toán VietQR, minh bạch và không phát sinh phụ phí.
                   </span>
                 </div>
               </div>
@@ -2393,10 +2536,18 @@ const ROTATING_DEALS: FlashDealProduct[] = [
           initialQuantity={activeCheckoutProduct.quantity}
           initialCouponCode={activeCheckoutProduct.couponCode}
           onOrderPlaced={(order) => {
+            if (order?.publicOrderCode) setRecentOrderCode(order.publicOrderCode);
             toast.success(`Đặt hàng thành công! Mã đơn: ${order?.publicOrderCode || order?.orderId}`);
           }}
         />
       )}
+
+      <ProductImageLightbox
+        isOpen={Boolean(imagePreview)}
+        imageUrl={imagePreview?.src || '/assets/product-placeholder.svg'}
+        alt={imagePreview?.alt || 'Sản phẩm'}
+        onClose={() => setImagePreview(null)}
+      />
 
       {/* Quick Video Review Modal */}
       {isQuickVideoOpen && (
@@ -2488,8 +2639,8 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                   <Gift className="w-5 h-5 text-[#B88E4F]" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0">Ví Voucher Ưu Đãi SCANMS</h3>
-                  <span className="text-xs text-[#7D715E]">Chọn voucher tốt nhất áp dụng cho sản phẩm này</span>
+                  <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0">Săn Voucher Ưu Đãi SCANMS</h3>
+                  <span className="text-xs text-[#7D715E]">Lưu voucher vào tài khoản rồi áp dụng cho sản phẩm</span>
                 </div>
               </div>
               <button
@@ -2519,6 +2670,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
+                    if (!saveHeroVoucher('platform')) return;
                     setHeroVoucherId('platform');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher toàn sàn SCANMS50K!');
@@ -2529,7 +2681,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'platform' ? 'Đang dùng' : 'Áp dụng'}
+                  {heroVoucherId === 'platform' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
                 </button>
               </div>
 
@@ -2550,6 +2702,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
+                    if (!saveHeroVoucher('creator')) return;
                     setHeroVoucherId('creator');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher Creator NHATXINH10!');
@@ -2560,7 +2713,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'creator' ? 'Đang dùng' : 'Áp dụng'}
+                  {heroVoucherId === 'creator' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
                 </button>
               </div>
 
@@ -2581,6 +2734,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
+                    if (!saveHeroVoucher('shop')) return;
                     setHeroVoucherId('shop');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher Shop SORASKIN5!');
@@ -2591,7 +2745,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'shop' ? 'Đang dùng' : 'Áp dụng'}
+                  {heroVoucherId === 'shop' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
                 </button>
               </div>
             </div>
@@ -2603,6 +2757,13 @@ const ROTATING_DEALS: FlashDealProduct[] = [
             >
               Hoàn tất
             </button>
+            <Link
+              to="/my-vouchers"
+              onClick={() => setIsVoucherWalletOpen(false)}
+              className="mt-2 flex w-full items-center justify-center py-2 text-xs font-bold text-[#8C6226] hover:underline"
+            >
+              Mở trang Ví voucher của tôi
+            </Link>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ShoppingBag,
   ShieldCheck,
@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
+import { ProductImageLightbox } from '../components/common/ProductImageLightbox';
+import { buildLoginUrl, hasAuthenticatedSession } from '../utils/authRedirect';
+import { toast } from '../utils/toast';
 
 
 const SCANMS_PLACEHOLDER =
@@ -154,6 +157,8 @@ function trackAnalytics(eventName: string, payload?: Record<string, any>) {
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [analyticsConsent, setAnalyticsConsent] = useState<string | null>(() =>
     typeof window === 'undefined'
       ? null
@@ -192,6 +197,17 @@ export default function ProductDetailPage() {
 
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isImageOpen, setIsImageOpen] = useState(false);
+
+  const openCheckout = (productId: string, source = 'product_detail') => {
+    if (!hasAuthenticatedSession()) {
+      toast.info('Vui lòng đăng nhập để mua hàng và theo dõi đơn trong tài khoản.');
+      navigate(buildLoginUrl(`${location.pathname}${location.search}`));
+      return;
+    }
+    setIsCheckoutOpen(true);
+    trackAnalytics('cta_click', { productId, source });
+  };
 
 
   useEffect(() => {
@@ -674,19 +690,19 @@ export default function ProductDetailPage() {
 
 
             <Link
-              to="/login"
+              to={hasAuthenticatedSession() ? '/my-orders' : buildLoginUrl(`${location.pathname}${location.search}`)}
               className="h-8 px-3 rounded-full bg-white hover:bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#C59B58] text-[#7D715E] hover:text-[#1A1612] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs"
-              title="Đăng nhập Cổng Quản Trị / Đối Tác Tiếp Thị"
+              title={hasAuthenticatedSession() ? 'Xem đơn hàng của tôi' : 'Đăng nhập tài khoản'}
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-              <span className="hidden sm:inline">Cổng Đối Tác</span>
+              <span className="hidden sm:inline">{hasAuthenticatedSession() ? 'Đơn mua' : 'Đăng nhập'}</span>
             </Link>
 
 
             <button
               type="button"
               onClick={() => {
-                setIsCheckoutOpen(true);
+                openCheckout(product.id, 'header');
                 trackAnalytics('checkout_start', { productId: product.id });
               }}
               className="h-8 px-4 bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A67D3E] text-white text-xs font-extrabold rounded-full shadow-xs hover:shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer border border-[#B88E4F]"
@@ -718,7 +734,12 @@ export default function ProductDetailPage() {
 
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-6 border-b lg:border-b-0 lg:border-r border-[#EAE4D7] pb-6 lg:pb-0">
 
-            <div className="aspect-square bg-[#F3EFE6] rounded-2xl overflow-hidden border border-[#EAE4D7] relative group">
+            <button
+              type="button"
+              onClick={() => setIsImageOpen(true)}
+              aria-label={`Xem ảnh lớn ${product.title}`}
+              className="aspect-square w-full bg-[#F3EFE6] rounded-2xl overflow-hidden border border-[#EAE4D7] relative group cursor-zoom-in text-left"
+            >
               <img
                 src={gallery[selectedImageIndex] || SCANMS_PLACEHOLDER}
                 alt={product.title}
@@ -740,7 +761,10 @@ export default function ProductDetailPage() {
                   </span>
                 </div>
               )}
-            </div>
+              <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100">
+                <Maximize2 className="h-3.5 w-3.5" /> Xem ảnh lớn
+              </span>
+            </button>
 
 
             {gallery.length > 1 && (
@@ -997,8 +1021,7 @@ export default function ProductDetailPage() {
                 type="button"
                 disabled={!availability.inStock || !product.canPurchase || !product.isActive || product.status === 'INACTIVE'}
                 onClick={() => {
-                  setIsCheckoutOpen(true);
-                  trackAnalytics('cta_click', { productId: product.id });
+                  openCheckout(product.id, 'main_cta');
                 }}
                 className="w-full py-4 px-6 bg-[#C59B58] hover:bg-[#B88E4F] disabled:bg-[#EAE4D7] disabled:text-[#7D715E] disabled:cursor-not-allowed text-white font-extrabold text-base rounded-2xl shadow-md hover:shadow-lg shadow-[#C59B58]/20 flex items-center justify-center gap-2 active:scale-98 transition-all"
               >
@@ -1254,11 +1277,7 @@ export default function ProductDetailPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setIsCheckoutOpen(true);
-                      trackAnalytics('cta_click', {
-                        productId: product.id,
-                        source: 'video_card',
-                      });
+                      openCheckout(product.id, 'video_card');
                     }}
                     className="w-full p-3 bg-gradient-to-r from-[#FAF8F5] via-[#FBF5EB] to-[#F3EFE6] hover:from-[#F3EFE6] hover:to-[#EEDFC6] border border-[#DEBE85] hover:border-[#B88E4F] rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 shadow-xs hover:shadow-md hover:shadow-[#C59B58]/15 group cursor-pointer text-left"
                   >
@@ -1459,11 +1478,7 @@ export default function ProductDetailPage() {
           type="button"
           disabled={!availability.inStock}
           onClick={() => {
-            setIsCheckoutOpen(true);
-            trackAnalytics('cta_click', {
-              productId: product.id,
-              source: 'mobile_sticky',
-            });
+            openCheckout(product.id, 'mobile_sticky');
           }}
           className="px-6 py-2.5 bg-[#C59B58] hover:bg-[#B88E4F] disabled:bg-[#EAE4D7] text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 active:scale-98 transition-all"
         >
@@ -1503,6 +1518,12 @@ export default function ProductDetailPage() {
           }}
         />
       )}
+      <ProductImageLightbox
+        isOpen={isImageOpen}
+        imageUrl={gallery[selectedImageIndex] || SCANMS_PLACEHOLDER}
+        alt={product.title}
+        onClose={() => setIsImageOpen(false)}
+      />
     </div>
   );
 }

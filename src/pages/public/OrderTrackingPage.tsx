@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, Navigate, useLocation } from "react-router-dom";
 import {
   ProductReviewModal,
   type ProductReviewTarget,
@@ -24,6 +24,9 @@ import {
 import api from "../../services/api";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { authService } from "../../services/auth.service";
+import { demoOrderService } from "../../services/demo-order.service";
+import { hasAuthenticatedSession } from "../../utils/authRedirect";
 
 interface OrderItem {
   id: string;
@@ -78,6 +81,8 @@ interface OrderData {
 }
 
 export default function OrderTrackingPage() {
+  const location = useLocation();
+  const isMyOrdersPage = location.pathname === "/my-orders";
   const [searchParams, setSearchParams] = useSearchParams();
   const validParam = (value: string | null) => {
     const normalized = value?.trim() || "";
@@ -87,19 +92,23 @@ export default function OrderTrackingPage() {
   };
   const getRecentOrderCode = () => {
     try {
-      const saved = localStorage.getItem("scanms-recent-guest-order");
+      const saved =
+        localStorage.getItem("scanms-recent-order") ||
+        localStorage.getItem("scanms-recent-guest-order");
       const parsed = saved ? JSON.parse(saved) : null;
       return validParam(parsed?.publicOrderCode || null);
     } catch {
       return "";
     }
   };
-  const initialPhone = validParam(searchParams.get("phone"));
+  const profilePhone = authService.getCurrentUser()?.phoneNumber || "";
+  const initialPhone =
+    validParam(searchParams.get("phone")) || (isMyOrdersPage ? profilePhone : "");
   // `orderSn` được giữ để các liên kết cũ vẫn hoạt động.
   const initialSn =
     validParam(searchParams.get("sn")) ||
     validParam(searchParams.get("orderSn")) ||
-    getRecentOrderCode();
+    (isMyOrdersPage ? "" : getRecentOrderCode());
 
   const [phoneInput, setPhoneInput] = useState(initialPhone);
   const [orderSnInput, setOrderSnInput] = useState(initialSn);
@@ -123,12 +132,29 @@ export default function OrderTrackingPage() {
     (phoneValue?: string, orderSnValue?: string) => Promise<void>
   >(() => Promise.resolve());
 
-
   useEffect(() => {
     if (initialPhone || initialSn) {
       handleSearchRef.current(initialPhone, initialSn);
     }
   }, [initialPhone, initialSn]);
+
+  useEffect(() => {
+    if (!isMyOrdersPage || initialPhone || !hasAuthenticatedSession()) return;
+    void authService
+      .getMe()
+      .then((profile) => {
+        const phone = profile.phoneNumber?.trim();
+        if (!phone) {
+          setErrorMessage("Hồ sơ chưa có số điện thoại. Vui lòng bổ sung số điện thoại để xem đơn mua.");
+          return;
+        }
+        setPhoneInput(phone);
+        void handleSearchRef.current(phone, "");
+      })
+      .catch(() => {
+        setErrorMessage("Không thể tải hồ sơ để tra cứu đơn mua lúc này.");
+      });
+  }, [initialPhone, isMyOrdersPage]);
 
   const handleSearch = async (phoneValue?: string, orderSnValue?: string) => {
     const phone = (phoneValue !== undefined ? phoneValue : phoneInput).trim();
@@ -150,6 +176,14 @@ export default function OrderTrackingPage() {
       if (phone) params.phone = phone;
       if (orderSn) params.orderSn = orderSn;
       setSearchParams(params);
+
+      if (authService.isFrontendDemoSession()) {
+        const demoOrders = demoOrderService.search(phone || undefined, orderSn || undefined);
+        if (sequence === searchSequence.current) {
+          setOrders(demoOrders as OrderData[]);
+        }
+        return;
+      }
 
       const res: any = await api.get("/orders/track", { params });
       if (sequence !== searchSequence.current) return;
@@ -259,6 +293,10 @@ export default function OrderTrackingPage() {
       },
     ];
   };
+
+  if (isMyOrdersPage && !hasAuthenticatedSession()) {
+    return <Navigate to="/login?redirect=%2Fmy-orders" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-left flex flex-col font-sans overflow-x-clip relative">
