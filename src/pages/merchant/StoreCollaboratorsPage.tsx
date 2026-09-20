@@ -21,7 +21,7 @@ export default function StoreCollaboratorsPage() {
   const [storeId, setStoreId] = useState('');
   const [members, setMembers] = useState<Member[]>([]);
   const [storeName, setStoreName] = useState('Cửa hàng');
-  const [email, setEmail] = useState('demo@scanms.vn');
+  const [email, setEmail] = useState('');
   const [showInvite, setShowInvite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -66,7 +66,7 @@ export default function StoreCollaboratorsPage() {
 
   return (
     <div className="min-h-screen bg-[#faf8f5] p-7 text-[#1a1612]">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-[1520px]">
         <div className="mb-6 flex items-center justify-between">
           <div><h1 className="text-3xl font-extrabold">Quản lý Đội ngũ Cộng tác viên</h1><p className="mt-2 text-[#7d715e]">KOL/CTV liên kết thực tế với {storeName}</p></div>
           <button onClick={() => setShowInvite(true)} className="rounded-xl bg-[#cfa75d] px-5 py-3 font-bold text-white">＋ Mời KOL mới</button>
@@ -82,3 +82,4 @@ export default function StoreCollaboratorsPage() {
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, RefreshCw, Store, ExternalLink } from 'lucide-react';
+import { LogIn, LogOut, RefreshCw, Store, ExternalLink, ChevronRight } from 'lucide-react';
 import { NAVIGATION_BY_ROLE } from '../../config/navigation.config';
 import type { UserProfile } from '../../services/auth.service';
 
@@ -15,11 +15,84 @@ export function Sidebar({ currentUser, onOpenRoleSwitcher, onLogout }: SidebarPr
 
   const role = currentUser?.role || 'COLLABORATOR';
   const navConfig = NAVIGATION_BY_ROLE[role] || NAVIGATION_BY_ROLE.COLLABORATOR;
+  const roleLabel = {
+    COLLABORATOR: 'Cộng tác viên / KOL',
+    SHOP_MANAGER: 'Chủ gian hàng',
+    SYSTEM_MANAGER: 'Vận hành hệ thống',
+    SYSTEM_ADMIN: 'Quản trị hệ thống',
+  }[role] || 'Người dùng';
 
   const isLinkActive = (path: string) => {
     if (path === '/' || path === '/collaborator/dashboard') {
       return currentPath === '/' || currentPath === '/collaborator/dashboard';
     }
+
+    if (path === '/collaborator/marketing') {
+      return (
+        currentPath.startsWith('/collaborator/marketing') ||
+        currentPath.startsWith('/collaborator/referral-links') ||
+        currentPath.startsWith('/collaborator/links') ||
+        currentPath.startsWith('/collaborator/media-hub') ||
+        currentPath.startsWith('/collaborator/coupons')
+      );
+    }
+
+    if (path === '/collaborator/collaboration') {
+      return (
+        currentPath.startsWith('/collaborator/collaboration') ||
+        currentPath.startsWith('/collaborator/sample-requests') ||
+        currentPath.startsWith('/collaborator/samples') ||
+        currentPath.startsWith('/collaborator/messages') ||
+        currentPath.startsWith('/collaborator/campaigns') ||
+        currentPath === '/chat'
+      );
+    }
+
+    if (path === '/collaborator/profile') {
+      return (
+        currentPath.startsWith('/collaborator/profile') ||
+        currentPath.startsWith('/collaborator/kyc') ||
+        currentPath.startsWith('/collaborator/social-channels') ||
+        currentPath.startsWith('/collaborator/tiers') ||
+        currentPath.startsWith('/collaborator/bonus-progress')
+      );
+    }
+
+    if (path === '/merchant/kol-hub') {
+      return (
+        currentPath.startsWith('/merchant/kol-hub') ||
+        currentPath.startsWith('/merchant/sample-requests') ||
+        currentPath.startsWith('/merchant/kol-recommendations') ||
+        currentPath.startsWith('/merchant/collaborators') ||
+        currentPath.startsWith('/merchant/messages')
+      );
+    }
+
+    if (path === '/merchant/promotions') {
+      return (
+        currentPath.startsWith('/merchant/promotions') ||
+        currentPath.startsWith('/merchant/coupons') ||
+        currentPath.startsWith('/merchant/commission-rules') ||
+        currentPath.startsWith('/merchant/referral-links')
+      );
+    }
+
+    if (path === '/admin/affiliate-oversight') {
+      return (
+        currentPath.startsWith('/admin/affiliate-oversight') ||
+        currentPath.startsWith('/admin/referral-links') ||
+        currentPath.startsWith('/admin/coupons')
+      );
+    }
+
+    if (path === '/admin/analytics') {
+      return (
+        currentPath.startsWith('/admin/analytics') ||
+        currentPath.startsWith('/admin/leaderboard') ||
+        currentPath.startsWith('/admin/kol-recommendations')
+      );
+    }
+
     return currentPath === path || currentPath.startsWith(`${path}/`);
   };
 
@@ -67,17 +140,22 @@ export function Sidebar({ currentUser, onOpenRoleSwitcher, onLogout }: SidebarPr
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+              className={`group flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] focus-visible:ring-offset-1 ${
                 active
                   ? 'bg-[#B88E4F] text-white shadow-xs font-bold'
-                  : 'text-[#4A3E2D] hover:text-[#1A1612] hover:bg-[#EAE4D7]/70'
+                  : 'text-[#4A3E2D] hover:bg-[#EAE4D7]/70 hover:text-[#1A1612]'
               }`}
             >
-              <Icon
-                className={`w-4 h-4 shrink-0 ${
-                  active ? 'text-white' : 'text-[#7D715E]'
+              <span
+                className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-all duration-200 ${
+                  active
+                    ? 'border-white/25 bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
+                    : 'border-[#E4D3B7] bg-[#FBF5EB] text-[#8A662C] group-hover:border-[#C59B58] group-hover:bg-[#F5E7CC] group-hover:text-[#6F4E1D]'
                 }`}
-              />
+                aria-hidden="true"
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </span>
               <span className="flex-1 truncate text-xs">{item.label}</span>
               {item.numBadge && (
                 <span
@@ -97,10 +175,22 @@ export function Sidebar({ currentUser, onOpenRoleSwitcher, onLogout }: SidebarPr
         <button
           type="button"
           onClick={onOpenRoleSwitcher}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-[#8A662C] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F5E7CC] transition cursor-pointer text-left shadow-2xs"
+          aria-label={`Chuyển vai trò. Vai trò hiện tại: ${roleLabel}`}
+          title="Chọn không gian làm việc khác"
+          className="group flex w-full items-center gap-2.5 rounded-xl border border-[#E4D3B7] bg-white px-2.5 py-2 text-left shadow-[0_2px_8px_rgba(91,65,28,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-[#C59B58] hover:bg-[#FBF5EB] hover:shadow-[0_5px_14px_rgba(91,65,28,0.10)] active:translate-y-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] focus-visible:ring-offset-2"
         >
-          <RefreshCw className="w-3.5 h-3.5 text-[#8A662C] shrink-0" />
-          <span>Đổi vai trò Demo</span>
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#FBF5EB] text-[#B88E4F] ring-1 ring-[#EEDFC6] transition-colors group-hover:bg-[#C59B58] group-hover:text-white">
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-extrabold leading-tight text-[#1A1612]">
+              Chuyển vai trò
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] font-medium leading-tight text-[#7D715E]">
+              Hiện tại: {roleLabel}
+            </span>
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#A49B8B] transition-transform group-hover:translate-x-0.5 group-hover:text-[#B88E4F]" aria-hidden="true" />
         </button>
 
         {currentUser ? (

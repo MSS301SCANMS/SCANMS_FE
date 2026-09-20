@@ -68,3 +68,81 @@ test('FR16 reference UI submits checkout to backend and never fabricates success
   assert.doesNotMatch(checkout, /trackingNum/);
   assert.doesNotMatch(checkout, /localStorage\.setItem/);
 });
+
+test('FR16 React checkout only submits a backend-validated coupon and reads unwrapped API data', () => {
+  const source = readFileSync(
+    new URL('../src/components/checkout/GuestCheckoutModal.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /couponCode: appliedCoupon\?\.code \|\| undefined/);
+  assert.doesNotMatch(source, /couponCode: appliedCoupon \? appliedCoupon\.code : couponCode\.trim\(\)/);
+  assert.match(source, /rawResponse\?\.data\?\.data \|\| rawResponse\?\.data \|\| rawResponse/);
+  assert.match(source, /err\?\.response\?\.status === 429/);
+  assert.match(source, /customerEmail: customerEmail\.trim\(\)\.toLowerCase\(\) \|\| undefined/);
+  assert.match(source, /Email nhận mã đơn/);
+});
+
+test('guest checkout keeps a recent public order code and tracking link after closing success modal', () => {
+  const checkout = readFileSync(new URL('../src/components/checkout/GuestCheckoutModal.tsx', import.meta.url), 'utf8');
+  const marketplace = readFileSync(new URL('../src/pages/public/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.match(checkout, /to=\{`\/tracking\?sn=/);
+  assert.match(checkout, /localStorage\.setItem\(\s*'scanms-recent-guest-order'/);
+  assert.match(marketplace, /scanms-recent-guest-order/);
+  assert.match(marketplace, /Đơn hàng vừa đặt/);
+  assert.match(marketplace, /to=\{`\/tracking\?sn=/);
+  assert.doesNotMatch(marketplace, /cancellationToken.*localStorage/);
+});
+
+test('tracking accepts old links, rejects undefined values and falls back to the recent order', () => {
+  const tracking = readFileSync(new URL('../src/pages/public/OrderTrackingPage.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /searchParams\.get\("orderSn"\)/);
+  assert.match(tracking, /getRecentOrderCode\(\)/);
+  assert.match(tracking, /normalized\.toLowerCase\(\) === "undefined"/);
+});
+
+test('store-scoped referral links select the Shop token before the generic KOL rule', () => {
+  const source = readFileSync(new URL('../src/services/api.ts', import.meta.url), 'utf8');
+  const shopRule = source.indexOf("return 'SHOP_MANAGER';", source.indexOf('/\\/stores\\/'));
+  const genericReferralRule = source.indexOf("reqUrl.includes('/referral-links')");
+  assert(shopRule >= 0, 'missing store-scoped referral-link role rule');
+  assert(genericReferralRule >= 0, 'missing generic referral-link role rule');
+  assert(shopRule < genericReferralRule, 'Shop rule must run before generic KOL rule');
+});
+
+test('Marketplace preserves the backend store relationship when opening checkout', () => {
+  const source = readFileSync(new URL('../src/pages/public/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /storeId: dbP\.store\?\.id/);
+  assert.match(source, /id: product\.storeId/);
+  assert.doesNotMatch(source, /id: 'store-1'/);
+  assert.match(source, /stockQuantity: product\.stockQuantity \|\| 0/);
+});
+
+test('Marketplace deal spotlight uses real stock and carries selected quantity into checkout', () => {
+  const source = readFileSync(new URL('../src/pages/public/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /activeStock = Number\(activeSpotlight\?\.product\.stockQuantity \|\| 0\)/);
+  assert.match(source, /handleOpenDirectCheckout\(activeSpotlight\.product, spotlightQuantity\)/);
+  assert.match(source, /initialQuantity=\{activeCheckoutProduct\.initialQuantity \|\| 1\}/);
+  assert.doesNotMatch(source, /soldRatios\s*=/);
+  assert.doesNotMatch(source, /ĐÃ BÁN \{activeSpotlight\.soldCount\}/);
+});
+
+test('global sidebar uses production role-switching copy instead of Demo wording', () => {
+  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(source, />\s*Chuyển vai trò\s*</);
+  assert.match(source, /Hiện tại: \{roleLabel\}/);
+  assert.doesNotMatch(source, /Đổi vai trò Demo/i);
+});
+
+test('every sidebar navigation function renders its icon inside a consistent tile', () => {
+  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(source, /grid h-7 w-7 shrink-0 place-items-center rounded-lg border/);
+  assert.match(source, /border-white\/25 bg-white\/15 text-white/);
+  assert.match(source, /border-\[#E4D3B7\] bg-\[#FBF5EB\]/);
+});
+
+test('sidebar function rows stay flat while icons retain their own frames', () => {
+  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(source, /group flex items-center gap-2\.5 rounded-xl px-2 py-1\.5/);
+  assert.doesNotMatch(source, /border-\[#E4D8C5\] bg-white\/75/);
+  assert.match(source, /grid h-7 w-7 shrink-0 place-items-center rounded-lg border/);
+});

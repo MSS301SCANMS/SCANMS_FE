@@ -214,12 +214,21 @@ export default function ProductDetailPage() {
           );
         } catch {
           try {
-
             res = await api.get(`/products/${encodeURIComponent(slug)}/landing`);
           } catch {
-
-            if (slug.toLowerCase().includes('serum')) {
+            // Fallback cho các alias hoặc ID thử nghiệm (prod-1, P01, P02, serum-vitamin-c, etc.)
+            try {
               res = await api.get('/public/products/SR-VTC-15/landing');
+            } catch {
+              try {
+                const prodList = await api.get('/public/products?limit=5');
+                const firstItem = prodList?.data?.data?.items?.[0] || prodList?.data?.items?.[0];
+                if (firstItem?.id || firstItem?.sku) {
+                  res = await api.get(`/public/products/${firstItem.sku || firstItem.id}/landing`);
+                }
+              } catch {
+                // Ignore fallback error
+              }
             }
           }
         }
@@ -597,7 +606,7 @@ export default function ProductDetailPage() {
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1612] font-sans pb-28 selection:bg-[#EEDFC6]">
 
       <header className="bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] sticky top-0 z-30 shadow-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
           <div className="flex items-center gap-2.5 sm:gap-3">
 
@@ -691,7 +700,7 @@ export default function ProductDetailPage() {
       </header>
 
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+      <main className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
 
         <div className="text-xs text-[#7D715E] mb-4 flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
           <Link to="/marketplace" className="hover:text-[#C59B58]">

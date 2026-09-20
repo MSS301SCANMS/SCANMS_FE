@@ -3,7 +3,6 @@ import {
   Share2,
   Users,
   Star,
-  Wallet,
   Search,
   Plus,
   RotateCcw,
@@ -16,15 +15,10 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { socialService, type SocialChannel } from '../../services/social.service';
-import { authService } from '../../services/auth.service';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
 export default function SocialChannelsPage() {
-  const currentUser = authService.getCurrentUser();
-  const isThang = currentUser?.fullName?.includes('Thắng') || currentUser?.email === 'kol1@scanms.vn';
-  const ownerName = isThang ? 'Thắng' : 'Nhật';
-  const ownerHandle = isThang ? 'thang' : 'nhat';
 
   const [channels, setChannels] = useState<SocialChannel[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -89,53 +83,7 @@ export default function SocialChannelsPage() {
     }
   };
 
-  const displayChannels = channels.length > 0 ? channels : [
-    {
-      id: 'c1',
-      platformName: 'TIKTOK',
-      channelName: `${ownerName} Review Mỹ Phẩm & Skincare`,
-      channelUrl: `https://tiktok.com/@${ownerHandle}affiliate.official`,
-      followerCount: 184200,
-      isPrimary: true,
-      verifiedAt: '2026-09-01',
-    },
-    {
-      id: 'c2',
-      platformName: 'FACEBOOK',
-      channelName: `${ownerName} Review Hàng Chính Hãng`,
-      channelUrl: `https://facebook.com/${ownerHandle}reviewofficial`,
-      followerCount: 68450,
-      isPrimary: false,
-      verifiedAt: '2026-09-02',
-    },
-    {
-      id: 'c3',
-      platformName: 'YOUTUBE',
-      channelName: `${ownerName} Tech & Lifestyle Affiliate`,
-      channelUrl: `https://youtube.com/@${ownerHandle}channelvn`,
-      followerCount: 48200,
-      isPrimary: false,
-      verifiedAt: null,
-    },
-    {
-      id: 'c4',
-      platformName: 'INSTAGRAM',
-      channelName: `${ownerName} Creator & Deals`,
-      channelUrl: `https://instagram.com/${ownerHandle}.deals`,
-      followerCount: 24500,
-      isPrimary: false,
-      verifiedAt: null,
-    },
-    {
-      id: 'c5',
-      platformName: 'THREADS',
-      channelName: `${ownerName} Daily Skincare Blog`,
-      channelUrl: 'https://threads.net/@thang.daily',
-      followerCount: 16800,
-      isPrimary: false,
-      verifiedAt: null,
-    },
-  ];
+  const displayChannels = channels;
 
   const filtered = displayChannels.filter((c) => {
     const matchSearch =
@@ -145,6 +93,10 @@ export default function SocialChannelsPage() {
       filterPlatform === 'ALL' || c.platformName === filterPlatform;
     return matchSearch && matchPlatform;
   });
+
+  const totalFollowers = channels.reduce((sum, c) => sum + (c.followerCount || 0), 0);
+  const verifiedChannelsCount = channels.filter((c: any) => c.verifiedAt).length;
+  const primaryChannel = channels.find((c) => c.isPrimary) || channels[0];
 
   const getPlatformBadge = (plat: string) => {
     switch (plat.toUpperCase()) {
@@ -209,7 +161,7 @@ export default function SocialChannelsPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4 flex flex-col justify-between gap-2 bg-white">
           <div className="flex justify-between items-center">
             <span className="text-xs text-[#7D715E] font-medium">Tổng kênh liên kết</span>
@@ -218,9 +170,11 @@ export default function SocialChannelsPage() {
             </div>
           </div>
           <strong className="text-2xl font-extrabold text-[#1A1612]">
-            5 <span className="text-sm font-normal text-[#7D715E]">kênh</span>
+            {channels.length} <span className="text-sm font-normal text-[#7D715E]">kênh</span>
           </strong>
-          <span className="text-[11px] text-emerald-600 font-semibold">2 kênh đã xác minh API / tick xanh</span>
+          <span className="text-[11px] text-emerald-600 font-semibold">
+            {verifiedChannelsCount > 0 ? `${verifiedChannelsCount} kênh đã xác minh` : 'Chưa có kênh xác minh'}
+          </span>
         </Card>
 
         <Card className="p-4 flex flex-col justify-between gap-2 bg-white">
@@ -230,8 +184,10 @@ export default function SocialChannelsPage() {
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <strong className="text-2xl font-extrabold text-[#1A1612]">368.7K</strong>
-          <span className="text-[11px] text-[#7D715E]">Độ phủ trên 5 nền tảng MXH</span>
+          <strong className="text-2xl font-extrabold text-[#1A1612]">
+            {totalFollowers >= 1000 ? `${(totalFollowers / 1000).toFixed(1)}K` : totalFollowers.toString()}
+          </strong>
+          <span className="text-[11px] text-[#7D715E]">Độ phủ nội dung trên mạng xã hội</span>
         </Card>
 
         <Card className="p-4 flex flex-col justify-between gap-2 bg-white">
@@ -241,19 +197,12 @@ export default function SocialChannelsPage() {
               <Star className="w-4 h-4 fill-current" />
             </div>
           </div>
-          <strong className="text-base font-extrabold text-[#1A1612] truncate">@{ownerHandle}affiliate.official</strong>
-          <span className="text-[11px] text-[#7D715E]">TikTok • 184.2K followers</span>
-        </Card>
-
-        <Card className="p-4 flex flex-col justify-between gap-2 bg-white">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-[#7D715E] font-medium">Tổng GMV từ các kênh</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <strong className="text-2xl font-extrabold text-[#B88E4F]">380.800.000 ₫</strong>
-          <span className="text-[11px] text-[#7D715E]">Hoa hồng ròng: 50.950.000 ₫</span>
+          <strong className="text-base font-extrabold text-[#1A1612] truncate">
+            {primaryChannel?.channelName || 'Chưa thiết lập'}
+          </strong>
+          <span className="text-[11px] text-[#7D715E]">
+            {primaryChannel ? `${primaryChannel.platformName} • ${(primaryChannel.followerCount || 0).toLocaleString('vi-VN')} followers` : 'Bấm thêm kênh để liên kết'}
+          </span>
         </Card>
       </div>
 
@@ -289,106 +238,114 @@ export default function SocialChannelsPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.map((c, idx) => (
-          <Card key={c.id || idx} className="p-5 flex flex-col justify-between gap-4 bg-white">
+        {filtered.length === 0 ? (
+          <Card className="col-span-full p-12 text-center bg-white border border-[#EAE4D7] rounded-2xl">
+            <div className="text-4xl mb-3">📱</div>
+            <h3 className="text-base font-bold text-[#1A1612]">Chưa có kênh mạng xã hội nào</h3>
+            <p className="text-xs text-[#7D715E] mt-1 max-w-md mx-auto mb-4">
+              {channels.length === 0
+                ? 'Liên kết các tài khoản TikTok, Facebook, YouTube hoặc Instagram để gian hàng xác thực độ uy tín và duyệt mẫu thử nhanh hơn.'
+                : 'Không tìm thấy kênh mạng xã hội nào khớp với từ khóa tìm kiếm hoặc bộ lọc nền tảng.'}
+            </p>
+            <Button
+              variant="gold"
+              size="sm"
+              icon={<Plus className="w-3.5 h-3.5" />}
+              onClick={() => setShowModal(true)}
+            >
+              + Kết Nối Kênh Mới
+            </Button>
+          </Card>
+        ) : (
+          filtered.map((c, idx) => (
+            <Card key={c.id || idx} className="p-5 flex flex-col justify-between gap-4 bg-white">
 
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center">
-                  <Video className="w-5 h-5 text-[#B88E4F]" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center">
+                    <Video className="w-5 h-5 text-[#B88E4F]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <strong className="text-sm font-bold text-[#1A1612]">{c.channelName}</strong>
+                      {c.isPrimary && (
+                        <span title="Kênh chính">
+                          <Star className="w-3.5 h-3.5 text-[#B88E4F] fill-current" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {getPlatformBadge(c.platformName)}
+                      <span className="text-xs text-[#7D715E]">
+                        {c.followerCount ? `${(c.followerCount / 1000).toFixed(1)}K followers` : c.channelUrl}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {(c as any).verifiedAt ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                      <CheckCircle2 className="w-3 h-3" /> Đã xác minh
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FAF8F5] text-[#7D715E] border border-[#EAE4D7]">
+                      Tự khai báo
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE4D7] text-center">
+                <div>
+                  <span className="text-[11px] text-[#7D715E] block">Lượt theo dõi</span>
+                  <strong className="text-xs font-bold text-[#1A1612]">
+                    {(c.followerCount || 0).toLocaleString('vi-VN')}
+                  </strong>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <strong className="text-sm font-bold text-[#1A1612]">{c.channelName}</strong>
-                    {c.isPrimary && (
-                      <span title="Kênh chính">
-                        <Star className="w-3.5 h-3.5 text-[#B88E4F] fill-current" />
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {getPlatformBadge(c.platformName)}
-                    <span className="text-xs text-[#7D715E]">
-                      {c.followerCount ? `${(c.followerCount / 1000).toFixed(1)}K followers` : c.channelUrl}
-                    </span>
-                  </div>
+                  <span className="text-[11px] text-[#7D715E] block">Trạng thái kênh</span>
+                  <strong className="text-xs font-bold text-[#B88E4F]">
+                    {c.isPrimary ? 'Kênh chính' : 'Kênh phụ'}
+                  </strong>
                 </div>
               </div>
 
-              <div>
-                {(c as any).verifiedAt ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                    <CheckCircle2 className="w-3 h-3" /> Đã xác minh
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FAF8F5] text-[#7D715E] border border-[#EAE4D7]">
-                    Tự khai báo
-                  </span>
+              <div className="flex items-center justify-between pt-2 border-t border-[#EAE4D7]">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Link2 className="w-3.5 h-3.5" />}
+                    onClick={() => window.location.href = '/collaborator/referral-links'}
+                  >
+                    Tạo link
+                  </Button>
+                  <a
+                    href={c.channelUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#EAE4D7] text-[#1A1612] hover:bg-[#FAF8F5] transition"
+                  >
+                    <span>Xem kênh</span>
+                    <ExternalLink className="w-3 h-3 text-[#7D715E]" />
+                  </a>
+                </div>
+
+                {c.id && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c.id)}
+                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                    title="Xóa kênh"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 )}
               </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE4D7] text-center">
-              <div>
-                <span className="text-[11px] text-[#7D715E] block">Lượt Click</span>
-                <strong className="text-xs font-bold text-[#1A1612]">
-                  {idx === 0 ? '14.280' : idx === 1 ? '8.910' : idx === 2 ? '4.320' : '2.180'}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[11px] text-[#7D715E] block">Đơn / CVR</span>
-                <strong className="text-xs font-bold text-[#B88E4F]">
-                  {idx === 0 ? '864 (6.05%)' : idx === 1 ? '490 (5.5%)' : idx === 2 ? '215 (4.9%)' : '110 (5.0%)'}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[11px] text-[#7D715E] block">GMV Bán</span>
-                <strong className="text-xs font-bold text-[#1A1612]">
-                  {idx === 0 ? '182.5 tr ₫' : idx === 1 ? '98.4 tr ₫' : idx === 2 ? '62.1 tr ₫' : '23.6 tr ₫'}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[11px] text-[#7D715E] block">Hoa hồng</span>
-                <strong className="text-xs font-bold text-emerald-600">
-                  {idx === 0 ? '24.65 tr ₫' : idx === 1 ? '12.8 tr ₫' : idx === 2 ? '8.45 tr ₫' : '3.10 tr ₫'}
-                </strong>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#EAE4D7]">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="gold"
-                  size="sm"
-                  icon={<Link2 className="w-3.5 h-3.5" />}
-                  onClick={() => window.location.href = '/collaborator/links'}
-                >
-                  Tạo link
-                </Button>
-                <a
-                  href={c.channelUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#EAE4D7] text-[#1A1612] hover:bg-[#FAF8F5] transition"
-                >
-                  <span>Xem kênh</span>
-                  <ExternalLink className="w-3 h-3 text-[#7D715E]" />
-                </a>
-              </div>
-
-              {c.id && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(c.id)}
-                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                  title="Xóa kênh"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
 
       {showModal && (

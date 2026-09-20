@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowDownToLine,
   Clock3,
   RefreshCw,
   ShieldCheck,
   Wallet,
+  Share2,
 } from "lucide-react";
+import KycSubmissionPage from "./KycSubmissionPage";
+import SocialChannelsPage from "./SocialChannelsPage";
 import { walletService } from "../../services/wallet.service";
 import type {
   PayoutStatus,
@@ -53,6 +56,9 @@ function toMinorUnits(amount: string): bigint {
 }
 
 export default function WalletPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'wallet';
+
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [storeId, setStoreId] = useState("");
   const [history, setHistory] = useState<WithdrawalHistory | null>(null);
@@ -187,8 +193,66 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="space-y-6 text-ink">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6 text-ink pb-12">
+      {/* Top Unified Hub Navigation Bar */}
+      <div className="bg-white rounded-2xl border border-line p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 pl-2">
+          <div className="w-8 h-8 rounded-xl bg-brand-soft border border-brand-border flex items-center justify-center text-brand-strong">
+            <Wallet className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-black text-ink uppercase tracking-wider">VÍ HOA HỒNG & HỒ SƠ CÁ NHÂN</div>
+            <div className="text-[11px] text-muted">Quản lý dòng tiền, rút doanh thu, định danh KYC & mạng xã hội</div>
+          </div>
+        </div>
+
+        <div className="flex items-center bg-surface-sand p-1.5 rounded-xl border border-line w-full sm:w-auto overflow-x-auto">
+          <button
+            onClick={() => setSearchParams({ tab: 'wallet' })}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'wallet'
+                ? 'bg-white text-ink shadow-xs border border-line'
+                : 'text-muted hover:text-ink hover:bg-white/50'
+            }`}
+            id="tab-btn-wallet"
+          >
+            <Wallet className="w-3.5 h-3.5 text-brand-strong" />
+            <span>Ví & Rút Tiền</span>
+          </button>
+
+          <button
+            onClick={() => setSearchParams({ tab: 'kyc' })}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'kyc'
+                ? 'bg-white text-ink shadow-xs border border-line'
+                : 'text-muted hover:text-ink hover:bg-white/50'
+            }`}
+            id="tab-btn-kyc"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-brand-strong" />
+            <span>Hồ Sơ KYC</span>
+          </button>
+
+          <button
+            onClick={() => setSearchParams({ tab: 'social' })}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'social'
+                ? 'bg-white text-ink shadow-xs border border-line'
+                : 'text-muted hover:text-ink hover:bg-white/50'
+            }`}
+            id="tab-btn-social"
+          >
+            <Share2 className="w-3.5 h-3.5 text-brand-strong" />
+            <span>Kênh Mạng Xã Hội</span>
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'kyc' && <KycSubmissionPage />}
+      {activeTab === 'social' && <SocialChannelsPage />}
+      {activeTab === 'wallet' && (
+        <>
+          <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold">
             Ví tiền & rút tiền
@@ -582,6 +646,8 @@ export default function WalletPage() {
           Sổ cái chỉ ghi thêm, không sửa hoặc xóa lịch sử.
         </p>
       </section>
+        </>
+      )}
     </div>
   );
 }

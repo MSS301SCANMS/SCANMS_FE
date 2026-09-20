@@ -625,7 +625,7 @@ export default function ProductManagementPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6 text-left max-w-7xl mx-auto w-full p-4 sm:p-6 min-h-screen">
+    <div className="flex flex-col gap-6 text-left max-w-[1520px] mx-auto w-full p-4 sm:p-6 min-h-screen">
       {toastMsg && (
         <div className="fixed top-5 right-5 z-50 p-3.5 bg-slate-900 text-white rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

@@ -14,7 +14,22 @@ export default function MainLayout() {
 
   useEffect(() => {
     const user = authService.getCurrentUser();
-    setCurrentUser(user);
+    if (user) {
+      setCurrentUser(user);
+    }
+    const token = localStorage.getItem('token');
+    if (token) {
+      authService
+        .getMe()
+        .then((freshUser) => {
+          if (freshUser && freshUser.id) {
+            setCurrentUser(freshUser);
+          }
+        })
+        .catch(() => {
+          // Token expired or invalid
+        });
+    }
   }, [location.pathname]);
 
   const toggleTheme = () => {
@@ -64,7 +79,7 @@ export default function MainLayout() {
         />
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 bg-[#FAF8F5]">
-          <div className="max-w-7xl w-full mx-auto">
+          <div className="max-w-[1520px] w-full mx-auto">
             <Outlet />
           </div>
         </main>

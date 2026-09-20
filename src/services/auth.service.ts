@@ -24,36 +24,79 @@ export const authService = {
     role?: string;
     storeName?: string;
     phoneNumber?: string;
+    avatarUrl?: string;
+    logoUrl?: string;
   }) {
     return api.post('/auth/register', data);
   },
 
   async login(email: string, password: string) {
     const res: any = await api.post('/auth/login', { email, password });
-    if (res?.data?.accessToken) {
-      localStorage.setItem('token', res.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+    const accessToken = res?.data?.accessToken || res?.accessToken;
+    const user = res?.data?.user || res?.user;
+    if (accessToken) {
+      localStorage.setItem('token', accessToken);
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+        const uiRole =
+          user.role === 'SHOP_MANAGER'
+            ? 'shop'
+            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
+            ? 'admin'
+            : 'kol';
+        localStorage.setItem('scanms-current-role', uiRole);
+        if (user.stores?.[0]?.id) {
+          localStorage.setItem('current_store_id', user.stores[0].id);
+        } else {
+          localStorage.removeItem('current_store_id');
+        }
+      }
     }
     return res;
   },
 
   async googleLogin(idToken: string, role?: string, storeName?: string) {
     const res: any = await api.post('/auth/google', { idToken, role, storeName });
-    if (res?.data?.accessToken) {
-      localStorage.setItem('token', res.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+    const accessToken = res?.data?.accessToken || res?.accessToken;
+    const user = res?.data?.user || res?.user;
+    if (accessToken) {
+      localStorage.setItem('token', accessToken);
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+        const uiRole =
+          user.role === 'SHOP_MANAGER'
+            ? 'shop'
+            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
+            ? 'admin'
+            : 'kol';
+        localStorage.setItem('scanms-current-role', uiRole);
+        if (user.stores?.[0]?.id) {
+          localStorage.setItem('current_store_id', user.stores[0].id);
+        } else {
+          localStorage.removeItem('current_store_id');
+        }
+      }
     }
     return res;
   },
 
   async getMe(): Promise<UserProfile> {
     const res: any = await api.get('/auth/me');
-    return res.data;
+    const user = res?.data || res;
+    if (user && user.id) {
+      localStorage.setItem('user', JSON.stringify(user));
+      if (user.stores?.[0]?.id) {
+        localStorage.setItem('current_store_id', user.stores[0].id);
+      }
+    }
+    return user;
   },
 
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('scanms-current-role');
+    localStorage.removeItem('current_store_id');
     window.location.href = '/login';
   },
 

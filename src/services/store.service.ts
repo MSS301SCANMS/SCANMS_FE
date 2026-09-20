@@ -20,16 +20,16 @@ export interface StoreSettings {
 export const storeService = {
   async getMyStore(): Promise<StoreSettings> {
     const res: any = await api.get('/stores/my-store');
-    return res.data;
+    return res?.data || res;
   },
 
   async updateMyStore(data: Partial<StoreSettings>) {
     const res: any = await api.put('/stores/my-store', data);
-    return res.data;
+    return res?.data || res;
   },
 
   async getPublicStore(slug: string) {
     const res: any = await api.get(`/stores/public/${slug}`);
-    return res.data;
+    return res?.data || res;
   },
 };

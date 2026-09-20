@@ -5,6 +5,18 @@ export interface Product {
   origPrice: number; price: number; kolDiscountPrice: number; image: string;
   kol: { name: string; handle: string; coupon: string; tier: string };
   badge?: string;
+  storeId?: string;
+  sku?: string;
+  stockQuantity?: number;
+  variants?: Array<{
+    id: string;
+    productId?: string;
+    name: string;
+    sku: string;
+    price?: number | string | null;
+    stockQuantity: number;
+    isActive?: boolean;
+  }>;
 }
 export interface Creator {
   id: string; name: string; handle: string; channel: string; platform: string;

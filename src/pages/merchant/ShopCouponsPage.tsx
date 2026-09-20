@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   Tag,
@@ -475,7 +475,7 @@ export const ShopCouponsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen h-full overflow-y-auto bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
-      <div className="max-w-7xl mx-auto mb-8">
+      <div className="max-w-[1520px] mx-auto mb-8">
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6 mb-6">
           <div>
@@ -1319,3 +1319,4 @@ export const ShopCouponsPage: React.FC = () => {
 };
 
 export default ShopCouponsPage;
+

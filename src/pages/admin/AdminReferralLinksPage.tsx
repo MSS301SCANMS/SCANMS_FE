@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import {
   Link2,
   ShieldAlert,
@@ -114,7 +114,7 @@ export default function AdminReferralLinksPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-[1520px] mx-auto space-y-6">
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -507,3 +507,4 @@ export default function AdminReferralLinksPage() {
     </div>
   );
 }
+

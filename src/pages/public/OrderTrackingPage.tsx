@@ -79,8 +79,27 @@ interface OrderData {
 
 export default function OrderTrackingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialPhone = searchParams.get("phone") || "";
-  const initialSn = searchParams.get("sn") || "";
+  const validParam = (value: string | null) => {
+    const normalized = value?.trim() || "";
+    return normalized.toLowerCase() === "undefined" || normalized.toLowerCase() === "null"
+      ? ""
+      : normalized;
+  };
+  const getRecentOrderCode = () => {
+    try {
+      const saved = localStorage.getItem("scanms-recent-guest-order");
+      const parsed = saved ? JSON.parse(saved) : null;
+      return validParam(parsed?.publicOrderCode || null);
+    } catch {
+      return "";
+    }
+  };
+  const initialPhone = validParam(searchParams.get("phone"));
+  // `orderSn` được giữ để các liên kết cũ vẫn hoạt động.
+  const initialSn =
+    validParam(searchParams.get("sn")) ||
+    validParam(searchParams.get("orderSn")) ||
+    getRecentOrderCode();
 
   const [phoneInput, setPhoneInput] = useState(initialPhone);
   const [orderSnInput, setOrderSnInput] = useState(initialSn);
@@ -242,8 +261,8 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-left flex flex-col font-sans">
-
+    <div className="min-h-screen bg-[#FAF8F5] text-left flex flex-col font-sans overflow-x-clip relative">
+      {/* Toast alert */}
       {toastMsg && (
         <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-[#C59B58]">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
@@ -251,48 +270,79 @@ export default function OrderTrackingPage() {
         </div>
       )}
 
+      {/* 1. TOP HEADER - SCANMS OFFICIAL TRACKING HEADER */}
+      <header className="sticky top-0 z-50 w-full bg-white/98 backdrop-blur-md border-b border-[#EAE4D7] px-4 sm:px-8 py-3.5 shadow-xs min-h-[64px] flex items-center">
+        <div className="max-w-[1520px] mx-auto w-full flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+          {/* Left: Back to Marketplace button + Brand logo */}
+          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+            <Link
+              to="/marketplace"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-black text-[#1A1612] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F3EFE6] hover:border-[#C59B58] transition shadow-2xs shrink-0 cursor-pointer group"
+              title="Quay lại Sàn Thương Mại SCANMS"
+            >
+              <ArrowLeft className="w-4 h-4 text-[#B88E4F] group-hover:-translate-x-0.5 transition-transform" />
+              <span className="hidden sm:inline">Quay lại Sàn mua sắm</span>
+              <span className="sm:hidden">Về Sàn</span>
+            </Link>
 
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] px-4 sm:px-8 py-3 flex items-center justify-between shadow-2xs">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/storefront"
-            className="flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition"
-          >
-            <ArrowLeft className="w-4 h-4 text-[#B88E4F]" />
-            <span>Quay lại Cửa hàng</span>
-          </Link>
-          <span className="text-[#D8D0C3]">|</span>
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-[#C59B58] text-white font-extrabold text-sm flex items-center justify-center">
-              S
-            </span>
-            <strong className="text-sm font-extrabold text-[#1A1612]">
-              SCANMS Tracking
-            </strong>
+            <span className="text-[#EAE4D7] hidden sm:inline select-none">|</span>
+
+            <Link
+              to="/marketplace"
+              className="flex items-center gap-2 shrink-0 hover:opacity-90 transition cursor-pointer"
+              title="Về trang chủ Sàn SCANMS"
+            >
+              <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#C59B58] to-[#B88E4F] text-white font-black text-sm flex items-center justify-center shadow-xs">
+                S
+              </span>
+              <div className="flex flex-col text-left">
+                <span className="text-sm font-black text-[#1A1612] tracking-tight leading-none">
+                  SCANMS
+                </span>
+                <span className="text-[10px] font-bold text-[#B88E4F] uppercase tracking-wider leading-none mt-0.5">
+                  Tra cứu đơn hàng
+                </span>
+              </div>
+            </Link>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            to="/storefront"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1A1612] bg-[#FAF8F5] border border-[#EAE4D7] hover:bg-[#F3EFE6] transition"
-          >
-            <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
-            <span>Mua sắm</span>
-          </Link>
-          <Link
-            to="/login"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[#C59B58] hover:bg-[#B88E4F] transition shadow-xs"
-          >
-            <span>Đăng nhập Đối tác</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+          {/* Right: Quick Marketplace & Partner Login */}
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <Link
+              to="/marketplace"
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold text-[#1A1612] bg-white border border-[#EAE4D7] hover:bg-[#FAF8F5] hover:border-[#C59B58] transition shadow-2xs"
+              title="Khám phá các sản phẩm & deal hot trên sàn"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
+              <span className="hidden md:inline">Khám phá Sàn</span>
+              <span className="md:hidden">Mua sắm</span>
+            </Link>
+            <Link
+              to="/login"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:opacity-95 transition shadow-xs"
+              title="Cổng đăng nhập CTV, KOL và Chủ Shop"
+            >
+              <User className="w-3.5 h-3.5 text-white/90" />
+              <span className="hidden sm:inline">Cổng Đối tác</span>
+              <span className="sm:hidden">Đối tác</span>
+              <ChevronRight className="w-3.5 h-3.5 hidden sm:inline" />
+            </Link>
+          </div>
         </div>
       </header>
 
-
-      <section className="bg-gradient-to-b from-white to-[#F3EFE6]/60 border-b border-[#EAE4D7] px-4 sm:px-8 py-10">
-        <div className="max-w-3xl mx-auto text-center flex flex-col items-center gap-4">
+      {/* 2. HERO & SEARCH SECTION */}
+      <section className="bg-gradient-to-b from-white to-[#F3EFE6]/60 border-b border-[#EAE4D7] px-4 sm:px-8 py-8 sm:py-10">
+        <div className="max-w-3xl mx-auto text-center flex flex-col items-center gap-3 sm:gap-4">
+          {/* Breadcrumb Navigation */}
+          <nav aria-label="Breadcrumb" className="flex items-center justify-center gap-2 text-xs text-[#7D715E] mb-1">
+            <Link to="/marketplace" className="hover:text-[#B88E4F] font-bold flex items-center gap-1 transition">
+              <ArrowLeft className="w-3 h-3 text-[#B88E4F]" />
+              <span>Trang chủ Sàn SCANMS</span>
+            </Link>
+            <span className="text-[#D8D0C3]">/</span>
+            <span className="text-[#1A1612] font-extrabold">Theo dõi hành trình đơn hàng</span>
+          </nav>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide text-[#8A662C] bg-[#FBF5EB] border border-[#EEDFC6]">
             <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
             HỆ THỐNG TRA CỨU ĐƠN HÀNG & ĐÁNH GIÁ 5 SAO (FR-17 & FR-18)
@@ -304,7 +354,7 @@ export default function OrderTrackingPage() {
           <p className="text-xs sm:text-sm text-[#7D715E] max-w-xl m-0 leading-relaxed">
             Nhập{" "}
             <strong className="text-[#1A1612]">Số điện thoại đặt hàng</strong>{" "}
-            hoặc <strong className="text-[#1A1612]">Mã vận đơn</strong> để kiểm
+            hoặc <strong className="text-[#1A1612]">Mã đơn hàng</strong> để kiểm
             tra tiến trình đóng gói, giao hàng và gửi đánh giá nhận quà ưu đãi.
           </p>
 
@@ -332,7 +382,7 @@ export default function OrderTrackingPage() {
                 type="text"
                 value={orderSnInput}
                 onChange={(e) => setOrderSnInput(e.target.value.toUpperCase())}
-                placeholder="Mã đơn: ORD-20260909-001"
+                placeholder="Mã đơn: DH-2026-XXXXXXXX"
                 className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white border-2 border-[#EAE4D7] text-xs sm:text-sm text-[#1A1612] outline-none focus:border-[#C59B58] shadow-xs transition"
               />
             </div>
@@ -357,37 +407,16 @@ export default function OrderTrackingPage() {
           </form>
 
 
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <span className="text-[11px] text-[#7D715E] font-medium">
-              Gợi ý kiểm thử:
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setPhoneInput("0933888999");
-                setOrderSnInput("ORD-20260909-001");
-                handleSearch("0933888999", "ORD-20260909-001");
-              }}
-              className="text-[11px] font-bold text-[#8A662C] bg-[#FBF5EB] hover:bg-[#F5E7CC] border border-[#EEDFC6] px-2.5 py-1 rounded-lg transition cursor-pointer"
-            >
-              📱 0933888999 (Đơn mẫu hoàn tất)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOrderSnInput("ORD-20260909-001");
-                handleSearch(phoneInput, "ORD-20260909-001");
-              }}
-              className="text-[11px] font-bold text-[#8A662C] bg-[#FBF5EB] hover:bg-[#F5E7CC] border border-[#EEDFC6] px-2.5 py-1 rounded-lg transition cursor-pointer"
-            >
-              📦 ORD-20260909-001
-            </button>
-          </div>
+          {initialSn && (
+            <p className="text-[11px] font-semibold text-[#8A662C] bg-[#FBF5EB] border border-[#EEDFC6] px-3 py-1.5 rounded-xl m-0">
+              Mã đơn gần nhất đã được tự động điền và tra cứu. Bạn không cần nhớ hoặc nhập lại.
+            </p>
+          )}
         </div>
       </section>
 
 
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      <main className="flex-1 max-w-5xl xl:max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
         {errorMessage && (
           <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />

@@ -99,9 +99,9 @@ function useQrDataUrl(value?: string | null) {
         }
       });
 
-  return () => {
-    active = false;
-  };
+    return () => {
+      active = false;
+    };
   }, [value, retryCount]);
 
   return { dataUrl, qrLoading, qrError, retry };
@@ -1058,11 +1058,10 @@ export default function ReferralLinksPage() {
                             </span>
                             <button
                               onClick={() => handleCopyLink(link.shortUrl, link.shortCode)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                                isCopied
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${isCopied
                                   ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-[#FAF8F5] hover:bg-[#F5E7CC] text-[#7D6D55] hover:text-[#9E7933] border border-[#E8DAC4]'
-                              }`}
+                                }`}
                               title="Sao chép link"
                             >
                               {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1173,11 +1172,10 @@ export default function ReferralLinksPage() {
                           <button
                             onClick={() => handleToggleStatus(link)}
                             disabled={link.status === 'BLOCKED'}
-                            className={`p-2 rounded-xl transition-colors ${
-                              link.status === 'ACTIVE'
+                            className={`p-2 rounded-xl transition-colors ${link.status === 'ACTIVE'
                                 ? 'text-amber-600 hover:bg-amber-50'
                                 : 'text-emerald-600 hover:bg-emerald-50'
-                            } ${link.status === 'BLOCKED' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              } ${link.status === 'BLOCKED' ? 'opacity-40 cursor-not-allowed' : ''}`}
                             title={link.status === 'ACTIVE' ? 'Tạm ngừng link' : 'Tiếp tục kích hoạt link'}
                           >
                             {link.status === 'ACTIVE' ? (
@@ -1408,11 +1406,10 @@ export default function ReferralLinksPage() {
 
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              productRemainingQuota > 0
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${productRemainingQuota > 0
                                 ? 'bg-amber-50 text-amber-900 border-amber-300'
                                 : 'bg-rose-50 text-rose-800 border-rose-300'
-                            }`}
+                              }`}
                           >
                             Còn {productRemainingQuota}/20 link
                           </span>
@@ -1504,9 +1501,8 @@ export default function ReferralLinksPage() {
                                 <div
                                   key={p.id}
                                   onClick={() => handleSelectProduct(p)}
-                                  className={`p-1.5 px-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-                                    isSelected ? 'bg-[#FDF8EE] border-l-4 border-[#C59B58]' : 'hover:bg-[#FAF8F5]'
-                                  }`}
+                                  className={`p-1.5 px-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${isSelected ? 'bg-[#FDF8EE] border-l-4 border-[#C59B58]' : 'hover:bg-[#FAF8F5]'
+                                    }`}
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <img
@@ -1620,11 +1616,10 @@ export default function ReferralLinksPage() {
                           onBlur={() => setFormTouched((prev) => ({ ...prev, coupon: true }))}
                           onChange={(e) => setFormCoupon(e.target.value.toUpperCase())}
                           maxLength={50}
-                          className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none uppercase font-mono transition-all ${
-                            formValidationErrors.coupon
+                          className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none uppercase font-mono transition-all ${formValidationErrors.coupon
                               ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                               : 'border-[#E8DAC4] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
-                          }`}
+                            }`}
                         />
                       </div>
                       {formValidationErrors.coupon && (
@@ -1652,11 +1647,10 @@ export default function ReferralLinksPage() {
                         onBlur={() => setFormTouched((prev) => ({ ...prev, label: true }))}
                         onChange={(e) => setFormLabel(e.target.value)}
                         maxLength={150}
-                        className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none transition-all ${
-                          formValidationErrors.label
+                        className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none transition-all ${formValidationErrors.label
                             ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                             : 'border-[#E8DAC4] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
-                        }`}
+                          }`}
                       />
                     </div>
                     {formValidationErrors.label && (
@@ -1679,11 +1673,10 @@ export default function ReferralLinksPage() {
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D6D55] hover:text-[#9E7933] transition-colors group select-none cursor-pointer"
                       >
                         <div
-                          className={`w-4 h-4 rounded flex items-center justify-center transition-transform duration-200 ${
-                            showAdvancedUtm
+                          className={`w-4 h-4 rounded flex items-center justify-center transition-transform duration-200 ${showAdvancedUtm
                               ? 'rotate-180 text-[#9E7933] bg-[#F5E7CC]'
                               : 'text-[#A49B8B] bg-[#FAF8F5]'
-                          }`}
+                            }`}
                         >
                           <ChevronDown className="w-3 h-3" />
                         </div>
@@ -1751,11 +1744,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmSource(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmSource.toLowerCase() === item.val
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmSource.toLowerCase() === item.val
                                         ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
                                         : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -1801,11 +1793,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmMedium(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmMedium.toLowerCase() === item.val
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmMedium.toLowerCase() === item.val
                                         ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
                                         : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -1864,11 +1855,10 @@ export default function ReferralLinksPage() {
                                       key={cmp}
                                       type="button"
                                       onClick={() => setUtmCampaign(cmp)}
-                                      className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                        utmCampaign.toLowerCase() === cmp
+                                      className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmCampaign.toLowerCase() === cmp
                                           ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
                                           : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                      }`}
+                                        }`}
                                     >
                                       {cmp}
                                     </button>
@@ -1915,11 +1905,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmContent(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmContent.toLowerCase() === item.val
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmContent.toLowerCase() === item.val
                                         ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
                                         : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -2013,11 +2002,10 @@ export default function ReferralLinksPage() {
                     <button
                       type="submit"
                       disabled={isSubmitDisabled}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all ${
-                        isSubmitDisabled
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all ${isSubmitDisabled
                           ? 'bg-[#DEBE85] cursor-not-allowed opacity-60'
                           : 'bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] cursor-pointer active:scale-95'
-                      }`}
+                        }`}
                     >
                       {isSubmitting ? (
                         <>
@@ -2174,11 +2162,10 @@ export default function ReferralLinksPage() {
               <button
                 type="button"
                 onClick={() => handleCopyLink(selectedQrTargetUrl, selectedLinkForQr.shortCode)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer flex-shrink-0 active:scale-95 border ${
-                  copiedCode === selectedLinkForQr.shortCode
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer flex-shrink-0 active:scale-95 border ${copiedCode === selectedLinkForQr.shortCode
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                     : 'bg-gradient-to-b from-white to-[#F7F2EB] hover:from-[#F7F2EB] hover:to-[#EFE6D8] text-[#7D6D55] hover:text-[#9E7933] border-[#E8DAC4]'
-                }`}
+                  }`}
               >
                 {copiedCode === selectedLinkForQr.shortCode ? (
                   <>
@@ -2209,11 +2196,10 @@ export default function ReferralLinksPage() {
                     key={sz}
                     type="button"
                     onClick={() => setQrPngSize(sz)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all cursor-pointer ${
-                      qrPngSize === sz
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all cursor-pointer ${qrPngSize === sz
                         ? 'bg-[#9E7933] text-white border-[#9E7933] shadow-2xs'
                         : 'bg-[#FAF8F5] text-[#7D6D55] border-[#E8DAC4] hover:bg-[#F5EFE6] hover:text-[#1A1612]'
-                    }`}
+                      }`}
                   >
                     {sz === 1024 ? '1024 (Chuẩn)' : sz === 512 ? '512' : '2048 (In)'}
                   </button>

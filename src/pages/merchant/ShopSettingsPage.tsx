@@ -9,11 +9,26 @@ import {
   Coins,
   CheckCircle2,
   ChevronDown,
+  Store,
+  Upload,
+  Loader2,
+  Check,
+  ImageIcon,
 } from 'lucide-react';
 import { storeService } from '../../services/store.service';
 import { authService } from '../../services/auth.service';
+import { uploadService } from '../../services/upload.service';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+
+const SHOP_LOGO_PRESETS = [
+  { id: 'shop-1', label: 'Sora Skin', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584519/scanms/logos/shop-sora-skin.jpg' },
+  { id: 'shop-2', label: 'Tech Store', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584520/scanms/logos/shop-techstore.jpg' },
+  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584525/scanms/logos/shop-my-pham-xanh.jpg' },
+  { id: 'shop-4', label: 'Store A Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584523/scanms/logos/shop-store-a.jpg' },
+  { id: 'shop-5', label: 'Store B Concept', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584524/scanms/logos/shop-store-b.jpg' },
+  { id: 'shop-6', label: 'Official Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584522/scanms/logos/shop-flagship.jpg' },
+];
 
 export default function ShopSettingsPage() {
   const navigate = useNavigate();
@@ -28,15 +43,34 @@ export default function ShopSettingsPage() {
 
   const [name, setName] = useState('Sora Skin Official Store');
   const [description, setDescription] = useState('Thương hiệu D2C mỹ phẩm phục hồi da sinh học.');
-  const [logoUrl, setLogoUrl] = useState('/assets/serum-hero-optimized.jpg');
+  const [logoUrl, setLogoUrl] = useState(SHOP_LOGO_PRESETS[0].url);
   const [websiteUrl, setWebsiteUrl] = useState('https://soraskin.vn');
   const [defaultCommissionRate, setDefaultCommissionRate] = useState<number>(10);
   const [attributionWindowDays, setAttributionWindowDays] = useState<number>(30);
   const [minPayoutAmount, setMinPayoutAmount] = useState<number>(200000);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     loadStore();
   }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    try {
+      const secureUrl = await uploadService.uploadImage(file, 'scanms/logos');
+      setLogoUrl(secureUrl);
+      showToast('Đã tải logo gian hàng lên Cloudinary thành công!');
+    } catch (err: any) {
+      console.error('Lỗi upload logo Cloudinary:', err);
+      showToast(err?.response?.data?.message || err?.message || 'Không thể tải logo lên Cloudinary');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
 
   const loadStore = async () => {
     try {
@@ -60,12 +94,18 @@ export default function ShopSettingsPage() {
 
   const handleSave = async (e: any) => {
     e.preventDefault();
+
+    if (!logoUrl?.trim()) {
+      showToast('Logo gian hàng không được để trống (Bắt buộc)');
+      return;
+    }
+
     setSaving(true);
     try {
       await storeService.updateMyStore({
         name,
         description,
-        logoUrl,
+        logoUrl: logoUrl.trim(),
         websiteUrl,
         defaultCommissionRate: Number(defaultCommissionRate),
         attributionWindowDays: Number(attributionWindowDays),
@@ -105,7 +145,7 @@ export default function ShopSettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl mx-auto text-left">
+    <div className="flex flex-col gap-6 max-w-5xl mx-auto text-left">
       {toastMsg && (
         <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
@@ -135,6 +175,80 @@ export default function ShopSettingsPage() {
               className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-sm font-bold text-[#1A1612] outline-none hover:border-[#B88E4F]/50 focus:border-[#B88E4F] transition"
               required
             />
+          </div>
+
+          <div className="p-4 bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-[#B88E4F]" />
+                <span>Logo đại diện gian hàng <strong className="text-rose-600">* (Bắt buộc)</strong></span>
+              </label>
+              <span className="text-[10px] text-[#7D715E] bg-white px-2 py-0.5 rounded-full border border-[#EAE4D7]">
+                Lưu trữ đám mây Cloudinary
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-[#C59B58] ring-offset-2 shrink-0 bg-[#F3EFE6] flex items-center justify-center shadow-xs">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Shop Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <Store className="w-7 h-7 text-[#7D715E]" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  {SHOP_LOGO_PRESETS.map((p) => {
+                    const isSelected = logoUrl === p.url;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setLogoUrl(p.url)}
+                        className={`relative group p-0.5 rounded-lg border-2 transition cursor-pointer ${
+                          isSelected ? 'border-[#C59B58] scale-105 shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                        title={p.label}
+                      >
+                        <img src={p.url} alt={p.label} className="w-7 h-7 rounded-md object-cover" />
+                        {isSelected && (
+                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="URL logo Cloudinary..."
+                    required
+                    className="flex-1 bg-white border border-[#EAE4D7] rounded-lg px-3 py-1.5 text-xs text-[#1A1612] focus:border-[#C59B58] outline-none transition font-medium"
+                  />
+                  <label className="cursor-pointer px-3 py-1.5 bg-white border border-[#EAE4D7] hover:border-[#C59B58] text-[#1A1612] text-xs font-semibold rounded-lg flex items-center gap-1.5 shrink-0 transition">
+                    {uploadingLogo ? (
+                      <Loader2 className="w-3.5 h-3.5 text-[#B88E4F] animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-[#B88E4F]" />
+                    )}
+                    <span>{uploadingLogo ? 'Đang tải...' : 'Tải logo (PNG/JPG)'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      disabled={uploadingLogo}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>

@@ -24,8 +24,8 @@ import { toast } from '../../utils/toast';
 export default function LoginPage() {
   const navigate = useNavigate();
   const [role, setRole] = useState<'kol' | 'shop' | 'admin'>('kol');
-  const [email, setEmail] = useState('demo@scanms.vn');
-  const [password, setPassword] = useState('Password@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -65,16 +65,6 @@ export default function LoginPage() {
 
   const handleRoleChange = (selectedRole: 'kol' | 'shop' | 'admin') => {
     setRole(selectedRole);
-    if (selectedRole === 'kol') {
-      setEmail('demo@scanms.vn');
-      setPassword('Password@123');
-    } else if (selectedRole === 'shop') {
-      setEmail('shop@scanms.vn');
-      setPassword('Password@123');
-    } else {
-      setEmail('admin@scanms.vn');
-      setPassword('Password@123');
-    }
   };
 
   const handleQuickLogin = async (
@@ -98,15 +88,20 @@ export default function LoginPage() {
 
         setTimeout(() => {
           if (user?.role === 'SHOP_MANAGER') {
-            navigate('/merchant/products');
+            navigate('/merchant/dashboard');
           } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-            navigate('/merchant/kyc-approval');
+            navigate('/admin/analytics');
           } else {
             navigate('/collaborator/dashboard');
           }
         }, 500);
       } catch (err: any) {
-        setError(err.message || 'Đăng nhập không thành công');
+        const errorMsg =
+          err?.response?.data?.message ||
+          (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+            ? 'Không thể kết nối đến máy chủ Backend (cổng 3000). Vui lòng đảm bảo backend đang chạy trên http://localhost:3000.'
+            : err?.message || 'Đăng nhập không thành công');
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -121,23 +116,26 @@ export default function LoginPage() {
 
     try {
       const res: any = await authService.login(email, password);
-      const user = res.data?.user || res.user;
+      const user = res?.data?.user || res?.user;
 
       setSuccessNotice('Đăng nhập thành công! Đang chuyển hướng...');
 
       setTimeout(() => {
         if (user?.role === 'SHOP_MANAGER') {
-          navigate('/merchant/products');
+          navigate('/merchant/dashboard');
         } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-          navigate('/merchant/kyc-approval');
+          navigate('/admin/analytics');
         } else {
           navigate('/collaborator/dashboard');
         }
       }, 600);
     } catch (err: any) {
-      setError(
-        err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email hoặc mật khẩu.'
-      );
+      const errorMsg =
+        err?.response?.data?.message ||
+        (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+          ? 'Không thể kết nối đến máy chủ Backend (cổng 3000). Vui lòng đảm bảo backend đang chạy trên http://localhost:3000.'
+          : err?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email hoặc mật khẩu.');
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -151,8 +149,15 @@ export default function LoginPage() {
         try {
           const apiRole =
             role === 'kol' ? 'COLLABORATOR' : role === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
-          await authService.googleLogin(idToken, apiRole);
-          navigate('/collaborator/dashboard');
+          const res: any = await authService.googleLogin(idToken, apiRole);
+          const user = res?.data?.user || res?.user;
+          if (user?.role === 'SHOP_MANAGER') {
+            navigate('/merchant/dashboard');
+          } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
+            navigate('/admin/analytics');
+          } else {
+            navigate('/collaborator/dashboard');
+          }
         } catch (err: any) {
           setError(err.message || 'Đăng nhập Google thất bại');
         } finally {
@@ -169,7 +174,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-10">
 
-      <div className="max-w-7xl mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
+      <div className="max-w-[1520px] mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
         <Link
           to="/marketplace"
           id="btn-back-to-marketplace"
@@ -184,7 +189,7 @@ export default function LoginPage() {
         </span>
       </div>
 
-      <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
+      <div className="max-w-[1520px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
 
         <div className="lg:col-span-7 bg-[#F3EFE6] border border-[#EAE4D7] rounded-3xl p-7 sm:p-10 flex flex-col justify-between gap-6 text-left relative overflow-hidden shadow-xs">
 
@@ -362,10 +367,10 @@ export default function LoginPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-[11px] font-extrabold text-[#B88E4F] uppercase tracking-wider flex items-center gap-1">
                   <Zap className="w-3.5 h-3.5 text-[#B88E4F] fill-current" />
-                  Tài khoản demo mẫu
+                  Tài khoản mẫu thử nghiệm (Tuỳ chọn)
                 </span>
                 <span className="text-[10px] text-[#7D715E] font-medium">
-                  Pass: <code className="font-bold text-[#1A1612]">Password@123</code>
+                  Mật khẩu chung: <code className="font-bold text-[#1A1612]">Password@123</code>
                 </span>
               </div>
 
@@ -417,7 +422,13 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="demo@scanms.vn"
+                  placeholder={
+                    role === 'shop'
+                      ? 'shop@example.com'
+                      : role === 'admin'
+                      ? 'admin@scanms.vn'
+                      : 'kol@example.com'
+                  }
                   required
                   className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-sm text-[#1A1612] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
                 />
