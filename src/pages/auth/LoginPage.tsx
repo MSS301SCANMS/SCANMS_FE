@@ -68,6 +68,16 @@ export default function LoginPage() {
 
   const handleRoleChange = (selectedRole: 'kol' | 'shop' | 'admin') => {
     setRole(selectedRole);
+    if (selectedRole === 'admin') {
+      setEmail('admin@scanms.vn');
+      setPassword('Password@123');
+    } else if (selectedRole === 'shop') {
+      setEmail('shop@scanms.vn');
+      setPassword('Password@123');
+    } else {
+      setEmail('demo@scanms.vn');
+      setPassword('Password@123');
+    }
   };
 
   const handleQuickLogin = async (
@@ -84,7 +94,9 @@ export default function LoginPage() {
     if (autoSubmit) {
       setLoading(true);
       try {
-        const res: any = await authService.login(targetEmail, targetPass);
+        const apiRole =
+          targetRole === 'kol' ? 'COLLABORATOR' : targetRole === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
+        const res: any = await authService.login(targetEmail, targetPass, apiRole);
         const user = res.data?.user || res.user;
 
         setSuccessNotice(`Đăng nhập thành công với vai trò ${user?.fullName || targetEmail}!`);
@@ -95,7 +107,7 @@ export default function LoginPage() {
           } else if (user?.role === 'SHOP_MANAGER') {
             navigate('/merchant/dashboard');
           } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-            navigate('/admin/analytics');
+            navigate('/admin/users');
           } else {
             navigate('/collaborator/dashboard');
           }
@@ -120,7 +132,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res: any = await authService.login(email, password);
+      const apiRole =
+        role === 'kol' ? 'COLLABORATOR' : role === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
+      const res: any = await authService.login(email, password, apiRole);
       const user = res?.data?.user || res?.user;
 
       setSuccessNotice('Đăng nhập thành công! Đang chuyển hướng...');
@@ -131,7 +145,7 @@ export default function LoginPage() {
         } else if (user?.role === 'SHOP_MANAGER') {
           navigate('/merchant/dashboard');
         } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-          navigate('/admin/analytics');
+          navigate('/admin/users');
         } else {
           navigate('/collaborator/dashboard');
         }
@@ -417,8 +431,8 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((acc) => {
+              <div className={DEMO_ACCOUNTS.filter((acc) => acc.role === role).length > 1 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
+                {DEMO_ACCOUNTS.filter((acc) => acc.role === role).map((acc) => {
                   const isSelected = email === acc.email;
                   return (
                     <div

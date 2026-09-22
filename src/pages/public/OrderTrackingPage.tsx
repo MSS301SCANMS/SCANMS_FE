@@ -185,12 +185,14 @@ export default function OrderTrackingPage() {
         return;
       }
 
-      const res: any = await api.get("/orders/track", { params });
+      const res: any = await api.get("/v1/orders/track", { params });
       if (sequence !== searchSequence.current) return;
       if (res?.orders) {
         setOrders(res.orders);
       } else if (res?.data?.orders) {
         setOrders(res.data.orders);
+      } else if (res?.result?.orders) {
+        setOrders(res.result.orders);
       } else if (Array.isArray(res)) {
         setOrders(res);
       } else {
@@ -420,7 +422,7 @@ export default function OrderTrackingPage() {
                 type="text"
                 value={orderSnInput}
                 onChange={(e) => setOrderSnInput(e.target.value.toUpperCase())}
-                placeholder="Mã đơn: DH-2026-XXXXXXXX"
+                placeholder="Mã đơn: SC260921XXXXXX"
                 className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white border-2 border-[#EAE4D7] text-xs sm:text-sm text-[#1A1612] outline-none focus:border-[#C59B58] shadow-xs transition"
               />
             </div>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import QRCode from 'qrcode';
 import {
   X,
   ShoppingBag,
@@ -15,77 +14,12 @@ import {
   Loader2,
   Store as StoreIcon,
   Package,
-  UserRoundCheck,
-  WalletCards,
-  ZoomIn,
 } from 'lucide-react';
 import api from '../../services/api';
-import { authService, type UserProfile } from '../../services/auth.service';
-import { buyerVoucherService } from '../../services/buyer-voucher.service';
-import { demoOrderService } from '../../services/demo-order.service';
 import {
   loadShippingAddresses,
   type ShippingProvince,
 } from '../../services/order-address.service';
-import { buildLoginUrl } from '../../utils/authRedirect';
-import { ProductImageLightbox } from '../common/ProductImageLightbox';
-import { VoucherPickerModal } from './VoucherPickerModal';
-
-const DEMO_SHIPPING_PROVINCES: ShippingProvince[] = [
-  {
-    code: 79,
-    name: 'Thành phố Hồ Chí Minh',
-    districts: [
-      {
-        code: 760,
-        name: 'Quận 1',
-        wards: [{ code: 26734, name: 'Phường Bến Nghé' }],
-      },
-    ],
-  },
-];
-
-const normalizeAddressName = (value: unknown) =>
-  String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/gi, 'd')
-    .toLowerCase()
-    .replace(/^(tinh|thanh pho|tp\.?|quan|huyen|thi xa|phuong|xa)\s+/i, '')
-    .trim();
-
-const matchesAddressPart = (
-  code: string | number,
-  name: string,
-  codeHint?: string | number,
-  nameHint?: string,
-) =>
-  (codeHint !== undefined && String(code) === String(codeHint)) ||
-  (Boolean(nameHint) && normalizeAddressName(name) === normalizeAddressName(nameHint));
-
-function getProfileAddress(profile: UserProfile) {
-  const nested = profile.profile || {};
-  const saved = profile.addresses?.find((item) => item.isDefault) || profile.addresses?.[0] || {};
-  return {
-    phone: profile.phoneNumber || nested.phoneNumber || '',
-    address:
-      saved.addressLine ||
-      saved.address ||
-      profile.addressLine ||
-      nested.addressLine ||
-      profile.shippingAddress ||
-      nested.shippingAddress ||
-      profile.address ||
-      nested.address ||
-      '',
-    provinceCode: saved.provinceCode || profile.provinceCode || nested.provinceCode,
-    province: saved.province || profile.province || nested.province,
-    districtCode: saved.districtCode || profile.districtCode || nested.districtCode,
-    district: saved.district || profile.district || nested.district,
-    wardCode: saved.wardCode || profile.wardCode || nested.wardCode,
-    ward: saved.ward || profile.ward || nested.ward,
-  };
-}
 
 export interface ProductVariantItem {
   id: string;
@@ -148,7 +82,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const [addressReload, setAddressReload] = useState(0);
   const [orderNotes, setOrderNotes] = useState('');
   const [quantity, setQuantity] = useState(initialQuantity);
-  const paymentMethod: 'VIETQR' = 'VIETQR';
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'VIETQR'>('COD');
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
     undefined,
   );
@@ -191,10 +125,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
-  const [isVoucherPickerOpen, setIsVoucherPickerOpen] = useState(false);
-  const [isImageOpen, setIsImageOpen] = useState(false);
 
 
   useEffect(() => {
@@ -229,20 +159,11 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       setDistrictCode('');
       setWardCode('');
       setAddressError(null);
-      setProfileMessage(null);
-      setIsVoucherPickerOpen(false);
-      setIsImageOpen(false);
     }
   }, [isOpen, initialQuantity, product.stockQuantity, product.variants, initialCouponCode]);
 
   useEffect(() => {
     if (!isOpen || shippingProvinces.length) return;
-    if (authService.isFrontendDemoSession()) {
-      setShippingProvinces(DEMO_SHIPPING_PROVINCES);
-      setAddressLoading(false);
-      setAddressError(null);
-      return;
-    }
     const controller = new AbortController();
     setAddressLoading(true);
     setAddressError(null);
@@ -265,26 +186,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
   if (!isOpen) return null;
 
-  if (!authService.isAuthenticated()) {
-    return (
-      <div role="dialog" aria-modal="true" aria-labelledby="login-required-title" className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
-        <div className="relative w-full max-w-md rounded-3xl border border-[#EEDFC6] bg-white p-7 text-center shadow-2xl">
-          <button type="button" onClick={onClose} aria-label="Đóng" className="absolute right-4 top-4 rounded-full p-2 text-[#7D715E] hover:bg-[#F3EFE6]">
-            <X className="h-5 w-5" />
-          </button>
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
-          <h2 id="login-required-title" className="text-xl font-black text-[#1A1612]">Đăng nhập để mua hàng</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#7D715E]">Đơn hàng, voucher và tiến trình nhận hàng sẽ được lưu an toàn trong tài khoản của bạn.</p>
-          <Link to={buildLoginUrl()} className="mt-5 flex w-full items-center justify-center rounded-xl bg-[#C59B58] px-4 py-3 text-sm font-black text-white hover:bg-[#B88E4F]">
-            Đăng nhập và tiếp tục
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const selectedVariant = product.variants?.find(
     (v) => v.id === selectedVariantId,
   );
@@ -300,11 +201,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const subtotal = unitPrice * quantity;
   const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount);
-  const eligibleVoucherCount = buyerVoucherService.eligibleFor({
-    storeId: store.id,
-    productId: product.id,
-    subtotal,
-  }).length;
 
   const selectedProvince = shippingProvinces.find(
     (province) => String(province.code) === provinceCode,
@@ -327,8 +223,8 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
 
-  const handleValidateCoupon = async (codeOverride?: string) => {
-    const codeToTest = (codeOverride || couponCode).trim().toUpperCase();
+  const handleValidateCoupon = async () => {
+    const codeToTest = couponCode.trim().toUpperCase();
     if (!codeToTest) {
       setCouponMessage({ type: 'error', text: 'Vui lòng nhập mã giảm giá' });
       return;
@@ -338,36 +234,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     setCouponMessage(null);
 
     try {
-      if (authService.isFrontendDemoSession()) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        if (codeToTest === 'SCANMS50K' && subtotal < 250_000) {
-          setAppliedCoupon(null);
-          setCouponMessage({
-            type: 'error',
-            text: 'Mã SCANMS50K áp dụng cho đơn từ 250.000 ₫.',
-          });
-          return;
-        }
-
-        const discount =
-          codeToTest === 'SCANMS50K'
-            ? Math.min(50_000, subtotal)
-            : codeToTest === 'SORASKIN5'
-              ? Math.min(30_000, Math.round(subtotal * 0.05))
-              : Math.min(50_000, Math.round(subtotal * 0.1));
-        setAppliedCoupon({
-          code: codeToTest,
-          discountAmount: discount,
-          discountType: codeToTest === 'SCANMS50K' ? 'FIXED' : 'PERCENTAGE',
-        });
-        setCouponCode(codeToTest);
-        setCouponMessage({
-          type: 'success',
-          text: `Áp dụng thành công! Tiết kiệm ${discount.toLocaleString('vi-VN')} ₫`,
-        });
-        return;
-      }
-
       const res = await api.post('/coupons/validate', {
         code: codeToTest,
         storeId: store.id,
@@ -415,63 +281,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     setCouponMessage(null);
   };
 
-  const handleUseProfile = async () => {
-    setProfileLoading(true);
-    setProfileMessage(null);
-    setErrorMessage(null);
-    try {
-      let profile = authService.getCurrentUser();
-      if (!authService.isFrontendDemoSession()) {
-        try {
-          profile = await authService.getMe();
-        } catch {
-          // The cached profile remains useful when /auth/me is temporarily unavailable.
-        }
-      }
-      if (!profile) throw new Error('Không đọc được hồ sơ tài khoản.');
-
-      const address = getProfileAddress(profile);
-      setCustomerName(profile.fullName || '');
-      setCustomerEmail(profile.email || '');
-      setCustomerPhone(address.phone);
-      if (address.address) setShippingAddress(address.address);
-
-      const province = shippingProvinces.find((item) =>
-        matchesAddressPart(item.code, item.name, address.provinceCode, address.province),
-      );
-      const district = province?.districts.find((item) =>
-        matchesAddressPart(item.code, item.name, address.districtCode, address.district),
-      );
-      const ward = district?.wards.find((item) =>
-        matchesAddressPart(item.code, item.name, address.wardCode, address.ward),
-      );
-      if (province) setProvinceCode(String(province.code));
-      if (district) setDistrictCode(String(district.code));
-      if (ward) setWardCode(String(ward.code));
-
-      if (!address.phone || !address.address) {
-        setProfileMessage('Đã lấy thông tin có sẵn. Hồ sơ còn thiếu số điện thoại hoặc địa chỉ, bạn vui lòng bổ sung.');
-      } else if (!province || !district || !ward) {
-        setProfileMessage('Đã lấy số điện thoại và địa chỉ. Vui lòng xác nhận thêm Tỉnh/Quận/Phường.');
-      } else {
-        setProfileMessage('Đã điền thông tin nhận hàng từ hồ sơ của bạn.');
-      }
-    } catch (error: any) {
-      setErrorMessage(error?.message || 'Không thể lấy thông tin từ hồ sơ lúc này.');
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
-    if (!authService.isAuthenticated()) {
-      setErrorMessage('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để đặt hàng.');
-      return;
-    }
 
 
     const trimmedName = customerName.trim();
@@ -523,63 +336,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      if (authService.isFrontendDemoSession()) {
-        await new Promise((resolve) => setTimeout(resolve, 350));
-        const demoOrder = demoOrderService.create({
-          customerName: trimmedName,
-          customerPhone: customerPhone.trim(),
-          shippingAddress: fullShippingAddress,
-          paymentMethod,
-          store,
-          product: {
-            id: product.id,
-            title: product.title,
-            sku: selectedVariant?.sku || product.sku,
-            imageUrl: product.imageUrl,
-          },
-          quantity,
-          unitPrice,
-          discountAmount,
-        });
-        const qrUrl =
-          paymentMethod === 'VIETQR'
-            ? await QRCode.toDataURL(
-                `SCANMS-DEMO|${demoOrder.externalOrderSn}|${demoOrder.finalAmount}`,
-                { width: 360, margin: 1 },
-              )
-            : undefined;
-        const orderResult = {
-          orderId: demoOrder.id,
-          publicOrderCode: demoOrder.externalOrderSn,
-          totalAmount: demoOrder.finalAmount,
-          paymentMethod,
-          paymentStatus: demoOrder.paymentStatus,
-          vietqr:
-            paymentMethod === 'VIETQR' && qrUrl
-              ? {
-                  bankCode: 'MB',
-                  accountNumber: '0000000000',
-                  accountName: 'SCANMS DEMO',
-                  amount: demoOrder.finalAmount,
-                  memo: demoOrder.externalOrderSn,
-                  qrUrl,
-                }
-              : undefined,
-          confirmationEmailQueued: false,
-        };
-        localStorage.setItem(
-          'scanms-recent-guest-order',
-          JSON.stringify({ publicOrderCode: demoOrder.externalOrderSn, createdAt: Date.now() }),
-        );
-        localStorage.setItem(
-          'scanms-recent-order',
-          JSON.stringify({ publicOrderCode: demoOrder.externalOrderSn, createdAt: Date.now() }),
-        );
-        setOrderSuccess(orderResult);
-        onOrderPlaced?.(orderResult);
-        return;
-      }
-
       const payload = {
         storeId: store.id,
         customerName: trimmedName,
@@ -590,20 +346,24 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         paymentMethod,
         // Chỉ gửi coupon đã được backend xác thực thành công.
         couponCode: appliedCoupon?.code || undefined,
+        discountAmount: appliedCoupon?.discountAmount || 0,
         idempotencyKey,
         items: [
           {
             productId: product.id,
             variantId: selectedVariantId || undefined,
+            productTitle: product.title,
+            imageUrl: product.imageUrl,
             quantity,
+            unitPrice,
           },
         ],
       };
 
 
-      const res = await api.post('/orders', payload);
+      const res = await api.post('/v1/orders/guest-checkout', payload);
       const rawResponse = res as any;
-      const resData = rawResponse?.data?.data || rawResponse?.data || rawResponse;
+      const resData = rawResponse?.result || rawResponse?.data?.data || rawResponse?.data || rawResponse;
       const publicOrderCode =
         resData?.publicOrderCode ||
         resData?.order?.externalOrderSn ||
@@ -618,7 +378,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         publicOrderCode,
         totalAmount: resData.finalAmount !== undefined ? resData.finalAmount : resData.order?.finalAmount,
         paymentMethod: resData.paymentMethod || paymentMethod,
-        paymentStatus: resData.paymentStatus || 'WAITING_PAYMENT',
+        paymentStatus: resData.paymentStatus || (paymentMethod === 'VIETQR' ? 'WAITING_PAYMENT' : 'UNPAID'),
         vietqr: resData.vietqr,
         cancellationToken: resData.cancellationToken || resData.order?.cancellationToken,
         confirmationEmailQueued: Boolean(resData.confirmationEmailQueued),
@@ -628,10 +388,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       // Không lưu cancellationToken hoặc PII vào localStorage.
       localStorage.setItem(
         'scanms-recent-guest-order',
-        JSON.stringify({ publicOrderCode, createdAt: Date.now() }),
-      );
-      localStorage.setItem(
-        'scanms-recent-order',
         JSON.stringify({ publicOrderCode, createdAt: Date.now() }),
       );
 
@@ -707,6 +463,83 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               </div>
             )}
 
+            {customerEmail.trim() && !orderSuccess.confirmationEmailQueued && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] text-amber-800">
+                Don da tao nhung email chua duoc gui. Vui long luu ma don ben duoi; he thong se gui lai sau khi SMTP duoc cau hinh.
+              </div>
+            )}
+
+            {/* Thanh tiến độ Mua hàng ➔ Nhận hàng */}
+            <div className="bg-white border border-[#EEDFC6] rounded-2xl p-4 sm:p-5 mb-5 text-left shadow-2xs">
+              <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-[#EAE4D7]">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center">
+                    <Truck className="w-4 h-4 text-[#B88E4F]" />
+                  </div>
+                  <div>
+                    <strong className="text-xs sm:text-sm font-bold text-[#1A1612] block">
+                      Tiến độ giao hàng dự kiến
+                    </strong>
+                    <span className="text-[11px] text-[#7D715E]">
+                      Đang ở Bước 1 / 5 · Bạn sẽ nhận hàng sau 1 - 3 ngày làm việc
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase">
+                  ● Đang xử lý
+                </span>
+              </div>
+
+              {/* Progress Stepper with Connecting Line */}
+              <div className="relative">
+                {/* Background Line */}
+                <div className="absolute top-4 left-6 right-6 h-0.5 bg-[#EAE4D7] -z-0 hidden sm:block" />
+                {/* Active Line (up to step 1/2) */}
+                <div className="absolute top-4 left-6 w-[20%] h-0.5 bg-[#C59B58] -z-0 hidden sm:block" />
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-2 relative z-10">
+                  <div className="flex flex-col items-center text-center gap-1">
+                    <div className="w-8 h-8 rounded-full bg-[#059669] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </div>
+                    <strong className="text-[11px] font-bold text-[#1A1612]">1. Đặt mua</strong>
+                    <span className="text-[10px] text-[#059669] font-medium">Thành công</span>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center gap-1">
+                    <div className="w-8 h-8 rounded-full bg-[#C59B58] text-white ring-4 ring-[#C59B58]/20 flex items-center justify-center font-bold text-xs shadow-xs animate-pulse">
+                      <StoreIcon className="w-4 h-4" />
+                    </div>
+                    <strong className="text-[11px] font-bold text-[#1A1612]">2. Shop duyệt</strong>
+                    <span className="text-[10px] text-[#B88E4F] font-bold">Đang thông báo</span>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center gap-1">
+                    <div className="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-[#A89F91] flex items-center justify-center font-bold text-xs">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <strong className="text-[11px] font-bold text-[#7D715E]">3. Đóng gói</strong>
+                    <span className="text-[10px] text-[#A89F91]">Chờ xuất kho</span>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center gap-1">
+                    <div className="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-[#A89F91] flex items-center justify-center font-bold text-xs">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <strong className="text-[11px] font-bold text-[#7D715E]">4. Vận chuyển</strong>
+                    <span className="text-[10px] text-[#A89F91]">1 - 2 ngày</span>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center gap-1 col-span-2 sm:col-span-1">
+                    <div className="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-[#A89F91] flex items-center justify-center font-bold text-xs">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <strong className="text-[11px] font-bold text-[#7D715E]">5. Nhận hàng</strong>
+                    <span className="text-[10px] text-[#A89F91]">Đồng kiểm 100%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="bg-[#FAF8F5] border border-[#EEDFC6] rounded-2xl p-4 text-left space-y-3 mb-5">
               <div className="flex items-center justify-between pb-2.5 border-b border-[#EAE4D7]">
@@ -781,7 +614,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                 <div className="flex justify-between text-[#7D715E]">
                   <span>Hình thức:</span>
                   <span className="font-semibold text-[#1A1612]">
-                    Chuyển khoản VietQR 24/7
+                    {orderSuccess.paymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR 24/7' : 'Thanh toán COD khi nhận hàng'}
                   </span>
                 </div>
               </div>
@@ -840,7 +673,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
             <div className="mb-6 pb-4 border-b border-[#EAE4D7] pr-8 sm:pr-12">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] text-[10px] font-bold text-[#B88E4F] uppercase tracking-wider mb-2">
                 <ShoppingBag className="w-3.5 h-3.5" />
-                <span>THANH TOÁN AN TOÀN • ĐƠN HÀNG GẮN VỚI TÀI KHOẢN</span>
+                <span>GUEST CHECKOUT • ĐẶT HÀNG NHANH KHÔNG CẦN TÀI KHOẢN</span>
               </div>
               <h2 id="guest-checkout-title" className="text-xl sm:text-2xl font-black text-[#1A1612]">
                 Thông Tin Giao Hàng & Thanh Toán
@@ -872,27 +705,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                 <div className="lg:col-span-7 space-y-4 text-left">
                   {/* Card 1: Receiver Information */}
                   <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#EAE4D7]">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-[#C59B58] text-white text-[11px] font-black flex items-center justify-center">1</span>
-                        <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Thông Tin Người Nhận</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleUseProfile}
-                        disabled={profileLoading}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#C59B58] bg-white px-2.5 py-1.5 text-[11px] font-black text-[#8C6226] transition hover:bg-[#FBF5EB] disabled:opacity-60"
-                      >
-                        {profileLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserRoundCheck className="h-3.5 w-3.5" />}
-                        Lấy thông tin từ hồ sơ
-                      </button>
+                    <div className="flex items-center gap-2 pb-2 border-b border-[#EAE4D7]">
+                      <span className="w-5 h-5 rounded-full bg-[#C59B58] text-white text-[11px] font-black flex items-center justify-center">1</span>
+                      <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Thông Tin Người Nhận</h3>
                     </div>
-
-                    {profileMessage && (
-                      <div className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-[11px] font-semibold text-[#7A561B]">
-                        {profileMessage}
-                      </div>
-                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
@@ -1047,13 +863,36 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                       <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Phương Thức Thanh Toán</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <div className="rounded-xl border border-[#C59B58] bg-[#FBF5EB] p-3.5 text-left text-xs text-[#B88E4F] ring-2 ring-[#C59B58]/30 shadow-2xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('COD')}
+                        className={`p-3.5 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                          paymentMethod === 'COD'
+                            ? 'border-[#C59B58] bg-[#FBF5EB] text-[#B88E4F] ring-2 ring-[#C59B58]/30 shadow-2xs'
+                            : 'border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
+                        <div className="font-extrabold text-[#1A1612] flex items-center gap-1.5">
+                          <span>💵</span> Thanh toán COD
+                        </div>
+                        <div className="text-[11px] text-[#7D715E] mt-1">Trả tiền mặt khi nhận hàng & kiểm tra</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('VIETQR')}
+                        className={`p-3.5 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                          paymentMethod === 'VIETQR'
+                            ? 'border-[#C59B58] bg-[#FBF5EB] text-[#B88E4F] ring-2 ring-[#C59B58]/30 shadow-2xs'
+                            : 'border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
                         <div className="font-extrabold text-[#1A1612] flex items-center gap-1.5">
                           <span>📱</span> Quét mã VietQR
                         </div>
                         <div className="text-[11px] text-[#7D715E] mt-1">Chuyển khoản liên ngân hàng 24/7 tức thì</div>
-                      </div>
+                      </button>
                     </div>
 
                     <div>
@@ -1087,12 +926,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
                     {/* Product preview */}
                     <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsImageOpen(true)}
-                        aria-label="Mở ảnh sản phẩm kích thước lớn"
-                        className="group/image relative w-16 h-16 rounded-xl bg-[#F3EFE6] border border-[#EAE4D7] overflow-hidden shrink-0 cursor-zoom-in"
-                      >
+                      <div className="w-16 h-16 rounded-xl bg-[#F3EFE6] border border-[#EAE4D7] overflow-hidden shrink-0">
                         <img
                           src={product.imageUrl || '/assets/product-placeholder.svg'}
                           alt={product.title}
@@ -1101,10 +935,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                             e.currentTarget.src = '/assets/product-placeholder.svg';
                           }}
                         />
-                        <span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover/image:bg-black/30 group-hover/image:opacity-100">
-                          <ZoomIn className="h-5 w-5" />
-                        </span>
-                      </button>
+                      </div>
                       <div className="min-w-0 flex-1">
                         <h4 className="text-xs font-bold text-[#1A1612] line-clamp-2 leading-snug">{product.title}</h4>
                         {selectedVariant && (
@@ -1204,23 +1035,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
                   {/* Coupon */}
                   <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <label className="block text-xs font-bold text-[#1A1612]">
-                        Mã giảm giá KOL / Gian hàng (Tùy chọn)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsVoucherPickerOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#EEDFC6] bg-white px-2.5 py-1.5 text-[11px] font-black text-[#8C6226] hover:bg-[#FBF5EB]"
-                      >
-                        <WalletCards className="h-3.5 w-3.5" />
-                        Chọn voucher đã săn ({eligibleVoucherCount})
-                      </button>
-                    </div>
-
-                    <div className="rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 text-[11px] leading-relaxed text-[#7D715E]">
-                      Hệ thống tạo đúng mã VietQR và nội dung chuyển khoản sau khi đơn được ghi nhận.
-                    </div>
+                    <label className="block text-xs font-bold text-[#1A1612]">
+                      Mã giảm giá KOL / Gian hàng (Tùy chọn)
+                    </label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Tag className="w-3.5 h-3.5 text-[#B88E4F] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1249,7 +1066,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                         <button
                           type="button"
                           disabled={!couponCode.trim() || couponLoading}
-                          onClick={() => void handleValidateCoupon()}
+                          onClick={handleValidateCoupon}
                           className="px-4 py-2 bg-[#F3EFE6] hover:bg-[#C59B58] hover:text-white disabled:opacity-50 text-[#1A1612] font-bold text-xs rounded-xl border border-[#EAE4D7] transition flex items-center gap-1.5 cursor-pointer shrink-0"
                         >
                           {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Áp dụng'}
@@ -1322,26 +1139,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
           </div>
         )}
       </div>
-      <ProductImageLightbox
-        isOpen={isImageOpen}
-        imageUrl={product.imageUrl || '/assets/product-placeholder.svg'}
-        alt={product.title}
-        onClose={() => setIsImageOpen(false)}
-      />
-      <VoucherPickerModal
-        isOpen={isVoucherPickerOpen}
-        storeId={store.id}
-        productId={product.id}
-        subtotal={subtotal}
-        selectedCode={appliedCoupon?.code || couponCode}
-        onClose={() => setIsVoucherPickerOpen(false)}
-        onSelect={(voucher) => {
-          setCouponCode(voucher.code);
-          setAppliedCoupon(null);
-          setIsVoucherPickerOpen(false);
-          void handleValidateCoupon(voucher.code);
-        }}
-      />
     </div>
   );
 };

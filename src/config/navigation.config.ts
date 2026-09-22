@@ -13,6 +13,7 @@ import {
   Users,
   Tag,
   Sparkles,
+  Server,
   type LucideProps,
 } from 'lucide-react';
 
@@ -61,6 +62,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     title: 'QUẢN TRỊ TOÀN SÀN',
     subTitle: 'Hệ Thống & Vận Hành',
     items: [
+      { path: '/admin/system', label: 'Quản lý Dịch vụ Hệ thống', icon: Server },
       { path: '/admin/analytics', label: 'Giám sát Toàn sàn', icon: TrendingUp },
       { path: '/admin/users', label: 'Người dùng & Duyệt KYC', icon: Users },
       { path: '/merchant/products', label: 'Gian hàng & Danh mục', icon: Box },
@@ -74,6 +76,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     title: 'VẬN HÀNH HỆ THỐNG',
     subTitle: 'Hệ Thống & Vận Hành',
     items: [
+      { path: '/admin/system', label: 'Quản lý Dịch vụ Hệ thống', icon: Server },
       { path: '/admin/analytics', label: 'Giám sát Toàn sàn', icon: TrendingUp },
       { path: '/admin/users', label: 'Người dùng & Duyệt KYC', icon: Users },
       { path: '/merchant/products', label: 'Gian hàng & Danh mục', icon: Box },

@@ -85,8 +85,8 @@ export const authService = {
     return api.post('/auth/register', data);
   },
 
-  async login(email: string, password: string) {
-    const res: any = await api.post('/auth/login', { email, password });
+  async login(email: string, password: string, role?: string) {
+    const res: any = await api.post('/auth/login', { email, password, role });
     const accessToken = res?.data?.accessToken || res?.accessToken;
     const user = res?.data?.user || res?.user;
     if (accessToken) {

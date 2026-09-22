@@ -31,21 +31,21 @@ import { Modal } from '../../components/ui/Modal';
 import { toast } from '../../utils/toast';
 
 const KOL_AVATAR_PRESETS = [
-  { id: 'kol-1', label: 'Thanh lịch', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584512/scanms/avatars/kol-avatar-thang.jpg' },
-  { id: 'kol-2', label: 'Tươi tắn', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584513/scanms/avatars/kol-avatar-ha.jpg' },
-  { id: 'kol-3', label: 'Trẻ trung', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584515/scanms/avatars/kol-avatar-nhat.jpg' },
-  { id: 'kol-4', label: 'Hiện đại', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584517/scanms/avatars/kol-avatar-nam.jpg' },
-  { id: 'kol-5', label: 'Đẹp xinh', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584518/scanms/avatars/kol-avatar-depxinh.jpg' },
-  { id: 'kol-6', label: 'Năng động', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584519/scanms/avatars/kol-avatar-nghia.jpg' },
+  { id: 'kol-1', label: 'Thanh lịch', url: '/assets/kol-avatar-thang.jpg' },
+  { id: 'kol-2', label: 'Tươi tắn', url: '/assets/kol-avatar-ha.jpg' },
+  { id: 'kol-3', label: 'Trẻ trung', url: '/assets/kol-avatar-nhat.jpg' },
+  { id: 'kol-4', label: 'Hiện đại', url: '/assets/kol-avatar-nam.jpg' },
+  { id: 'kol-5', label: 'Đẹp xinh', url: '/assets/kol-avatar-depxinh.jpg' },
+  { id: 'kol-6', label: 'Năng động', url: '/assets/kol-avatar-nghia.jpg' },
 ];
 
 const SHOP_LOGO_PRESETS = [
-  { id: 'shop-1', label: 'Sora Skin', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584519/scanms/logos/shop-sora-skin.jpg' },
-  { id: 'shop-2', label: 'Tech Store', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584520/scanms/logos/shop-techstore.jpg' },
-  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584525/scanms/logos/shop-my-pham-xanh.jpg' },
-  { id: 'shop-4', label: 'Store A Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584523/scanms/logos/shop-store-a.jpg' },
-  { id: 'shop-5', label: 'Store B Concept', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584524/scanms/logos/shop-store-b.jpg' },
-  { id: 'shop-6', label: 'Official Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584522/scanms/logos/shop-flagship.jpg' },
+  { id: 'shop-1', label: 'Sora Skin', url: '/assets/shop-sora-skin.jpg' },
+  { id: 'shop-2', label: 'Tech Store', url: '/assets/shop-techstore.jpg' },
+  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: '/assets/shop-my-pham-xanh.jpg' },
+  { id: 'shop-4', label: 'Store A Flagship', url: '/assets/shop-store-a.jpg' },
+  { id: 'shop-5', label: 'Store B Concept', url: '/assets/shop-store-b.jpg' },
+  { id: 'shop-6', label: 'Official Flagship', url: '/assets/shop-flagship.jpg' },
 ];
 
 export default function RegisterPage() {
@@ -502,7 +502,15 @@ export default function RegisterPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative w-14 h-14 rounded-full overflow-hidden ring-2 ring-[#C59B58] ring-offset-2 shrink-0 bg-[#F3EFE6] flex items-center justify-center shadow-xs">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt="KOL Avatar Preview" className="w-full h-full object-cover" />
+                        <img
+                          src={avatarUrl}
+                          alt="KOL Avatar Preview"
+                          className="w-full h-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = KOL_AVATAR_PRESETS[0].url;
+                          }}
+                        />
                       ) : (
                         <User className="w-6 h-6 text-[#7D715E]" />
                       )}

@@ -43,6 +43,9 @@ const AiFraudSentinelPage = lazy(() => import('../pages/merchant/AiFraudSentinel
 // Audit Logs & Security Trail (Quý - FR-32)
 const AuditLogsPage = lazy(() => import('../pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 
+// System Management & Services Health Check
+const AdminSystemManagementPage = lazy(() => import('../pages/admin/AdminSystemManagementPage'));
+
 import { RouteContent } from './RouteContent';
 
 function AppRoutes() {
@@ -145,6 +148,8 @@ function AppRoutes() {
           </Route>
 
           <Route element={<RouteContent />}>
+            <Route path="admin/system" element={<AdminSystemManagementPage />} />
+            <Route path="admin/services" element={<Navigate to="/admin/system" replace />} />
             <Route path="admin/analytics" element={<AdminAnalyticsHubPage />} />
             <Route path="admin/affiliate-oversight" element={<AdminOversightHubPage />} />
             <Route path="admin/users" element={<KycApprovalPage />} />

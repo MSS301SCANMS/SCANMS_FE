@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Search,
   Store,
@@ -23,17 +23,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
-  Sparkles,
   Copy,
   Ticket,
   Gift,
   CalendarDays,
   Minus,
   Plus,
+  MessageSquare,
+  Share2,
+  Flame,
+  Coins,
+  ExternalLink,
+  Heart,
   ZoomIn,
 } from 'lucide-react';
 import api from '../../services/api';
-import { authService } from '../../services/auth.service';
 import { GuestCheckoutModal, type CheckoutProductItem, type CheckoutStoreInfo } from '../../components/checkout/GuestCheckoutModal';
 import {
   marketplaceProducts,
@@ -42,13 +46,8 @@ import {
 import { formatMoney, normalizeSearch } from '../../features/marketplace/marketplaceUtils';
 import type { Product, ReviewVideo } from '../../features/marketplace/marketplace.types';
 import { toast } from '../../utils/toast';
-import { buyerVoucherService } from '../../services/buyer-voucher.service';
-import { buildLoginUrl, hasAuthenticatedSession } from '../../utils/authRedirect';
-import { ProductImageLightbox } from '../../components/common/ProductImageLightbox';
 
 export default function MarketplacePage() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [items, setItems] = useState<Product[]>(marketplaceProducts);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -58,7 +57,6 @@ export default function MarketplacePage() {
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
   const [activeVideo, setActiveVideo] = useState<ReviewVideo | null>(null);
-  const [imagePreview, setImagePreview] = useState<{ src: string; alt: string } | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeCheckoutProduct, setActiveCheckoutProduct] = useState<{
     product: CheckoutProductItem;
@@ -70,16 +68,19 @@ export default function MarketplacePage() {
   const [trackQuery, setTrackQuery] = useState('');
   const [trackResult, setTrackResult] = useState<any | null>(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
-  const [recentOrderCode, setRecentOrderCode] = useState(() => {
+  const [recentGuestOrder, setRecentGuestOrder] = useState<{ publicOrderCode: string } | null>(null);
+
+  useEffect(() => {
     try {
-      const saved =
-        localStorage.getItem('scanms-recent-order') ||
-        localStorage.getItem('scanms-recent-guest-order');
-      return saved ? String(JSON.parse(saved)?.publicOrderCode || '') : '';
-    } catch {
-      return '';
-    }
-  });
+      const saved = localStorage.getItem('scanms-recent-guest-order');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.publicOrderCode) {
+          setRecentGuestOrder(parsed);
+        }
+      }
+    } catch {}
+  }, []);
 
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
@@ -228,18 +229,8 @@ export default function MarketplacePage() {
     });
   };
 
-  const requireLoginForPurchase = () => {
-    if (hasAuthenticatedSession()) return true;
-    toast.info('Vui lòng đăng nhập để mua hàng và theo dõi đơn trong tài khoản.');
-    navigate(buildLoginUrl(`${location.pathname}${location.search}`));
-    return false;
-  };
-
-  const handleOpenDirectCheckout = (product: Product, quantity = 1) => {
-    if (!requireLoginForPurchase()) return;
-    const isDemoSession = authService.isFrontendDemoSession();
-    const checkoutStoreId = product.storeId || (isDemoSession ? 'frontend-demo-store' : undefined);
-    if (!checkoutStoreId) {
+  const handleOpenDirectCheckout = (product: Product) => {
+    if (!product.storeId) {
       toast.error('Sản phẩm mẫu này chưa được liên kết với gian hàng thật nên chưa thể đặt hàng.');
       return;
     }
@@ -251,15 +242,14 @@ export default function MarketplacePage() {
         price: product.price,
         originalPrice: product.origPrice,
         imageUrl: product.image,
-        stockQuantity: product.stockQuantity || (isDemoSession ? 99 : 0),
+        stockQuantity: product.stockQuantity || 0,
         variants: product.variants,
       },
       store: {
-        id: checkoutStoreId,
+        id: product.storeId,
         name: product.brand,
       },
       couponCode: product.kol?.coupon || '',
-      quantity,
     });
   };
 
@@ -494,9 +484,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
 ];
 
   const [countdown, setCountdown] = useState({ hours: 2, minutes: 59, seconds: 50 });
-  const [isVoucherSaved, setIsVoucherSaved] = useState(() =>
-    hasAuthenticatedSession() && buyerVoucherService.isSaved('SCANMS50K'),
-  );
+  const [isVoucherSaved, setIsVoucherSaved] = useState(false);
   const [activeDealIndex, setActiveDealIndex] = useState(0);
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
   const [isDealAutoPlayPaused, setIsDealAutoPlayPaused] = useState(false);
@@ -508,6 +496,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
   const [isQuickVideoOpen, setIsQuickVideoOpen] = useState(false);
   const [isVoucherWalletOpen, setIsVoucherWalletOpen] = useState(false);
   const [isCouponCopied, setIsCouponCopied] = useState(false);
+  const [isHeroLiked, setIsHeroLiked] = useState(false);
   const [isHeroScrolledPast, setIsHeroScrolledPast] = useState(false);
   const [customCouponInput, setCustomCouponInput] = useState('');
   const [appliedCustomCoupon, setAppliedCustomCoupon] = useState<{
@@ -515,6 +504,97 @@ const ROTATING_DEALS: FlashDealProduct[] = [
     discountAmount: number;
     description: string;
   } | null>(null);
+  
+  // Image Lightbox / Zoom Modal State
+  const [zoomedImage, setZoomedImage] = useState<{
+    src: string;
+    title: string;
+    brand?: string;
+    price?: number;
+    origPrice?: number;
+    badge?: string;
+    images?: Array<{ id: string | number; src: string; label: string }>;
+    currentIndex?: number;
+  } | null>(null);
+
+  // Keyboard shortcut (Escape) and background scroll lock for image lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && zoomedImage) {
+        setZoomedImage(null);
+      }
+    };
+    if (zoomedImage) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [zoomedImage]);
+
+  // Order-to-Delivery Progress Stepper State (Thanh tiến độ Mua hàng -> Nhận hàng)
+  const [previewStageIndex, setPreviewStageIndex] = useState<number>(4);
+
+  const ORDER_PROGRESS_STAGES = [
+    {
+      step: 1,
+      title: 'Đặt mua thành công',
+      desc: 'Đơn hàng được ghi nhận, trừ tồn kho & cấp mã vận đơn',
+      icon: ShoppingBag,
+      timeText: 'Tức thì',
+    },
+    {
+      step: 2,
+      title: 'Shop tiếp nhận',
+      desc: 'Gian hàng xác nhận sản phẩm & chuẩn bị đóng gói',
+      icon: Store,
+      timeText: 'Trong 2 - 4h',
+    },
+    {
+      step: 3,
+      title: 'Đóng gói & Xuất kho',
+      desc: 'Niêm phong tem an toàn, bàn giao cho đơn vị vận chuyển',
+      icon: Package,
+      timeText: 'Trong ngày',
+    },
+    {
+      step: 4,
+      title: 'Đang vận chuyển',
+      desc: 'Shipper nhận kiện hàng, đang trên đường giao tận tay bạn',
+      icon: Truck,
+      timeText: '1 - 2 ngày',
+    },
+    {
+      step: 5,
+      title: 'Nhận hàng & Đồng kiểm',
+      desc: 'Mở hộp kiểm tra trước, ưng ý mới thanh toán cho shipper',
+      icon: ShieldCheck,
+      timeText: 'Đồng kiểm 100%',
+    },
+  ];
+
+  const currentActiveStage = useMemo(() => {
+    if (!trackResult) return previewStageIndex;
+    const statusLower = (trackResult.status || '').toLowerCase();
+    if (statusLower.includes('thành công') || statusLower.includes('đã nhận') || statusLower.includes('hoàn tất')) {
+      return 5;
+    }
+    if (statusLower.includes('vận chuyển') || statusLower.includes('đang giao') || statusLower.includes('phát hàng')) {
+      return 4;
+    }
+    if (statusLower.includes('đóng gói') || statusLower.includes('xuất kho') || statusLower.includes('chuẩn bị')) {
+      return 3;
+    }
+    if (statusLower.includes('tiếp nhận') || statusLower.includes('xác nhận') || statusLower.includes('duyệt')) {
+      return 2;
+    }
+    return 1;
+  }, [trackResult, previewStageIndex]);
+
   const heroSectionRef = useRef<HTMLElement>(null);
 
   const currentDeal = ROTATING_DEALS[activeDealIndex] || ROTATING_DEALS[0];
@@ -609,74 +689,9 @@ const ROTATING_DEALS: FlashDealProduct[] = [
     };
   }, [currentDeal, currentVariant, heroVoucherId, appliedCustomCoupon]);
 
-  useEffect(() => {
-    const savedCode = new URLSearchParams(location.search).get('voucher')?.trim().toUpperCase();
-    if (!savedCode || !buyerVoucherService.isSaved(savedCode)) return;
-    setCustomCouponInput(savedCode);
-    if (savedCode === 'SCANMS50K') {
-      setHeroVoucherId('platform');
-      setAppliedCustomCoupon({
-        code: savedCode,
-        discountAmount: 50000,
-        description: 'Voucher đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
-      });
-    } else if (savedCode === 'SORASKIN5') {
-      setHeroVoucherId('shop');
-      setAppliedCustomCoupon({
-        code: savedCode,
-        discountAmount: Math.round(currentVariant.origPrice * 0.05),
-        description: 'Voucher Shop đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
-      });
-    } else {
-      setHeroVoucherId('creator');
-      setAppliedCustomCoupon({
-        code: savedCode,
-        discountAmount: Math.round(currentVariant.origPrice * 0.1),
-        description: 'Voucher Creator đã chọn từ ví, sẽ được xác thực lại khi thanh toán.',
-      });
-    }
-  }, [location.search, currentVariant.origPrice]);
-
   const handleSaveVoucher = () => {
-    if (!requireLoginForPurchase()) return;
-    buyerVoucherService.save({
-      id: 'platform-scanms50k',
-      code: 'SCANMS50K',
-      title: 'Giảm 50.000₫ cho đơn đủ điều kiện',
-      description: 'Voucher toàn sàn cho đơn từ 250.000₫, được xác thực lại khi thanh toán.',
-      scope: 'PLATFORM',
-      minimumOrderAmount: 250000,
-      expiresAt: '2026-09-30T23:59:59+07:00',
-    });
     setIsVoucherSaved(true);
     toast.success('Đã lưu mã voucher SCANMS50K vào ví của bạn.');
-  };
-
-  const saveHeroVoucher = (scope: 'platform' | 'creator' | 'shop') => {
-    if (!requireLoginForPurchase()) return false;
-    if (scope === 'platform') {
-      handleSaveVoucher();
-      return true;
-    }
-    if (scope === 'creator') {
-      buyerVoucherService.save({
-        id: `creator-${currentDeal.creator.coupon}`,
-        code: currentDeal.creator.coupon,
-        title: 'Giảm 10% từ Creator',
-        description: `Ưu đãi được giới thiệu bởi ${currentDeal.creator.name}, tối đa 50.000₫.`,
-        scope: 'CREATOR',
-      });
-    } else {
-      buyerVoucherService.save({
-        id: 'store-soraskin5',
-        code: 'SORASKIN5',
-        title: 'Giảm 5% tại Sora Skin',
-        description: 'Voucher gian hàng, giảm tối đa 30.000₫.',
-        scope: 'STORE',
-      });
-    }
-    toast.success('Đã lưu voucher vào ví của bạn.');
-    return true;
   };
 
   const handleCopyCoupon = (code: string) => {
@@ -756,7 +771,6 @@ const ROTATING_DEALS: FlashDealProduct[] = [
   };
 
   const handleHeroBuyNow = () => {
-    if (!requireLoginForPurchase()) return;
     const targetProduct = items.find(
       (p) =>
         p.id === currentDeal.id ||
@@ -764,9 +778,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         p.name.toLowerCase().includes(currentDeal.shortTitle.toLowerCase())
     );
 
-    const isDemoSession = authService.isFrontendDemoSession();
-    const checkoutStoreId = targetProduct?.storeId || (isDemoSession ? 'frontend-demo-store' : undefined);
-    if (!targetProduct || !checkoutStoreId) {
+    if (!targetProduct?.storeId) {
       toast.error('Deal này chưa được liên kết với sản phẩm thật nên chưa thể đặt hàng.');
       return;
     }
@@ -786,16 +798,34 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         price: selectedRealVariant?.price ?? targetProduct.price,
         originalPrice: targetProduct.origPrice,
         imageUrl: currentDeal.images[heroGalleryIndex]?.src || currentDeal.images[0].src,
-        stockQuantity: selectedRealVariant?.stockQuantity ?? targetProduct.stockQuantity ?? (isDemoSession ? 99 : 0),
+        stockQuantity: selectedRealVariant?.stockQuantity ?? targetProduct.stockQuantity ?? 0,
         variants: selectedRealVariant ? [selectedRealVariant] : undefined,
       },
       store: {
-        id: checkoutStoreId,
+        id: targetProduct.storeId,
         name: targetProduct.brand,
       },
       couponCode: heroProductData.activeCoupon,
       quantity: heroQuantity,
     });
+  };
+
+  const handleCopyAffiliateLink = () => {
+    const link = `${window.location.origin}/marketplace?deal=${currentDeal.id}&ref=KOL_${currentDeal.creator.coupon}`;
+    navigator.clipboard.writeText(link);
+    setIsCouponCopied(true);
+    toast.success('Đã sao chép Link Tiếp Thị CTV kèm mã giảm giá!');
+    setTimeout(() => setIsCouponCopied(false), 2500);
+  };
+
+  const handleFilterShop = (shopName: string) => {
+    setSelectedStore(shopName);
+    toast.info(`Đang xem toàn bộ sản phẩm của gian hàng ${shopName}`);
+    catalogRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleChatShop = (shopName: string) => {
+    toast.info(`Đang kết nối tin nhắn trực tiếp với ${shopName}...`);
   };
 
   return (
@@ -872,24 +902,6 @@ const ROTATING_DEALS: FlashDealProduct[] = [
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {hasAuthenticatedSession() && (
-              <>
-                <Link
-                  to="/my-vouchers"
-                  className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition"
-                >
-                  <Gift className="w-4 h-4 text-[#B88E4F]" />
-                  <span>Voucher của tôi</span>
-                </Link>
-                <Link
-                  to="/my-orders"
-                  className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition"
-                >
-                  <Package className="w-4 h-4 text-[#B88E4F]" />
-                  <span>Đơn mua</span>
-                </Link>
-              </>
-            )}
             <button
               type="button"
               onClick={() => {
@@ -1129,226 +1141,22 @@ const ROTATING_DEALS: FlashDealProduct[] = [
         </div>
       </div>
     </div>
-      </header>
+  </header>
 
-      {recentOrderCode && (
-        <div className="border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2.5">
-          <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-semibold text-[#7A561B]">
-              Đơn hàng vừa đặt: <strong className="font-mono text-[#1A1612]">#{recentOrderCode}</strong>
-            </span>
-            <Link
-              to={`/tracking?sn=${encodeURIComponent(recentOrderCode)}`}
-              className="inline-flex items-center gap-1.5 font-black text-[#8C6226] hover:underline"
-            >
-              <Truck className="h-3.5 w-3.5" /> Theo dõi tiến trình
-            </Link>
-          </div>
-        </div>
-      )}
-
-      <section ref={heroSectionRef} className="relative bg-gradient-to-b from-[#F3EFE6] via-[#FAF8F5] to-[#FAF8F5] border-b border-[#EAE4D7] py-8 sm:py-10 overflow-hidden text-left">
+      <section ref={heroSectionRef} className="relative bg-gradient-to-b from-[#F3EFE6] via-[#FAF8F5] to-[#FAF8F5] border-b border-[#EAE4D7] pt-6 sm:pt-8 pb-8 overflow-hidden text-left">
         {/* Subtle Luxury Golden Ambient Glow Orbs */}
         <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#C59B58]/10 blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 -right-20 w-80 h-80 rounded-full bg-[#B88E4F]/10 blur-3xl pointer-events-none" />
 
         <div className="mx-auto max-w-[1520px] px-4 sm:px-6 lg:px-8 relative z-10">
 
-          {/* MAIN STAGE: Left Wing Campaign Hub & Right Wing Deal Command Center */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr] xl:grid-cols-[430px_1fr] 2xl:grid-cols-[460px_1fr] lg:items-stretch">
-
-            {/* LEFT WING: Flagship Campaign, Interactive Voucher Ticket & Trust Props */}
-            <div className="flex flex-col justify-between gap-4 text-left bg-gradient-to-br from-white via-[#FAF8F5] to-[#FBF5EB] border-2 border-[#EEDFC6] rounded-3xl p-5 sm:p-6 shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 translate-x-8 -translate-y-8 w-44 h-44 bg-[#C59B58]/10 rounded-full blur-2xl pointer-events-none" />
-
-              <div className="flex flex-col gap-3.5 relative z-10">
-                {/* Brand Pills */}
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#8C6226]">
-                    <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    SCANMS MALL
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]">
-                    100% CHÍNH HÃNG
-                  </span>
-                </div>
-
-                {/* Big Title */}
-                <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black tracking-tight text-[#1A1612] leading-[1.15] m-0">
-                  ĐẠI HỘI <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#B88E4F] via-[#C59B58] to-[#8C6226]">SĂN DEAL</span>
-                  <span className="text-[#C59B58] ml-1">✦</span>
-                </h1>
-
-                <h2 className="text-sm sm:text-base font-bold text-[#8C6226] m-0 -mt-1">
-                  Ưu Đãi Độc Quyền Cùng Top Creator.
-                </h2>
-
-                <p className="text-xs text-[#7D715E] leading-relaxed m-0">
-                  Khám phá hàng ngàn sản phẩm uy tín từ các thương hiệu chính hãng. Nhập mã voucher từ Creator để được giảm giá trực tiếp, đồng kiểm tận tay và đổi trả bảo hộ 14 ngày.
-                </p>
-
-                {/* 3D Luxury Ribbon Voucher Showcase */}
-                <div className="relative mx-auto h-[185px] w-full max-w-[390px] rounded-2xl overflow-hidden border border-[#EEDFC6] shadow-md group/vbanner my-1 bg-gradient-to-b from-[#F3EFE6] to-[#FAF8F5]">
-                  <img
-                    src="/marketing/scanms-voucher-ribbon-luxury.jpg"
-                    alt="SCANMS Voucher 50K phiên bản ruy băng vàng sang trọng"
-                    className="h-full w-full object-cover object-center group-hover/vbanner:scale-103 transition-transform duration-700"
-                  />
-                  {/* Subtle Gradient & Floating Badge */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
-                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between pointer-events-none">
-                    <span className="text-[11px] font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                      Săn deal xịn • Sống đẹp hơn cùng SCANMS
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-black/45 backdrop-blur-xs border border-white/30 text-[9.5px] font-mono font-bold text-amber-200">
-                      GIẢM 50K
-                    </span>
-                  </div>
-                </div>
-
-                {/* Authentic Perforated Luxury Voucher Ticket Card */}
-                <div className="relative rounded-2xl border-2 border-[#EEDFC6] bg-gradient-to-r from-[#FFFDF9] to-white p-3 shadow-sm hover:shadow-md transition overflow-hidden">
-                  {/* Ticket notch cutouts */}
-                  <div className="absolute -top-2 left-12 w-4 h-4 rounded-full bg-[#FAF8F5] border border-[#EEDFC6]" />
-                  <div className="absolute -bottom-2 left-12 w-4 h-4 rounded-full bg-[#FAF8F5] border border-[#EEDFC6]" />
-
-                  <div className="flex items-center justify-between gap-3">
-                    {/* Left Stub with ticket icon and dashed separator */}
-                    <div className="flex items-center gap-3 min-w-0 pr-3 border-r-2 border-dashed border-[#EEDFC6]">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FBF5EB] to-[#F3EFE6] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs">
-                        <Ticket className="w-5 h-5 text-[#B88E4F]" />
-                      </div>
-                    </div>
-
-                    {/* Middle Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="px-1.5 py-0.2 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-[9px] font-black uppercase text-[#8C6226]">
-                          Toàn Sàn
-                        </span>
-                        <span className="text-[10px] text-[#7D715E]">HSD: 30/09/2026</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <strong className="text-sm font-black text-[#1A1612] tracking-wider font-mono">
-                          SCANMS50K
-                        </strong>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCoupon('SCANMS50K')}
-                          className="text-[#7D715E] hover:text-[#B88E4F] transition"
-                          title="Sao chép mã"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <span className="text-[10.5px] text-[#7D715E] block truncate mt-0.5">
-                        Giảm 50.000₫ cho đơn từ 250k qua link Creator
-                      </span>
-                    </div>
-
-                    {/* Save Button */}
-                    <button
-                      type="button"
-                      onClick={handleSaveVoucher}
-                      className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 ${
-                        isVoucherSaved
-                          ? 'bg-[#FBF5EB] text-[#059669] border border-[#059669]/40 font-black'
-                          : 'bg-[#C59B58] hover:bg-[#B88E4F] text-white'
-                      }`}
-                    >
-                      {isVoucherSaved ? '✓ Đã lưu' : 'Lưu mã'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Manual Custom Voucher Input Box */}
-                <div className="rounded-2xl border border-[#EEDFC6] bg-white p-3 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <label htmlFor="custom-coupon-input" className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5 cursor-pointer">
-                      <Ticket className="w-3.5 h-3.5 text-[#B88E4F]" />
-                      <span>Nhập mã ưu đãi riêng của bạn</span>
-                    </label>
-                    <span className="text-[10px] text-[#7D715E]">Creator / Shop / KOC</span>
-                  </div>
-
-                  <form onSubmit={handleApplyCustomCoupon} className="flex items-center gap-1.5">
-                    <div className="relative flex-1">
-                      <input
-                        id="custom-coupon-input"
-                        type="text"
-                        value={customCouponInput}
-                        onChange={(e) => setCustomCouponInput(e.target.value)}
-                        placeholder="Nhập mã (VD: NHATXINH10, KOLSANG20...)"
-                        className="w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider text-[#1A1612] placeholder:text-[#A89F91] placeholder:normal-case placeholder:font-sans focus:border-[#C59B58] focus:bg-white focus:outline-none transition"
-                      />
-                      {customCouponInput && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomCouponInput('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-1 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:opacity-95 text-white text-xs font-black transition shadow-xs cursor-pointer active:scale-95"
-                    >
-                      Áp dụng
-                    </button>
-                  </form>
-
-                  {/* Applied feedback notification if active */}
-                  {appliedCustomCoupon && (
-                    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-[#059669]/30 bg-[#F0FDF4] px-2.5 py-1.5 text-xs text-[#059669] animate-in fade-in duration-150">
-                      <div className="flex items-center gap-1.5 font-bold min-w-0">
-                        <Check className="w-3.5 h-3.5 shrink-0 text-[#059669]" />
-                        <span className="truncate">
-                          Đã áp dụng: <strong>{appliedCustomCoupon.code}</strong> (-{appliedCustomCoupon.discountAmount.toLocaleString('vi-VN')}₫)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveCustomCoupon}
-                        className="text-[10.5px] font-bold text-[#DC2626] hover:underline shrink-0 cursor-pointer"
-                      >
-                        Gỡ bỏ
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 3 Bottom Trust Pillars */}
-              <div className="grid grid-cols-3 gap-2 text-center pt-3 border-t border-[#EAE4D7] relative z-10">
-                <div className="flex flex-col items-center justify-center py-1">
-                  <ShieldCheck className="w-5 h-5 text-[#B88E4F] mb-1" />
-                  <strong className="block text-xs font-black text-[#1A1612]">Chính hãng</strong>
-                  <span className="text-[10px] text-[#7D715E] block mt-0.5">Kiểm định 100%</span>
-                </div>
-                <div className="flex flex-col items-center justify-center py-1 border-x border-[#EAE4D7]">
-                  <Package className="w-5 h-5 text-[#B88E4F] mb-1" />
-                  <strong className="block text-xs font-black text-[#1A1612]">Đổi trả 14 ngày</strong>
-                  <span className="text-[10px] text-[#7D715E] block mt-0.5">Đồng kiểm tận tay</span>
-                </div>
-                <div className="flex flex-col items-center justify-center py-1">
-                  <User className="w-5 h-5 text-[#B88E4F] mb-1" />
-                  <strong className="block text-xs font-black text-[#1A1612]">Voucher Creator</strong>
-                  <span className="text-[10px] text-[#7D715E] block mt-0.5">Tự động giảm giá</span>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT WING: Deal Command Center (Continuously Rotating Shop Deals) */}
-            <div className="flex min-w-0 flex-col">
-              <div 
-                className="bg-white border-2 border-[#EEDFC6] rounded-3xl shadow-xl relative overflow-hidden text-left flex flex-col justify-between h-full group/dealcard"
-                onMouseEnter={() => setIsDealAutoPlayPaused(true)}
-                onMouseLeave={() => setIsDealAutoPlayPaused(false)}
-              >
+          {/* MAIN STAGE: Full-Width Deal Command Center (Dài ngang bằng với phần dưới) */}
+          <div className="w-full">
+            <div 
+              className="bg-white border-2 border-[#EEDFC6] rounded-3xl shadow-xl relative overflow-hidden text-left flex flex-col justify-between group/dealcard"
+              onMouseEnter={() => setIsDealAutoPlayPaused(true)}
+              onMouseLeave={() => setIsDealAutoPlayPaused(false)}
+            >
                 
                 {/* Stage Header: Flash Sale Banner + Carousel Controls + Countdown */}
                 <div className="bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#C59B58] px-4 sm:px-5 py-2.5 text-white flex items-center justify-between gap-3 flex-wrap shadow-xs relative overflow-hidden">
@@ -1450,36 +1258,76 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                   })}
                 </div>
 
-                {/* Stage Body: 2 Columns */}
-                <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr] gap-5 sm:gap-6 flex-1">
+                {/* Stage Body: 2 Columns (Balanced ~41% left, ~59% right) */}
+                <div className="p-4 sm:p-6 lg:p-7 grid grid-cols-1 lg:grid-cols-[41fr_59fr] gap-6 lg:gap-8 flex-1">
                   
-                  {/* Left Column: Product Image Gallery */}
-                  <div className="flex flex-col gap-2.5">
-                    <div className="group/zoom relative aspect-square overflow-hidden rounded-2xl border border-[#EAE4D7] bg-[#FAF8F5] shadow-inner">
+                  {/* Left Column: Product Image Gallery & Integrated ĐẠI HỘI SĂN DEAL Hub */}
+                  <div className="flex flex-col gap-3">
+                    <div
+                      className="group/zoom relative h-[290px] sm:h-[310px] w-full overflow-hidden rounded-2xl border border-[#EAE4D7] bg-[#FAF8F5] shadow-inner cursor-zoom-in"
+                      onClick={() => {
+                        setZoomedImage({
+                          src: currentDeal.images[heroGalleryIndex]?.src || currentDeal.images[0].src,
+                          title: currentDeal.title,
+                          brand: currentDeal.shopName,
+                          price: currentVariant.price,
+                          origPrice: currentVariant.origPrice,
+                          badge: 'Flash Deal',
+                          images: currentDeal.images,
+                          currentIndex: heroGalleryIndex,
+                        });
+                      }}
+                    >
                       <img
                         key={`${currentDeal.id}-${heroGalleryIndex}`}
                         src={currentDeal.images[heroGalleryIndex]?.src || currentDeal.images[0].src}
                         alt={currentDeal.images[heroGalleryIndex]?.label || currentDeal.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover/zoom:scale-115 cursor-crosshair animate-in fade-in duration-300"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover/zoom:scale-110 animate-in fade-in duration-300"
                       />
                       
                       {/* Shop badge on top-left */}
-                      <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-lg border border-[#EAE4D7] bg-white/95 px-2 py-1 text-[10px] font-bold text-[#1A1612] shadow-2xs z-10">
+                      <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-lg border border-[#EAE4D7] bg-white/95 px-2 py-1 text-[10px] font-bold text-[#1A1612] shadow-2xs z-10 pointer-events-none">
                         <Store className="h-3 w-3 shrink-0 text-[#B88E4F]" />
                         <span>{currentDeal.shopName}</span>
                       </div>
 
                       {/* Flash Deal Selling Badge on bottom-left */}
-                      <div className="absolute left-2.5 bottom-2.5 flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-white/95 px-2.5 py-0.5 text-[10px] font-bold text-[#1A1612] shadow-2xs z-10">
+                      <div className="absolute left-2.5 bottom-2.5 flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-white/95 px-2.5 py-0.5 text-[10px] font-bold text-[#1A1612] shadow-2xs z-10 pointer-events-none">
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                         <span>Đang mở bán Flash Deal</span>
                       </div>
+
+                      {/* Magnifying Glass Icon Button on top-right */}
+                      <button
+                        type="button"
+                        aria-label="Phóng to ảnh xem chi tiết"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setZoomedImage({
+                            src: currentDeal.images[heroGalleryIndex]?.src || currentDeal.images[0].src,
+                            title: currentDeal.title,
+                            brand: currentDeal.shopName,
+                            price: currentVariant.price,
+                            origPrice: currentVariant.origPrice,
+                            badge: 'Flash Deal',
+                            images: currentDeal.images,
+                            currentIndex: heroGalleryIndex,
+                          });
+                        }}
+                        className="absolute right-2.5 top-2.5 w-8 h-8 rounded-full border border-[#EEDFC6] bg-white/95 hover:bg-[#C59B58] text-[#1A1612] hover:text-white flex items-center justify-center shadow-md z-10 transition-all cursor-pointer group/zoombtn"
+                        title="Bấm để phóng to ảnh xem chi tiết"
+                      >
+                        <ZoomIn className="w-4 h-4 text-[#B88E4F] group-hover/zoombtn:text-white transition-colors" />
+                      </button>
 
                       {/* Prev/Next arrows for product gallery images */}
                       <button
                         type="button"
                         aria-label="Xem ảnh trước"
-                        onClick={() => setHeroGalleryIndex((current) => (current - 1 + currentDeal.images.length) % currentDeal.images.length)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHeroGalleryIndex((current) => (current - 1 + currentDeal.images.length) % currentDeal.images.length);
+                        }}
                         className="absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-[#EAE4D7] bg-white/90 text-[#1A1612] opacity-80 sm:opacity-0 group-hover/zoom:opacity-100 transition hover:bg-white shadow-sm cursor-pointer z-10"
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -1487,7 +1335,10 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       <button
                         type="button"
                         aria-label="Xem ảnh tiếp theo"
-                        onClick={() => setHeroGalleryIndex((current) => (current + 1) % currentDeal.images.length)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHeroGalleryIndex((current) => (current + 1) % currentDeal.images.length);
+                        }}
                         className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-[#EAE4D7] bg-white/90 text-[#1A1612] opacity-80 sm:opacity-0 group-hover/zoom:opacity-100 transition hover:bg-white shadow-sm cursor-pointer z-10"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -1512,241 +1363,373 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  {/* Right Column: Information, Creator, Pricing, Voucher Wallet, Actions */}
-                  <div className="flex flex-col justify-between gap-3 min-w-0">
-                    
-                    {/* Rating & Sold Row */}
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="flex items-center gap-1 font-bold text-amber-500">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        {currentDeal.rating}
-                      </span>
-                      <span className="text-[#EAE4D7]">|</span>
-                      <span className="text-[#7D715E]">{currentDeal.soldCount}</span>
-                      <span className="text-[#EAE4D7]">|</span>
-                      <span className="text-[#7D715E]">{currentDeal.categoryLabel}</span>
-                    </div>
-
-                    {/* Product Title */}
-                    <h2 className="m-0 text-lg sm:text-xl font-black leading-snug text-[#1A1612] transition-all">
-                      {currentDeal.title}
-                    </h2>
-
-                    {/* Creator Deal Card */}
-                    <div className="rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 flex flex-col gap-2">
-                      {/* Creator info & coupon code button */}
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={currentDeal.creator.avatar}
-                            alt={currentDeal.creator.name}
-                            className="h-9 w-9 shrink-0 rounded-full border-2 border-[#C59B58] object-cover"
-                          />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <strong className="text-xs font-black text-[#1A1612]">{currentDeal.creator.name}</strong>
-                              <Check className="h-3.5 w-3.5 rounded-full bg-[#059669] p-0.5 text-white" />
-                              <span className="px-1.5 py-0.2 rounded bg-[#EEDFC6]/70 text-[#7A561B] text-[9px] font-black uppercase">
-                                {currentDeal.creator.tier}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-[#7D715E] block leading-tight">{currentDeal.creator.role}</span>
-                          </div>
+                    {/* Shopee-style Social Share & Wishlist Bar */}
+                    <div className="flex items-center justify-between pt-1 text-xs text-[#7D715E] border-t border-[#EAE4D7]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium">Chia sẻ:</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => toast.success('Đã chia sẻ lên Facebook Messenger')}
+                            className="w-6 h-6 rounded-full bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] grid place-items-center text-[10px] font-black cursor-pointer transition"
+                            title="Chia sẻ Messenger"
+                          >
+                            M
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toast.success('Đã chia sẻ lên Facebook')}
+                            className="w-6 h-6 rounded-full bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] grid place-items-center text-[10px] font-black cursor-pointer transition"
+                            title="Chia sẻ Facebook"
+                          >
+                            f
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCopyAffiliateLink}
+                            className="px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#C59B58] text-[10.5px] font-medium text-[#1A1612] flex items-center gap-1 cursor-pointer transition"
+                            title="Sao chép link tiếp thị"
+                          >
+                            <Copy className="w-2.5 h-2.5 text-[#B88E4F]" />
+                            <span>{isCouponCopied ? 'Đã chép!' : 'Copy link'}</span>
+                          </button>
                         </div>
-
-                        {/* Coupon Code Pill */}
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCoupon(currentDeal.creator.coupon)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#EEDFC6] hover:border-[#C59B58] text-xs font-mono font-bold text-[#1A1612] transition shadow-2xs cursor-pointer active:scale-95"
-                          title="Bấm để sao chép mã ưu đãi"
-                        >
-                          <span>{currentDeal.creator.coupon}</span>
-                          {isCouponCopied ? (
-                            <Check className="w-3.5 h-3.5 text-[#059669]" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5 text-[#B88E4F]" />
-                          )}
-                        </button>
                       </div>
 
-                      {/* Creator advice quote + Mini Video Review Thumbnail */}
-                      <div className="grid grid-cols-[1fr_auto] items-center gap-3 pt-2 border-t border-[#EEDFC6]/60">
-                        <p className="text-[11px] text-[#7D715E] italic leading-relaxed m-0 line-clamp-2">
-                          &ldquo;{currentDeal.creator.quote}&rdquo;
-                        </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsHeroLiked(!isHeroLiked);
+                          toast.success(!isHeroLiked ? 'Đã thêm vào danh sách yêu thích!' : 'Đã bỏ thích');
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-[#DC2626] font-semibold cursor-pointer hover:opacity-80 transition"
+                      >
+                        <Heart className={`w-4 h-4 ${isHeroLiked ? 'fill-[#DC2626]' : ''}`} />
+                        <span>Đã thích ({isHeroLiked ? '1.421' : '1.420'})</span>
+                      </button>
+                    </div>
+
+                    {/* Compact Creator Endorsement Quote & Video Teaser */}
+                    <div className="rounded-2xl border border-[#EEDFC6] bg-gradient-to-br from-[#FAF8F5] via-[#FFFDF9] to-[#FBF5EB] p-3 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={currentDeal.creator.avatar}
+                          alt={currentDeal.creator.name}
+                          className="w-9 h-9 rounded-full object-cover border border-[#C59B58]/40 shadow-xs shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <strong className="text-xs font-black text-[#1A1612] truncate">{currentDeal.creator.name}</strong>
+                            <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black uppercase bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6] shrink-0">
+                              {currentDeal.creator.tier}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#7D715E] italic truncate m-0">
+                            "{currentDeal.creator.quote}"
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickVideoOpen(true)}
+                        className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#F3EFE6] border border-[#EEDFC6] text-[#8C6226] text-xs font-bold transition shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer active:scale-95"
+                      >
+                        <Play className="w-3 h-3 text-[#B88E4F] fill-[#B88E4F]" />
+                        <span>Xem clip 32s</span>
+                      </button>
+                    </div>
+
+                    {/* Sàn Voucher Clean Strip */}
+                    <div className="rounded-xl border border-[#EEDFC6] bg-white p-2.5 flex items-center justify-between gap-2 shadow-2xs text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] grid place-items-center shrink-0">
+                          <Ticket className="w-3.5 h-3.5 text-[#B88E4F]" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black uppercase bg-[#FBF5EB] border border-[#EEDFC6] text-[#8C6226] px-1 py-0.2 rounded">Voucher Sàn</span>
+                            <strong className="font-mono text-xs text-[#1A1612]">SCANMS50K</strong>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyCoupon('SCANMS50K')}
+                              className="text-[#7D715E] hover:text-[#B88E4F] transition cursor-pointer p-0.5"
+                              title="Sao chép mã"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-[#7D715E] block truncate">Giảm 50.000₫ đơn từ 250k</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveVoucher}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                          isVoucherSaved
+                            ? 'bg-[#FBF5EB] text-[#059669] border border-[#059669]/40'
+                            : 'bg-[#C59B58] hover:bg-[#B88E4F] text-white shadow-2xs'
+                        }`}
+                      >
+                        {isVoucherSaved ? '✓ Đã lưu' : 'Lưu mã'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Unified Shopee Mall-Style Product Command Center */}
+                  <div className="flex flex-col justify-between gap-4 min-w-0">
+                    
+                    {/* Row 1: Official Store & Endorsing Creator Header */}
+                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] text-xs flex-wrap">
+                      {/* Left: Official Shop Info */}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-white border border-[#EEDFC6] text-sm flex items-center justify-center shrink-0 shadow-2xs">
+                          🏪
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <strong className="text-xs font-black text-[#1A1612] truncate">
+                              {currentDeal.shopName}
+                            </strong>
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase bg-[#059669]/10 text-[#059669] border border-[#059669]/20 shrink-0">
+                              ✓ MALL
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10.5px] text-[#7D715E] mt-0.5">
+                            <span className="text-amber-500 font-bold">4.9 ★</span>
+                            <span>•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleChatShop(currentDeal.shopName)}
+                              className="text-[#8C6226] font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                            >
+                              <MessageSquare className="w-2.5 h-2.5" />
+                              <span>Chat ngay</span>
+                            </button>
+                            <span>•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleFilterShop(currentDeal.shopName)}
+                              className="text-[#7D715E] hover:text-[#1A1612] cursor-pointer flex items-center gap-0.5"
+                            >
+                              <span>Xem Shop</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Endorsing Creator Pill with Video review button */}
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setIsQuickVideoOpen(true)}
-                          className="group/vid relative w-18 h-13 rounded-xl overflow-hidden border border-[#EEDFC6] bg-black/10 shrink-0 shadow-2xs cursor-pointer active:scale-95"
-                          title={`Xem video review ${currentDeal.creator.videoDuration} của Creator`}
+                          className="flex items-center gap-2 py-1 px-2.5 rounded-xl bg-white border border-[#EEDFC6] hover:border-[#C59B58] transition shadow-2xs cursor-pointer group/creator"
+                          title="Xem video review từ Creator"
                         >
                           <img
-                            src={currentDeal.images[1]?.src || currentDeal.images[0].src}
-                            alt="Video review"
-                            className="w-full h-full object-cover group-hover/vid:scale-105 transition duration-300"
+                            src={currentDeal.creator.avatar}
+                            alt={currentDeal.creator.name}
+                            className="w-6 h-6 rounded-full object-cover border border-[#C59B58]"
                           />
-                          <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                            <div className="w-5 h-5 rounded-full bg-white/90 text-[#1A1612] flex items-center justify-center shadow-xs">
-                              <Play className="w-2.5 h-2.5 fill-[#1A1612] ml-0.5" />
-                            </div>
+                          <div className="text-left">
+                            <span className="text-[10px] text-[#7D715E] block leading-none">Khuyên dùng bởi</span>
+                            <strong className="text-[11px] font-bold text-[#1A1612] group-hover/creator:text-[#B88E4F] transition leading-tight block">
+                              {currentDeal.creator.name}
+                            </strong>
                           </div>
-                          <span className="absolute bottom-0.5 right-1 text-[8.5px] font-mono font-black text-white/95 px-1 py-0.2 rounded bg-black/65">
-                            {currentDeal.creator.videoDuration}
-                          </span>
+                          <div className="w-5 h-5 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 ml-0.5">
+                            <Play className="w-2.5 h-2.5 fill-[#B88E4F] ml-0.5" />
+                          </div>
                         </button>
                       </div>
                     </div>
 
-                    {/* Pricing Row */}
-                    <div className="flex items-baseline justify-between gap-2 flex-wrap pt-0.5">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs sm:text-sm text-[#7D715E] line-through">
-                          {heroProductData.origPrice.toLocaleString('vi-VN')} đ
+                    {/* Row 2: Product Title & Social Stats (Shopee Style) */}
+                    <div className="flex flex-col gap-1.5 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md bg-[#C59B58] text-white text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                          MALL CHÍNH HÃNG
                         </span>
-                        <strong className="text-2xl sm:text-3xl font-black text-[#B88E4F] tracking-tight">
-                          {heroProductData.finalPrice.toLocaleString('vi-VN')} đ
-                        </strong>
-                        <span className="px-2 py-0.5 rounded-md bg-[#FBF5EB] border border-[#EEDFC6] text-xs font-black text-[#8C6226]">
-                          -{heroProductData.discountPercent}%
-                        </span>
+                        <h1 className="m-0 text-lg sm:text-xl xl:text-2xl font-black text-[#1A1612] leading-snug">
+                          {currentDeal.title}
+                        </h1>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#DC2626]">
-                        <span>🔥</span>
-                        <span>Còn {heroProductData.stock} sản phẩm</span>
-                      </div>
-                    </div>
 
-                    {/* Voucher Wallet Section */}
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5 font-black text-[#1A1612]">
-                          <Gift className="w-3.5 h-3.5 text-[#B88E4F]" />
-                          <span>Ưu đãi tốt nhất</span>
+                      {/* Shopee-style Rating & Sold Row */}
+                      <div className="flex items-center gap-3 text-xs text-[#7D715E] flex-wrap pt-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-[#B88E4F] underline underline-offset-2">{currentDeal.rating}</span>
+                          <div className="flex items-center text-amber-400">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                            ))}
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (requireLoginForPurchase()) setIsVoucherWalletOpen(true);
-                          }}
-                          className="text-[11px] font-bold text-[#7D715E] hover:text-[#B88E4F] flex items-center gap-0.5 transition cursor-pointer"
-                        >
-                          <span>Xem tất cả voucher</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
+                        <span className="text-[#EAE4D7]">|</span>
+                        <span><strong className="text-[#1A1612] font-bold">1.420</strong> Đánh Giá</span>
+                        <span className="text-[#EAE4D7]">|</span>
+                        <span><strong className="text-[#1A1612] font-bold">{currentDeal.soldCount}</strong></span>
+                        <span className="text-[#EAE4D7]">|</span>
+                        <span className="inline-flex items-center gap-1 text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-[10.5px]">
+                          <Flame className="w-3 h-3 text-amber-600 animate-pulse" />
+                          28 người đang xem lúc này
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Row 3: Flash Sale Urgency & Pricing Box (Đúng chuẩn Shopee Flash Sale) */}
+                    <div className="rounded-2xl border-2 border-[#EEDFC6] bg-gradient-to-r from-[#FAF8F5] via-[#FFFDF9] to-[#FBF5EB] p-4 flex flex-col gap-3 shadow-xs">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-sm text-[#7D715E] line-through">
+                            {heroProductData.origPrice.toLocaleString('vi-VN')} ₫
+                          </span>
+                          <strong className="text-2xl sm:text-3xl font-black text-[#B88E4F] tracking-tight">
+                            {heroProductData.finalPrice.toLocaleString('vi-VN')} ₫
+                          </strong>
+                          <span className="px-2 py-0.5 rounded-md bg-[#DC2626] text-white text-xs font-black tracking-wide shadow-2xs">
+                            -{heroProductData.discountPercent}% GIẢM
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs text-[#8C6226] font-bold bg-white px-2.5 py-1 rounded-xl border border-[#EEDFC6] shadow-2xs">
+                          <Clock className="w-3.5 h-3.5 text-[#B88E4F]" />
+                          <span className="text-[10px] uppercase tracking-wider text-[#7D715E]">KẾT THÚC TRONG</span>
+                          <span className="font-mono font-black text-[#1A1612]">
+                            {String(countdown.hours).padStart(2, '0')}:{String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* 3 Selectable Voucher Cards */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {/* Card 1: Toàn sàn */}
+                      {/* Urgency Progress Bar (Shopee Flash Sale Style) */}
+                      <div className="flex items-center gap-3 text-xs">
+                        <div className="flex-1 bg-[#EAE4D7] h-2.5 rounded-full overflow-hidden relative">
+                          <div
+                            className="bg-gradient-to-r from-[#C59B58] to-[#DC2626] h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.max(20, 100 - heroProductData.stock * 6))}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-[#DC2626] flex items-center gap-1 shrink-0">
+                          <Flame className="w-3.5 h-3.5 fill-[#DC2626]" />
+                          Đang bán chạy (Còn {heroProductData.stock} suất giá sốc)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Row 4: Clickable Voucher Chips (Shopee Style: Click thu thập trực tiếp) */}
+                    <div className="flex items-center gap-3 text-xs flex-wrap">
+                      <span className="text-[#7D715E] font-medium w-24 shrink-0 flex items-center gap-1">
+                        <Ticket className="w-3.5 h-3.5 text-[#B88E4F]" />
+                        Mã giảm giá:
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap flex-1">
                         <button
                           type="button"
                           onClick={() => setHeroVoucherId('platform')}
-                          className={`relative text-left p-2 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                             heroVoucherId === 'platform'
-                              ? 'border-[#C59B58] bg-[#FBF5EB] shadow-2xs ring-1 ring-[#C59B58]'
-                              : 'border-[#EAE4D7] bg-white hover:border-[#EEDFC6]'
+                              ? 'border-[#C59B58] bg-[#C59B58] text-white shadow-2xs font-black'
+                              : 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226] hover:border-[#C59B58]'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="px-1.5 py-0.2 rounded bg-[#C59B58] text-white text-[8.5px] font-black uppercase">
-                              Tốt nhất
-                            </span>
-                            <div
-                              className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                                heroVoucherId === 'platform'
-                                  ? 'border-[#C59B58] bg-[#C59B58] text-white'
-                                  : 'border-[#D1C7B7] bg-white'
-                              }`}
-                            >
-                              {heroVoucherId === 'platform' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] font-black text-[#1A1612] leading-tight">
-                            <Ticket className="w-3 h-3 text-[#B88E4F] shrink-0" />
-                            <span>Giảm 10%</span>
-                          </div>
-                          <span className="text-[9.5px] text-[#7D715E] block leading-tight mt-0.5">Tối đa 100.000đ</span>
-                          <span className="text-[9px] text-[#A77830] font-semibold block leading-tight mt-0.5">Voucher toàn sàn</span>
+                          <Ticket className="w-3 h-3" />
+                          <span>Giảm 10% Toàn Sàn</span>
                         </button>
 
-                        {/* Card 2: Creator */}
                         <button
                           type="button"
                           onClick={() => setHeroVoucherId('creator')}
-                          className={`relative text-left p-2 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                             heroVoucherId === 'creator'
-                              ? 'border-[#C59B58] bg-[#FBF5EB] shadow-2xs ring-1 ring-[#C59B58]'
-                              : 'border-[#EAE4D7] bg-white hover:border-[#EEDFC6]'
+                              ? 'border-[#C59B58] bg-[#C59B58] text-white shadow-2xs font-black'
+                              : 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226] hover:border-[#C59B58]'
                           }`}
                         >
-                          <div className="flex items-center justify-end mb-1">
-                            <div
-                              className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                                heroVoucherId === 'creator'
-                                  ? 'border-[#C59B58] bg-[#C59B58] text-white'
-                                  : 'border-[#D1C7B7] bg-white'
-                              }`}
-                            >
-                              {heroVoucherId === 'creator' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] font-black text-[#1A1612] leading-tight">
-                            <Ticket className="w-3 h-3 text-[#B88E4F] shrink-0" />
-                            <span>Giảm 10%</span>
-                          </div>
-                          <span className="text-[9.5px] text-[#7D715E] block leading-tight mt-0.5">Tối đa 50.000đ</span>
-                          <span className="text-[9px] text-[#A77830] font-semibold block leading-tight mt-0.5">Voucher từ Creator</span>
+                          <Gift className="w-3 h-3" />
+                          <span>Mã KOL {currentDeal.creator.coupon} (-10%)</span>
                         </button>
 
-                        {/* Card 3: Shop */}
                         <button
                           type="button"
                           onClick={() => setHeroVoucherId('shop')}
-                          className={`relative text-left p-2 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                             heroVoucherId === 'shop'
-                              ? 'border-[#C59B58] bg-[#FBF5EB] shadow-2xs ring-1 ring-[#C59B58]'
-                              : 'border-[#EAE4D7] bg-white hover:border-[#EEDFC6]'
+                              ? 'border-[#C59B58] bg-[#C59B58] text-white shadow-2xs font-black'
+                              : 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226] hover:border-[#C59B58]'
                           }`}
                         >
-                          <div className="flex items-center justify-end mb-1">
-                            <div
-                              className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                                heroVoucherId === 'shop'
-                                  ? 'border-[#C59B58] bg-[#C59B58] text-white'
-                                  : 'border-[#D1C7B7] bg-white'
-                              }`}
+                          <Store className="w-3 h-3" />
+                          <span>Giảm 5% Shop</span>
+                        </button>
+
+                        {/* Inline Custom Coupon Mini Input */}
+                        {!appliedCustomCoupon ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={customCouponInput}
+                              onChange={(e) => setCustomCouponInput(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleApplyCustomCoupon()}
+                              placeholder="Nhập mã riêng..."
+                              className="w-32 sm:w-36 px-3 py-1.5 rounded-lg border border-[#EEDFC6] bg-white text-xs font-mono uppercase text-[#1A1612] placeholder:text-[#A89F91] placeholder:normal-case placeholder:font-sans focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/25 focus:outline-none shadow-2xs transition"
+                            />
+                            {customCouponInput && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyCustomCoupon()}
+                                className="px-3 py-1.5 rounded-lg bg-[#C59B58] text-white text-xs font-bold hover:bg-[#B88E4F] cursor-pointer shadow-2xs transition active:scale-95"
+                              >
+                                Áp dụng
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[11px] font-bold text-[#059669] bg-[#059669]/10 px-2 py-1 rounded-lg border border-[#059669]/20">
+                            <span>✓ {appliedCustomCoupon.code}</span>
+                            <button
+                              type="button"
+                              onClick={handleRemoveCustomCoupon}
+                              className="text-[#DC2626] hover:underline ml-1 cursor-pointer font-bold"
                             >
-                              {heroVoucherId === 'shop' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                            </div>
+                              ✕
+                            </button>
                           </div>
-                          <div className="flex items-center gap-1 text-[11px] font-black text-[#1A1612] leading-tight">
-                            <Ticket className="w-3 h-3 text-[#B88E4F] shrink-0" />
-                            <span>Giảm 5%</span>
-                          </div>
-                          <span className="text-[9.5px] text-[#7D715E] block leading-tight mt-0.5">Tối đa 30.000đ</span>
-                          <span className="text-[9px] text-[#A77830] font-semibold block leading-tight mt-0.5">Voucher từ Shop</span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setIsVoucherWalletOpen(true)}
+                          className="text-[11px] font-bold text-[#B88E4F] hover:underline cursor-pointer ml-auto shrink-0"
+                        >
+                          Ví voucher &gt;
                         </button>
                       </div>
                     </div>
 
-                    {/* Delivery & City Selection */}
-                    <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] text-xs relative">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
-                          className="flex items-center gap-1.5 font-bold text-[#1A1612] hover:text-[#B88E4F] transition cursor-pointer"
-                        >
-                          <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                          <span>Giao tới {selectedCity}</span>
-                          <ChevronDown className="w-3 h-3 text-[#7D715E]" />
-                        </button>
+                    {/* Row 5: Shipping Info (Shopee Style) */}
+                    <div className="flex items-center gap-3 text-xs flex-wrap border-y border-[#EAE4D7]/70 py-2.5 relative">
+                      <span className="text-[#7D715E] font-medium w-24 shrink-0 flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
+                        Vận chuyển:
+                      </span>
+                      <div className="flex items-center gap-3 flex-wrap flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-[#1A1612]">Giao tới {selectedCity}</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
+                            className="text-[#B88E4F] font-bold hover:underline cursor-pointer flex items-center text-[11px]"
+                          >
+                            [Thay đổi]
+                          </button>
+                        </div>
 
+                        {/* City Dropdown Menu */}
                         {isCityDropdownOpen && (
-                          <div className="absolute left-0 top-full mt-1.5 w-48 bg-white border border-[#EEDFC6] rounded-xl shadow-lg py-1 z-30">
+                          <div className="absolute top-full left-24 mt-1 z-30 w-48 rounded-xl border border-[#EEDFC6] bg-white p-1.5 shadow-lg">
                             {DELIVERY_OPTIONS.map((opt) => (
                               <button
                                 key={opt.city}
@@ -1755,162 +1738,165 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                                   setSelectedCity(opt.city);
                                   setIsCityDropdownOpen(false);
                                 }}
-                                className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-[#FAF8F5] ${
-                                  selectedCity === opt.city ? 'font-bold text-[#B88E4F] bg-[#FBF5EB]' : 'text-[#1A1612]'
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                                  selectedCity === opt.city
+                                    ? 'bg-[#FBF5EB] text-[#8C6226]'
+                                    : 'text-[#1A1612] hover:bg-[#FAF8F5]'
                                 }`}
                               >
                                 <span>{opt.city}</span>
-                                <span className="text-[10px] text-[#7D715E]">{opt.dateText}</span>
+                                {selectedCity === opt.city && <Check className="w-3 h-3 text-[#B88E4F]" />}
                               </button>
                             ))}
                           </div>
                         )}
-                      </div>
 
-                      <div className="flex items-center gap-1 text-[11px] text-[#7D715E]">
-                        <CalendarDays className="w-3.5 h-3.5 text-[#B88E4F]" />
-                        <span>
-                          {DELIVERY_OPTIONS.find((d) => d.city === selectedCity)?.dateText || 'Nhận hàng 17 - 19/09'}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#059669]/10 text-[#059669] border border-[#059669]/20 flex items-center gap-1">
+                          ✓ Freeship Extra
+                        </span>
+                        <span className="text-[#7D715E] text-[11px] flex items-center gap-1">
+                          <CalendarDays className="w-3 h-3 text-[#B88E4F]" />
+                          <span>Dự kiến nhận: 17 - 19/09</span>
                         </span>
                       </div>
                     </div>
 
-                    {/* Variant & Quantity */}
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-[#7D715E] font-medium">Phân loại:</span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {currentDeal.variants.map((v, idx) => (
-                            <button
-                              key={v.name}
-                              type="button"
-                              onClick={() => setSelectedVariantIndex(idx)}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                selectedVariantIndex === idx
-                                  ? 'bg-[#FBF5EB] border-2 border-[#C59B58] text-[#8C6226] shadow-2xs'
-                                  : 'bg-white border border-[#EAE4D7] text-[#1A1612] hover:border-[#C59B58]'
-                              }`}
-                            >
-                              {v.name}
-                            </button>
-                          ))}
+                    {/* Row 6: Variants & Quantity Stepper */}
+                    <div className="flex flex-col gap-3">
+                      {/* Variants */}
+                      <div className="flex items-center gap-3 text-xs flex-wrap">
+                        <span className="text-[#7D715E] font-medium w-24 shrink-0">Phân loại:</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {currentDeal.variants.map((variant, idx) => {
+                            const isSelected = idx === selectedVariantIndex;
+                            return (
+                              <button
+                                key={variant.name}
+                                type="button"
+                                onClick={() => setSelectedVariantIndex(idx)}
+                                className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer active:scale-95 flex items-center gap-1.5 ${
+                                  isSelected
+                                    ? 'border-[#C59B58] bg-[#FBF5EB] text-[#8C6226] ring-1 ring-[#C59B58] font-black shadow-2xs'
+                                    : 'border-[#EAE4D7] bg-white text-[#1A1612] hover:border-[#C59B58]'
+                                }`}
+                              >
+                                <span>{variant.name}</span>
+                                {isSelected && <Check className="w-3 h-3 text-[#B88E4F]" />}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-[#7D715E] font-medium">Số lượng:</span>
-                        <div className="flex items-center border border-[#EAE4D7] rounded-lg bg-white overflow-hidden shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() => setHeroQuantity((q) => Math.max(1, q - 1))}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-8 text-center text-xs font-bold font-mono text-[#1A1612]">
-                            {heroQuantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setHeroQuantity((q) => Math.min(7, q + 1))}
-                            className="w-7 h-7 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
+                      {/* Quantity */}
+                      <div className="flex items-center gap-3 text-xs flex-wrap">
+                        <span className="text-[#7D715E] font-medium w-24 shrink-0">Số lượng:</span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center border border-[#EAE4D7] rounded-lg bg-white overflow-hidden shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setHeroQuantity((q) => Math.max(1, q - 1))}
+                              className="w-7 h-7 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-8 text-center text-xs font-bold font-mono text-[#1A1612]">
+                              {heroQuantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setHeroQuantity((q) => Math.min(7, q + 1))}
+                              className="w-7 h-7 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <span className="text-[11px] text-[#7D715E]">Còn {heroProductData.stock} sản phẩm</span>
+                          <span className="text-[#EAE4D7]">|</span>
+                          <div className="text-xs">
+                            <span className="text-[#7D715E]">Tạm tính: </span>
+                            <strong className="text-sm font-black text-[#B88E4F]">
+                              {(heroProductData.finalPrice * heroQuantity).toLocaleString('vi-VN')} ₫
+                            </strong>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Main CTA Buttons */}
-                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    {/* Row 7: Main CTA Buttons */}
+                    <div className="flex items-center gap-3.5 pt-1">
                       <button
                         type="button"
                         onClick={handleHeroAddToCart}
-                        className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border-2 border-[#C59B58] bg-white hover:bg-[#FAF8F5] text-[#8C6226] text-xs sm:text-sm font-black transition shadow-xs cursor-pointer active:scale-98"
+                        className="flex-1 flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl border-2 border-[#C59B58] bg-[#FBF5EB] hover:bg-[#F3EFE6] text-[#8C6226] text-sm font-black transition shadow-xs cursor-pointer active:scale-98"
                       >
-                        <ShoppingCart className="w-4 h-4 text-[#B88E4F]" />
-                        <span>Thêm vào giỏ</span>
+                        <ShoppingCart className="w-4.5 h-4.5 text-[#B88E4F]" />
+                        <span>Thêm Vào Giỏ Hàng</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={handleHeroBuyNow}
-                        className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:opacity-95 text-white text-xs sm:text-sm font-black transition shadow-md shadow-[#C59B58]/25 cursor-pointer active:scale-98"
+                        className="flex-1 flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:opacity-95 text-white text-sm font-black transition shadow-md shadow-[#C59B58]/25 cursor-pointer active:scale-98"
                       >
-                        <span>Mua ngay</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <span>Mua Ngay Deal Này</span>
+                        <ArrowRight className="w-4.5 h-4.5" />
                       </button>
                     </div>
 
-                  </div>
-                </div>
-
-                {/* Inline Quick-Buy Mini Bar below right card (Matching Mockup) */}
-                <div className="border-t border-[#EAE4D7] bg-[#FAF8F5]/90 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={currentDeal.images[0].src}
-                      alt=""
-                      className="w-9 h-9 rounded-lg object-cover border border-[#EAE4D7] shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <span className="block text-xs font-black text-[#1A1612] truncate max-w-[220px] sm:max-w-[320px]">
-                        {currentDeal.title} ({currentVariant.name})
-                      </span>
-                      <div className="flex items-baseline gap-1.5 text-xs">
-                        <strong className="font-black text-[#B88E4F]">
-                          {heroProductData.finalPrice.toLocaleString('vi-VN')} đ
-                        </strong>
-                        <span className="text-[10px] text-[#7D715E] line-through">
-                          {heroProductData.origPrice.toLocaleString('vi-VN')} đ
+                    {/* Row 8: Shopee Mall Guarantees & Affiliate Transparency */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-2 border-t border-[#EAE4D7] text-xs">
+                      {/* Mall Guarantees */}
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] text-[11px] text-[#7D715E] flex-wrap">
+                        <span className="flex items-center gap-1 text-[#1A1612] font-bold">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#059669]" />
+                          100% Chính Hãng
                         </span>
-                        <span className="text-[10px] font-bold text-[#DC2626]">
-                          -{heroProductData.discountPercent}%
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Package className="w-3.5 h-3.5 text-[#B88E4F]" />
+                          14 Ngày Đổi Trả
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
+                          Đồng Kiểm Khi Nhận
                         </span>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center border border-[#EAE4D7] rounded-lg bg-white overflow-hidden shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={() => setHeroQuantity((q) => Math.max(1, q - 1))}
-                        className="w-6 h-6 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
-                      >
-                        <Minus className="w-2.5 h-2.5" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-bold font-mono text-[#1A1612]">
-                        {heroQuantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setHeroQuantity((q) => Math.min(7, q + 1))}
-                        className="w-6 h-6 flex items-center justify-center hover:bg-[#FAF8F5] text-[#1A1612] transition cursor-pointer"
-                      >
-                        <Plus className="w-2.5 h-2.5" />
-                      </button>
+                      {/* Affiliate CTV Commission & Referral Link */}
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Coins className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
+                          <div className="truncate">
+                            <span className="text-[10px] text-[#7D715E] block leading-none">Hoa hồng CTV nhận:</span>
+                            <strong className="text-xs font-black text-[#B88E4F]">
+                              18% (~{Math.round(heroProductData.finalPrice * 0.18).toLocaleString('vi-VN')}₫)
+                            </strong>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyAffiliateLink}
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:opacity-95 text-white text-[10.5px] font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
+                        >
+                          <Share2 className="w-3 h-3" />
+                          <span>Lấy Link CTV</span>
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleHeroBuyNow}
-                      className="px-4 py-1.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-black transition shadow-xs cursor-pointer flex items-center gap-1 active:scale-95"
-                    >
-                      <span>Mua ngay</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
 
               </div>
             </div>
 
+
           </div>
-        </div>
       </section>
 
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-[1520px] mx-auto w-full text-left">
+      <section className="pt-6 pb-12 px-4 sm:px-6 lg:px-8 max-w-[1520px] mx-auto w-full text-left">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
           <div>
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B88E4F] uppercase tracking-wider mb-1">
@@ -2018,11 +2004,18 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 className="bg-white border border-[#EAE4D7] rounded-2xl overflow-hidden shadow-2xs hover:shadow-md hover:border-[#C59B58]/80 transition duration-200 flex flex-col justify-between group"
               >
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setImagePreview({ src: p.image, alt: p.name })}
-                    aria-label={`Xem ảnh lớn ${p.name}`}
-                    className="relative aspect-square w-full bg-[#FAF8F5] overflow-hidden cursor-zoom-in text-left"
+                  <div
+                    className="relative aspect-square bg-[#FAF8F5] overflow-hidden group/img cursor-pointer"
+                    onClick={() => {
+                      setZoomedImage({
+                        src: p.image,
+                        title: p.name,
+                        brand: p.brand,
+                        price: p.price,
+                        origPrice: p.origPrice,
+                        badge: p.badge,
+                      });
+                    }}
                   >
                     <img
                       src={p.image}
@@ -2031,17 +2024,40 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       loading="lazy"
                     />
                     {p.badge && (
-                      <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#C59B58] text-white text-[10px] font-black shadow-xs">
+                      <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#C59B58] text-white text-[10px] font-black shadow-xs pointer-events-none z-10">
                         {p.badge}
                       </span>
                     )}
-                    <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-black border border-rose-200">
-                      -15%
-                    </span>
-                    <span className="absolute bottom-2.5 right-2.5 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100">
-                      <ZoomIn className="h-4 w-4" />
-                    </span>
-                  </button>
+
+                    {/* Top-Right: Discount Badge & Compact Magnifying Glass (Icon only, never covers bottom text) */}
+                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1.5 z-10">
+                      <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-black border border-rose-200 pointer-events-none shadow-2xs">
+                        -15%
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Phóng to ảnh sản phẩm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setZoomedImage({
+                            src: p.image,
+                            title: p.name,
+                            brand: p.brand,
+                            price: p.price,
+                            origPrice: p.origPrice,
+                            badge: p.badge,
+                          });
+                        }}
+                        className="w-7 h-7 rounded-full bg-white/95 hover:bg-[#C59B58] text-[#1A1612] hover:text-white border border-[#EAE4D7] hover:border-[#C59B58] shadow-sm flex items-center justify-center transition-all duration-200 cursor-pointer group/btn"
+                        title="Bấm để phóng to ảnh"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5 text-[#B88E4F] group-hover/btn:text-white transition-colors" />
+                      </button>
+                    </div>
+
+                    {/* Subtle hover overlay hint */}
+                    <div className="absolute inset-0 bg-black/5 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 pointer-events-none" />
+                  </div>
 
                   <div className="p-4 flex flex-col gap-2 text-left">
                     <div className="flex items-center justify-between text-[11px] text-[#7D715E]">
@@ -2134,6 +2150,19 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <ChevronRight className="w-3.5 h-3.5 text-[#B88E4F]" />
               </Link>
             </div>
+            {recentGuestOrder && (
+              <div className="mt-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-[#8C6226] bg-[#FBF5EB] border border-[#EEDFC6]">
+                <Package className="w-3.5 h-3.5 text-[#B88E4F]" />
+                <span>Đơn hàng vừa đặt: <strong>{recentGuestOrder.publicOrderCode}</strong></span>
+                <Link
+                  to={`/tracking?sn=${recentGuestOrder.publicOrderCode}`}
+                  className="inline-flex items-center gap-1 text-[#B88E4F] hover:underline font-black ml-1"
+                >
+                  <span>Tra cứu ngay</span>
+                  <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
           </div>
 
           <form
@@ -2158,6 +2187,150 @@ const ROTATING_DEALS: FlashDealProduct[] = [
               {trackingLoading ? 'Đang tra cứu...' : 'Tra cứu ngay'}
             </button>
           </form>
+
+          {/* Order-to-Delivery Progress Bar Card (Thanh tiến độ Mua hàng ➔ Nhận hàng) */}
+          <div className="mt-8 bg-white border border-[#EEDFC6] rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-[#EAE4D7]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shadow-2xs">
+                  <Truck className="w-5 h-5 text-[#B88E4F]" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0 flex items-center gap-2 flex-wrap">
+                    <span>Thanh Tiến Độ Mua Hàng ➔ Nhận Hàng</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#FBF5EB] text-[#8C6226] text-[10px] font-black uppercase border border-[#EEDFC6]">
+                      5 Bước Bảo Hộ Minh Bạch
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#7D715E] mt-0.5 m-0">
+                    Theo dõi chi tiết hành trình từ lúc bạn bấm mua đến khi mở hộp kiểm tra và nhận hàng tận tay
+                  </p>
+                </div>
+              </div>
+
+              {trackResult ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Đơn {trackResult.orderCode}: <strong>{trackResult.status}</strong></span>
+                </div>
+              ) : (
+                <div className="text-xs text-[#7D715E] flex items-center gap-2 bg-[#FAF8F5] px-3 py-1.5 rounded-xl border border-[#EAE4D7]">
+                  <span className="w-2 h-2 rounded-full bg-[#059669]" />
+                  <span>Bấm vào từng bước để xem quy trình chi tiết</span>
+                </div>
+              )}
+            </div>
+
+            {/* Stepper Flow with Horizontal Connecting Line */}
+            <div className="pt-8 pb-4">
+              <div className="relative">
+                {/* Connecting Track Line behind the nodes */}
+                <div className="absolute top-5 left-10 right-10 h-1 bg-[#EAE4D7] rounded-full hidden md:block" />
+                <div
+                  className="absolute top-5 left-10 h-1 bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#059669] rounded-full transition-all duration-500 hidden md:block"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, ((currentActiveStage - 1) / (ORDER_PROGRESS_STAGES.length - 1)) * 100))}%`,
+                  }}
+                />
+
+                {/* 5 Step Nodes */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-2 relative z-10">
+                  {ORDER_PROGRESS_STAGES.map((st, idx) => {
+                    const isPassed = idx + 1 < currentActiveStage;
+                    const isCurrent = idx + 1 === currentActiveStage;
+                    const IconComponent = st.icon;
+
+                    return (
+                      <button
+                        key={st.step}
+                        type="button"
+                        onClick={() => !trackResult && setPreviewStageIndex(idx + 1)}
+                        className={`flex md:flex-col items-center md:items-center text-left md:text-center gap-3.5 md:gap-2.5 p-3 md:p-2 rounded-2xl transition cursor-pointer border ${
+                          isCurrent
+                            ? 'bg-[#FBF5EB] border-[#C59B58] shadow-xs'
+                            : isPassed
+                            ? 'bg-white border-[#EAE4D7] hover:border-[#059669]/40'
+                            : 'bg-white/60 border-transparent hover:border-[#EAE4D7]'
+                        }`}
+                      >
+                        {/* Step Node Circle with Icon */}
+                        <div
+                          className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm shrink-0 relative ${
+                            isPassed
+                              ? 'bg-[#059669] text-white'
+                              : isCurrent
+                              ? 'bg-gradient-to-br from-[#C59B58] to-[#B88E4F] text-white ring-4 ring-[#C59B58]/25 scale-105 shadow-md'
+                              : 'bg-[#FAF8F5] border-2 border-[#EAE4D7] text-[#A89F91]'
+                          }`}
+                        >
+                          {isPassed ? (
+                            <Check className="w-5 h-5 stroke-[2.5]" />
+                          ) : (
+                            <IconComponent className="w-5 h-5" />
+                          )}
+                          {isCurrent && (
+                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#C59B58]" />
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Step Texts */}
+                        <div className="min-w-0 flex-1 md:flex-initial">
+                          <div className="flex items-center gap-1.5 md:justify-center">
+                            <span
+                              className={`text-[10px] font-black uppercase tracking-wider ${
+                                isCurrent
+                                  ? 'text-[#B88E4F]'
+                                  : isPassed
+                                  ? 'text-[#059669]'
+                                  : 'text-[#A89F91]'
+                              }`}
+                            >
+                              Bước {st.step}
+                            </span>
+                            <span className="text-[10px] text-[#A89F91] hidden sm:inline">• {st.timeText}</span>
+                          </div>
+                          <h4
+                            className={`text-xs sm:text-sm font-black m-0 mt-0.5 leading-snug ${
+                              isCurrent
+                                ? 'text-[#1A1612]'
+                                : isPassed
+                                ? 'text-[#1A1612]'
+                                : 'text-[#7D715E]'
+                            }`}
+                          >
+                            {st.title}
+                          </h4>
+                          <p className="text-[11px] text-[#7D715E] m-0 mt-1 line-clamp-2 leading-relaxed">
+                            {st.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Explanatory Policy Callout for Current Stage */}
+            <div className="mt-3 p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-between gap-3 text-xs flex-wrap">
+              <div className="flex items-center gap-2 text-[#7D715E]">
+                <ShieldCheck className="w-4 h-4 text-[#059669] shrink-0" />
+                <span>
+                  <strong>Đồng kiểm an tâm 100%:</strong> Khi kiện hàng đến nơi, bạn được quyền mở hộp đồng kiểm tra hàng cùng nhân viên giao vận trước khi nhận hàng và thanh toán.
+                </span>
+              </div>
+              <Link
+                to="/tracking"
+                className="text-xs font-bold text-[#8C6226] hover:text-[#B88E4F] hover:underline flex items-center gap-1 shrink-0"
+              >
+                <span>Xem trang tra cứu chi tiết</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
 
           {trackResult && (
             <div className="mt-8 bg-white border border-[#EAE4D7] rounded-3xl p-6 sm:p-8 shadow-sm animate-in fade-in duration-200">
@@ -2391,7 +2564,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                   type="button"
                   onClick={() => {
                     setIsCartOpen(false);
-                    handleOpenDirectCheckout(cart[0].product, cart[0].quantity);
+                    handleOpenDirectCheckout(cart[0].product);
                   }}
                   className="w-full py-3 rounded-xl bg-[#C59B58] text-white text-xs sm:text-sm font-black hover:bg-[#B88E4F] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -2510,7 +2683,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <div>
                   <strong className="block font-bold">Ưu Đãi Độc Quyền Trừ Thẳng Vào Đơn</strong>
                   <span className="text-[#7D715E] mt-0.5 block leading-relaxed">
-                    Mã voucher từ các Nhà sáng tạo (KOL) được trừ trực tiếp vào hóa đơn thanh toán VietQR, minh bạch và không phát sinh phụ phí.
+                    Mã voucher từ các Nhà sáng tạo (KOL) được trừ trực tiếp vào hóa đơn thanh toán COD hoặc VietQR, minh bạch và không phát sinh phụ phí.
                   </span>
                 </div>
               </div>
@@ -2536,18 +2709,14 @@ const ROTATING_DEALS: FlashDealProduct[] = [
           initialQuantity={activeCheckoutProduct.quantity}
           initialCouponCode={activeCheckoutProduct.couponCode}
           onOrderPlaced={(order) => {
-            if (order?.publicOrderCode) setRecentOrderCode(order.publicOrderCode);
-            toast.success(`Đặt hàng thành công! Mã đơn: ${order?.publicOrderCode || order?.orderId}`);
+            const code = order?.publicOrderCode || order?.orderId;
+            toast.success(`Đặt hàng thành công! Mã đơn: ${code}`);
+            if (code) {
+              setRecentGuestOrder({ publicOrderCode: code });
+            }
           }}
         />
       )}
-
-      <ProductImageLightbox
-        isOpen={Boolean(imagePreview)}
-        imageUrl={imagePreview?.src || '/assets/product-placeholder.svg'}
-        alt={imagePreview?.alt || 'Sản phẩm'}
-        onClose={() => setImagePreview(null)}
-      />
 
       {/* Quick Video Review Modal */}
       {isQuickVideoOpen && (
@@ -2639,8 +2808,8 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                   <Gift className="w-5 h-5 text-[#B88E4F]" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0">Săn Voucher Ưu Đãi SCANMS</h3>
-                  <span className="text-xs text-[#7D715E]">Lưu voucher vào tài khoản rồi áp dụng cho sản phẩm</span>
+                  <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0">Ví Voucher Ưu Đãi SCANMS</h3>
+                  <span className="text-xs text-[#7D715E]">Chọn voucher tốt nhất áp dụng cho sản phẩm này</span>
                 </div>
               </div>
               <button
@@ -2670,7 +2839,6 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
-                    if (!saveHeroVoucher('platform')) return;
                     setHeroVoucherId('platform');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher toàn sàn SCANMS50K!');
@@ -2681,7 +2849,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'platform' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
+                  {heroVoucherId === 'platform' ? 'Đang dùng' : 'Áp dụng'}
                 </button>
               </div>
 
@@ -2702,7 +2870,6 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
-                    if (!saveHeroVoucher('creator')) return;
                     setHeroVoucherId('creator');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher Creator NHATXINH10!');
@@ -2713,7 +2880,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'creator' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
+                  {heroVoucherId === 'creator' ? 'Đang dùng' : 'Áp dụng'}
                 </button>
               </div>
 
@@ -2734,7 +2901,6 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                 <button
                   type="button"
                   onClick={() => {
-                    if (!saveHeroVoucher('shop')) return;
                     setHeroVoucherId('shop');
                     setIsVoucherWalletOpen(false);
                     toast.success('Đã chọn voucher Shop SORASKIN5!');
@@ -2745,7 +2911,7 @@ const ROTATING_DEALS: FlashDealProduct[] = [
                       : 'border border-[#C59B58] text-[#8C6226] hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {heroVoucherId === 'shop' ? 'Đã lưu & dùng' : 'Lưu & dùng'}
+                  {heroVoucherId === 'shop' ? 'Đang dùng' : 'Áp dụng'}
                 </button>
               </div>
             </div>
@@ -2757,14 +2923,89 @@ const ROTATING_DEALS: FlashDealProduct[] = [
             >
               Hoàn tất
             </button>
-            <Link
-              to="/my-vouchers"
-              onClick={() => setIsVoucherWalletOpen(false)}
-              className="mt-2 flex w-full items-center justify-center py-2 text-xs font-bold text-[#8C6226] hover:underline"
-            >
-              Mở trang Ví voucher của tôi
-            </Link>
           </div>
+        </div>
+      )}
+
+      {/* Product Image Lightbox / Zoom Modal (Clean: Image + Close Button Only) */}
+      {zoomedImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh sản phẩm phóng to"
+          className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+          onClick={() => {
+            setZoomedImage(null);
+          }}
+        >
+          {/* Close Button (Nút tắt ảnh ở góc trên bên phải) */}
+          <button
+            type="button"
+            aria-label="Đóng ảnh"
+            onClick={() => {
+              setZoomedImage(null);
+            }}
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-[#C59B58] text-white border border-white/20 hover:border-[#C59B58] flex items-center justify-center transition-all duration-200 shadow-xl cursor-pointer active:scale-95 group"
+            title="Đóng (Esc)"
+          >
+            <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-200" />
+          </button>
+
+          {/* Gallery Previous Arrow (if multi-images) */}
+          {zoomedImage.images && zoomedImage.images.length > 1 && (
+            <button
+              type="button"
+              aria-label="Ảnh trước"
+              onClick={(e) => {
+                e.stopPropagation();
+                const images = zoomedImage.images!;
+                const cur = zoomedImage.currentIndex ?? 0;
+                const nextIdx = (cur - 1 + images.length) % images.length;
+                setZoomedImage({
+                  ...zoomedImage,
+                  src: images[nextIdx].src,
+                  currentIndex: nextIdx,
+                });
+              }}
+              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#C59B58] border border-white/20 hover:border-[#C59B58] text-white flex items-center justify-center transition shadow-xl cursor-pointer"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+
+          {/* Main Enlarged Image */}
+          <div
+            className="relative max-h-[90vh] max-w-[92vw] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={zoomedImage.src}
+              alt={zoomedImage.title}
+              className="max-h-[88vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl select-none animate-in zoom-in-95 duration-200"
+            />
+          </div>
+
+          {/* Gallery Next Arrow (if multi-images) */}
+          {zoomedImage.images && zoomedImage.images.length > 1 && (
+            <button
+              type="button"
+              aria-label="Ảnh sau"
+              onClick={(e) => {
+                e.stopPropagation();
+                const images = zoomedImage.images!;
+                const cur = zoomedImage.currentIndex ?? 0;
+                const nextIdx = (cur + 1) % images.length;
+                setZoomedImage({
+                  ...zoomedImage,
+                  src: images[nextIdx].src,
+                  currentIndex: nextIdx,
+                });
+              }}
+              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/60 hover:bg-[#C59B58] border border-white/20 hover:border-[#C59B58] text-white flex items-center justify-center transition shadow-xl cursor-pointer"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          )}
         </div>
       )}
 

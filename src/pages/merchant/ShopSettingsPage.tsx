@@ -22,12 +22,12 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
 const SHOP_LOGO_PRESETS = [
-  { id: 'shop-1', label: 'Sora Skin', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584519/scanms/logos/shop-sora-skin.jpg' },
-  { id: 'shop-2', label: 'Tech Store', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584520/scanms/logos/shop-techstore.jpg' },
-  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584525/scanms/logos/shop-my-pham-xanh.jpg' },
-  { id: 'shop-4', label: 'Store A Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584523/scanms/logos/shop-store-a.jpg' },
-  { id: 'shop-5', label: 'Store B Concept', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584524/scanms/logos/shop-store-b.jpg' },
-  { id: 'shop-6', label: 'Official Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584522/scanms/logos/shop-flagship.jpg' },
+  { id: 'shop-1', label: 'Sora Skin', url: '/assets/shop-sora-skin.jpg' },
+  { id: 'shop-2', label: 'Tech Store', url: '/assets/shop-techstore.jpg' },
+  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: '/assets/shop-my-pham-xanh.jpg' },
+  { id: 'shop-4', label: 'Store A Flagship', url: '/assets/shop-store-a.jpg' },
+  { id: 'shop-5', label: 'Store B Concept', url: '/assets/shop-store-b.jpg' },
+  { id: 'shop-6', label: 'Official Flagship', url: '/assets/shop-flagship.jpg' },
 ];
 
 export default function ShopSettingsPage() {

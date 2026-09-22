@@ -1,0 +1,21 @@
+[
+  { "file": "01_Dang_Nhap_Auth.png", "group": "auth", "route": "/login" },
+  { "file": "01_Dang_Ky_Register.png", "group": "auth", "route": "/register" },
+  { "file": "02_Tong_Quan_KOL_Dashboard.png", "group": "collaborator", "route": "/collaborator/dashboard" },
+  { "file": "03_Link_Va_QR_Tiep_Thi.png", "group": "collaborator", "route": "/collaborator/referral-links" },
+  { "file": "04_Quan_Ly_Kenh_MXH.png", "group": "collaborator", "route": "/collaborator/social-channels" },
+  { "file": "05_Kho_Noi_Dung_Media_Hub.png", "group": "collaborator", "route": "/collaborator/media-hub" },
+  { "file": "06_Hang_Mau_Dung_Thu_Master_Detail.png", "group": "collaborator", "route": "/collaborator/samples" },
+  { "file": "07_Bang_Vinh_Danh_Leaderboard.png", "group": "collaborator", "route": "/collaborator/leaderboard" },
+  { "file": "08_Vi_Tien_Va_Rut_Tien.png", "group": "collaborator", "route": "/collaborator/wallet" },
+  { "file": "09_Tong_Quan_Shop_Dashboard.png", "group": "merchant", "route": "/merchant/dashboard" },
+  { "file": "10_Danh_Muc_SanPham_Hoa_Hong.png", "group": "merchant", "route": "/merchant/products" },
+  { "file": "11_Doi_Ngu_CTV_Cap_Mau.png", "group": "merchant", "route": "/merchant/collaborators" },
+  { "file": "12_Doi_Soat_Don_Hang.png", "group": "merchant", "route": "/merchant/orders" },
+  { "file": "13_Duyet_Chi_Tra_Hoa_Hong.png", "group": "merchant", "route": "/merchant/payouts" },
+  { "file": "15_Tong_Quan_San_Super_Admin.png", "group": "admin", "route": "/admin/analytics" },
+  { "file": "17_Nguoi_Dung_Duyet_KYC.png", "group": "admin", "route": "/admin/users" },
+  { "file": "20_Tin_Nhan_Chat_Brief.png", "group": "shared", "route": "/chat" },
+  { "file": "21_KhachHang_San_Thuong_Mai_Marketplace.png", "group": "public", "route": "/marketplace" },
+  { "file": "22_KhachHang_Tra_Cuu_Don_Hang.png", "group": "public", "route": "/tracking" }
+]

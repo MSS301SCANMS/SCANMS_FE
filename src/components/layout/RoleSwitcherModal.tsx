@@ -23,7 +23,10 @@ export function RoleSwitcherModal({
   const handleQuickSwitchRole = async (email: string) => {
     setSwitching(true);
     try {
-      const res: any = await authService.login(email, 'Password@123');
+      const isShop = email.includes('shop');
+      const isAdmin = email.includes('admin');
+      const apiRole = isShop ? 'SHOP_MANAGER' : isAdmin ? 'SYSTEM_ADMIN' : 'COLLABORATOR';
+      const res: any = await authService.login(email, 'Password@123', apiRole);
       const user = res.data?.user || res.user;
       onUserChanged(user);
       onClose();

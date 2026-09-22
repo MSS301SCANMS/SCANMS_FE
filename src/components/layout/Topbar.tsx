@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Bell, ChevronDown, Store } from 'lucide-react';
+import { Sun, Moon, Bell, ChevronDown, Store, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { UserProfile } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 
@@ -8,6 +8,8 @@ export interface TopbarProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenRoleSwitcher: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function Topbar({
@@ -15,6 +17,8 @@ export function Topbar({
   theme,
   onToggleTheme,
   onOpenRoleSwitcher,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }: TopbarProps) {
   const location = useLocation();
   const pathname = location.pathname;
@@ -68,6 +72,9 @@ export function Topbar({
     if (pathname.includes('/merchant/payouts')) return 'Duyệt Chi trả Hoa hồng';
     if (pathname.includes('/merchant/settings')) return 'Cài đặt Gian hàng';
 
+    if (pathname.includes('/admin/system') || pathname.includes('/admin/services')) {
+      return 'Quản lý Dịch vụ Hệ thống';
+    }
     if (pathname.includes('/admin/analytics')) return 'Giám sát Toàn sàn';
     if (pathname.includes('/admin/affiliate-oversight')) return 'Tiếp thị & Dòng tiền Sàn';
     if (pathname.includes('/admin/users') || pathname.includes('/merchant/kyc-approval')) {
@@ -80,7 +87,22 @@ export function Topbar({
   return (
     <header className="shrink-0 min-h-[60px] px-6 py-2.5 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] flex items-center justify-between gap-4 z-20">
 
-      <div className="flex items-center gap-2 text-xs sm:text-sm text-[#7D715E]">
+      <div className="flex items-center gap-2.5 text-xs sm:text-sm text-[#7D715E]">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="p-1.5 rounded-lg text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] border border-[#EAE4D7] transition cursor-pointer shrink-0"
+            title={isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu (mở rộng màn hình)'}
+            aria-label={isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu'}
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        )}
         <span className="font-extrabold text-[#B88E4F] tracking-wide">SCANMS</span>
         <span className="text-[#CDC4B5]">/</span>
         <strong className="text-[#1A1612] font-bold">{getPageTitle()}</strong>
