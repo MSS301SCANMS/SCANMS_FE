@@ -558,7 +558,43 @@ function formatConvTime(dateStr: string) {
 
 
 
-export default function ChatBoxPage() {
+interface ChatBoxPageProps {
+  embedded?: boolean;
+  targetStoreId?: string;
+  targetStoreName?: string;
+  targetStoreLogo?: string;
+  targetCollaboratorId?: string;
+  targetCollaboratorName?: string;
+  targetCollaboratorAvatar?: string;
+  hideSidebar?: boolean;
+  hideHeaderInChat?: boolean;
+  className?: string;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LEGACY_ID_MAP: Record<string, string> = {
+  'sora-skin-001': 'a7e7bd20-bebc-44c9-a98b-004de44cf773',
+  'aura-bio-002': '461bdfe3-2260-4ac7-b93b-6a6da5c45535',
+  'greenbio-003': 'c4444444-4444-4444-8444-444444444444',
+  'green-bio-003': 'c4444444-4444-4444-8444-444444444444',
+  'lumiere-004': 'd5555555-5555-4555-8555-555555555555',
+  'kol-001': '33333333-3333-4333-8333-333333333333',
+  'kol-002': '44444444-4444-4444-8444-444444444444',
+  'kol-003': '237a7208-1c74-4322-96b2-51d810660723',
+};
+
+export default function ChatBoxPage({
+  embedded = false,
+  targetStoreId,
+  targetStoreName: _targetStoreName,
+  targetStoreLogo: _targetStoreLogo,
+  targetCollaboratorId,
+  targetCollaboratorName: _targetCollaboratorName,
+  targetCollaboratorAvatar: _targetCollaboratorAvatar,
+  hideSidebar = false,
+  hideHeaderInChat = false,
+  className = '',
+}: ChatBoxPageProps = {}) {
   const currentUser = (() => {
     try {
       return JSON.parse(localStorage.getItem('user') || 'null');
@@ -595,17 +631,74 @@ export default function ChatBoxPage() {
 
 
   useEffect(() => {
+    let isMounted = true;
+
+    const setupContext = async (list: Conversation[]) => {
+      if (targetStoreId) {
+        const effectiveStoreId = LEGACY_ID_MAP[targetStoreId] || targetStoreId;
+        const matching = list.find(
+          (c) => c.storeId === effectiveStoreId || c.store?.id === effectiveStoreId
+        );
+        if (matching) {
+          openConversationRef.current(matching);
+        } else if (UUID_REGEX.test(effectiveStoreId)) {
+          try {
+            const res: any = await api.post('/chat/conversations', { storeId: effectiveStoreId });
+            const realConv = res?.data || res;
+            if (isMounted && realConv && realConv.id) {
+              setConversations((prev) => {
+                const filtered = prev.filter((c) => c.id !== realConv.id);
+                return [realConv, ...filtered];
+              });
+              openConversationRef.current(realConv);
+            }
+          } catch (err) {
+            console.warn('Không thể khởi tạo hội thoại thật với shop:', err);
+          }
+        }
+      } else if (targetCollaboratorId) {
+        const effectiveCollabId = LEGACY_ID_MAP[targetCollaboratorId] || targetCollaboratorId;
+        const matching = list.find(
+          (c) => c.collaboratorId === effectiveCollabId || c.collaborator?.id === effectiveCollabId
+        );
+        if (matching) {
+          openConversationRef.current(matching);
+        } else if (UUID_REGEX.test(effectiveCollabId)) {
+          try {
+            const res: any = await api.post('/chat/conversations', { collaboratorId: effectiveCollabId });
+            const realConv = res?.data || res;
+            if (isMounted && realConv && realConv.id) {
+              setConversations((prev) => {
+                const filtered = prev.filter((c) => c.id !== realConv.id);
+                return [realConv, ...filtered];
+              });
+              openConversationRef.current(realConv);
+            }
+          } catch (err) {
+            console.warn('Không thể khởi tạo hội thoại thật với KOL:', err);
+          }
+        }
+      } else if (list.length > 0) {
+        openConversationRef.current(list[0]);
+      }
+    };
+
     api
       .get('/chat/conversations')
       .then((res: any) => {
+        if (!isMounted) return;
         const list: Conversation[] = Array.isArray(res) ? res : res?.data || [];
         setConversations(list);
-        if (list.length > 0) {
-          openConversationRef.current(list[0]);
-        }
+        setupContext(list);
       })
-      .catch(console.error);
-  }, []);
+      .catch((err) => {
+        console.warn('Lỗi tải danh sách hội thoại:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [targetStoreId, targetCollaboratorId]);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -686,7 +779,9 @@ export default function ChatBoxPage() {
     if (!conv || !conv.id) return;
     const socket = getChatSocket();
 
-    if (activeConvId) socket.emit('leave_conversation', { conversationId: activeConvId });
+    if (activeConvId && UUID_REGEX.test(activeConvId)) {
+      socket.emit('leave_conversation', { conversationId: activeConvId });
+    }
 
     setActiveConvId(conv.id);
     setMessages([]);
@@ -694,20 +789,24 @@ export default function ChatBoxPage() {
     setOldestMsgId(undefined);
     setIsLoadingMsgs(true);
 
-    try {
-      const res: any = await api.get(`/chat/conversations/${conv.id}/messages?take=50`);
-      const msgs: ChatMessage[] = Array.isArray(res) ? res : res?.data || [];
-      setMessages(msgs);
-      setHasMore(msgs.length === 50);
-      setOldestMsgId(msgs[0]?.id);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoadingMsgs(false);
-      setTimeout(() => scrollToBottom(), 50);
-    }
+    if (UUID_REGEX.test(conv.id)) {
+      try {
+        const res: any = await api.get(`/chat/conversations/${conv.id}/messages?take=50`);
+        const msgs: ChatMessage[] = Array.isArray(res) ? res : res?.data || [];
+        setMessages(msgs);
+        setHasMore(msgs.length === 50);
+        setOldestMsgId(msgs[0]?.id);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingMsgs(false);
+        setTimeout(() => scrollToBottom(), 50);
+      }
 
-    socket.emit('join_conversation', { conversationId: conv.id });
+      socket.emit('join_conversation', { conversationId: conv.id });
+    } else {
+      setIsLoadingMsgs(false);
+    }
   };
   openConversationRef.current = openConversation;
 
@@ -811,12 +910,12 @@ export default function ChatBoxPage() {
 
   return (
     <div
-      className="flex h-[calc(100vh-5.5rem)] bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden"
+      className={`flex ${embedded ? 'h-full w-full' : 'h-[calc(100vh-5.5rem)]'} bg-white rounded-2xl border border-[#EAE4D7] shadow-sm overflow-hidden ${className}`}
       id="chat-page"
     >
-
+      {!hideSidebar && (
       <aside
-        className="w-80 flex-shrink-0 flex flex-col border-r border-stone-200/80 bg-stone-50/40"
+        className="w-80 flex-shrink-0 flex flex-col border-r border-[#EAE4D7] bg-[#FAF8F5]/60"
         aria-label="Danh sách hội thoại"
       >
 
@@ -924,9 +1023,10 @@ export default function ChatBoxPage() {
           })}
         </div>
       </aside>
+      )}
 
 
-      <main className="flex-1 flex flex-col bg-stone-50/30 relative min-w-0" aria-label="Khung chat">
+      <main className="flex-1 flex flex-col bg-[#FAF8F5]/30 relative min-w-0" aria-label="Khung chat">
         {!activeConv ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
             <div className="w-16 h-16 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shadow-xs">
@@ -940,7 +1040,8 @@ export default function ChatBoxPage() {
         ) : (
           <>
 
-            <header className="px-6 py-3.5 bg-white border-b border-stone-200/80 flex items-center justify-between shadow-xs">
+            {!hideHeaderInChat && (
+            <header className="px-6 py-3.5 bg-white border-b border-[#EAE4D7] flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-sm flex items-center justify-center shadow-xs">
                   {getOtherAvatar(activeConv)}
@@ -970,7 +1071,7 @@ export default function ChatBoxPage() {
               {isShop && (
                 <button
                   id="btn-open-vip-invite"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer border border-amber-400/30"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer border border-[#EEDFC6]"
                   onClick={() => setShowVipModal(true)}
                   title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
                 >
@@ -979,6 +1080,7 @@ export default function ChatBoxPage() {
                 </button>
               )}
             </header>
+            )}
 
 
             <div

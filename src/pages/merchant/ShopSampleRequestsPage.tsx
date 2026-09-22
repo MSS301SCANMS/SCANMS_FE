@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import api from '../../services/api';
 import type { SampleRequest, SampleRequestStatus, ShopStats } from '../../types/samples';
@@ -230,7 +230,7 @@ export default function ShopSampleRequestsPage() {
       : requests.filter((r) => r.status === filterStatus);
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="shop-sample-requests-page">
+    <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="shop-sample-requests-page">
 
       {toast && (
         <div
@@ -472,3 +472,4 @@ export default function ShopSampleRequestsPage() {
     </div>
   );
 }
+

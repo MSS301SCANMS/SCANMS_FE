@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import api from '../../services/api';
 import type { SampleRequest, SampleRequestStatus } from '../../types/samples';
+import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
 
 
 const STATUS_LABEL: Record<SampleRequestStatus, string> = {
@@ -224,6 +225,8 @@ export default function SampleRequestsPage() {
   const [requests, setRequests] = useState<SampleRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [reviewModalReq, setReviewModalReq] = useState<SampleRequest | null>(null);
+  const [receivedIds, setReceivedIds] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<SampleRequestStatus | 'ALL'>('ALL');
 
   const loadRequests = useCallback(async () => {
@@ -258,7 +261,7 @@ export default function SampleRequestsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-sample-requests-page">
+    <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-sample-requests-page">
 
       <div className="flex items-start sm:items-center justify-between gap-4 flex-wrap pb-2 border-b border-[#EAE4D7]">
         <div>
@@ -397,6 +400,39 @@ export default function SampleRequestsPage() {
                 </div>
               )}
 
+              {req.status === 'SHIPPED' && (
+                <div className="p-3.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl flex items-center justify-between gap-3 flex-wrap text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎁</span>
+                    <div>
+                      <div className="font-bold text-[#1A1612]">
+                        {receivedIds[req.id] ? 'Đã nhận mẫu trải nghiệm thành công' : 'Mẫu sản phẩm đang được bưu cục vận chuyển'}
+                      </div>
+                      <div className="text-[11px] text-[#7D715E]">
+                        Quy chế: Nộp liên kết bài Review trong vòng 7 ngày kể từ khi nhận mẫu
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!receivedIds[req.id] && (
+                      <button
+                        type="button"
+                        onClick={() => setReceivedIds((prev) => ({ ...prev, [req.id]: true }))}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer"
+                      >
+                        ✓ Đã Nhận Hàng
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setReviewModalReq(req)}
+                      className="px-3 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <span>🎬</span> Nộp Video Review
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-[#EAE4D7] flex items-center justify-between max-w-sm">
                 {(['PENDING', 'APPROVED', 'SHIPPED'] as SampleRequestStatus[]).map((s, i) => {
@@ -427,6 +463,20 @@ export default function SampleRequestsPage() {
       {showModal && (
         <RequestModal onClose={() => setShowModal(false)} onSuccess={loadRequests} />
       )}
+
+      {reviewModalReq && (
+        <SubmitKolVideoModal
+          isOpen={Boolean(reviewModalReq)}
+          onClose={() => setReviewModalReq(null)}
+          initialProductId={reviewModalReq.product.id}
+          initialProductTitle={reviewModalReq.product.title}
+          onSuccess={() => {
+            setReviewModalReq(null);
+            loadRequests();
+          }}
+        />
+      )}
     </div>
   );
 }
+

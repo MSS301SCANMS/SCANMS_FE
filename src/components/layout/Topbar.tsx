@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, Bell, ChevronDown, Store } from 'lucide-react';
+import { Sun, Moon, Bell, ChevronDown, Store, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { UserProfile } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 
@@ -8,6 +8,8 @@ export interface TopbarProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenRoleSwitcher: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function Topbar({
@@ -15,6 +17,8 @@ export function Topbar({
   theme,
   onToggleTheme,
   onOpenRoleSwitcher,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
 }: TopbarProps) {
   const location = useLocation();
   const pathname = location.pathname;
@@ -23,60 +27,82 @@ export function Topbar({
   const isShop = role === 'SHOP_MANAGER';
   const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
 
-  let userProfile = {
-    avatar: currentUser?.fullName?.charAt(0) || 'T',
-    name: currentUser?.fullName || 'Nguyễn Thành Thắng',
-    sub: 'KOL Hạng Vàng',
-    avatarBg: '#FEF3C7',
-    avatarColor: '#92400E',
-  };
+  const displayName =
+    currentUser?.fullName ||
+    (isShop ? 'Chủ gian hàng' : isAdmin ? 'Quản trị viên' : 'Cộng tác viên');
 
-  if (isShop) {
-    userProfile = {
-      avatar: 'S',
-      name: currentUser?.fullName || 'Sora Skin Official',
-      sub: 'Chủ gian hàng',
-      avatarBg: '#FEF3C7',
-      avatarColor: '#B45309',
-    };
-  } else if (isAdmin) {
-    userProfile = {
-      avatar: 'QT',
-      name: currentUser?.fullName || 'Nguyễn Quản Trị',
-      sub: 'Quản trị viên Hệ thống',
-      avatarBg: '#0F172A',
-      avatarColor: '#F59E0B',
-    };
-  }
+  const displaySub = isShop
+    ? currentUser?.stores?.[0]?.name || 'Chủ gian hàng'
+    : isAdmin
+    ? 'Quản trị viên Hệ thống'
+    : currentUser?.collaboratorProfile?.tier?.name
+    ? `KOL Hạng ${currentUser.collaboratorProfile.tier.name}`
+    : 'Cộng tác viên SCANMS';
+
+  const userProfile = {
+    avatar: currentUser?.fullName?.charAt(0).toUpperCase() || (isShop ? 'S' : isAdmin ? 'A' : 'K'),
+    name: displayName,
+    sub: displaySub,
+    avatarBg: isAdmin ? '#0F172A' : '#FEF3C7',
+    avatarColor: isAdmin ? '#F59E0B' : isShop ? '#B45309' : '#92400E',
+  };
 
   const getPageTitle = () => {
     if (pathname === '/' || pathname === '/collaborator/dashboard') {
       if (isShop) return 'Tổng quan Shop';
-      if (isAdmin) return 'Quản trị User & Duyệt KYC';
-      return 'Tổng quan KOL / CTV';
+      if (isAdmin) return 'Giám sát Toàn Sàn';
+      return 'Tổng quan & Doanh số';
     }
+    if (pathname.includes('/collaborator/marketing') || pathname.includes('/collaborator/referral-links') || pathname.includes('/collaborator/media-hub')) {
+      return 'Trung tâm Tiếp thị';
+    }
+    if (pathname.includes('/collaborator/collaboration') || pathname.includes('/collaborator/sample-requests') || pathname.includes('/collaborator/messages')) {
+      return 'Hợp tác & Liên hệ Shop';
+    }
+    if (pathname.includes('/collaborator/profile') || pathname.includes('/collaborator/kyc') || pathname.includes('/collaborator/tiers')) {
+      return 'Hồ sơ & Cấp bậc KOL';
+    }
+    if (pathname.includes('/collaborator/wallet')) return 'Ví Hoa Hồng & Rút Tiền';
+
     if (pathname.includes('/merchant/dashboard')) return 'Tổng quan Gian Hàng';
-    if (pathname.includes('/merchant/products')) return 'Danh mục Sản phẩm & Giá';
+    if (pathname.includes('/merchant/products')) return 'Danh mục Sản phẩm & Kho';
     if (pathname.includes('/merchant/orders')) return 'Quản lý Đơn hàng Sàn';
-    if (pathname.includes('/merchant/campaigns')) return 'Chiến dịch Thưởng Doanh số';
+    if (pathname.includes('/merchant/kol-hub')) return 'Mạng lưới KOL & Hợp tác';
+    if (pathname.includes('/merchant/promotions')) return 'Khuyến mãi & Hoa hồng';
+    if (pathname.includes('/merchant/payouts')) return 'Duyệt Chi trả Hoa hồng';
     if (pathname.includes('/merchant/settings')) return 'Cài đặt Gian hàng';
-    if (pathname.includes('/merchant/kyc-approval') || pathname.includes('/admin/users')) {
+
+    if (pathname.includes('/admin/system') || pathname.includes('/admin/services')) {
+      return 'Quản lý Dịch vụ Hệ thống';
+    }
+    if (pathname.includes('/admin/analytics')) return 'Giám sát Toàn sàn';
+    if (pathname.includes('/admin/affiliate-oversight')) return 'Tiếp thị & Dòng tiền Sàn';
+    if (pathname.includes('/admin/users') || pathname.includes('/merchant/kyc-approval')) {
       return 'Quản trị Người dùng & Duyệt KYC';
     }
-    if (pathname.includes('/collaborator/links')) return 'Link và QR Tiếp thị';
-    if (pathname.includes('/collaborator/social-channels')) return 'Quản lý Kênh Mạng Xã Hội';
-    if (pathname.includes('/collaborator/media-hub')) return 'Kho Nội Dung Media Hub';
-    if (pathname.includes('/collaborator/samples')) return 'Hàng mẫu Dùng thử';
-    if (pathname.includes('/collaborator/tiers')) return 'Bảng Vinh Danh & Cấp Bậc KOL';
-    if (pathname.includes('/collaborator/kyc')) return 'Xác minh Định danh KYC';
-    if (pathname.includes('/collaborator/wallet')) return 'Ví Hoa Hồng & Rút Tiền';
+
     return 'Hệ thống Quản Trị SCANMS';
   };
 
   return (
     <header className="shrink-0 min-h-[60px] px-6 py-2.5 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] flex items-center justify-between gap-4 z-20">
 
-      <div className="flex items-center gap-2 text-xs sm:text-sm text-[#7D715E]">
+      <div className="flex items-center gap-2.5 text-xs sm:text-sm text-[#7D715E]">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="p-1.5 rounded-lg text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] border border-[#EAE4D7] transition cursor-pointer shrink-0"
+            title={isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu (mở rộng màn hình)'}
+            aria-label={isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu'}
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        )}
         <span className="font-extrabold text-[#B88E4F] tracking-wide">SCANMS</span>
         <span className="text-[#CDC4B5]">/</span>
         <strong className="text-[#1A1612] font-bold">{getPageTitle()}</strong>

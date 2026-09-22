@@ -11,11 +11,37 @@ export default function MainLayout() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('scanms_sidebar_collapsed') === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('scanms_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     const user = authService.getCurrentUser();
-    setCurrentUser(user);
-  }, [location.pathname]);
+    if (user) {
+      setCurrentUser(user);
+    }
+    const token = localStorage.getItem('token');
+    if (token) {
+      authService
+        .getMe()
+        .then((freshUser) => {
+          if (freshUser && freshUser.id) {
+            setCurrentUser(freshUser);
+          }
+        })
+        .catch(() => {
+          // Token expired or invalid
+        });
+    }
+  }, []);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
@@ -53,6 +79,8 @@ export default function MainLayout() {
         currentUser={currentUser}
         onOpenRoleSwitcher={() => setShowRoleModal(true)}
         onLogout={handleLogout}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
       />
 
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
@@ -61,10 +89,12 @@ export default function MainLayout() {
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenRoleSwitcher={() => setShowRoleModal(true)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={toggleSidebar}
         />
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 bg-[#FAF8F5]">
-          <div className="max-w-7xl w-full mx-auto">
+          <div className="max-w-[1520px] w-full mx-auto">
             <Outlet />
           </div>
         </main>

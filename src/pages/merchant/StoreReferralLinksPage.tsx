@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Link2,
   Store,
@@ -15,6 +15,7 @@ import api from '../../services/api';
 import { toast } from '../../utils/toast';
 
 export default function StoreReferralLinksPage() {
+  const initStartedRef = useRef(false);
   const [links, setLinks] = useState<ReferralLinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -36,6 +37,9 @@ export default function StoreReferralLinksPage() {
 
 
   useEffect(() => {
+    if (initStartedRef.current) return;
+    initStartedRef.current = true;
+
     async function initStore() {
       try {
         const res: any = await api.get('/auth/me');
@@ -135,7 +139,7 @@ export default function StoreReferralLinksPage() {
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1612] font-sans pb-16">
 
       <div className="bg-[#F3EFE6] border-b border-[#EAE4D7]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center gap-2 text-[#B88E4F] text-sm font-bold mb-1">
             <Store className="w-4 h-4" />
             <span>Dành cho Chủ Cửa hàng (Shop Manager)</span>
@@ -149,7 +153,7 @@ export default function StoreReferralLinksPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
 
         <div className="bg-white rounded-2xl border border-[#EAE4D7] p-4 shadow-xs mb-6">
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-3">
@@ -388,3 +392,4 @@ export default function StoreReferralLinksPage() {
     </div>
   );
 }
+

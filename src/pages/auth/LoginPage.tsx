@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Sparkles,
   Store,
@@ -20,12 +20,15 @@ import {
 import { authService } from '../../services/auth.service';
 import { triggerGoogleSignIn } from '../../utils/googleAuth';
 import { toast } from '../../utils/toast';
+import { getSafeRedirect } from '../../utils/authRedirect';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = getSafeRedirect(searchParams.get('redirect'));
   const [role, setRole] = useState<'kol' | 'shop' | 'admin'>('kol');
-  const [email, setEmail] = useState('demo@scanms.vn');
-  const [password, setPassword] = useState('Password@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -65,14 +68,14 @@ export default function LoginPage() {
 
   const handleRoleChange = (selectedRole: 'kol' | 'shop' | 'admin') => {
     setRole(selectedRole);
-    if (selectedRole === 'kol') {
-      setEmail('demo@scanms.vn');
+    if (selectedRole === 'admin') {
+      setEmail('admin@scanms.vn');
       setPassword('Password@123');
     } else if (selectedRole === 'shop') {
       setEmail('shop@scanms.vn');
       setPassword('Password@123');
     } else {
-      setEmail('admin@scanms.vn');
+      setEmail('demo@scanms.vn');
       setPassword('Password@123');
     }
   };
@@ -91,22 +94,31 @@ export default function LoginPage() {
     if (autoSubmit) {
       setLoading(true);
       try {
-        const res: any = await authService.login(targetEmail, targetPass);
+        const apiRole =
+          targetRole === 'kol' ? 'COLLABORATOR' : targetRole === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
+        const res: any = await authService.login(targetEmail, targetPass, apiRole);
         const user = res.data?.user || res.user;
 
         setSuccessNotice(`Đăng nhập thành công với vai trò ${user?.fullName || targetEmail}!`);
 
         setTimeout(() => {
-          if (user?.role === 'SHOP_MANAGER') {
-            navigate('/merchant/products');
+          if (returnTo) {
+            navigate(returnTo, { replace: true });
+          } else if (user?.role === 'SHOP_MANAGER') {
+            navigate('/merchant/dashboard');
           } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-            navigate('/merchant/kyc-approval');
+            navigate('/admin/users');
           } else {
             navigate('/collaborator/dashboard');
           }
         }, 500);
       } catch (err: any) {
-        setError(err.message || 'Đăng nhập không thành công');
+        const errorMsg =
+          err?.response?.data?.message ||
+          (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+            ? 'Không thể kết nối đến máy chủ Backend (cổng 3000). Vui lòng đảm bảo backend đang chạy trên http://localhost:3000.'
+            : err?.message || 'Đăng nhập không thành công');
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -120,24 +132,31 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res: any = await authService.login(email, password);
-      const user = res.data?.user || res.user;
+      const apiRole =
+        role === 'kol' ? 'COLLABORATOR' : role === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
+      const res: any = await authService.login(email, password, apiRole);
+      const user = res?.data?.user || res?.user;
 
       setSuccessNotice('Đăng nhập thành công! Đang chuyển hướng...');
 
       setTimeout(() => {
-        if (user?.role === 'SHOP_MANAGER') {
-          navigate('/merchant/products');
+        if (returnTo) {
+          navigate(returnTo, { replace: true });
+        } else if (user?.role === 'SHOP_MANAGER') {
+          navigate('/merchant/dashboard');
         } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
-          navigate('/merchant/kyc-approval');
+          navigate('/admin/users');
         } else {
           navigate('/collaborator/dashboard');
         }
       }, 600);
     } catch (err: any) {
-      setError(
-        err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email hoặc mật khẩu.'
-      );
+      const errorMsg =
+        err?.response?.data?.message ||
+        (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+          ? 'Không thể kết nối đến máy chủ Backend (cổng 3000). Vui lòng đảm bảo backend đang chạy trên http://localhost:3000.'
+          : err?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại email hoặc mật khẩu.');
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -151,8 +170,17 @@ export default function LoginPage() {
         try {
           const apiRole =
             role === 'kol' ? 'COLLABORATOR' : role === 'shop' ? 'SHOP_MANAGER' : 'SYSTEM_ADMIN';
-          await authService.googleLogin(idToken, apiRole);
-          navigate('/collaborator/dashboard');
+          const res: any = await authService.googleLogin(idToken, apiRole);
+          const user = res?.data?.user || res?.user;
+          if (returnTo) {
+            navigate(returnTo, { replace: true });
+          } else if (user?.role === 'SHOP_MANAGER') {
+            navigate('/merchant/dashboard');
+          } else if (user?.role === 'SYSTEM_ADMIN' || user?.role === 'SYSTEM_MANAGER') {
+            navigate('/admin/analytics');
+          } else {
+            navigate('/collaborator/dashboard');
+          }
         } catch (err: any) {
           setError(err.message || 'Đăng nhập Google thất bại');
         } finally {
@@ -166,10 +194,19 @@ export default function LoginPage() {
     );
   };
 
+  const handleFrontendDemoBuyerLogin = () => {
+    setError(null);
+    setLoading(false);
+    const user = authService.loginFrontendDemoBuyer();
+    setEmail(user.email);
+    setSuccessNotice('Đã đăng nhập tài khoản Người dùng Demo trên frontend.');
+    navigate(returnTo || '/marketplace', { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-10">
 
-      <div className="max-w-7xl mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
+      <div className="max-w-[1520px] mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
         <Link
           to="/marketplace"
           id="btn-back-to-marketplace"
@@ -184,7 +221,7 @@ export default function LoginPage() {
         </span>
       </div>
 
-      <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
+      <div className="max-w-[1520px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
 
         <div className="lg:col-span-7 bg-[#F3EFE6] border border-[#EAE4D7] rounded-3xl p-7 sm:p-10 flex flex-col justify-between gap-6 text-left relative overflow-hidden shadow-xs">
 
@@ -358,19 +395,44 @@ export default function LoginPage() {
               </div>
             )}
 
+            {import.meta.env.DEV && (
+              <div className="rounded-2xl border-2 border-[#C59B58] bg-[#FBF5EB] p-3.5 shadow-xs">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-sm font-black text-[#1A1612]">Tài khoản Người dùng Demo FE</strong>
+                    <span className="mt-0.5 block text-[11px] text-[#7D715E]">
+                      Có sẵn SĐT và địa chỉ, không cần backend để đăng nhập.
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-[#C59B58] px-2 py-0.5 text-[9px] font-black uppercase text-white">DEV</span>
+                </div>
+                <div className="mb-2 rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 text-[11px] text-[#7D715E]">
+                  <strong className="text-[#1A1612]">user.demo@scanms.local</strong> · 0901234567
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFrontendDemoBuyerLogin}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#C59B58] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#B88E4F]"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Đăng nhập User Demo ngay
+                </button>
+              </div>
+            )}
+
             <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-[11px] font-extrabold text-[#B88E4F] uppercase tracking-wider flex items-center gap-1">
                   <Zap className="w-3.5 h-3.5 text-[#B88E4F] fill-current" />
-                  Tài khoản demo mẫu
+                  Tài khoản mẫu thử nghiệm (Tuỳ chọn)
                 </span>
                 <span className="text-[10px] text-[#7D715E] font-medium">
-                  Pass: <code className="font-bold text-[#1A1612]">Password@123</code>
+                  Mật khẩu chung: <code className="font-bold text-[#1A1612]">Password@123</code>
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((acc) => {
+              <div className={DEMO_ACCOUNTS.filter((acc) => acc.role === role).length > 1 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
+                {DEMO_ACCOUNTS.filter((acc) => acc.role === role).map((acc) => {
                   const isSelected = email === acc.email;
                   return (
                     <div
@@ -417,7 +479,13 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="demo@scanms.vn"
+                  placeholder={
+                    role === 'shop'
+                      ? 'shop@example.com'
+                      : role === 'admin'
+                      ? 'admin@scanms.vn'
+                      : 'kol@example.com'
+                  }
                   required
                   className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-sm text-[#1A1612] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
                 />
@@ -527,7 +595,7 @@ export default function LoginPage() {
                         Khách mua hàng trực tiếp
                       </strong>
                       <span className="text-[11px] text-[#7D715E] block truncate">
-                        Không cần đăng nhập để đặt mua sản phẩm
+                        Đăng nhập để lưu đơn hàng, voucher và theo dõi giao nhận
                       </span>
                     </div>
                   </div>

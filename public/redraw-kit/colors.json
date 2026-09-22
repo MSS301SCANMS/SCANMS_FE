@@ -1,0 +1,29 @@
+{
+  "brand": {
+    "primary": "#C59B58",
+    "strong": "#B88E4F",
+    "dark": "#231D15",
+    "soft": "#FBF5EB",
+    "border": "#EEDFC6"
+  },
+  "surface": {
+    "canvas": "#FAF8F5",
+    "card": "#FFFFFF",
+    "subtle": "#F3EFE6",
+    "muted": "#F6EFE3"
+  },
+  "text": {
+    "primary": "#1A1612",
+    "secondary": "#7D715E",
+    "inverse": "#FFFFFF"
+  },
+  "border": {
+    "default": "#EAE4D7",
+    "strong": "#DEBE85"
+  },
+  "semantic": {
+    "success": "#15803D",
+    "warning": "#D97706",
+    "danger": "#DC2626"
+  }
+}

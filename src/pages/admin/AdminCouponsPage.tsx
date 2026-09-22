@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Tag,
   Search,
@@ -185,7 +185,7 @@ export const AdminCouponsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
-      <div className="max-w-7xl mx-auto mb-8">
+      <div className="max-w-[1520px] mx-auto mb-8">
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6 mb-6">
           <div>
@@ -576,3 +576,4 @@ export const AdminCouponsPage: React.FC = () => {
 };
 
 export default AdminCouponsPage;
+

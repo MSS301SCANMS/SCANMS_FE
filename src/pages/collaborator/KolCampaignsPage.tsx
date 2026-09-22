@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
   Sparkles,
@@ -113,7 +113,7 @@ export default function KolCampaignsPage() {
   const rejectedCount = invitations.filter(i => i.status === 'REJECTED').length;
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-campaigns-page">
+    <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-campaigns-page">
 
       {toast && (
         <div
@@ -399,3 +399,4 @@ export default function KolCampaignsPage() {
     </div>
   );
 }
+

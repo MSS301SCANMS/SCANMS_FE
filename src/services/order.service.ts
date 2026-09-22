@@ -71,7 +71,86 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+export interface StoreOrderItem {
+  productId: string;
+  title: string;
+  sku: string;
+  imageUrl?: string;
+  quantity: number;
+  unitPrice: number;
+  appliedCommissionRate: number;
+  calculatedCommissionAmount: number;
+}
+
+export interface StoreOrderRecord {
+  id: string;
+  externalOrderSn: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  status: ManagedOrderStatus;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  shippingAddress: string;
+  subtotalAmount: number;
+  discountAmount: number;
+  shippingFee: number;
+  finalAmount: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  trackingNumber: string | null;
+  carrierName: string | null;
+  store?: { id: string; name: string; slug: string; logoUrl?: string };
+  attributedCollaborator?: { id: string; fullName: string; email: string } | null;
+  couponCode: string | null;
+  totalCommission: number;
+  items: StoreOrderItem[];
+}
+
+export interface StoreOrdersResponse {
+  items: StoreOrderRecord[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export const orderService = {
+  async getMyStoreOrders(params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    storeId?: string;
+  }): Promise<StoreOrdersResponse> {
+    const response = (await api.get("/orders/my-store", {
+      params,
+    })) as unknown as ApiEnvelope<StoreOrdersResponse>;
+    return response.data;
+  },
+
+  async updateOrderFulfillment(
+    orderId: string,
+    data: {
+      status: ManagedOrderStatus;
+      trackingNumber?: string;
+      carrierName?: string;
+      note?: string;
+    },
+  ) {
+    const response = (await api.patch(
+      `/orders/${orderId}/fulfillment`,
+      data,
+    )) as unknown as ApiEnvelope<{
+      message: string;
+      order: any;
+    }>;
+    return response.data;
+  },
+
   async quoteDiscount(data: {
     storeId?: string;
     customerPhone: string;

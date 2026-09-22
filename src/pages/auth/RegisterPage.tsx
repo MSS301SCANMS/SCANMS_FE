@@ -18,11 +18,35 @@ import {
   KeyRound,
   ArrowRight,
   ArrowLeft,
+  Camera,
+  Check,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { authService } from '../../services/auth.service';
+import { uploadService } from '../../services/upload.service';
 import { triggerGoogleSignIn } from '../../utils/googleAuth';
 import { Modal } from '../../components/ui/Modal';
 import { toast } from '../../utils/toast';
+
+const KOL_AVATAR_PRESETS = [
+  { id: 'kol-1', label: 'Thanh lịch', url: '/assets/kol-avatar-thang.jpg' },
+  { id: 'kol-2', label: 'Tươi tắn', url: '/assets/kol-avatar-ha.jpg' },
+  { id: 'kol-3', label: 'Trẻ trung', url: '/assets/kol-avatar-nhat.jpg' },
+  { id: 'kol-4', label: 'Hiện đại', url: '/assets/kol-avatar-nam.jpg' },
+  { id: 'kol-5', label: 'Đẹp xinh', url: '/assets/kol-avatar-depxinh.jpg' },
+  { id: 'kol-6', label: 'Năng động', url: '/assets/kol-avatar-nghia.jpg' },
+];
+
+const SHOP_LOGO_PRESETS = [
+  { id: 'shop-1', label: 'Sora Skin', url: '/assets/shop-sora-skin.jpg' },
+  { id: 'shop-2', label: 'Tech Store', url: '/assets/shop-techstore.jpg' },
+  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: '/assets/shop-my-pham-xanh.jpg' },
+  { id: 'shop-4', label: 'Store A Flagship', url: '/assets/shop-store-a.jpg' },
+  { id: 'shop-5', label: 'Store B Concept', url: '/assets/shop-store-b.jpg' },
+  { id: 'shop-6', label: 'Official Flagship', url: '/assets/shop-flagship.jpg' },
+];
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -44,8 +68,39 @@ export default function RegisterPage() {
   const [mockOtpHint, setMockOtpHint] = useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState('');
 
+  const [avatarUrl, setAvatarUrl] = useState(KOL_AVATAR_PRESETS[0].url);
+  const [logoUrl, setLogoUrl] = useState(SHOP_LOGO_PRESETS[0].url);
+
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'logo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploadingImage(true);
+    try {
+      const secureUrl = await uploadService.uploadImage(
+        file,
+        target === 'avatar' ? 'scanms/avatars' : 'scanms/logos'
+      );
+      if (target === 'avatar') {
+        setAvatarUrl(secureUrl);
+        toast.success('Đã tải ảnh đại diện KOL lên Cloudinary thành công!');
+      } else {
+        setLogoUrl(secureUrl);
+        toast.success('Đã tải logo gian hàng lên Cloudinary thành công!');
+      }
+    } catch (err: any) {
+      console.error('Lỗi tải ảnh lên Cloudinary:', err);
+      setError(err?.response?.data?.message || err?.message || 'Không thể tải ảnh lên Cloudinary');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
 
   const getPasswordStrength = (pass: string) => {
     if (!pass) return { score: 0, label: 'Chưa nhập', color: 'bg-slate-200' };
@@ -85,6 +140,16 @@ export default function RegisterPage() {
       return;
     }
 
+    if (role === 'kol' && !avatarUrl.trim()) {
+      setError('Vui lòng chọn hoặc tải lên ảnh đại diện cho tài khoản KOL / CTV (Bắt buộc).');
+      return;
+    }
+
+    if (role === 'shop' && !logoUrl.trim()) {
+      setError('Vui lòng chọn hoặc tải lên logo đại diện cho Gian hàng (Bắt buộc).');
+      return;
+    }
+
     if (!agreeTerms) {
       setError('Vui lòng đồng ý với điều khoản sử dụng của SCANMS.');
       return;
@@ -94,12 +159,19 @@ export default function RegisterPage() {
     try {
       const res: any = await authService.sendOtp(email);
       setRegisteredEmail(email);
-      if (res?.data?.mockOtp) {
-        setMockOtpHint(res.data.mockOtp);
+      const otpCode = res?.data?.debugOtp || res?.data?.mockOtp;
+      if (otpCode) {
+        setMockOtpHint(otpCode);
       }
       setShowOtpModal(true);
     } catch (err: any) {
-      setError(err.message || 'Không thể gửi mã xác thực OTP. Vui lòng kiểm tra lại email.');
+      console.error('Send OTP error:', err);
+      const errorMsg =
+        err?.response?.data?.message ||
+        (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+          ? 'Không thể kết nối đến máy chủ Backend (cổng 3000). Vui lòng đảm bảo backend đang chạy trên http://localhost:3000.'
+          : err?.message || 'Không thể gửi mã xác thực OTP. Vui lòng kiểm tra lại email.');
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -121,13 +193,24 @@ export default function RegisterPage() {
         phoneNumber: phone,
         storeName: role === 'shop' ? shopName : undefined,
         role: apiRole,
-        otp,
+        otp: otp.trim(),
+        avatarUrl: role === 'kol' ? avatarUrl.trim() : undefined,
+        logoUrl: role === 'shop' ? logoUrl.trim() : undefined,
       });
 
-      toast.success('Kích hoạt tài khoản SCANMS thành công! Bạn có thể đăng nhập ngay.');
+      toast.success(
+        role === 'shop'
+          ? `Kích hoạt tài khoản Gian hàng "${shopName}" thành công! Vui lòng đăng nhập.`
+          : 'Kích hoạt tài khoản CTV / KOL thành công! Vui lòng đăng nhập.'
+      );
       navigate('/login');
     } catch (err: any) {
-      setError(err.message || 'Mã OTP không chính xác hoặc đã hết hạn.');
+      const errorMsg =
+        err?.response?.data?.message ||
+        (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
+          ? 'Không thể kết nối đến máy chủ Backend (cổng 3000).'
+          : err?.message || 'Mã OTP không chính xác hoặc đã hết hạn.');
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -161,7 +244,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-10">
 
-      <div className="max-w-7xl mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
+      <div className="max-w-[1520px] mx-auto w-full mb-4 flex flex-wrap justify-between items-center gap-3 text-xs">
         <Link
           to="/marketplace"
           id="btn-back-to-marketplace-register"
@@ -176,7 +259,7 @@ export default function RegisterPage() {
         </span>
       </div>
 
-      <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+      <div className="max-w-[1520px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
 
         <div className="lg:col-span-6 bg-[#F3EFE6] border border-[#EAE4D7] rounded-3xl p-7 sm:p-10 flex flex-col gap-6 text-left relative overflow-hidden shadow-xs">
 
@@ -316,6 +399,22 @@ export default function RegisterPage() {
                   <span>Khách Mua</span>
                 </button>
               </div>
+
+              {role === 'kol' && (
+                <p className="text-[11px] text-[#7D715E] bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE4D7] mt-2 mb-0">
+                  🌟 <strong>Nhà sáng tạo / KOL:</strong> Đăng ký tài khoản nhận link tiếp thị, tạo mã QR, xin mẫu trải nghiệm và hưởng hoa hồng bậc thang tới 30%.
+                </p>
+              )}
+              {role === 'shop' && (
+                <p className="text-[11px] text-[#7D715E] bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE4D7] mt-2 mb-0">
+                  🏪 <strong>Chủ Gian Hàng:</strong> Hệ thống tự động tạo Store cho bạn, cấp quyền đăng bán sản phẩm và cài đặt hoa hồng cho mạng lưới KOL.
+                </p>
+              )}
+              {role === 'customer' && (
+                <p className="text-[11px] text-[#7D715E] bg-[#FAF8F5] p-2.5 rounded-xl border border-[#EAE4D7] mt-2 mb-0">
+                  🛍️ <strong>Khách Mua Hàng:</strong> Bạn có thể mua hàng 1-chạm không cần tài khoản tại sàn, hoặc tạo tài khoản để quản lý đơn thuận tiện.
+                </p>
+              )}
             </div>
 
             {error && (
@@ -388,17 +487,178 @@ export default function RegisterPage() {
                 </div>
               )}
 
+              {role === 'kol' && (
+                <div className="p-3.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      <span>Ảnh đại diện KOL / KOC <strong className="text-rose-600">* (Bắt buộc)</strong></span>
+                    </label>
+                    <span className="text-[10px] text-[#7D715E] bg-white px-2 py-0.5 rounded-full border border-[#EAE4D7]">
+                      Dùng trên Bảng xếp hạng &amp; Video
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-14 h-14 rounded-full overflow-hidden ring-2 ring-[#C59B58] ring-offset-2 shrink-0 bg-[#F3EFE6] flex items-center justify-center shadow-xs">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt="KOL Avatar Preview"
+                          className="w-full h-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = KOL_AVATAR_PRESETS[0].url;
+                          }}
+                        />
+                      ) : (
+                        <User className="w-6 h-6 text-[#7D715E]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {KOL_AVATAR_PRESETS.map((p) => {
+                          const isSelected = avatarUrl === p.url;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setAvatarUrl(p.url)}
+                              className={`relative group p-0.5 rounded-full border-2 transition cursor-pointer ${
+                                isSelected ? 'border-[#C59B58] scale-105 shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
+                              }`}
+                              title={p.label}
+                            >
+                              <img src={p.url} alt={p.label} className="w-6 h-6 rounded-full object-cover" />
+                              {isSelected && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#059669] text-white flex items-center justify-center">
+                                  <Check className="w-2 h-2" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={avatarUrl}
+                          onChange={(e) => setAvatarUrl(e.target.value)}
+                          placeholder="Hoặc dán URL ảnh trực tiếp..."
+                          required
+                          className="flex-1 bg-white border border-[#EAE4D7] rounded-lg px-2.5 py-1 text-xs text-[#1A1612] focus:border-[#C59B58] outline-none transition"
+                        />
+                        <label className="cursor-pointer px-2.5 py-1 bg-white border border-[#EAE4D7] hover:border-[#C59B58] text-[#1A1612] text-xs font-semibold rounded-lg flex items-center gap-1 shrink-0 transition">
+                          {uploadingImage ? (
+                            <Loader2 className="w-3 h-3 text-[#B88E4F] animate-spin" />
+                          ) : (
+                            <Upload className="w-3 h-3 text-[#B88E4F]" />
+                          )}
+                          <span>{uploadingImage ? 'Đang tải...' : 'Tải ảnh (PNG/JPG)'}</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            disabled={uploadingImage}
+                            onChange={(e) => handleFileUpload(e, 'avatar')}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {role === 'shop' && (
                 <div>
-                  <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên Gian Hàng / Doanh Nghiệp</label>
-                  <input
-                    type="text"
-                    value={shopName}
-                    onChange={(e) => setShopName(e.target.value)}
-                    placeholder="Sora Skin Official"
-                    required
-                    className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-sm text-[#1A1612] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
-                  />
+                  <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
+                    Tên Gian Hàng / Thương Hiệu <strong className="text-rose-600">*</strong>
+                  </label>
+                  <div className="relative flex items-center">
+                    <Store className="w-4 h-4 text-[#B88E4F] absolute left-3.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={shopName}
+                      onChange={(e) => setShopName(e.target.value)}
+                      placeholder="Ví dụ: Sora Skin Official"
+                      required
+                      className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#1A1612] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {role === 'shop' && (
+                <div className="p-3.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      <span>Logo đại diện Gian Hàng <strong className="text-rose-600">* (Bắt buộc)</strong></span>
+                    </label>
+                    <span className="text-[10px] text-[#7D715E] bg-white px-2 py-0.5 rounded-full border border-[#EAE4D7]">
+                      Hiển thị toàn sàn &amp; chiến dịch
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-14 h-14 rounded-2xl overflow-hidden ring-2 ring-[#C59B58] ring-offset-2 shrink-0 bg-[#F3EFE6] flex items-center justify-center shadow-xs">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Shop Logo Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Store className="w-6 h-6 text-[#7D715E]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {SHOP_LOGO_PRESETS.map((p) => {
+                          const isSelected = logoUrl === p.url;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setLogoUrl(p.url)}
+                              className={`relative group p-0.5 rounded-lg border-2 transition cursor-pointer ${
+                                isSelected ? 'border-[#C59B58] scale-105 shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
+                              }`}
+                              title={p.label}
+                            >
+                              <img src={p.url} alt={p.label} className="w-6 h-6 rounded-md object-cover" />
+                              {isSelected && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#059669] text-white flex items-center justify-center">
+                                  <Check className="w-2 h-2" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={logoUrl}
+                          onChange={(e) => setLogoUrl(e.target.value)}
+                          placeholder="Hoặc dán URL logo trực tiếp..."
+                          required
+                          className="flex-1 bg-white border border-[#EAE4D7] rounded-lg px-2.5 py-1 text-xs text-[#1A1612] focus:border-[#C59B58] outline-none transition"
+                        />
+                        <label className="cursor-pointer px-2.5 py-1 bg-white border border-[#EAE4D7] hover:border-[#C59B58] text-[#1A1612] text-xs font-semibold rounded-lg flex items-center gap-1 shrink-0 transition">
+                          {uploadingImage ? (
+                            <Loader2 className="w-3 h-3 text-[#B88E4F] animate-spin" />
+                          ) : (
+                            <Upload className="w-3 h-3 text-[#B88E4F]" />
+                          )}
+                          <span>{uploadingImage ? 'Đang tải...' : 'Tải logo (PNG/JPG)'}</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            disabled={uploadingImage}
+                            onChange={(e) => handleFileUpload(e, 'logo')}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -550,14 +810,21 @@ export default function RegisterPage() {
         maxWidth="sm"
       >
         <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
-          {mockOtpHint && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-              Mã OTP Demo thử nghiệm:{' '}
-              <strong className="text-sm font-mono tracking-widest text-amber-900 block mt-0.5">
-                {mockOtpHint}
-              </strong>
+          <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-amber-900 text-xs flex flex-col gap-1.5">
+            {mockOtpHint ? (
+              <div>
+                <span>Mã OTP xác thực (Dev Mode):</span>{' '}
+                <strong className="text-base font-mono font-bold tracking-widest text-amber-950 inline-block ml-1">
+                  {mockOtpHint}
+                </strong>
+              </div>
+            ) : (
+              <div>Mã xác thực 6 chữ số đã được gửi tới email của bạn.</div>
+            )}
+            <div className="text-[11px] text-amber-800/85 pt-1 border-t border-amber-200/60">
+              💡 <em>Kiểm thử nhanh: Bạn có thể nhập mã master <strong>123456</strong> để kích hoạt ngay.</em>
             </div>
-          )}
+          </div>
 
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1.5">Nhập mã OTP</label>

@@ -143,23 +143,6 @@ export const CommissionRulesPage: React.FC = () => {
         } catch {}
 
 
-        if (import.meta.env.DEV && (!token || user?.role === 'COLLABORATOR')) {
-          try {
-            const loginRes: any = await api.post('/auth/login', {
-              email: 'shop@scanms.vn',
-              password: 'Password@123',
-            });
-            const newToken = loginRes?.data?.accessToken || loginRes?.accessToken;
-            const shopUser = loginRes?.data?.user || loginRes?.user;
-            if (newToken && shopUser) {
-              localStorage.setItem('token', newToken);
-              localStorage.setItem('user', JSON.stringify(shopUser));
-              token = newToken;
-              user = shopUser;
-            }
-          } catch {}
-        }
-
         if (!token) {
           const fallbackStoreId = 'a7e7bd20-bebc-44c9-a98b-004de44cf773';
           setStoreId(fallbackStoreId);
