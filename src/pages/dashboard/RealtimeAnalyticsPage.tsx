@@ -173,7 +173,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-3xl border border-[#EAE4D7] shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center space-x-2.5">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
               <Sparkles className="w-3.5 h-3.5 mr-1 text-[#B88E4F]" />
               FR-28 Realtime Analytics
             </span>
@@ -210,7 +210,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                 }}
                 className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                   range === tab.key
-                    ? 'bg-[#C59B58] text-white font-bold shadow-xs'
+                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
                     : 'text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
                 }`}
               >
@@ -221,7 +221,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
               onClick={() => setIsCustomOpen(!isCustomOpen)}
               className={`px-3 py-2 rounded-xl transition-all flex items-center space-x-1 cursor-pointer ${
                 range === 'custom'
-                  ? 'bg-[#C59B58] text-white font-bold shadow-xs'
+                  ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
                   : 'text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
               }`}
             >
@@ -266,7 +266,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
       {/* Custom Date Range Popover */}
       {isCustomOpen && (
-        <div className="bg-white border border-[#EEDFC6] p-4 rounded-2xl shadow-xl flex flex-wrap items-center gap-4 animate-in fade-in duration-200">
+        <div className="bg-white border border-[#EAE4D7] p-4 rounded-2xl shadow-xl flex flex-wrap items-center gap-4 animate-in fade-in duration-200">
           <div className="flex items-center space-x-2 text-xs">
             <span className="text-[#7D715E]">Từ ngày:</span>
             <input
@@ -288,7 +288,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <button
             onClick={handleApplyCustomRange}
             disabled={!customStartDate || !customEndDate}
-            className="px-4 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+            className="px-4 py-1.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
           >
             Áp dụng khoảng ngày
           </button>
@@ -301,7 +301,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Lượt Click</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
               <MousePointerClick className="w-5 h-5" />
             </div>
           </div>
@@ -388,7 +388,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Doanh Thu (GMV)</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
@@ -419,12 +419,12 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">
               {user?.role === 'SHOP_MANAGER' ? 'Hoa Hồng Chi Trả' : 'Hoa Hồng Thực Nhận'}
             </span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FEF3C7] border border-amber-200 flex items-center justify-center text-[#D97706] group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-amber-200 flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
               <Coins className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <p className="text-xl lg:text-2xl font-black text-[#D97706] truncate">
+            <p className="text-xl lg:text-2xl font-black text-[#B88E4F] truncate">
               {formatCurrency(overview?.metrics?.totalCommission ?? 0)}
             </p>
             <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
@@ -454,7 +454,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-[#1A1612] flex items-center space-x-2">
-                <Flame className="w-5 h-5 text-[#C59B58]" />
+                <Flame className="w-5 h-5 text-[#B88E4F]" />
                 <span>Biểu Đồ Diễn Biến Hiệu Suất Theo Thời Gian</span>
               </h2>
               <p className="text-xs text-[#7D715E] mt-0.5">
@@ -468,7 +468,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                 onClick={() => setActiveChartTab('traffic')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   activeChartTab === 'traffic'
-                    ? 'bg-[#C59B58] text-white font-bold shadow-xs'
+                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
                     : 'text-[#7D715E] hover:text-[#1A1612]'
                 }`}
               >
@@ -478,7 +478,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                 onClick={() => setActiveChartTab('financial')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   activeChartTab === 'financial'
-                    ? 'bg-[#C59B58] text-white font-bold shadow-xs'
+                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
                     : 'text-[#7D715E] hover:text-[#1A1612]'
                 }`}
               >
@@ -563,7 +563,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                   />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                   <Bar dataKey="revenue" name="Doanh Thu (GMV)" fill="#C59B58" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="commission" name="Hoa Hồng" fill="#059669" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="commission" name="Hoa Hồng" fill="#15803d" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -574,7 +574,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-6 shadow-xs flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-[#1A1612] flex items-center space-x-2">
-              <Layers className="w-5 h-5 text-[#C59B58]" />
+              <Layers className="w-5 h-5 text-[#B88E4F]" />
               <span>Phễu Chuyển Đổi (Funnel)</span>
             </h2>
             <p className="text-xs text-[#7D715E] mt-0.5">
@@ -594,7 +594,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                 </div>
                 <div className="w-full h-3 bg-[#FAF8F5] rounded-full overflow-hidden p-0.5 border border-[#EAE4D7]">
                   <div
-                    className="h-full bg-[#C59B58] rounded-full transition-all duration-700"
+                    className="h-full bg-[#EBD08C] rounded-full transition-all duration-700"
                     style={{ width: `${Math.max(st.percentage, 4)}%` }}
                   />
                 </div>
@@ -628,7 +628,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-                <Package className="w-5 h-5 text-[#C59B58]" />
+                <Package className="w-5 h-5 text-[#B88E4F]" />
                 <span>Top Sản Phẩm Mang Lại Doanh Số Cao Nhất</span>
               </h3>
               <p className="text-xs text-[#7D715E] mt-0.5">Xếp hạng theo tổng giá trị đơn hàng thực tế phát sinh.</p>
@@ -646,8 +646,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center space-x-3 min-w-0">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
-                          p.rank === 1 ? 'bg-[#C59B58] text-white font-bold' :
-                          p.rank === 2 ? 'bg-[#EEDFC6] text-[#7A561B] font-bold' :
+                          p.rank === 1 ? 'bg-[#EBD08C] text-white font-bold' :
+                          p.rank === 2 ? 'bg-[#EAE4D7] text-[#B88E4F] font-bold' :
                           p.rank === 3 ? 'bg-[#F3EFE6] text-[#7D715E] font-bold' :
                           'bg-white text-[#7D715E] border border-[#EAE4D7]'
                         }`}>
@@ -666,7 +666,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
                     <div className="w-full h-2 bg-[#EAE4D7] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#C59B58] rounded-full"
+                        className="h-full bg-[#EBD08C] rounded-full"
                         style={{ width: `${Math.max(percent, 5)}%` }}
                       />
                     </div>
@@ -681,7 +681,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-5 shadow-xs">
           <div>
             <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-              <Share2 className="w-5 h-5 text-[#C59B58]" />
+              <Share2 className="w-5 h-5 text-[#B88E4F]" />
               <span>Phân Bổ Kênh Tiếp Thị</span>
             </h3>
             <p className="text-xs text-[#7D715E] mt-0.5">Tỷ trọng lưu lượng và đơn hàng theo từng mạng xã hội.</p>
@@ -699,7 +699,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                   </div>
                   <div className="w-full h-2 bg-[#EAE4D7] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#C59B58] rounded-full"
+                      className="h-full bg-[#EBD08C] rounded-full"
                       style={{ width: `${Math.max(c.trafficSharePercent, 6)}%` }}
                     />
                   </div>
@@ -720,7 +720,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-                <Crown className="w-5 h-5 text-[#C59B58]" />
+                <Crown className="w-5 h-5 text-[#B88E4F]" />
                 <span>Hiệu Quả Chiến Dịch Tiếp Thị Độc Quyền VIP (FR-27)</span>
               </h3>
               <p className="text-xs text-[#7D715E] mt-0.5">Thống kê doanh số phát sinh từ các chiến dịch có hoa hồng thưởng thêm.</p>
@@ -750,7 +750,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <span className="px-2.5 py-1 rounded-full bg-[#FBF5EB] text-[#B88E4F] font-bold border border-[#EEDFC6]">
+                      <span className="px-2.5 py-1 rounded-full bg-[#FBF5EB] text-[#B88E4F] font-bold border border-[#EAE4D7]">
                         +{camp.bonusCommissionRate}% Bonus
                       </span>
                     </td>
@@ -758,7 +758,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     <td className="p-3.5 font-semibold text-[#1A1612]">{camp.participantsCount} KOLs</td>
                     <td className="p-3.5 font-bold text-[#1A1612]">{camp.totalOrders} đơn</td>
                     <td className="p-3.5 font-bold text-[#B88E4F]">{formatCurrency(camp.totalRevenue)}</td>
-                    <td className="p-3.5 font-bold text-[#D97706]">{formatCurrency(camp.totalCommissions)}</td>
+                    <td className="p-3.5 font-bold text-[#B88E4F]">{formatCurrency(camp.totalCommissions)}</td>
                   </tr>
                 ))}
               </tbody>

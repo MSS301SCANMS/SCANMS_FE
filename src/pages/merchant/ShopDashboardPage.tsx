@@ -88,7 +88,7 @@ export default function ShopDashboardPage() {
           </button>
           <Link
             to="/merchant/campaigns"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C59B58] text-white font-bold text-xs sm:text-sm hover:bg-[#B88E4F] transition shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EBD08C] text-white font-bold text-xs sm:text-sm hover:bg-[#DEC07A] transition shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>Tạo chiến dịch</span>
@@ -102,7 +102,7 @@ export default function ShopDashboardPage() {
         <div className="p-4 bg-white border border-[#EAE4D7] rounded-2xl shadow-xs flex flex-col justify-between gap-3">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-[#7D715E]">Doanh thu liên kết (30 ngày)</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function ShopDashboardPage() {
         <div className="p-4 bg-white border border-[#EAE4D7] rounded-2xl shadow-xs flex flex-col justify-between gap-3">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-[#7D715E]">Hoa hồng KOL ghi nhận</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] flex items-center justify-center">
               <Coins className="w-4 h-4" />
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function ShopDashboardPage() {
         <div className="p-4 bg-white border border-[#EAE4D7] rounded-2xl shadow-xs flex flex-col justify-between gap-3">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-[#7D715E]">Đơn chốt thành công</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] flex items-center justify-center">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
@@ -182,7 +182,7 @@ export default function ShopDashboardPage() {
             </div>
             <div className="flex items-center gap-3 text-xs text-[#7D715E] font-bold">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-xs bg-[#C59B58]" /> Doanh thu (GMV)
+                <span className="w-3 h-3 rounded-xs bg-[#EBD08C]" /> Doanh thu (GMV)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-xs bg-[#EAE4D7]" /> Hoa hồng KOL
@@ -206,7 +206,7 @@ export default function ShopDashboardPage() {
                       <div
                         style={{ height: `${revHeight}%` }}
                         title={`Doanh thu: ${col.revenue.toLocaleString('vi-VN')} ₫`}
-                        className="w-3.5 sm:w-5 bg-[#C59B58] rounded-t-sm transition-all hover:bg-[#B88E4F]"
+                        className="w-3.5 sm:w-5 bg-[#EBD08C] rounded-t-sm transition-all hover:bg-[#DEC07A]"
                       />
                       <div
                         style={{ height: `${commHeight}%` }}
@@ -228,7 +228,7 @@ export default function ShopDashboardPage() {
             <h3 className="text-base font-extrabold text-[#1A1612] m-0">Đơn hàng mới nhất</h3>
             <Link
               to="/merchant/orders"
-              className="text-xs font-bold text-[#B88E4F] hover:text-[#9A7032]"
+              className="text-xs font-bold text-[#B88E4F] hover:text-[#B88E4F]"
             >
               Xem tất cả
             </Link>
@@ -245,7 +245,7 @@ export default function ShopDashboardPage() {
                   key={order.id}
                   className="flex items-center gap-3 p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7]"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] flex items-center justify-center shrink-0">
                     <ShoppingBag className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -275,7 +275,7 @@ export default function ShopDashboardPage() {
           </div>
           <Link
             to="/merchant/products"
-            className="text-xs font-bold text-[#B88E4F] hover:text-[#9A7032] flex items-center gap-1"
+            className="text-xs font-bold text-[#B88E4F] hover:text-[#B88E4F] flex items-center gap-1"
           >
             <span>Quản lý danh mục</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -311,7 +311,7 @@ export default function ShopDashboardPage() {
                             className="w-9 h-9 rounded-xl object-cover border border-[#EAE4D7] shrink-0"
                           />
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0">
                             <Box className="w-4 h-4" />
                           </div>
                         )}
@@ -326,7 +326,7 @@ export default function ShopDashboardPage() {
                     </td>
                     <td className="p-3.5 font-semibold text-[#1A1612]">{p.stockQuantity}</td>
                     <td className="p-3.5">
-                      <span className="px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#8A662C] font-bold border border-[#EEDFC6]">
+                      <span className="px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] font-bold border border-[#EAE4D7]">
                         {p.customCommissionRate ?? p.store?.defaultCommissionRate ?? 10}%
                       </span>
                     </td>

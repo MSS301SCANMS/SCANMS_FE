@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import api from '../../services/api';
 import type { SampleRequest, SampleRequestStatus, ShopStats } from '../../types/samples';
@@ -92,10 +92,10 @@ function TrackingModal({
           </button>
         </div>
 
-        <div className="p-4 mx-6 mt-4 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-xs space-y-1">
+        <div className="p-4 mx-6 mt-4 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs space-y-1">
           <div className="font-extrabold text-[#1A1612]">{request.collaborator.fullName}</div>
           <div className="text-[#7D715E]">{request.product.title}</div>
-          <div className="text-[11px] text-[#7D715E] pt-1 border-t border-[#EEDFC6]/60">
+          <div className="text-[11px] text-[#7D715E] pt-1 border-t border-[#EAE4D7]/60">
             📍 {request.shippingAddress}
           </div>
         </div>
@@ -147,7 +147,7 @@ function TrackingModal({
             <button
               type="submit"
               id="btn-confirm-ship"
-              className="px-5 py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
               disabled={loading || !trackingNumber.trim()}
             >
               {loading ? '⏳ Đang lưu...' : '🚚 Xác nhận giao hàng'}
@@ -236,7 +236,7 @@ export default function ShopSampleRequestsPage() {
         <div
           className={`fixed bottom-6 right-6 px-4 py-3 rounded-xl text-xs font-extrabold shadow-lg z-50 border ${
             toast.type === 'success'
-              ? 'bg-white border-[#EEDFC6] text-[#B88E4F]'
+              ? 'bg-white border-[#EAE4D7] text-[#B88E4F]'
               : 'bg-rose-50 border-rose-200 text-rose-700'
           }`}
           role="alert"
@@ -300,7 +300,7 @@ export default function ShopSampleRequestsPage() {
             aria-selected={filterStatus === s}
             className={`px-3.5 py-2 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
               filterStatus === s
-                ? 'bg-white border-[#EEDFC6] text-[#B88E4F] shadow-xs'
+                ? 'bg-white border-[#EAE4D7] text-[#B88E4F] shadow-xs'
                 : 'bg-[#F3EFE6] border-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612]'
             }`}
             onClick={() => setFilterStatus(s)}
@@ -356,7 +356,7 @@ export default function ShopSampleRequestsPage() {
                 <tr key={req.id} id={`shop-row-${req.id}`} className="hover:bg-[#FAF8F5] transition">
                   <td className="p-3.5">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#EEDFC6] text-[#B88E4F] font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-[#EAE4D7] text-[#B88E4F] font-bold flex items-center justify-center text-xs flex-shrink-0">
                         {req.collaborator.fullName[0]}
                       </div>
                       <div>
@@ -388,7 +388,7 @@ export default function ShopSampleRequestsPage() {
                   </td>
                   <td className="p-3.5">
                     {req.trackingNumber ? (
-                      <code className="font-mono bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] px-2 py-0.5 rounded text-[11px] font-bold">
+                      <code className="font-mono bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] px-2 py-0.5 rounded text-[11px] font-bold">
                         {req.trackingNumber}
                       </code>
                     ) : (
@@ -412,7 +412,7 @@ export default function ShopSampleRequestsPage() {
                           <button
                             id={`btn-approve-${req.id}`}
                             type="button"
-                            className="px-2.5 py-1.5 rounded-lg bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EEDFC6] font-extrabold text-xs transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EAE4D7] font-extrabold text-xs transition cursor-pointer"
                             onClick={() => handleApprove(req.id)}
                             disabled={!!actionLoading}
                             title="Duyệt"
@@ -435,7 +435,7 @@ export default function ShopSampleRequestsPage() {
                         <button
                           id={`btn-ship-${req.id}`}
                           type="button"
-                          className="px-3 py-1.5 rounded-lg bg-[#C59B58] text-white hover:bg-[#B88E4F] font-extrabold text-xs transition shadow-xs cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg bg-[#EBD08C] text-white hover:bg-[#DEC07A] font-extrabold text-xs transition shadow-xs cursor-pointer"
                           onClick={() => setShippingTarget(req)}
                           title="Nhập mã vận đơn"
                         >

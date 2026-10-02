@@ -37,6 +37,7 @@ export default function MarketingToolkitPage() {
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
+        compact
         title="Trung Tâm Tiếp Thị"
         subtitle="Bộ công cụ toàn diện dành cho KOL: quản lý link affiliate, tải ảnh/video tư liệu và nhận mã giảm giá độc quyền"
       />

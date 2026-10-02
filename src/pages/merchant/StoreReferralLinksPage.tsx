@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Link2,
   Store,
@@ -194,7 +194,7 @@ export default function StoreReferralLinksPage() {
 
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white rounded-xl text-sm font-bold transition-colors shadow-xs cursor-pointer"
+              className="px-5 py-2.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white rounded-xl text-sm font-bold transition-colors shadow-xs cursor-pointer"
             >
               Lọc kết quả
             </button>
@@ -251,6 +251,14 @@ export default function StoreReferralLinksPage() {
                         </div>
                         <div className="text-xs text-emerald-600 font-semibold">
                           {Number(link.product?.price || 0).toLocaleString('vi-VN')} đ
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${link.commissionType === 'EXCLUSIVE_DEAL' ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]' : 'border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E]'}`}>
+                            {link.commissionType === 'EXCLUSIVE_DEAL' ? 'Exclusive Deal' : link.commissionType === 'CAMPAIGN' ? 'Chiến dịch' : 'Open Offer'}
+                          </span>
+                          {link.commissionRate != null && (
+                            <span className="text-[11px] font-bold text-[#1A1612]">Hoa hồng {link.commissionRate}%</span>
+                          )}
                         </div>
                       </td>
 

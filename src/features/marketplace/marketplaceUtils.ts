@@ -1,7 +1,8 @@
 import type { CartLine, Creator, Product } from './marketplace.types';
 
-export function formatMoney(value: number): string {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+export function formatMoney(value: number | string): string {
+  const num = typeof value === 'number' ? value : Number(value) || 0;
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
 }
 
 export function normalizeSearch(value: string): string {

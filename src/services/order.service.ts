@@ -1,7 +1,20 @@
 import api from "./api";
 
 export type ManagedOrderStatus =
-  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURNED";
+  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURN_REQUESTED" | "DISPUTED" | "RETURNED";
+
+export interface StoreReturnRequest {
+  id: string;
+  reason: string;
+  details: string | null;
+  imageUrls: string[];
+  unboxingVideoUrl: string;
+  status: 'REQUESTED' | 'SHOP_APPROVED' | 'SHOP_REJECTED' | 'DISPUTED' | 'REFUNDED' | 'CLOSED';
+  deadlineAt: string;
+  submittedAt: string;
+  shopResponse: string | null;
+  shopRespondedAt: string | null;
+}
 
 export interface ManualOrderItemInput {
   productId?: string;
@@ -88,7 +101,9 @@ export interface StoreOrderRecord {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  deliveredAt: string | null;
   status: ManagedOrderStatus;
+  returnRequest?: StoreReturnRequest | null;
   customerName: string;
   customerPhone: string;
   customerEmail: string | null;
@@ -147,6 +162,14 @@ export const orderService = {
     )) as unknown as ApiEnvelope<{
       message: string;
       order: any;
+    }>;
+    return response.data;
+  },
+
+  async respondReturnRequest(orderId: string, data: { decision: 'APPROVE' | 'REJECT'; response: string }) {
+    const response = (await api.patch(`/orders/${orderId}/return-request/respond`, data)) as unknown as ApiEnvelope<{
+      message: string;
+      returnRequest: StoreReturnRequest;
     }>;
     return response.data;
   },

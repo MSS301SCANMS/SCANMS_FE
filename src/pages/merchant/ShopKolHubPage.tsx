@@ -817,7 +817,7 @@ export default function ShopKolHubPage() {
       <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
               Merchant Partner Hub
             </span>
             <span className="text-xs text-[#7D715E]">Mạng lưới Tiếp thị Liên kết SCANMS</span>
@@ -845,10 +845,10 @@ export default function ShopKolHubPage() {
             className={`flex-1 md:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
               isAiMatchingMode
                 ? 'bg-[#1A1612] text-white'
-                : 'bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EEDFC6]'
+                : 'bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EAE4D7]'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-[#C59B58]" />
+            <Sparkles className="w-4 h-4 text-[#B88E4F]" />
             {isAiMatchingMode ? 'Quay lại Không Gian 1-1' : 'AI Tìm Kiếm KOL Mới'}
           </button>
 
@@ -856,7 +856,7 @@ export default function ShopKolHubPage() {
             type="button"
             id="btn-open-creator-directory"
             onClick={() => setShowDiscoveryModal(true)}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
             <Users className="w-4 h-4" />
             Khám Phá & Mời KOL
@@ -878,7 +878,7 @@ export default function ShopKolHubPage() {
             <div className="p-4 border-b border-[#EAE4D7] space-y-3 bg-[#FAF8F5]/80">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#C59B58]" />
+                  <Users className="w-4 h-4 text-[#B88E4F]" />
                   <span className="text-xs font-extrabold text-[#1A1612] uppercase tracking-wider">
                     Nhà Sáng Tạo ({filteredKols.length})
                   </span>
@@ -922,7 +922,7 @@ export default function ShopKolHubPage() {
                   onClick={() => setFilterTag('ALL')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
                     filterTag === 'ALL'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#F3EFE6]'
                   }`}
                 >
@@ -933,7 +933,7 @@ export default function ShopKolHubPage() {
                   onClick={() => setFilterTag('PENDING_SAMPLE')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1 ${
                     filterTag === 'PENDING_SAMPLE'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#F3EFE6]'
                   }`}
                 >
@@ -945,7 +945,7 @@ export default function ShopKolHubPage() {
                   onClick={() => setFilterTag('ACTIVE_CHAT')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
                     filterTag === 'ACTIVE_CHAT'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#F3EFE6]'
                   }`}
                 >
@@ -956,7 +956,7 @@ export default function ShopKolHubPage() {
                   onClick={() => setFilterTag('TOP_REVENUE')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
                     filterTag === 'TOP_REVENUE'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#F3EFE6]'
                   }`}
                 >
@@ -996,7 +996,7 @@ export default function ShopKolHubPage() {
                         />
                         {kol.kycStatus === 'VERIFIED' && (
                           <span
-                            className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#059669] text-white flex items-center justify-center text-[9px]"
+                            className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#15803d] text-white flex items-center justify-center text-[9px]"
                             title="Đã xác minh KYC"
                           >
                             ✓
@@ -1023,7 +1023,7 @@ export default function ShopKolHubPage() {
                           <span className="text-[11px] text-[#7D715E] font-medium truncate">
                             {kol.handle || kol.email}
                           </span>
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#FAF8F5] text-[#B88E4F] border border-[#EEDFC6]">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#FAF8F5] text-[#B88E4F] border border-[#EAE4D7]">
                             {kol.tier === 'DIAMOND'
                               ? '💎 Kim Cương'
                               : kol.tier === 'GOLD'
@@ -1068,12 +1068,12 @@ export default function ShopKolHubPage() {
               >
                 {copiedLink ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#059669]" />
+                    <Check className="w-3.5 h-3.5 text-[#B88E4F]" />
                     Đã chép link mời gian hàng!
                   </>
                 ) : (
                   <>
-                    <Share2 className="w-3.5 h-3.5 text-[#C59B58]" />
+                    <Share2 className="w-3.5 h-3.5 text-[#B88E4F]" />
                     Sao chép link mời KOL riêng
                   </>
                 )}
@@ -1094,7 +1094,7 @@ export default function ShopKolHubPage() {
                       alt={selectedKol.fullName}
                       className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-[#EAE4D7] shadow-xs"
                     />
-                    <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#C59B58] text-white">
+                    <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#EBD08C] text-white">
                       {selectedKol.tier}
                     </span>
                   </div>
@@ -1109,7 +1109,7 @@ export default function ShopKolHubPage() {
                           <CheckCircle2 className="w-3 h-3" /> Đã xác thực KYC
                         </span>
                       )}
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                         Hoa hồng VIP: {selectedKol.commissionRate || 20}%
                       </span>
                     </div>
@@ -1149,7 +1149,7 @@ export default function ShopKolHubPage() {
                       setNewCommissionRate(selectedKol.commissionRate || 22);
                       setShowCommissionModal(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EEDFC6] transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FBF5EB] text-[#B88E4F] hover:bg-[#F3EFE6] border border-[#EAE4D7] transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <DollarSign className="w-3.5 h-3.5" />
                     Cấp Hoa Hồng VIP
@@ -1290,7 +1290,7 @@ export default function ShopKolHubPage() {
                         onClick={() => setSampleFilter('ALL')}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                           sampleFilter === 'ALL'
-                            ? 'bg-[#C59B58] text-white shadow-xs'
+                            ? 'bg-[#EBD08C] text-white shadow-xs'
                             : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#FAF8F5]'
                         }`}
                       >
@@ -1339,7 +1339,7 @@ export default function ShopKolHubPage() {
                   {/* Samples list */}
                   {currentKolSamples.length === 0 ? (
                     <div className="bg-white border border-[#EAE4D7] rounded-2xl p-12 text-center">
-                      <Package className="w-12 h-12 text-[#EEDFC6] mx-auto mb-3" />
+                      <Package className="w-12 h-12 text-[#EAE4D7] mx-auto mb-3" />
                       <h4 className="text-sm font-extrabold text-[#1A1612]">Chưa có yêu cầu mẫu nào</h4>
                       <p className="text-xs text-[#7D715E] mt-1 max-w-md mx-auto">
                         KOL này hiện chưa gửi đơn xin mẫu nào. Bạn có thể nhắn tin gợi ý KOL trải nghiệm sản phẩm mới!
@@ -1430,7 +1430,7 @@ export default function ShopKolHubPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleApproveSample(item.id)}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#C59B58] hover:bg-[#B88E4F] transition shadow-xs cursor-pointer"
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#EBD08C] hover:bg-[#DEC07A] transition shadow-xs cursor-pointer"
                                   >
                                     Duyệt Gửi Mẫu
                                   </button>
@@ -1485,12 +1485,12 @@ export default function ShopKolHubPage() {
                     <div className="bg-white border border-[#EAE4D7] rounded-2xl p-5 shadow-xs">
                       <div className="flex items-center justify-between text-xs text-[#7D715E] mb-2 font-medium">
                         <span>Doanh thu thuần từ KOL</span>
-                        <TrendingUp className="w-4 h-4 text-[#059669]" />
+                        <TrendingUp className="w-4 h-4 text-[#B88E4F]" />
                       </div>
                       <div className="text-2xl font-extrabold text-[#1A1612]">
                         {selectedKol.stats.totalRevenue.toLocaleString('vi-VN')} ₫
                       </div>
-                      <div className="text-[11px] text-[#059669] font-bold mt-1">
+                      <div className="text-[11px] text-[#B88E4F] font-bold mt-1">
                         +18.4% so với tháng trước
                       </div>
                     </div>
@@ -1498,7 +1498,7 @@ export default function ShopKolHubPage() {
                     <div className="bg-white border border-[#EAE4D7] rounded-2xl p-5 shadow-xs">
                       <div className="flex items-center justify-between text-xs text-[#7D715E] mb-2 font-medium">
                         <span>Hoa hồng shop đã chi trả</span>
-                        <DollarSign className="w-4 h-4 text-[#C59B58]" />
+                        <DollarSign className="w-4 h-4 text-[#B88E4F]" />
                       </div>
                       <div className="text-2xl font-extrabold text-[#1A1612]">
                         {(
@@ -1556,7 +1556,7 @@ export default function ShopKolHubPage() {
                               <td className="p-3.5 font-extrabold text-[#1A1612]">
                                 {ord.orderTotal.toLocaleString('vi-VN')} ₫
                               </td>
-                              <td className="p-3.5 font-bold text-[#059669]">
+                              <td className="p-3.5 font-bold text-[#B88E4F]">
                                 +{ord.commissionEarned.toLocaleString('vi-VN')} ₫
                               </td>
                               <td className="p-3.5">
@@ -1736,7 +1736,7 @@ export default function ShopKolHubPage() {
           >
             <div className="px-6 py-4 border-b border-[#EAE4D7] flex items-center justify-between bg-[#FAF8F5]">
               <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-[#C59B58]" />
+                <Truck className="w-5 h-5 text-[#B88E4F]" />
                 <h3 className="text-base font-extrabold text-[#1A1612]">Nhập Mã Vận Đơn Gửi Mẫu</h3>
               </div>
               <button
@@ -1749,10 +1749,10 @@ export default function ShopKolHubPage() {
             </div>
 
             <form onSubmit={handleSaveTracking} className="p-6 space-y-4">
-              <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-xs space-y-1">
+              <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs space-y-1">
                 <div className="font-extrabold text-[#1A1612]">{selectedKol.fullName}</div>
                 <div className="text-[#7D715E]">{trackingModalItem.product.title}</div>
-                <div className="text-[11px] text-[#7D715E] pt-1 border-t border-[#EEDFC6]/60">
+                <div className="text-[11px] text-[#7D715E] pt-1 border-t border-[#EAE4D7]/60">
                   📍 {trackingModalItem.shippingAddress}
                 </div>
               </div>
@@ -1795,7 +1795,7 @@ export default function ShopKolHubPage() {
                 <button
                   type="submit"
                   disabled={updatingSample}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {updatingSample ? 'Đang lưu...' : 'Xác Nhận Đã Gửi Hàng'}
                 </button>
@@ -1817,7 +1817,7 @@ export default function ShopKolHubPage() {
           >
             <div className="px-6 py-4 border-b border-[#EAE4D7] flex items-center justify-between bg-[#FAF8F5]">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#C59B58]" />
+                <Users className="w-5 h-5 text-[#B88E4F]" />
                 <h3 className="text-base font-extrabold text-[#1A1612]">Mời KOL Gia Nhập Mạng Lưới</h3>
               </div>
               <button
@@ -1852,7 +1852,7 @@ export default function ShopKolHubPage() {
                 <button
                   type="submit"
                   disabled={inviting}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {inviting ? 'Đang gửi lời mời...' : 'Gửi Thư Mời Trực Tiếp'}
                 </button>
@@ -1864,7 +1864,7 @@ export default function ShopKolHubPage() {
                 >
                   {copiedLink ? (
                     <>
-                      <Check className="w-4 h-4 text-[#059669]" /> Đã sao chép link!
+                      <Check className="w-4 h-4 text-[#B88E4F]" /> Đã sao chép link!
                     </>
                   ) : (
                     <>
@@ -1890,7 +1890,7 @@ export default function ShopKolHubPage() {
           >
             <div className="px-6 py-4 border-b border-[#EAE4D7] flex items-center justify-between bg-[#FAF8F5]">
               <div className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-[#C59B58]" />
+                <DollarSign className="w-5 h-5 text-[#B88E4F]" />
                 <h3 className="text-base font-extrabold text-[#1A1612]">Cấp Mức Hoa Hồng VIP Riêng</h3>
               </div>
               <button
@@ -1903,7 +1903,7 @@ export default function ShopKolHubPage() {
             </div>
 
             <form onSubmit={handleSaveCommission} className="p-6 space-y-4">
-              <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-xs">
+              <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs">
                 Đang thiết lập cho:{' '}
                 <strong className="text-[#1A1612]">{selectedKol.fullName}</strong> ({selectedKol.tier})
               </div>
@@ -1920,7 +1920,7 @@ export default function ShopKolHubPage() {
                     step="1"
                     value={newCommissionRate}
                     onChange={(e) => setNewCommissionRate(Number(e.target.value))}
-                    className="flex-1 accent-[#C59B58]"
+                    className="flex-1 accent-[#EBD08C]"
                   />
                   <span className="px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] text-sm font-extrabold text-[#B88E4F]">
                     {newCommissionRate}%
@@ -1942,7 +1942,7 @@ export default function ShopKolHubPage() {
                 <button
                   type="submit"
                   disabled={updatingCommission}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {updatingCommission ? 'Đang lưu...' : 'Lưu Tỷ Lệ Hoa Hồng'}
                 </button>
@@ -1966,7 +1966,7 @@ export default function ShopKolHubPage() {
             <div className="p-5 sm:p-6 border-b border-[#EAE4D7] bg-[#FAF8F5] flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                     SCANMS Creator Network
                   </span>
                   <span className="text-xs text-[#7D715E]">100% Hồ sơ thực tế đã xác thực</span>
@@ -2018,7 +2018,7 @@ export default function ShopKolHubPage() {
                     onClick={() => setDiscoveryFilter(f.key)}
                     className={`px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer text-xs ${
                       discoveryFilter === f.key
-                        ? 'bg-[#C59B58] text-white shadow-xs'
+                        ? 'bg-[#EBD08C] text-white shadow-xs'
                         : 'bg-[#FAF8F5] text-[#7D715E] border border-[#EAE4D7] hover:bg-[#F3EFE6]'
                     }`}
                   >
@@ -2066,7 +2066,7 @@ export default function ShopKolHubPage() {
                               />
                               {profile.kycStatus === 'VERIFIED' && (
                                 <span
-                                  className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#059669] text-white flex items-center justify-center text-[9px] font-bold"
+                                  className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#15803d] text-white flex items-center justify-center text-[9px] font-bold"
                                   title="Đã xác minh định danh KYC"
                                 >
                                   ✓
@@ -2079,7 +2079,7 @@ export default function ShopKolHubPage() {
                                 <h4 className="text-sm font-extrabold text-[#1A1612] truncate">
                                   {creator.fullName}
                                 </h4>
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                                   {profile.tier === 'DIAMOND'
                                     ? '💎 Kim Cương'
                                     : profile.tier === 'GOLD'
@@ -2166,7 +2166,7 @@ export default function ShopKolHubPage() {
                             type="button"
                             onClick={() => handleConnectCreator(creator)}
                             disabled={isConnecting}
-                            className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                            className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                             {isConnecting

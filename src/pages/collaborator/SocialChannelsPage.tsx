@@ -117,7 +117,7 @@ export default function SocialChannelsPage() {
     <div className="flex flex-col gap-6 text-left">
 
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
+        <div className="fixed top-5 right-5 z-50 bg-[#1A1612] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
           <span>{toastMsg}</span>
         </div>
@@ -132,7 +132,7 @@ export default function SocialChannelsPage() {
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]">
               {filtered.length} / {displayChannels.length} kênh
             </span>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
               Attribution Tracking v2
             </span>
           </div>
@@ -208,7 +208,7 @@ export default function SocialChannelsPage() {
 
       <Card className="p-3.5 bg-white flex flex-wrap gap-3 items-center justify-between">
         <div className="flex-1 min-w-[280px] relative">
-          <Search className="w-4 h-4 text-[#A49B8B] absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#7D715E] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Tìm theo tên hiển thị, handle (@username) hoặc lĩnh vực..."

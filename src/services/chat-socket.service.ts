@@ -12,7 +12,7 @@ export const getChatSocket = (): Socket => {
     if ((socket as any)._currentToken !== token) {
       socket.disconnect();
       socket = null;
-    } else if (socket.connected) {
+    } else {
       return socket;
     }
   }

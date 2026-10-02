@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 import {
   MessageSquare,
   Plus,
@@ -13,11 +14,14 @@ import {
   Check,
   Sparkles,
   ArrowUp,
+  ArrowLeft,
   Gift,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Crown,
+  ShoppingBag,
+  ExternalLink,
 } from 'lucide-react';
 import { getChatSocket } from '../../services/chat-socket.service';
 import api from '../../services/api';
@@ -95,7 +99,7 @@ const BANK_FRAUD_KEYWORDS = [
 
 function isBankAccountOrFraudText(text: string): boolean {
   if (!text) return false;
-  if (text.startsWith('{') && text.includes('CAMPAIGN_')) return false;
+  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY'))) return false;
 
   const raw = text.toLowerCase().trim();
   const unaccented = removeAccents(raw).replace(/\s+/g, ' ').trim();
@@ -118,7 +122,7 @@ function isBankAccountOrFraudText(text: string): boolean {
 
 function isProfaneText(text: string): boolean {
   if (!text) return false;
-  if (text.startsWith('{') && text.includes('CAMPAIGN_')) return false;
+  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY'))) return false;
 
   const raw = text.toLowerCase().trim();
   const unaccented = removeAccents(raw)
@@ -180,6 +184,82 @@ function tryParseCampaignCard(text: string) {
 
   }
   return null;
+}
+
+function tryParseExclusiveDealCard(text: string) {
+  try {
+    const obj = JSON.parse(text);
+    if (['EXCLUSIVE_DEAL_PROPOSAL', 'EXCLUSIVE_DEAL_DECISION'].includes(obj.type)) return obj;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function ExclusiveDealCardBubble({ card, isMine, isShop }: { card: any; isMine: boolean; isShop: boolean }) {
+  const [loading, setLoading] = useState(false);
+  const [decision, setDecision] = useState<string | null>(null);
+  const [linkUrl, setLinkUrl] = useState<string | null>(card.shortUrl || null);
+  const [error, setError] = useState<string | null>(null);
+
+  const decide = async (approve: boolean) => {
+    if (!card.proposalId || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response: any = await api.patch(
+        `/affiliate-deals/${card.proposalId}/${approve ? 'approve' : 'reject'}`,
+        approve ? {} : { reason: '' },
+      );
+      const result = response?.data?.data || response?.data || response;
+      setDecision(approve ? 'APPROVED' : 'REJECTED');
+      if (result?.shortUrl) setLinkUrl(result.shortUrl);
+      toast.success(approve ? 'Đã duyệt deal và tạo link VIP.' : 'Đã từ chối đề xuất deal.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Không thể xử lý đề xuất lúc này.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const status = decision || card.status;
+  const isDecisionCard = card.type === 'EXCLUSIVE_DEAL_DECISION';
+  const isApproved = status === 'APPROVED';
+  const isRejected = status === 'REJECTED';
+
+  return (
+    <div className="max-w-sm space-y-3 rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-[#1A1612] shadow-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#B88E4F]"><Sparkles className="h-3.5 w-3.5" /> EXCLUSIVE DEAL</span>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isApproved ? 'bg-white text-[#B88E4F]' : isRejected ? 'bg-rose-50 text-rose-700' : 'bg-[#F3EFE6] text-[#7D715E]'}`}>
+          {isApproved ? 'Đã duyệt' : isRejected ? 'Đã từ chối' : 'Chờ Shop duyệt'}
+        </span>
+      </div>
+      <div>
+        <div className="text-sm font-extrabold">{card.productTitle || 'Sản phẩm'}</div>
+        {card.storeName && <div className="mt-0.5 text-[11px] text-[#7D715E]">Shop: {card.storeName}</div>}
+      </div>
+      {card.publicCommissionRate !== undefined && (
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-lg border border-[#EAE4D7] bg-white p-2.5">Open Offer<strong className="mt-1 block text-sm">{card.publicCommissionRate}%</strong></div>
+          <div className="rounded-lg border border-[#EEDFC6] bg-white p-2.5">Mức VIP đề xuất<strong className="mt-1 block text-sm text-[#B88E4F]">{card.approvedCommissionRate ?? card.proposedCommissionRate}%</strong></div>
+        </div>
+      )}
+      {card.salesCommitment && <div className="rounded-lg border border-[#EAE4D7] bg-white p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-[#7D715E]">Cam kết doanh số</div><p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{card.salesCommitment}</p></div>}
+      {card.shopResponse && <div className="text-xs text-[#7D715E]">Phản hồi Shop: {card.shopResponse}</div>}
+      {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{error}</div>}
+      {isApproved && linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 break-all text-xs font-bold text-[#B88E4F] underline"><ExternalLink className="h-3.5 w-3.5 shrink-0" /> Mở link VIP</a>}
+      {!isDecisionCard && status === 'PENDING' && isShop && !isMine && (
+        <div className="flex gap-2">
+          <button type="button" disabled={loading} onClick={() => void decide(false)} className="flex-1 rounded-lg border border-[#EAE4D7] bg-white px-2 py-2 text-xs font-bold text-[#7D715E] hover:bg-[#F3EFE6] disabled:opacity-50">Từ chối</button>
+          <button type="button" disabled={loading} onClick={() => void decide(true)} className="flex-1 rounded-lg bg-[#C59B58] px-2 py-2 text-xs font-bold text-white hover:bg-[#B88E4F] disabled:opacity-50">{loading ? 'Đang xử lý...' : 'Duyệt & tạo link'}</button>
+        </div>
+      )}
+      {!isDecisionCard && status === 'PENDING' && isMine && <div className="text-center text-[11px] font-semibold text-[#7D715E]">Đã gửi Shop · Đang chờ phản hồi</div>}
+      {isDecisionCard && isApproved && <div className="text-[11px] text-[#7D715E]">Shop đã chốt mức VIP. Link riêng đã được cấp cho KOL.</div>}
+      {isDecisionCard && isRejected && <div className="text-[11px] text-[#7D715E]">Shop đã phản hồi đề xuất này.</div>}
+    </div>
+  );
 }
 
 
@@ -366,6 +446,109 @@ function CampaignCardBubble({
   );
 }
 
+export interface ProductInquiryCardData {
+  type: 'PRODUCT_INQUIRY';
+  productId: string;
+  productTitle: string;
+  productImage?: string;
+  productPrice?: number;
+  productSku?: string;
+  commissionRate?: number;
+  message?: string;
+}
+
+function tryParseProductInquiryCard(text: string): ProductInquiryCardData | null {
+  if (!text || !text.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && parsed.type === 'PRODUCT_INQUIRY') {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function ProductInquiryCardBubble({
+  card,
+  isMine,
+}: {
+  card: ProductInquiryCardData;
+  isMine: boolean;
+}) {
+  return (
+    <div
+      className={`max-w-sm rounded-2xl border p-3.5 space-y-3 shadow-xs ${
+        isMine
+          ? 'bg-[#FAF8F5] border-[#EAE4D7] text-[#1A1612]'
+          : 'bg-white border-[#EAE4D7] text-[#1A1612]'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-[#EAE4D7] pb-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
+          <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
+          <span>Trao đổi về Sản Phẩm</span>
+        </span>
+        {card.commissionRate && (
+          <span className="text-[11px] font-extrabold text-[#B88E4F] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            Hoa hồng: {card.commissionRate}%
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-3">
+        {card.productImage ? (
+          <img
+            src={card.productImage}
+            alt={card.productTitle}
+            className="w-16 h-16 rounded-xl object-cover border border-[#EAE4D7] shrink-0 bg-[#F3EFE6]"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-xl bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] font-bold text-xs shrink-0">
+            SCANMS
+          </div>
+        )}
+        <div className="min-w-0 flex-1 flex flex-col justify-between">
+          <div>
+            <h4 className="font-bold text-xs text-[#1A1612] line-clamp-2 leading-tight">
+              {card.productTitle}
+            </h4>
+            {card.productSku && (
+              <span className="text-[10px] text-[#7D715E] font-mono block mt-0.5">
+                SKU: {card.productSku}
+              </span>
+            )}
+          </div>
+          {typeof card.productPrice === 'number' && (
+            <div className="text-xs font-black text-[#B88E4F]">
+              {card.productPrice.toLocaleString('vi-VN')} ₫
+            </div>
+          )}
+        </div>
+      </div>
+
+      {card.message && (
+        <div className="p-2.5 bg-white/90 rounded-xl border border-[#EAE4D7] text-xs text-[#1A1612] whitespace-pre-wrap leading-relaxed">
+          {card.message}
+        </div>
+      )}
+
+      <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#EAE4D7]/70">
+        <a
+          href={`/products/${card.productSku || card.productId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#B88E4F] hover:text-[#B88E4F] hover:underline"
+        >
+          <span>Xem chi tiết trên Sàn</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 
 
 
@@ -373,10 +556,12 @@ function NewConversationModal({
   onClose,
   onCreated,
   isShop,
+  asCustomer,
 }: {
   onClose: () => void;
   onCreated: (conv: Conversation) => void;
   isShop: boolean;
+  asCustomer: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -411,7 +596,9 @@ function NewConversationModal({
     const id = item.id;
     setCreating(id);
     try {
-      const body = isShop ? { collaboratorId: id } : { storeId: id };
+      const body = isShop
+        ? { collaboratorId: id }
+        : { storeId: id, ...(asCustomer ? { asCustomer: true } : {}) };
       const res: any = await api.post('/chat/conversations', body);
       const conv = res && res.id ? res : res?.data || res;
       if (conv && conv.id) {
@@ -558,6 +745,15 @@ function formatConvTime(dateStr: string) {
 
 
 
+export interface ProductContextData {
+  id: string;
+  title: string;
+  image?: string;
+  price?: number;
+  sku?: string;
+  commissionRate?: number;
+}
+
 interface ChatBoxPageProps {
   embedded?: boolean;
   targetStoreId?: string;
@@ -569,6 +765,7 @@ interface ChatBoxPageProps {
   hideSidebar?: boolean;
   hideHeaderInChat?: boolean;
   className?: string;
+  initialProductContext?: ProductContextData;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -594,7 +791,9 @@ export default function ChatBoxPage({
   hideSidebar = false,
   hideHeaderInChat = false,
   className = '',
+  initialProductContext,
 }: ChatBoxPageProps = {}) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = (() => {
     try {
       return JSON.parse(localStorage.getItem('user') || 'null');
@@ -603,10 +802,37 @@ export default function ChatBoxPage({
     }
   })();
 
+  const effectiveTargetStoreId = targetStoreId || searchParams.get('storeId') || undefined;
+  const requestedConversationId = searchParams.get('conversationId');
+  const isCustomerConversation =
+    currentUser?.role === 'CUSTOMER' || searchParams.get('asCustomer') === '1';
+  const queryProductId = searchParams.get('productId');
+  const queryProductContext: ProductContextData | undefined = queryProductId
+    ? {
+        id: queryProductId,
+        title: searchParams.get('productTitle') || 'Sản phẩm đang quan tâm',
+        image: searchParams.get('productImage') || undefined,
+        price: Number(searchParams.get('productPrice')) || undefined,
+        sku: searchParams.get('productSku') || undefined,
+      }
+    : undefined;
+  const effectiveProductContext = initialProductContext || queryProductContext;
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const conversationsRef = useRef<Conversation[]>([]);
+  conversationsRef.current = conversations;
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [pinnedProduct, setPinnedProduct] = useState<ProductContextData | null>(
+    effectiveProductContext || null
+  );
+
+  useEffect(() => {
+    if (effectiveProductContext) {
+      setPinnedProduct(effectiveProductContext);
+    }
+  }, [initialProductContext, queryProductId]);
   const [isConnected, setIsConnected] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isLoadingMsgs, setIsLoadingMsgs] = useState(false);
@@ -618,12 +844,15 @@ export default function ChatBoxPage({
   const [showVipModal, setShowVipModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isShop = currentUser?.role === 'SHOP_MANAGER';
+  const onlyCustomerChats = isShop && window.location.pathname === '/merchant/customer-messages';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openConversationRef = useRef<(conv: Conversation) => Promise<void>>(() => Promise.resolve());
+  const activeConvIdRef = useRef<string | null>(null);
+  const sendingRef = useRef(false);
 
   const scrollToBottom = useCallback((smooth = false) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
@@ -634,8 +863,12 @@ export default function ChatBoxPage({
     let isMounted = true;
 
     const setupContext = async (list: Conversation[]) => {
-      if (targetStoreId) {
-        const effectiveStoreId = LEGACY_ID_MAP[targetStoreId] || targetStoreId;
+      if (requestedConversationId) {
+        const selected = list.find((conversation) => conversation.id === requestedConversationId);
+        if (selected) { openConversationRef.current(selected); return; }
+      }
+      if (effectiveTargetStoreId) {
+        const effectiveStoreId = LEGACY_ID_MAP[effectiveTargetStoreId] || effectiveTargetStoreId;
         const matching = list.find(
           (c) => c.storeId === effectiveStoreId || c.store?.id === effectiveStoreId
         );
@@ -643,7 +876,10 @@ export default function ChatBoxPage({
           openConversationRef.current(matching);
         } else if (UUID_REGEX.test(effectiveStoreId)) {
           try {
-            const res: any = await api.post('/chat/conversations', { storeId: effectiveStoreId });
+            const res: any = await api.post('/chat/conversations', {
+              storeId: effectiveStoreId,
+              ...(isCustomerConversation ? { asCustomer: true } : {}),
+            });
             const realConv = res?.data || res;
             if (isMounted && realConv && realConv.id) {
               setConversations((prev) => {
@@ -687,7 +923,8 @@ export default function ChatBoxPage({
       .get('/chat/conversations')
       .then((res: any) => {
         if (!isMounted) return;
-        const list: Conversation[] = Array.isArray(res) ? res : res?.data || [];
+        const all: Conversation[] = Array.isArray(res) ? res : res?.data || [];
+        const list = onlyCustomerChats ? all.filter((conversation) => Boolean(conversation.customerId)) : all;
         setConversations(list);
         setupContext(list);
       })
@@ -698,7 +935,7 @@ export default function ChatBoxPage({
     return () => {
       isMounted = false;
     };
-  }, [targetStoreId, targetCollaboratorId]);
+  }, [effectiveTargetStoreId, targetCollaboratorId, isCustomerConversation, requestedConversationId, onlyCustomerChats]);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -718,11 +955,22 @@ export default function ChatBoxPage({
     const socket = getChatSocket();
     setIsConnected(socket.connected);
 
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
-
-    socket.on('new_message', (msg: ChatMessage) => {
-      setMessages(prev => [...prev, msg]);
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    const onNewMessage = (msg: ChatMessage) => {
+      if (!conversationsRef.current.some((conversation) => conversation.id === msg.conversationId)) {
+        api.get('/chat/conversations', { headers: { 'x-skip-cache': '1' } }).then((response: any) => {
+          const all: Conversation[] = Array.isArray(response) ? response : response?.data || [];
+          setConversations(onlyCustomerChats ? all.filter((conversation) => Boolean(conversation.customerId)) : all);
+        }).catch(() => undefined);
+      }
+      if (msg.conversationId === activeConvIdRef.current) {
+        setMessages(prev => prev.some((item) => item.id === msg.id) ? prev : [...prev, msg]);
+        if (msg.senderId !== currentUser?.id) {
+          api.patch(`/chat/conversations/${msg.conversationId}/read`).catch(() => undefined);
+        }
+        setTimeout(() => scrollToBottom(true), 50);
+      }
       setConversations(prev =>
         prev
           .map(c =>
@@ -730,6 +978,8 @@ export default function ChatBoxPage({
               ? {
                 ...c,
                 lastMessageAt: msg.createdAt,
+                _count: { chatMessages: msg.senderId === currentUser?.id || msg.conversationId === activeConvIdRef.current
+                  ? (c._count?.chatMessages || 0) : (c._count?.chatMessages || 0) + 1 },
                 chatMessages: [
                   {
                     messageText: msg.messageText,
@@ -746,33 +996,41 @@ export default function ChatBoxPage({
               new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
           )
       );
-      setTimeout(() => scrollToBottom(true), 50);
-    });
+    };
+    const onRead = ({ conversationId, readerId }: { conversationId: string; readerId: string }) => {
+      if (conversationId === activeConvIdRef.current && readerId !== currentUser?.id) {
+        setMessages(prev => prev.map(msg => msg.senderId === currentUser?.id ? { ...msg, isRead: true } : msg));
+      }
+    };
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('new_message', onNewMessage);
+    socket.on('messages_read', onRead);
 
-    socket.on(
-      'user_typing',
-      ({ fullName, isTyping }: { fullName: string; isTyping: boolean }) => {
+    const onTyping = ({ fullName, isTyping }: { fullName: string; isTyping: boolean }) => {
         setTypingUser(isTyping ? fullName : null);
         if (isTyping) {
           if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           typingTimerRef.current = setTimeout(() => setTypingUser(null), 3000);
         }
-      }
-    );
+      };
+    socket.on('user_typing', onTyping);
 
-    socket.on('error', (err: { message: string }) => {
+    const onError = (err: { message: string }) => {
       console.error('Socket error:', err.message);
       showErrorToast(err.message || 'Lỗi gửi tin nhắn');
-    });
+    };
+    socket.on('error', onError);
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('new_message');
-      socket.off('user_typing');
-      socket.off('error');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('new_message', onNewMessage);
+      socket.off('messages_read', onRead);
+      socket.off('user_typing', onTyping);
+      socket.off('error', onError);
     };
-  }, [scrollToBottom]);
+  }, [scrollToBottom, onlyCustomerChats]);
 
 
   const openConversation = async (conv: Conversation) => {
@@ -784,6 +1042,7 @@ export default function ChatBoxPage({
     }
 
     setActiveConvId(conv.id);
+    activeConvIdRef.current = conv.id;
     setMessages([]);
     setHasMore(false);
     setOldestMsgId(undefined);
@@ -796,6 +1055,9 @@ export default function ChatBoxPage({
         setMessages(msgs);
         setHasMore(msgs.length === 50);
         setOldestMsgId(msgs[0]?.id);
+        await api.patch(`/chat/conversations/${conv.id}/read`);
+        setConversations(prev => prev.map(item => item.id === conv.id
+          ? { ...item, _count: { chatMessages: 0 }, chatMessages: item.chatMessages?.[0] ? [{ ...item.chatMessages[0], isRead: true }] : [] } : item));
       } catch (err) {
         console.error(err);
       } finally {
@@ -838,8 +1100,7 @@ export default function ChatBoxPage({
 
   const sendMessage = useCallback(() => {
     const trimmed = inputText.trim();
-    if (!trimmed || !activeConvId || isSending) return;
-
+    if (!trimmed || !activeConvId || sendingRef.current) return;
 
     if (isBankAccountOrFraudText(trimmed)) {
       showErrorToast(
@@ -855,17 +1116,46 @@ export default function ChatBoxPage({
       return;
     }
 
+    let messageToSend = trimmed;
+    if (pinnedProduct) {
+      messageToSend = JSON.stringify({
+        type: 'PRODUCT_INQUIRY',
+        productId: pinnedProduct.id,
+        productTitle: pinnedProduct.title,
+        productImage: pinnedProduct.image,
+        productPrice: pinnedProduct.price,
+        productSku: pinnedProduct.sku,
+        commissionRate: pinnedProduct.commissionRate,
+        message: trimmed,
+      });
+    }
+
     const socket = getChatSocket();
+    if (!socket.connected) { showErrorToast('Mất kết nối chat, vui lòng thử lại.'); return; }
+    sendingRef.current = true;
     setIsSending(true);
-    socket.emit('send_message', {
+    socket.timeout(8000).emit('send_message', {
       conversationId: activeConvId,
-      messageText: trimmed,
+      messageText: messageToSend,
+      messageId: crypto.randomUUID(),
+    }, (timeoutError: Error | null, result?: { ok: boolean; error?: string }) => {
+      sendingRef.current = false;
+      setIsSending(false);
+      if (timeoutError || !result?.ok) {
+        showErrorToast(result?.error || 'Không gửi được tin nhắn, vui lòng thử lại.');
+        return;
+      }
+      setInputText((current) => current.trim() === trimmed ? '' : current);
+      setPinnedProduct(null);
+      if (pinnedProduct && queryProductId) {
+        const nextParams = new URLSearchParams(searchParams);
+        ['productId', 'productTitle', 'productImage', 'productPrice', 'productSku', 'commissionRate'].forEach(key => nextParams.delete(key));
+        setSearchParams(nextParams, { replace: true });
+      }
     });
-    setInputText('');
-    setIsSending(false);
 
     socket.emit('typing', { conversationId: activeConvId, isTyping: false });
-  }, [inputText, activeConvId, isSending]);
+  }, [inputText, activeConvId, pinnedProduct, queryProductId, searchParams, setSearchParams]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -891,21 +1181,22 @@ export default function ChatBoxPage({
   const filteredConversations = conversations.filter(
     c =>
       (c.store?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.collaborator?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
+      (c.collaborator?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.customer?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getOtherParty = (conv: Conversation) => {
     if (!currentUser) return conv.store?.name || 'Cửa hàng';
-    return currentUser.role === 'COLLABORATOR'
+    return currentUser.role === 'COLLABORATOR' || currentUser.role === 'CUSTOMER'
       ? conv.store?.name || 'Cửa hàng'
-      : conv.collaborator?.fullName || 'KOL / CTV';
+      : conv.customer?.fullName || conv.collaborator?.fullName || 'Khách hàng / Đối tác';
   };
 
   const getOtherAvatar = (conv: Conversation) => {
     if (!currentUser) return conv.store?.name?.[0]?.toUpperCase() || '💬';
-    return currentUser.role === 'COLLABORATOR'
+    return currentUser.role === 'COLLABORATOR' || currentUser.role === 'CUSTOMER'
       ? conv.store?.name?.[0]?.toUpperCase() || 'S'
-      : conv.collaborator?.fullName?.[0]?.toUpperCase() || 'K';
+      : conv.customer?.fullName?.[0]?.toUpperCase() || conv.collaborator?.fullName?.[0]?.toUpperCase() || 'K';
   };
 
   return (
@@ -915,7 +1206,7 @@ export default function ChatBoxPage({
     >
       {!hideSidebar && (
       <aside
-        className="w-80 flex-shrink-0 flex flex-col border-r border-[#EAE4D7] bg-[#FAF8F5]/60"
+        className={`${activeConvId ? 'hidden sm:flex' : 'flex'} w-full sm:w-80 flex-shrink-0 flex-col border-r border-[#EAE4D7] bg-[#FAF8F5]/60`}
         aria-label="Danh sách hội thoại"
       >
 
@@ -976,7 +1267,7 @@ export default function ChatBoxPage({
           {filteredConversations.map(conv => {
             const lastMsg = conv.chatMessages?.[0];
             const isActive = conv.id === activeConvId;
-            const unread = lastMsg && !lastMsg.isRead && lastMsg.senderId !== currentUser?.id;
+            const unread = (conv._count?.chatMessages || 0) > 0 || (lastMsg && !lastMsg.isRead && lastMsg.senderId !== currentUser?.id);
 
             return (
               <div
@@ -1011,7 +1302,17 @@ export default function ChatBoxPage({
                       className={`text-xs truncate ${unread ? 'font-bold text-stone-900' : 'text-stone-500'
                         }`}
                     >
-                      {lastMsg ? lastMsg.messageText : 'Bắt đầu cuộc trò chuyện...'}
+                      {lastMsg
+                        ? lastMsg.messageText.startsWith('{')
+                          ? lastMsg.messageText.includes('EXCLUSIVE_DEAL_')
+                            ? '🤝 [Đề xuất Exclusive Deal]'
+                            : lastMsg.messageText.includes('PRODUCT_INQUIRY')
+                              ? '🛍️ [Trao đổi về sản phẩm]'
+                              : lastMsg.messageText.includes('CAMPAIGN_')
+                                ? '👑 [Chiến dịch hợp tác VIP]'
+                                : '💬 [Tin nhắn đính kèm]'
+                          : lastMsg.messageText
+                        : 'Bắt đầu cuộc trò chuyện...'}
                     </span>
                     {unread && (
                       <span className="w-2 h-2 rounded-full bg-amber-600 flex-shrink-0" />
@@ -1026,7 +1327,7 @@ export default function ChatBoxPage({
       )}
 
 
-      <main className="flex-1 flex flex-col bg-[#FAF8F5]/30 relative min-w-0" aria-label="Khung chat">
+      <main className={`${activeConvId ? 'flex' : 'hidden sm:flex'} flex-1 flex-col bg-[#FAF8F5]/30 relative min-w-0`} aria-label="Khung chat">
         {!activeConv ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
             <div className="w-16 h-16 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shadow-xs">
@@ -1043,6 +1344,7 @@ export default function ChatBoxPage({
             {!hideHeaderInChat && (
             <header className="px-6 py-3.5 bg-white border-b border-[#EAE4D7] flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-3">
+                <button type="button" className="sm:hidden rounded-lg p-1 text-[#7D715E]" onClick={() => { setActiveConvId(null); activeConvIdRef.current = null; }} aria-label="Về danh sách hội thoại"><ArrowLeft size={20} /></button>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-sm flex items-center justify-center shadow-xs">
                   {getOtherAvatar(activeConv)}
                 </div>
@@ -1071,7 +1373,7 @@ export default function ChatBoxPage({
               {isShop && (
                 <button
                   id="btn-open-vip-invite"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer border border-[#EEDFC6]"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer border border-[#EAE4D7]"
                   onClick={() => setShowVipModal(true)}
                   title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
                 >
@@ -1084,7 +1386,7 @@ export default function ChatBoxPage({
 
 
             <div
-              className="flex-1 overflow-y-auto p-6 space-y-4"
+              className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4"
               ref={messagesContainerRef}
               onScroll={e => {
                 if ((e.target as HTMLElement).scrollTop < 60 && hasMore) {
@@ -1146,6 +1448,16 @@ export default function ChatBoxPage({
                         )}
 
                         {(() => {
+                          const exclusiveDealCard = tryParseExclusiveDealCard(msg.messageText);
+                          if (exclusiveDealCard) {
+                            return <ExclusiveDealCardBubble card={exclusiveDealCard} isMine={isMine} isShop={isShop} />;
+                          }
+
+                          const inquiryCard = tryParseProductInquiryCard(msg.messageText);
+                          if (inquiryCard) {
+                            return <ProductInquiryCardBubble card={inquiryCard} isMine={isMine} />;
+                          }
+
                           const card = tryParseCampaignCard(msg.messageText);
                           if (card) {
                             return <CampaignCardBubble card={card} isMine={isMine} />;
@@ -1209,57 +1521,139 @@ export default function ChatBoxPage({
             </div>
 
 
-            <div className="p-4 bg-white border-t border-stone-200 flex items-center gap-2.5 shadow-xs">
-              <button
-                className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
-                id="chat-attach-btn"
-                title="Đính kèm ảnh"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-              {isShop && (
-                <button
-                  id="btn-composer-vip-invite"
-                  className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer"
-                  title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
-                  onClick={() => setShowVipModal(true)}
-                >
-                  <Crown className="w-5 h-5" />
-                </button>
+            <div className="bg-white border-t border-stone-200 shadow-xs">
+              {/* PINNED PRODUCT INQUIRY BANNER */}
+              {pinnedProduct && (
+                <div className="mx-4 mt-3 p-3 bg-gradient-to-r from-[#FBF5EB] to-[#FAF8F5] border border-[#EAE4D7] rounded-2xl shadow-2xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {pinnedProduct.image ? (
+                        <img
+                          src={pinnedProduct.image}
+                          alt={pinnedProduct.title}
+                          className="w-12 h-12 rounded-xl object-cover border border-[#EAE4D7] shrink-0 bg-white"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] font-bold text-xs shrink-0">
+                          <ShoppingBag className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-[#B88E4F] bg-[#FAF8F5] px-2 py-0.5 rounded-full border border-[#EAE4D7]">
+                            Đang đính kèm sản phẩm
+                          </span>
+                          {pinnedProduct.commissionRate && (
+                            <span className="text-[10.5px] font-extrabold text-[#B88E4F]">
+                              Hoa hồng: {pinnedProduct.commissionRate}%
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-bold text-xs text-[#1A1612] truncate mt-0.5">
+                          {pinnedProduct.title}
+                        </h4>
+                        {typeof pinnedProduct.price === 'number' && (
+                          <div className="text-xs font-black text-[#B88E4F]">
+                            {pinnedProduct.price.toLocaleString('vi-VN')} ₫
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setPinnedProduct(null)}
+                      className="p-1 text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] rounded-lg transition-colors cursor-pointer"
+                      title="Bỏ đính kèm sản phẩm này"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Quick question chips */}
+                  <div className="mt-2.5 pt-2 border-t border-[#EAE4D7]/60 flex flex-wrap gap-1.5 items-center">
+                    <span className="text-[10.5px] font-bold text-[#7D715E] flex items-center gap-1 mr-1">
+                      <Sparkles className="w-3 h-3 text-[#B88E4F]" /> Gợi ý nhanh:
+                    </span>
+                    {[
+                      {
+                        label: '📦 Xin mẫu thử (Sample)',
+                        text: 'Chào Shop, mình quan tâm đến sản phẩm này và muốn đăng ký xin hàng mẫu trải nghiệm để quay video review/livestream.',
+                      },
+                      {
+                        label: '💰 Thỏa thuận hoa hồng',
+                        text: 'Chào Shop, mình muốn trao đổi thêm về chính sách hoa hồng thưởng thêm cho dòng sản phẩm này nếu đạt KPI doanh số.',
+                      },
+                      {
+                        label: '🔍 Kiểm tra tồn kho',
+                        text: 'Chào Shop, sản phẩm này hiện tại kho còn sẵn số lượng bao nhiêu để mình lên kế hoạch gắn link video ạ?',
+                      },
+                    ].map((chip, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setInputText(chip.text)}
+                        className="px-2.5 py-1 rounded-full bg-white hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-[#1A1612] text-[11px] font-medium transition-all shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                id="chat-file-input"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) console.log('File:', file.name);
-                }}
-              />
-              <textarea
-                id="chat-message-input"
-                className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white resize-none max-h-24 transition-all"
-                placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter xuống dòng)"
-                value={inputText}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-              />
-              <button
-                id="chat-send-btn"
-                className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${inputText.trim() && !isSending
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                    : 'bg-stone-100 text-stone-300 cursor-not-allowed'
-                  }`}
-                onClick={sendMessage}
-                disabled={!inputText.trim() || isSending}
-                title="Gửi tin nhắn"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+
+              <div className="p-4 flex items-center gap-2.5">
+                <button
+                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+                  id="chat-attach-btn"
+                  title="Đính kèm ảnh"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                {isShop && (
+                  <button
+                    id="btn-composer-vip-invite"
+                    className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer"
+                    title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
+                    onClick={() => setShowVipModal(true)}
+                  >
+                    <Crown className="w-5 h-5" />
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="chat-file-input"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) console.log('File:', file.name);
+                  }}
+                />
+                <textarea
+                  id="chat-message-input"
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white resize-none max-h-24 transition-all"
+                  placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter xuống dòng)"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                />
+                <button
+                  id="chat-send-btn"
+                  className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${inputText.trim() && !isSending
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                      : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                    }`}
+                  onClick={sendMessage}
+                  disabled={!inputText.trim() || isSending}
+                  title="Gửi tin nhắn"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -1294,7 +1688,7 @@ export default function ChatBoxPage({
       )}
 
 
-      {showVipModal && activeConv && (
+      {showVipModal && activeConv?.collaboratorId && (
         <SendVipCampaignModal
           conversationId={activeConv.id}
           collaboratorName={getOtherParty(activeConv)}
@@ -1316,6 +1710,7 @@ export default function ChatBoxPage({
       {showNewChat && (
         <NewConversationModal
           isShop={isShop}
+          asCustomer={currentUser?.role === 'CUSTOMER'}
           onClose={() => setShowNewChat(false)}
           onCreated={conv => {
             if (!conv || !conv.id) return;

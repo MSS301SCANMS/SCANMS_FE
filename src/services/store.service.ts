@@ -7,6 +7,9 @@ export interface StoreSettings {
   description?: string;
   logoUrl?: string;
   websiteUrl?: string;
+  policyReturn?: string | null;
+  policyWarranty?: string | null;
+  policyShipping?: string | null;
   defaultCommissionRate: number;
   attributionWindowDays: number;
   minPayoutAmount: number;

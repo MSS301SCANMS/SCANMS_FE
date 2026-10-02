@@ -16,12 +16,14 @@ import {
   ShoppingBag,
   ChevronLeft,
   ChevronRight,
+  Play,
 } from "lucide-react";
 import { productService, type Product } from "../../services/product.service";
 import {
   orderService,
   type ExcelImportResult,
   type StoreOrderRecord,
+  type StoreReturnRequest,
 } from "../../services/order.service";
 import { storeService } from "../../services/store.service";
 import {
@@ -53,6 +55,20 @@ const newItem = (): ManualItemForm => ({
 });
 const currency = (cents: number) =>
   (cents / 100).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " ₫";
+const returnRequestStatusLabels: Record<StoreReturnRequest['status'], string> = {
+  REQUESTED: 'Chờ Shop xử lý',
+  SHOP_APPROVED: 'Đã duyệt · chờ hoàn tất',
+  SHOP_REJECTED: 'Đã từ chối',
+  DISPUTED: 'Đang khiếu nại',
+  REFUNDED: 'Đã hoàn tiền',
+  CLOSED: 'Đã đóng hồ sơ',
+};
+const returnRequestReasonLabels: Record<string, string> = {
+  DAMAGED: 'Sản phẩm bị hư hỏng',
+  WRONG_ITEM: 'Giao không đúng sản phẩm',
+  EXPIRED: 'Sản phẩm đã hết hạn',
+  OTHER: 'Lý do khác',
+};
 const messageOf = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -122,6 +138,15 @@ export default function OrdersManagementPage({
 
   // Modals for order fulfillment & viewing
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<StoreOrderRecord | null>(null);
+  const [returnResponse, setReturnResponse] = useState('');
+  const [returnError, setReturnError] = useState('');
+  const [respondingReturn, setRespondingReturn] = useState(false);
+  const [returnDecision, setReturnDecision] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [returnEvidencePreview, setReturnEvidencePreview] = useState<{
+    kind: 'image' | 'video';
+    url: string;
+    title: string;
+  } | null>(null);
   const [shippingModalOrder, setShippingModalOrder] = useState<StoreOrderRecord | null>(null);
   const [shippingCarrier, setShippingCarrier] = useState("GHTK");
   const [shippingTrackingNumber, setShippingTrackingNumber] = useState("");
@@ -211,6 +236,36 @@ export default function OrdersManagementPage({
     } finally {
       setUpdatingFulfillment(false);
     }
+  };
+
+  const handleReturnDecision = async (decision: 'APPROVE' | 'REJECT') => {
+    if (!selectedOrderDetails?.returnRequest || returnResponse.trim().length < 10) {
+      setReturnError('Vui lòng ghi rõ hướng xử lý (ít nhất 10 ký tự).');
+      return;
+    }
+    setRespondingReturn(true);
+    setReturnError('');
+    try {
+      const result = await orderService.respondReturnRequest(selectedOrderDetails.id, {
+        decision,
+        response: returnResponse.trim(),
+      });
+      setActionSuccessMsg(result.message);
+      setSelectedOrderDetails(null);
+      setReturnDecision(null);
+      setReturnResponse('');
+      setOrdersRefreshCount((count) => count + 1);
+    } catch (error) {
+      setReturnError(messageOf(error));
+    } finally {
+      setRespondingReturn(false);
+    }
+  };
+
+  const openReturnDecisionForm = (decision: 'APPROVE' | 'REJECT') => {
+    setReturnDecision(decision);
+    setReturnResponse('');
+    setReturnError('');
   };
 
   useEffect(() => {
@@ -547,14 +602,14 @@ export default function OrdersManagementPage({
             </div>
             <div className="flex items-center gap-3">
               <button
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#EAE4D7] bg-white text-[#4A3E2D] font-bold text-xs sm:text-sm hover:bg-[#F3EFE6] transition shadow-2xs"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#EAE4D7] bg-white text-[#1A1612] font-bold text-xs sm:text-sm hover:bg-[#F3EFE6] transition shadow-2xs"
                 onClick={() => open("excel")}
               >
-                <FileSpreadsheet className="w-4 h-4 text-[#C59B58]" />
+                <FileSpreadsheet className="w-4 h-4 text-[#B88E4F]" />
                 <span>Import Excel (FR-20)</span>
               </button>
               <button
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C59B58] text-white font-bold text-xs sm:text-sm hover:bg-[#B88E4F] transition shadow-xs"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EBD08C] text-white font-bold text-xs sm:text-sm hover:bg-[#DEC07A] transition shadow-xs"
                 onClick={() => open("manual")}
               >
                 <PackagePlus className="w-4 h-4" />
@@ -580,8 +635,8 @@ export default function OrdersManagementPage({
               </strong>
             </div>
             <div className="p-4 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
-              <span className="text-xs font-bold text-[#D97706] block">Chờ xử lý / Đóng gói</span>
-              <strong className="text-xl sm:text-2xl font-black text-[#D97706] mt-1 block">
+              <span className="text-xs font-bold text-[#B88E4F] block">Chờ xử lý / Đóng gói</span>
+              <strong className="text-xl sm:text-2xl font-black text-[#B88E4F] mt-1 block">
                 {orders.filter((o) => o.status === "PENDING").length}
               </strong>
             </div>
@@ -620,8 +675,8 @@ export default function OrdersManagementPage({
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                       active
-                        ? "bg-[#C59B58] text-white shadow-2xs"
-                        : "bg-[#F3EFE6] text-[#4A3E2D] hover:bg-[#EAE4D7]"
+                        ? "bg-[#EBD08C] text-white shadow-2xs"
+                        : "bg-[#F3EFE6] text-[#1A1612] hover:bg-[#EAE4D7]"
                     }`}
                   >
                     {tab.label}
@@ -633,7 +688,7 @@ export default function OrdersManagementPage({
             {/* Search Input */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1 sm:w-72">
-                <Search className="w-4 h-4 text-[#A49B8B] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-4 h-4 text-[#7D715E] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Tìm mã đơn, tên, SĐT..."
@@ -663,7 +718,7 @@ export default function OrdersManagementPage({
               </div>
             ) : orders.length === 0 ? (
               <div className="p-12 text-center flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#C59B58] grid place-items-center">
+                <div className="w-12 h-12 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] grid place-items-center">
                   <ShoppingBag className="w-6 h-6" />
                 </div>
                 <div>
@@ -698,6 +753,8 @@ export default function OrdersManagementPage({
                         DELIVERED: "bg-emerald-50 text-emerald-700 border-emerald-200",
                         COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
                         CANCELLED: "bg-rose-50 text-rose-700 border-rose-200",
+                        RETURN_REQUESTED: "bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]",
+                        DISPUTED: "bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]",
                         RETURNED: "bg-purple-50 text-purple-700 border-purple-200",
                       }[order.status] || "bg-gray-50 text-gray-700 border-gray-200";
 
@@ -707,6 +764,8 @@ export default function OrdersManagementPage({
                         DELIVERED: "Đã giao",
                         COMPLETED: "Hoàn tất",
                         CANCELLED: "Đã hủy",
+                        RETURN_REQUESTED: "Yêu cầu đổi trả",
+                        DISPUTED: "Đang khiếu nại",
                         RETURNED: "Trả hàng",
                       }[order.status] || order.status;
 
@@ -717,7 +776,7 @@ export default function OrdersManagementPage({
                             <strong className="text-[#1A1612] font-mono text-xs block">
                               #{order.externalOrderSn}
                             </strong>
-                            <span className="text-[11px] text-[#A49B8B] block mt-0.5">
+                            <span className="text-[11px] text-[#7D715E] block mt-0.5">
                               {new Date(order.createdAt).toLocaleDateString("vi-VN", {
                                 day: "2-digit",
                                 month: "2-digit",
@@ -736,7 +795,7 @@ export default function OrdersManagementPage({
                             <span className="text-[11px] text-[#7D715E] block mt-0.5">
                               {order.customerPhone}
                             </span>
-                            <span className="text-[10.5px] text-[#A49B8B] block truncate max-w-[180px]" title={order.shippingAddress}>
+                            <span className="text-[10.5px] text-[#7D715E] block truncate max-w-[180px]" title={order.shippingAddress}>
                               {order.shippingAddress}
                             </span>
                           </td>
@@ -746,7 +805,7 @@ export default function OrdersManagementPage({
                             <div className="flex flex-col gap-1 max-w-[200px]">
                               {order.items.slice(0, 2).map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-1.5">
-                                  <span className="w-4 h-4 rounded bg-[#F3EFE6] text-[10px] font-bold text-[#8A662C] flex items-center justify-center shrink-0">
+                                  <span className="w-4 h-4 rounded bg-[#F3EFE6] text-[10px] font-bold text-[#B88E4F] flex items-center justify-center shrink-0">
                                     {item.quantity}
                                   </span>
                                   <span className="truncate text-xs text-[#1A1612]" title={item.title}>
@@ -755,7 +814,7 @@ export default function OrdersManagementPage({
                                 </div>
                               ))}
                               {order.items.length > 2 && (
-                                <span className="text-[10px] text-[#A49B8B] font-semibold">
+                                <span className="text-[10px] text-[#7D715E] font-semibold">
                                   +{order.items.length - 2} sản phẩm khác
                                 </span>
                               )}
@@ -793,7 +852,7 @@ export default function OrdersManagementPage({
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-[#A49B8B] italic">Chưa tạo vận đơn</span>
+                              <span className="text-[11px] text-[#7D715E] italic">Chưa tạo vận đơn</span>
                             )}
                           </td>
 
@@ -801,7 +860,7 @@ export default function OrdersManagementPage({
                           <td className="p-3.5 align-top">
                             {order.totalCommission > 0 ? (
                               <div>
-                                <strong className="text-xs font-bold text-[#C59B58] block">
+                                <strong className="text-xs font-bold text-[#B88E4F] block">
                                   +{order.totalCommission.toLocaleString("vi-VN")} ₫
                                 </strong>
                                 <span className="text-[10px] text-[#7D715E] block truncate max-w-[120px]">
@@ -809,7 +868,7 @@ export default function OrdersManagementPage({
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-[#A49B8B]">—</span>
+                              <span className="text-[11px] text-[#7D715E]">—</span>
                             )}
                           </td>
 
@@ -819,7 +878,7 @@ export default function OrdersManagementPage({
                               {order.status === "PENDING" && (
                                 <button
                                   onClick={() => handleOpenShippingModal(order)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
+                                  className="px-2.5 py-1.5 rounded-lg bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
                                   title="Nhập mã vận đơn & chuyển sang Đang giao"
                                 >
                                   <Truck className="w-3.5 h-3.5" />
@@ -840,7 +899,7 @@ export default function OrdersManagementPage({
                               )}
 
                               <button
-                                onClick={() => setSelectedOrderDetails(order)}
+                                  onClick={() => { setSelectedOrderDetails(order); setReturnResponse(''); setReturnError(''); }}
                                 className="p-1.5 rounded-lg border border-[#EAE4D7] bg-white hover:bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] transition"
                                 title="Xem chi tiết đơn"
                               >
@@ -909,7 +968,7 @@ export default function OrdersManagementPage({
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-xs font-bold text-[#4A3E2D] block mb-1">
+                <label className="text-xs font-bold text-[#1A1612] block mb-1">
                   Đơn vị vận chuyển *
                 </label>
                 <select
@@ -920,7 +979,7 @@ export default function OrdersManagementPage({
                   <option value="GHTK">Giao Hàng Tiết Kiệm (GHTK)</option>
                   <option value="GHN">Giao Hàng Nhanh (GHN)</option>
                   <option value="Viettel Post">Viettel Post</option>
-                  <option value="Shopee Xpress">Shopee Xpress</option>
+                  <option value="SCANMS Express">SCANMS Express (Tiêu chuẩn)</option>
                   <option value="J&T Express">J&T Express</option>
                   <option value="Hỏa Tốc / Grab">Hỏa Tốc / GrabExpress</option>
                   <option value="Khác">Khác</option>
@@ -928,7 +987,7 @@ export default function OrdersManagementPage({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-[#4A3E2D] block mb-1">
+                <label className="text-xs font-bold text-[#1A1612] block mb-1">
                   Mã vận đơn bưu cục *
                 </label>
                 <input
@@ -941,7 +1000,7 @@ export default function OrdersManagementPage({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-[#4A3E2D] block mb-1">
+                <label className="text-xs font-bold text-[#1A1612] block mb-1">
                   Ghi chú đóng gói / giao hàng
                 </label>
                 <input
@@ -966,7 +1025,7 @@ export default function OrdersManagementPage({
                 type="button"
                 disabled={updatingFulfillment}
                 onClick={handleSubmitShipping}
-                className="px-4 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition disabled:opacity-50 shadow-xs"
+                className="px-4 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold transition disabled:opacity-50 shadow-xs"
               >
                 {updatingFulfillment ? "Đang cập nhật..." : "Xác nhận gửi hàng"}
               </button>
@@ -1009,12 +1068,12 @@ export default function OrdersManagementPage({
 
             {/* Sản phẩm trong đơn */}
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-[#4A3E2D]">Sản phẩm ({selectedOrderDetails.items.length}):</span>
+              <span className="text-xs font-bold text-[#1A1612]">Sản phẩm ({selectedOrderDetails.items.length}):</span>
               <div className="divide-y divide-[#EAE4D7] border border-[#EAE4D7] rounded-xl overflow-hidden">
                 {selectedOrderDetails.items.map((item, idx) => (
                   <div key={idx} className="p-3 flex items-center justify-between gap-3 text-xs bg-white">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#F3EFE6] text-[#C59B58] grid place-items-center font-bold text-xs shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-[#F3EFE6] text-[#B88E4F] grid place-items-center font-bold text-xs shrink-0">
                         {item.quantity}x
                       </div>
                       <div>
@@ -1030,8 +1089,86 @@ export default function OrdersManagementPage({
               </div>
             </div>
 
+            {selectedOrderDetails.returnRequest && (
+              <section className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 space-y-3 text-xs">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EEDFC6] pb-3">
+                  <div>
+                    <h4 className="font-bold text-sm text-[#1A1612]">Yêu cầu đổi trả / hoàn tiền</h4>
+                    <p className="mt-1 text-[#7D715E]">
+                      Gửi lúc {new Date(selectedOrderDetails.returnRequest.submittedAt).toLocaleString('vi-VN', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  </div>
+                  <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-bold ${
+                    selectedOrderDetails.returnRequest.status === 'SHOP_REJECTED'
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : selectedOrderDetails.returnRequest.status === 'REFUNDED'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-[#EEDFC6] bg-white text-[#8A6736]'
+                  }`}>
+                    {returnRequestStatusLabels[selectedOrderDetails.returnRequest.status] || selectedOrderDetails.returnRequest.status}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-[#EAE4D7] bg-white p-3">
+                  <p className="font-semibold text-[#7D715E]">Lý do khách yêu cầu</p>
+                  <p className="mt-1 font-bold text-[#1A1612]">
+                    {returnRequestReasonLabels[selectedOrderDetails.returnRequest.reason] || selectedOrderDetails.returnRequest.reason}
+                  </p>
+                  {selectedOrderDetails.returnRequest.details && (
+                    <p className="mt-2 whitespace-pre-wrap leading-relaxed text-[#5F5547]">{selectedOrderDetails.returnRequest.details}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="font-bold text-[#1A1612]">Bằng chứng khách gửi</p>
+                  {selectedOrderDetails.returnRequest.imageUrls.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedOrderDetails.returnRequest.imageUrls.map((url, index) => (
+                        <button
+                          key={`${url}-${index}`}
+                          type="button"
+                          onClick={() => setReturnEvidencePreview({ kind: 'image', url, title: `Ảnh bằng chứng ${index + 1}` })}
+                          className="group relative h-20 w-20 overflow-hidden rounded-xl border border-[#EAE4D7] bg-white focus:outline-none focus:ring-2 focus:ring-[#C59B58]"
+                          aria-label={`Xem ảnh bằng chứng ${index + 1}`}
+                        >
+                          <img src={url} alt={`Ảnh bằng chứng ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
+                          <span className="absolute inset-x-0 bottom-0 bg-[#231D15]/70 py-1 text-center text-[10px] font-bold text-white">Ảnh {index + 1}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#7D715E]">Khách chưa gửi ảnh.</p>
+                  )}
+                  {selectedOrderDetails.returnRequest.unboxingVideoUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setReturnEvidencePreview({ kind: 'video', url: selectedOrderDetails.returnRequest!.unboxingVideoUrl, title: 'Video mở hộp' })}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 font-bold text-[#8A6736] hover:bg-[#FBF5EB] focus:outline-none focus:ring-2 focus:ring-[#C59B58]"
+                    >
+                      <Play className="h-4 w-4" />
+                      Xem video mở hộp
+                    </button>
+                  ) : (
+                    <p className="text-[#7D715E]">Khách chưa gửi video.</p>
+                  )}
+                </div>
+                {selectedOrderDetails.returnRequest.shopResponse && <p>Phản hồi của Shop: {selectedOrderDetails.returnRequest.shopResponse}</p>}
+                {selectedOrderDetails.returnRequest.status === 'REQUESTED' && (
+                  <div className="rounded-xl border border-[#EEDFC6] bg-white p-3">
+                    <p className="font-bold text-[#1A1612]">Shop cần phản hồi yêu cầu này</p>
+                    <p className="mt-1 text-[#7D715E]">Chọn quyết định và ghi rõ hướng xử lý để khách hàng nhận được thông tin minh bạch.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" disabled={respondingReturn} onClick={() => openReturnDecisionForm('APPROVE')}
+                        className="rounded-xl bg-[#C59B58] px-4 py-2 font-bold text-white transition hover:bg-[#B88E4F] disabled:opacity-50">Duyệt yêu cầu</button>
+                      <button type="button" disabled={respondingReturn} onClick={() => openReturnDecisionForm('REJECT')}
+                        className="rounded-xl border border-red-300 px-4 py-2 font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50">Từ chối yêu cầu</button>
+                    </div>
+                    <p className="mt-3 text-[#7D715E]">Duyệt yêu cầu chưa đồng nghĩa tiền đã được hoàn; việc hoàn tiền cần được xử lý và đối soát riêng.</p>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Tài chính & Hoa hồng */}
-            <div className="p-3 bg-[#FBF5EB] border border-[#EEDFC6] rounded-xl flex flex-col gap-1.5 text-xs">
+            <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl flex flex-col gap-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-[#7D715E]">Tiền hàng:</span>
                 <span className="font-bold">{selectedOrderDetails.subtotalAmount.toLocaleString("vi-VN")} ₫</span>
@@ -1046,9 +1183,9 @@ export default function OrdersManagementPage({
                   <span className="font-bold">-{selectedOrderDetails.discountAmount.toLocaleString("vi-VN")} ₫</span>
                 </div>
               )}
-              <div className="flex justify-between border-t border-[#EEDFC6] pt-1.5 text-sm font-black text-[#1A1612]">
+              <div className="flex justify-between border-t border-[#EAE4D7] pt-1.5 text-sm font-black text-[#1A1612]">
                 <span>Tổng thanh toán:</span>
-                <span className="text-[#C59B58]">{selectedOrderDetails.finalAmount.toLocaleString("vi-VN")} ₫</span>
+                <span className="text-[#B88E4F]">{selectedOrderDetails.finalAmount.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div className="flex justify-between pt-1 text-[11px] text-[#7D715E]">
                 <span>Hoa hồng KOL ghi nhận:</span>
@@ -1062,12 +1199,146 @@ export default function OrdersManagementPage({
               <button
                 type="button"
                 onClick={() => setSelectedOrderDetails(null)}
-                className="px-4 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition shadow-xs"
+                className="px-4 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold transition shadow-xs"
               >
                 Đóng
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {returnEvidencePreview && (
+        <div
+          className="fixed inset-0 z-[70] grid place-items-center bg-[#231D15]/80 p-4 backdrop-blur-sm"
+          onClick={() => setReturnEvidencePreview(null)}
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={returnEvidencePreview.title}
+            className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between gap-4 border-b border-[#EAE4D7] px-4 py-3">
+              <h3 className="font-bold text-[#1A1612]">{returnEvidencePreview.title}</h3>
+              <button
+                type="button"
+                onClick={() => setReturnEvidencePreview(null)}
+                className="rounded-full p-2 text-[#7D715E] hover:bg-[#F3EFE6]"
+                aria-label="Đóng xem bằng chứng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="grid min-h-0 flex-1 place-items-center overflow-auto bg-[#1A1612] p-3">
+              {returnEvidencePreview.kind === 'image' ? (
+                <img
+                  src={returnEvidencePreview.url}
+                  alt={returnEvidencePreview.title}
+                  className="max-h-[78vh] max-w-full object-contain"
+                />
+              ) : (
+                <video
+                  src={returnEvidencePreview.url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[78vh] max-w-full"
+                >
+                  Trình duyệt không hỗ trợ phát video. <a href={returnEvidencePreview.url}>Mở video</a>
+                </video>
+              )}
+            </div>
+            <footer className="flex justify-end border-t border-[#EAE4D7] px-4 py-2">
+              <a
+                href={returnEvidencePreview.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold text-[#8A6736] underline"
+              >
+                Mở tệp trong tab mới
+              </a>
+            </footer>
+          </section>
+        </div>
+      )}
+      {returnDecision && selectedOrderDetails?.returnRequest && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-[#231D15]/65 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleReturnDecision(returnDecision);
+            }}
+            className="w-full max-w-lg rounded-2xl border border-[#EAE4D7] bg-white p-5 shadow-2xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="return-decision-title"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[#EAE4D7] pb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8A6736]">Xử lý hồ sơ đổi trả</p>
+                <h3 id="return-decision-title" className="mt-1 text-lg font-bold text-[#1A1612]">
+                  {returnDecision === 'APPROVE' ? 'Duyệt yêu cầu đổi trả' : 'Từ chối yêu cầu đổi trả'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setReturnDecision(null); setReturnError(''); }}
+                disabled={respondingReturn}
+                className="rounded-full p-2 text-[#7D715E] hover:bg-[#F3EFE6] disabled:opacity-50"
+                aria-label="Đóng biểu mẫu xử lý"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3 text-sm">
+              <p className="font-semibold text-[#1A1612]">Đơn #{selectedOrderDetails.externalOrderSn}</p>
+              <p className="mt-1 text-[#7D715E]">
+                Lý do: {returnRequestReasonLabels[selectedOrderDetails.returnRequest.reason] || selectedOrderDetails.returnRequest.reason}
+              </p>
+            </div>
+            <label className="mt-4 block text-sm font-semibold text-[#1A1612]">
+              Phản hồi và hướng xử lý gửi khách
+              <textarea
+                autoFocus
+                required
+                minLength={10}
+                maxLength={1000}
+                rows={4}
+                value={returnResponse}
+                onChange={(event) => setReturnResponse(event.target.value)}
+                placeholder={returnDecision === 'APPROVE'
+                  ? 'Nêu rõ cách thức và thời gian tiếp nhận hàng trả hoặc đổi sản phẩm...'
+                  : 'Giải thích rõ căn cứ từ chối và hướng hỗ trợ tiếp theo...'}
+                className="mt-1.5 w-full rounded-xl border border-[#EAE4D7] bg-white p-3 font-normal outline-none focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20"
+              />
+              <span className="mt-1 block text-xs font-normal text-[#7D715E]">Tối thiểu 10 ký tự, tối đa 1.000 ký tự. Nội dung này sẽ được gửi cho khách hàng.</span>
+            </label>
+            {returnDecision === 'APPROVE' && (
+              <p className="mt-3 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs leading-relaxed text-[#7D715E]">
+                Duyệt yêu cầu xác nhận Shop đồng ý tiếp nhận hồ sơ. Thao tác này chưa thực hiện hoàn tiền; khoản tiền cần được xử lý riêng.
+              </p>
+            )}
+            {returnError && <p role="alert" className="mt-3 text-sm text-red-700">{returnError}</p>}
+            <div className="mt-5 flex flex-col-reverse gap-2 border-t border-[#EAE4D7] pt-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => { setReturnDecision(null); setReturnError(''); }}
+                disabled={respondingReturn}
+                className="rounded-xl border border-[#EAE4D7] px-4 py-2.5 text-sm font-semibold text-[#7D715E] hover:bg-[#FAF8F5] disabled:opacity-50"
+              >
+                Quay lại
+              </button>
+              <button
+                type="submit"
+                disabled={respondingReturn || returnResponse.trim().length < 10}
+                className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${returnDecision === 'APPROVE' ? 'bg-[#C59B58] hover:bg-[#B88E4F]' : 'bg-red-700 hover:bg-red-800'}`}
+              >
+                {respondingReturn ? 'Đang gửi phản hồi…' : returnDecision === 'APPROVE' ? 'Xác nhận duyệt' : 'Xác nhận từ chối'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
       {action &&

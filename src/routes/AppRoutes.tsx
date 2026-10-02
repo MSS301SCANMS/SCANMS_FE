@@ -13,7 +13,9 @@ const RedirectHandlerPage = lazy(() => import('../pages/RedirectHandlerPage'));
 
 const UiReferencePage = lazy(() => import('../pages/UiReferencePage'));
 const MarketplacePage = lazy(() => import('../pages/public/MarketplacePage'));
-const BuyerVouchersPage = lazy(() => import('../pages/public/BuyerVouchersPage'));
+const ShopPage = lazy(() => import('../pages/public/ShopPage'));
+const SearchPage = lazy(() => import('../pages/public/SearchPage'));
+const PayosReturnPage = lazy(() => import('../pages/public/PayosReturnPage'));
 
 const ProductManagementPage = lazy(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazy(() => import('../pages/merchant/ShopDashboardPage'));
@@ -24,6 +26,7 @@ const PayoutApprovalPage = lazy(() => import('../pages/merchant/PayoutApprovalPa
 
 const WalletPage = lazy(() => import('../pages/collaborator/WalletPage'));
 const OrderTrackingPage = lazy(() => import('../pages/public/OrderTrackingPage'));
+const CustomerPortalPage = lazy(() => import('../pages/customer/CustomerPortalPage'));
 const ChatBoxPage = lazy(() => import('../pages/chat/ChatBoxPage'));
 const RealtimeAnalyticsPage = lazy(() => import('../pages/dashboard/RealtimeAnalyticsPage'));
 const LeaderboardPage = lazy(() => import('../pages/dashboard/LeaderboardPage'));
@@ -43,18 +46,38 @@ const AiFraudSentinelPage = lazy(() => import('../pages/merchant/AiFraudSentinel
 // Audit Logs & Security Trail (Quý - FR-32)
 const AuditLogsPage = lazy(() => import('../pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 
-// System Management & Services Health Check
-const AdminSystemManagementPage = lazy(() => import('../pages/admin/AdminSystemManagementPage'));
+// Dispute Arbitration Portal (Leader Thắng - Nhiệm vụ 4)
+const DisputeResolutionPage = lazy(() => import('../pages/admin/DisputeResolutionPage').then(m => ({ default: m.DisputeResolutionPage })));
 
 import { RouteContent } from './RouteContent';
+import { CartProvider, useCart } from '../context/CartContext';
+import { CartDrawer } from '../components/cart/CartDrawer';
+import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
+
+function GlobalCheckoutModal() {
+  const { isCheckoutOpen, closeCheckout, checkoutItems } = useCart();
+  if (!isCheckoutOpen) return null;
+  return (
+    <GuestCheckoutModal
+      isOpen={isCheckoutOpen}
+      onClose={closeCheckout}
+      checkoutItems={checkoutItems}
+    />
+  );
+}
 
 function AppRoutes() {
   return (
     <Router>
-      <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] grid place-items-center text-[#7D715E]">Đang tải SCANMS...</div>}>
+      <CartProvider>
+        <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] grid place-items-center text-[#7D715E]">Đang tải SCANMS...</div>}>
       <Routes>
         <Route path="/" element={<MarketplacePage />} />
         <Route path="/marketplace" element={<MarketplacePage />} />
+        <Route path="/shops/:shopId" element={<ShopPage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/marketplace/search" element={<SearchPage />} />
+        <Route path="/payment/payos-return" element={<PayosReturnPage />} />
         <Route path="/store" element={<MarketplacePage />} />
         <Route path="/storefront" element={<MarketplacePage />} />
         <Route path="/shop" element={<MarketplacePage />} />
@@ -66,8 +89,17 @@ function AppRoutes() {
 
         <Route path="/tracking" element={<OrderTrackingPage />} />
         <Route path="/order-tracking" element={<OrderTrackingPage />} />
-        <Route path="/my-orders" element={<OrderTrackingPage />} />
-        <Route path="/my-vouchers" element={<BuyerVouchersPage />} />
+
+        {/* Customer Portal & Buyer Center (Shopee/Lazada Style) */}
+        <Route path="/customer" element={<CustomerPortalPage />} />
+        <Route path="/customer/portal" element={<CustomerPortalPage />} />
+        <Route path="/customer/orders" element={<CustomerPortalPage />} />
+        <Route path="/customer/profile" element={<CustomerPortalPage />} />
+        <Route path="/customer/addresses" element={<CustomerPortalPage />} />
+        <Route path="/customer/wishlist" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade/shop" element={<CustomerPortalPage />} />
 
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -91,6 +123,7 @@ function AppRoutes() {
 
             {/* Merchant Consolidated Hubs */}
             <Route path="merchant/kol-hub" element={<ShopKolHubPage />} />
+            <Route path="merchant/customer-messages" element={<ChatBoxPage />} />
             <Route path="merchant/promotions" element={<ShopPromotionsHubPage />} />
             <Route path="merchant/fraud-sentinel" element={<AiFraudSentinelPage />} />
             <Route path="merchant/ai-fraud" element={<AiFraudSentinelPage />} />
@@ -148,8 +181,6 @@ function AppRoutes() {
           </Route>
 
           <Route element={<RouteContent />}>
-            <Route path="admin/system" element={<AdminSystemManagementPage />} />
-            <Route path="admin/services" element={<Navigate to="/admin/system" replace />} />
             <Route path="admin/analytics" element={<AdminAnalyticsHubPage />} />
             <Route path="admin/affiliate-oversight" element={<AdminOversightHubPage />} />
             <Route path="admin/users" element={<KycApprovalPage />} />
@@ -158,6 +189,8 @@ function AppRoutes() {
             <Route path="admin/fraud-sentinel" element={<AiFraudSentinelPage />} />
             <Route path="admin/leaderboard" element={<Navigate to="/admin/analytics?tab=leaderboard" replace />} />
             <Route path="admin/kol-recommendations" element={<Navigate to="/admin/analytics?tab=ai-matching" replace />} />
+            <Route path="admin/disputes" element={<DisputeResolutionPage />} />
+            <Route path="admin/arbitration" element={<DisputeResolutionPage />} />
             <Route path="admin/referral-links" element={<Navigate to="/admin/affiliate-oversight?tab=links" replace />} />
             <Route path="admin/coupons" element={<Navigate to="/admin/affiliate-oversight?tab=coupons" replace />} />
           </Route>
@@ -170,6 +203,9 @@ function AppRoutes() {
         </Route>
       </Routes>
       </Suspense>
+      <CartDrawer />
+      <GlobalCheckoutModal />
+      </CartProvider>
     </Router>
   );
 }

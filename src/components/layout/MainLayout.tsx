@@ -3,25 +3,12 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { RoleSwitcherModal } from './RoleSwitcherModal';
 
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('scanms_sidebar_collapsed') === 'true';
-  });
-
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem('scanms_sidebar_collapsed', String(next));
-      return next;
-    });
-  };
 
   useEffect(() => {
     const user = authService.getCurrentUser();
@@ -41,7 +28,7 @@ export default function MainLayout() {
           // Token expired or invalid
         });
     }
-  }, []);
+  }, [location.pathname]);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
@@ -61,8 +48,6 @@ export default function MainLayout() {
 
   const isAuth = location.pathname === '/login' || location.pathname === '/register';
 
-
-
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   if (isAuth || isIframe) {
@@ -77,10 +62,7 @@ export default function MainLayout() {
     <div className="h-screen w-screen overflow-hidden flex bg-[#FAF8F5] text-[#1A1612]">
       <Sidebar
         currentUser={currentUser}
-        onOpenRoleSwitcher={() => setShowRoleModal(true)}
         onLogout={handleLogout}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={toggleSidebar}
       />
 
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
@@ -88,9 +70,7 @@ export default function MainLayout() {
           currentUser={currentUser}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onOpenRoleSwitcher={() => setShowRoleModal(true)}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={toggleSidebar}
+          onLogout={handleLogout}
         />
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 bg-[#FAF8F5]">
@@ -99,13 +79,6 @@ export default function MainLayout() {
           </div>
         </main>
       </div>
-
-      <RoleSwitcherModal
-        isOpen={showRoleModal}
-        onClose={() => setShowRoleModal(false)}
-        currentUser={currentUser}
-        onUserChanged={(user) => setCurrentUser(user)}
-      />
     </div>
   );
 }

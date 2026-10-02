@@ -447,14 +447,14 @@ export const CommissionRulesPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ background: '#F5E7CC', border: '1.5px solid #DEBE85', padding: '12px 14px', borderRadius: 14, color: '#9E7933', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(201, 163, 99, 0.2)' }}>
+            <div style={{ background: '#ECE1CD', border: '1.5px solid #DEBE85', padding: '12px 14px', borderRadius: 14, color: '#B88E4F', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(201, 163, 99, 0.2)' }}>
               <Trophy size={28} />
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 850, color: '#2C2114', letterSpacing: '-0.5px' }}>
+              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 850, color: '#1A1612', letterSpacing: '-0.5px' }}>
                 Cấu Hình Mốc Thưởng Doanh Số Tháng
               </h1>
-              <p style={{ margin: '4px 0 0 0', color: '#7D6D55', fontSize: 15.5, lineHeight: 1.4 }}>
+              <p style={{ margin: '4px 0 0 0', color: '#7D715E', fontSize: 15.5, lineHeight: 1.4 }}>
                 Thưởng cố định đạt KPI + Thưởng phần vượt lũy tiến từng khoảng doanh số.
               </p>
             </div>
@@ -470,10 +470,10 @@ export const CommissionRulesPage: React.FC = () => {
             }}
             style={{
               background: '#F6EFE3',
-              border: '1px solid #E8DAC4',
+              border: '1px solid #EAE4D7',
               borderRadius: 10,
               padding: '10px 20px',
-              color: '#2C2114',
+              color: '#1A1612',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -515,9 +515,9 @@ export const CommissionRulesPage: React.FC = () => {
 
       {errorMsg && (
         <div style={{
-          background: '#FDEBED',
-          border: '1px solid #FCA5A5',
-          color: '#B83A42',
+          background: '#FEE2E2',
+          border: '1px solid #DC2626',
+          color: '#991B1B',
           borderRadius: 14,
           padding: '12px 18px',
           marginBottom: 18,
@@ -529,7 +529,7 @@ export const CommissionRulesPage: React.FC = () => {
             <AlertCircle size={20} />
             <span style={{ fontWeight: 650, fontSize: 14.5 }}>{errorMsg}</span>
           </div>
-          <button onClick={() => setErrorMsg(null)} style={{ background: 'transparent', border: 'none', color: '#B83A42', cursor: 'pointer' }}>
+          <button onClick={() => setErrorMsg(null)} style={{ background: 'transparent', border: 'none', color: '#991B1B', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
@@ -537,9 +537,9 @@ export const CommissionRulesPage: React.FC = () => {
 
       {successMsg && (
         <div style={{
-          background: '#EAF8F0',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
+          background: '#FBF5EB',
+          border: '1px solid #EAE4D7',
+          color: '#15803d',
           borderRadius: 14,
           padding: '12px 18px',
           marginBottom: 18,
@@ -551,7 +551,7 @@ export const CommissionRulesPage: React.FC = () => {
             <CheckCircle2 size={20} />
             <span style={{ fontWeight: 700, fontSize: 14.5 }}>{successMsg}</span>
           </div>
-          <button onClick={() => setSuccessMsg(null)} style={{ background: 'transparent', border: 'none', color: '#15803D', cursor: 'pointer' }}>
+          <button onClick={() => setSuccessMsg(null)} style={{ background: 'transparent', border: 'none', color: '#15803d', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
@@ -559,55 +559,55 @@ export const CommissionRulesPage: React.FC = () => {
 
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 22 }}>
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D6D55', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
+        <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D715E', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
             <span>Số mốc cấu hình</span>
-            <Award size={19} color="#C9A363" />
+            <Award size={19} color="#DEBE85" />
           </div>
-          <div style={{ fontSize: 27, fontWeight: 850, color: '#2C2114' }}>{rules.length} mốc</div>
-          <div style={{ fontSize: 13.5, color: '#9E8D77', marginTop: 4 }}>{rules.filter(r => r.isActive).length} đang áp dụng</div>
+          <div style={{ fontSize: 27, fontWeight: 850, color: '#1A1612' }}>{rules.length} mốc</div>
+          <div style={{ fontSize: 13.5, color: '#7D715E', marginTop: 4 }}>{rules.filter(r => r.isActive).length} đang áp dụng</div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D6D55', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
+        <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D715E', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
             <span>Cơ chế tính thưởng</span>
-            <Layers size={19} color="#C9A363" />
+            <Layers size={19} color="#DEBE85" />
           </div>
-          <div style={{ fontSize: 21, fontWeight: 850, color: '#9E7933' }}>Lũy Tiến Khoảng</div>
-          <div style={{ fontSize: 13.5, color: '#9E8D77', marginTop: 4 }}>+ Thưởng cố định đạt KPI</div>
+          <div style={{ fontSize: 21, fontWeight: 850, color: '#B88E4F' }}>Lũy Tiến Khoảng</div>
+          <div style={{ fontSize: 13.5, color: '#7D715E', marginTop: 4 }}>+ Thưởng cố định đạt KPI</div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D6D55', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
+        <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D715E', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
             <span>Tỷ lệ phần vượt max</span>
-            <TrendingUp size={19} color="#C9A363" />
+            <TrendingUp size={19} color="#DEBE85" />
           </div>
-          <div style={{ fontSize: 27, fontWeight: 850, color: '#C9A363' }}>
+          <div style={{ fontSize: 27, fontWeight: 850, color: '#DEBE85' }}>
             {rules.length > 0 ? `${rules[rules.length - 1].bonusPercentage}%` : '0%'}
           </div>
-          <div style={{ fontSize: 13.5, color: '#9E8D77', marginTop: 4 }}>Tính trên phần doanh số vượt</div>
+          <div style={{ fontSize: 13.5, color: '#7D715E', marginTop: 4 }}>Tính trên phần doanh số vượt</div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D6D55', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
+        <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 16, padding: '18px 22px', boxShadow: '0 3px 12px rgba(110, 84, 39, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7D715E', fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>
             <span>Chống trùng & Snapshot</span>
-            <CheckCircle2 size={19} color="#15803D" />
+            <CheckCircle2 size={19} color="#15803d" />
           </div>
-          <div style={{ fontSize: 21, fontWeight: 850, color: '#15803D' }}>Idempotent</div>
-          <div style={{ fontSize: 13.5, color: '#9E8D77', marginTop: 4 }}>Bảo toàn đối soát lịch sử</div>
+          <div style={{ fontSize: 21, fontWeight: 850, color: '#15803d' }}>Idempotent</div>
+          <div style={{ fontSize: 13.5, color: '#7D715E', marginTop: 4 }}>Bảo toàn đối soát lịch sử</div>
         </div>
       </div>
 
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.18fr 1fr', gap: 22 }}>
 
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
+        <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#2C2114' }}>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#1A1612' }}>
                 Danh Sách Mốc Thưởng Doanh Số
               </h2>
-              <div style={{ fontSize: 14.5, color: '#7D6D55', marginTop: 3 }}>
+              <div style={{ fontSize: 14.5, color: '#7D715E', marginTop: 3 }}>
                 Sắp xếp tăng dần theo doanh số tối thiểu
               </div>
             </div>
@@ -626,8 +626,8 @@ export const CommissionRulesPage: React.FC = () => {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 style={{
-                  background: 'linear-gradient(135deg, #DEBE85 0%, #C9A363 100%)',
-                  color: '#2C2114',
+                  background: 'linear-gradient(135deg, #DEBE85 0%, #DEBE85 100%)',
+                  color: '#1A1612',
                   border: '1px solid #DEBE85',
                   borderRadius: 11,
                   padding: '11px 20px',
@@ -645,20 +645,20 @@ export const CommissionRulesPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div style={{ padding: 48, textAlign: 'center', color: '#7D6D55', fontSize: 15 }}>Đang tải danh sách mốc thưởng...</div>
+            <div style={{ padding: 48, textAlign: 'center', color: '#7D715E', fontSize: 15 }}>Đang tải danh sách mốc thưởng...</div>
           ) : rules.length === 0 ? (
-            <div style={{ padding: 52, textAlign: 'center', border: '1.5px dashed #E8DAC4', borderRadius: 14, background: '#FAF6F0' }}>
-              <Award size={42} color="#C9A363" style={{ marginBottom: 14 }} />
-              <p style={{ margin: 0, color: '#2C2114', fontWeight: 750, fontSize: 16.5 }}>Chưa có mốc thưởng nào được cấu hình</p>
-              <p style={{ margin: '8px 0 20px 0', color: '#7D6D55', fontSize: 14.5 }}>
+            <div style={{ padding: 52, textAlign: 'center', border: '1.5px dashed #EAE4D7', borderRadius: 14, background: '#FAF8F5' }}>
+              <Award size={42} color="#DEBE85" style={{ marginBottom: 14 }} />
+              <p style={{ margin: 0, color: '#1A1612', fontWeight: 750, fontSize: 16.5 }}>Chưa có mốc thưởng nào được cấu hình</p>
+              <p style={{ margin: '8px 0 20px 0', color: '#7D715E', fontSize: 14.5 }}>
                 Tạo mốc đầu tiên để kích thích các CTV/KOL đẩy mạnh doanh số bán hàng trong tháng.
               </p>
               {!isReadOnlyAdmin && (
                 <button
                   onClick={() => setIsCreateOpen(true)}
                   style={{
-                    background: 'linear-gradient(135deg, #DEBE85 0%, #C9A363 100%)',
-                    color: '#2C2114',
+                    background: 'linear-gradient(135deg, #DEBE85 0%, #DEBE85 100%)',
+                    color: '#1A1612',
                     border: '1px solid #DEBE85',
                     borderRadius: 10,
                     padding: '10px 20px',
@@ -677,7 +677,7 @@ export const CommissionRulesPage: React.FC = () => {
                   key={rule.id}
                   style={{
                     background: rule.isActive ? '#FFFFFF' : '#F6EFE3',
-                    border: rule.isActive ? '1.5px solid #E8DAC4' : '1px solid #ECE1CD',
+                    border: rule.isActive ? '1.5px solid #EAE4D7' : '1px solid #ECE1CD',
                     borderRadius: 16,
                     padding: '20px 22px',
                     display: 'flex',
@@ -694,8 +694,8 @@ export const CommissionRulesPage: React.FC = () => {
                     height: 46,
                     flexShrink: 0,
                     borderRadius: 12,
-                    background: rule.isActive ? '#F5E7CC' : '#ECE1CD',
-                    color: rule.isActive ? '#9E7933' : '#7D6D55',
+                    background: rule.isActive ? '#ECE1CD' : '#ECE1CD',
+                    color: rule.isActive ? '#B88E4F' : '#7D715E',
                     border: '1.5px solid #DEBE85',
                     display: 'flex',
                     alignItems: 'center',
@@ -708,7 +708,7 @@ export const CommissionRulesPage: React.FC = () => {
 
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 800, fontSize: 18.5, color: '#2C2114', wordBreak: 'break-word', marginBottom: 10 }}>
+                    <div style={{ fontWeight: 800, fontSize: 18.5, color: '#1A1612', wordBreak: 'break-word', marginBottom: 10 }}>
                       {rule.name}
                     </div>
 
@@ -718,9 +718,9 @@ export const CommissionRulesPage: React.FC = () => {
                         fontSize: 13,
                         padding: '4px 12px',
                         borderRadius: 7,
-                        background: rule.isActive ? '#EAF8F0' : '#FFF3DD',
-                        color: rule.isActive ? '#15803D' : '#C27803',
-                        border: rule.isActive ? '1px solid #BBF7D0' : '1px solid #FDE68A',
+                        background: rule.isActive ? '#FBF5EB' : '#FBF5EB',
+                        color: rule.isActive ? '#B88E4F' : '#B88E4F',
+                        border: rule.isActive ? '1px solid #EAE4D7' : '1px solid #C59B58',
                         fontWeight: 700,
                         whiteSpace: 'nowrap',
                       }}>
@@ -732,8 +732,8 @@ export const CommissionRulesPage: React.FC = () => {
                         padding: '4px 10px',
                         borderRadius: 6,
                         background: '#F6EFE3',
-                        border: '1px solid #E8DAC4',
-                        color: '#7D6D55',
+                        border: '1px solid #EAE4D7',
+                        color: '#7D715E',
                         fontWeight: 650,
                         whiteSpace: 'nowrap',
                       }}>
@@ -741,8 +741,8 @@ export const CommissionRulesPage: React.FC = () => {
                       </span>
 
                       <span style={{
-                        background: '#F5E7CC',
-                        color: '#9E7933',
+                        background: '#ECE1CD',
+                        color: '#B88E4F',
                         border: '1px solid #DEBE85',
                         borderRadius: 14,
                         padding: '4px 14px',
@@ -755,17 +755,17 @@ export const CommissionRulesPage: React.FC = () => {
                     </div>
 
                     {rule.description && (
-                      <div style={{ fontSize: 14.5, color: '#7D6D55', marginBottom: 10, lineHeight: 1.5 }}>
+                      <div style={{ fontSize: 14.5, color: '#7D715E', marginBottom: 10, lineHeight: 1.5 }}>
                         {rule.description}
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', fontSize: 14.5, color: '#7D6D55' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', fontSize: 14.5, color: '#7D715E' }}>
                       <span>
-                        Đạt KPI từ: <strong style={{ color: '#9E7933', fontSize: 16 }}>{formatVND(rule.minMonthlyRevenue)}</strong>
+                        Đạt KPI từ: <strong style={{ color: '#B88E4F', fontSize: 16 }}>{formatVND(rule.minMonthlyRevenue)}</strong>
                       </span>
                       <span>
-                        Thưởng đạt KPI: <strong style={{ color: '#15803D', fontSize: 16 }}>{formatVND(rule.achievementBonus)}</strong>
+                        Thưởng đạt KPI: <strong style={{ color: '#15803d', fontSize: 16 }}>{formatVND(rule.achievementBonus)}</strong>
                       </span>
                     </div>
                   </div>
@@ -778,7 +778,7 @@ export const CommissionRulesPage: React.FC = () => {
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: rule.isActive ? '#15803D' : '#C27803',
+                          color: rule.isActive ? '#B88E4F' : '#B88E4F',
                           padding: 4,
                           cursor: 'pointer',
                           display: 'flex',
@@ -803,8 +803,8 @@ export const CommissionRulesPage: React.FC = () => {
                         }}
                         style={{
                           background: '#F6EFE3',
-                          border: '1px solid #E8DAC4',
-                          color: '#7D6D55',
+                          border: '1px solid #EAE4D7',
+                          color: '#7D715E',
                           borderRadius: 9,
                           padding: '8px 10px',
                           cursor: 'pointer',
@@ -819,9 +819,9 @@ export const CommissionRulesPage: React.FC = () => {
                       <button
                         onClick={() => setDeletingRule(rule)}
                         style={{
-                          background: '#FDEBED',
-                          border: '1px solid #FCA5A5',
-                          color: '#B83A42',
+                          background: '#FEE2E2',
+                          border: '1px solid #DC2626',
+                          color: '#991B1B',
                           borderRadius: 9,
                           padding: '8px 10px',
                           cursor: 'pointer',
@@ -834,7 +834,7 @@ export const CommissionRulesPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: '#9E8D77', fontStyle: 'italic', paddingRight: 8 }}>
+                    <div style={{ fontSize: 13, color: '#7D715E', fontStyle: 'italic', paddingRight: 8 }}>
                       Chỉ đọc
                     </div>
                   )}
@@ -847,16 +847,16 @@ export const CommissionRulesPage: React.FC = () => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-          <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
+          <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <Calculator size={24} color="#C9A363" />
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#2C2114' }}>
-                Mô Phỏng Thưởng Lũy Tiến {simLoading && <span style={{ fontSize: 14, color: '#7D6D55', fontWeight: 400 }}>(Đang tính...)</span>}
+              <Calculator size={24} color="#DEBE85" />
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#1A1612' }}>
+                Mô Phỏng Thưởng Lũy Tiến {simLoading && <span style={{ fontSize: 14, color: '#7D715E', fontWeight: 400 }}>(Đang tính...)</span>}
               </h2>
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label htmlFor={simRevenueInputId} style={{ display: 'block', fontSize: 14.5, color: '#7D6D55', fontWeight: 700, marginBottom: 8 }}>
+              <label htmlFor={simRevenueInputId} style={{ display: 'block', fontSize: 14.5, color: '#7D715E', fontWeight: 700, marginBottom: 8 }}>
                 Doanh số hợp lệ tháng của CTV (VND):
               </label>
               <input
@@ -867,11 +867,11 @@ export const CommissionRulesPage: React.FC = () => {
                 placeholder="120000000"
                 style={{
                   width: '100%',
-                  background: '#FAF6F0',
-                  border: '1.5px solid #E8DAC4',
+                  background: '#FAF8F5',
+                  border: '1.5px solid #EAE4D7',
                   borderRadius: 12,
                   padding: '13px 18px',
-                  color: '#2C2114',
+                  color: '#1A1612',
                   fontSize: 18.5,
                   fontWeight: 800,
                   boxSizing: 'border-box',
@@ -881,34 +881,34 @@ export const CommissionRulesPage: React.FC = () => {
             </div>
 
             {simResult && (
-              <div style={{ background: '#FAF6F0', border: '1px solid #E8DAC4', borderRadius: 14, padding: '18px 22px' }}>
+              <div style={{ background: '#FAF8F5', border: '1px solid #EAE4D7', borderRadius: 14, padding: '18px 22px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 14.5, color: '#7D6D55' }}>Mốc cao nhất đạt:</span>
-                  <span style={{ fontWeight: 800, fontSize: 16, color: simResult.highestReachedRule ? '#9E7933' : '#9E8D77' }}>
+                  <span style={{ fontSize: 14.5, color: '#7D715E' }}>Mốc cao nhất đạt:</span>
+                  <span style={{ fontWeight: 800, fontSize: 16, color: simResult.highestReachedRule ? '#B88E4F' : '#7D715E' }}>
                     {simResult.highestReachedRule ? simResult.highestReachedRule.name : 'Chưa đạt KPI'}
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 14.5, color: '#7D6D55' }}>Thưởng cố định đạt KPI:</span>
-                  <span style={{ fontWeight: 800, color: '#15803D', fontSize: 17 }}>
+                  <span style={{ fontSize: 14.5, color: '#7D715E' }}>Thưởng cố định đạt KPI:</span>
+                  <span style={{ fontWeight: 800, color: '#15803d', fontSize: 17 }}>
                     {formatVND(simResult.achievementBonus)}
                   </span>
                 </div>
 
 
                 {simResult.rangeBonuses.length > 0 && (
-                  <div style={{ marginBottom: 12, paddingTop: 12, borderTop: '1px dashed #E8DAC4' }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 750, color: '#7D6D55', marginBottom: 8 }}>
+                  <div style={{ marginBottom: 12, paddingTop: 12, borderTop: '1px dashed #EAE4D7' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 750, color: '#7D715E', marginBottom: 8 }}>
                       Chi tiết thưởng phần vượt theo từng khoảng:
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {simResult.rangeBonuses.map((item, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, background: '#FFFFFF', border: '1px solid #ECE1CD', padding: '9px 12px', borderRadius: 8 }}>
-                          <span style={{ color: '#2C2114', fontWeight: 550 }}>
+                          <span style={{ color: '#1A1612', fontWeight: 550 }}>
                             Khoảng {Number(item.from) / 1000000}tr - {Number(item.to) / 1000000}tr ({item.rate}%):
                           </span>
-                          <span style={{ fontWeight: 800, color: '#9E7933' }}>
+                          <span style={{ fontWeight: 800, color: '#B88E4F' }}>
                             +{formatVND(item.bonus)}
                           </span>
                         </div>
@@ -917,14 +917,14 @@ export const CommissionRulesPage: React.FC = () => {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingTop: 12, borderTop: '1px solid #E8DAC4' }}>
-                  <span style={{ fontSize: 16.5, fontWeight: 800, color: '#2C2114' }}>Tổng Tiền Thưởng:</span>
-                  <span style={{ fontSize: 26, fontWeight: 850, color: '#15803D' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingTop: 12, borderTop: '1px solid #EAE4D7' }}>
+                  <span style={{ fontSize: 16.5, fontWeight: 800, color: '#1A1612' }}>Tổng Tiền Thưởng:</span>
+                  <span style={{ fontSize: 26, fontWeight: 850, color: '#15803d' }}>
                     {formatVND(simResult.totalBonus)}
                   </span>
                 </div>
 
-                <div style={{ fontSize: 13, color: '#7D6D55', background: '#FFFFFF', border: '1px solid #E8DAC4', padding: '10px 14px', borderRadius: 8, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13, color: '#7D715E', background: '#FFFFFF', border: '1px solid #EAE4D7', padding: '10px 14px', borderRadius: 8, lineHeight: 1.5 }}>
                   {simResult.formula}
                 </div>
               </div>
@@ -932,17 +932,17 @@ export const CommissionRulesPage: React.FC = () => {
           </div>
 
 
-          <div style={{ background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
+          <div style={{ background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <History size={24} color="#C9A363" />
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#2C2114' }}>
+              <History size={24} color="#DEBE85" />
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#1A1612' }}>
                 Chốt Thưởng Tháng (Idempotent)
               </h2>
             </div>
 
 
             <div style={{ marginBottom: 18 }}>
-              <label htmlFor={settleMonthInputId} style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: '#7D6D55', marginBottom: 8 }}>
+              <label htmlFor={settleMonthInputId} style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: '#7D715E', marginBottom: 8 }}>
                 Kỳ chốt thưởng tháng (Tiếng Việt):
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14 }}>
@@ -954,11 +954,11 @@ export const CommissionRulesPage: React.FC = () => {
                     style={{
                       width: '100%',
                       boxSizing: 'border-box',
-                      background: '#FAF6F0',
-                      border: '1.5px solid #E8DAC4',
+                      background: '#FAF8F5',
+                      border: '1.5px solid #EAE4D7',
                       borderRadius: 11,
                       padding: '12px 16px',
-                      color: '#2C2114',
+                      color: '#1A1612',
                       fontSize: 15,
                       fontWeight: 650,
                       cursor: 'pointer',
@@ -990,11 +990,11 @@ export const CommissionRulesPage: React.FC = () => {
                     style={{
                       width: '100%',
                       boxSizing: 'border-box',
-                      background: '#FAF6F0',
-                      border: '1.5px solid #E8DAC4',
+                      background: '#FAF8F5',
+                      border: '1.5px solid #EAE4D7',
                       borderRadius: 11,
                       padding: '12px 16px',
-                      color: '#2C2114',
+                      color: '#1A1612',
                       fontSize: 15,
                       fontWeight: 650,
                       outline: 'none',
@@ -1002,19 +1002,19 @@ export const CommissionRulesPage: React.FC = () => {
                   />
                 </div>
               </div>
-              <div style={{ fontSize: 13.5, color: '#9E8D77', marginTop: 7 }}>
-                📅 Đang chọn: <strong style={{ color: '#9E7933' }}>Tháng {selectedMonth}/{selectedYear}</strong> (Kỳ hệ thống: <code>{settleYearMonth}</code>)
+              <div style={{ fontSize: 13.5, color: '#7D715E', marginTop: 7 }}>
+                📅 Đang chọn: <strong style={{ color: '#B88E4F' }}>Tháng {selectedMonth}/{selectedYear}</strong> (Kỳ hệ thống: <code>{settleYearMonth}</code>)
               </div>
             </div>
 
 
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label htmlFor={settleKolInputId} style={{ fontSize: 14.5, fontWeight: 700, color: '#7D6D55' }}>
+                <label htmlFor={settleKolInputId} style={{ fontSize: 14.5, fontWeight: 700, color: '#7D715E' }}>
                   Cộng Tác Viên / KOL nhận thưởng:
                 </label>
                 {settleKolId ? (
-                  <span style={{ fontSize: 13, color: '#9E7933', fontWeight: 700 }}>
+                  <span style={{ fontSize: 13, color: '#B88E4F', fontWeight: 700 }}>
                     KOL: {settleKolId.slice(0, 8)}...
                   </span>
                 ) : null}
@@ -1028,11 +1028,11 @@ export const CommissionRulesPage: React.FC = () => {
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  background: '#FAF6F0',
-                  border: '1.5px solid #E8DAC4',
+                  background: '#FAF8F5',
+                  border: '1.5px solid #EAE4D7',
                   borderRadius: 11,
                   padding: '12px 16px',
-                  color: '#2C2114',
+                  color: '#1A1612',
                   fontSize: 15,
                   fontWeight: 600,
                   outline: 'none',
@@ -1040,17 +1040,17 @@ export const CommissionRulesPage: React.FC = () => {
               />
               {import.meta.env.DEV && (
                 <div style={{ display: 'flex', gap: 10, marginTop: 9, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, color: '#9E8D77' }}>[Dev] Gợi ý:</span>
+                  <span style={{ fontSize: 13, color: '#7D715E' }}>[Dev] Gợi ý:</span>
                   <button
                     type="button"
                     onClick={() => setSettleKolId('237a7208-1c74-4322-96b2-51d810660723')}
                     style={{
-                      background: settleKolId === '237a7208-1c74-4322-96b2-51d810660723' ? '#EFE2CC' : '#FAF6F0',
+                      background: settleKolId === '237a7208-1c74-4322-96b2-51d810660723' ? '#EFE2CC' : '#FAF8F5',
                       border: '1px solid #DEBE85',
                       borderRadius: 7,
                       padding: '4px 12px',
                       fontSize: 13,
-                      color: '#7D6D55',
+                      color: '#7D715E',
                       cursor: 'pointer',
                       fontWeight: 700,
                     }}
@@ -1065,7 +1065,7 @@ export const CommissionRulesPage: React.FC = () => {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#9E8D77',
+                        color: '#7D715E',
                         fontSize: 13,
                         cursor: 'pointer',
                         textDecoration: 'underline',
@@ -1085,8 +1085,8 @@ export const CommissionRulesPage: React.FC = () => {
                 disabled={settleLoading}
                 style={{
                   width: '100%',
-                  background: 'linear-gradient(135deg, #DEBE85 0%, #C9A363 100%)',
-                  color: '#2C2114',
+                  background: 'linear-gradient(135deg, #DEBE85 0%, #DEBE85 100%)',
+                  color: '#1A1612',
                   border: '1px solid #DEBE85',
                   borderRadius: 13,
                   padding: '15px 0',
@@ -1123,12 +1123,12 @@ export const CommissionRulesPage: React.FC = () => {
                 padding: '15px 18px',
                 borderRadius: 12,
                 fontSize: 14,
-                background: settleResult.isAlreadySettled ? '#FFF3DD' : '#EAF8F0',
-                border: settleResult.isAlreadySettled ? '1px solid #FDE68A' : '1px solid #BBF7D0',
-                color: settleResult.isAlreadySettled ? '#C27803' : '#15803D',
+                background: settleResult.isAlreadySettled ? '#FBF5EB' : '#FBF5EB',
+                border: settleResult.isAlreadySettled ? '1px solid #C59B58' : '1px solid #EAE4D7',
+                color: settleResult.isAlreadySettled ? '#B88E4F' : '#15803d',
               }}>
                 <div style={{ fontWeight: 750 }}>{settleResult.message}</div>
-                <div style={{ marginTop: 5, color: '#2C2114', fontWeight: 600 }}>
+                <div style={{ marginTop: 5, color: '#1A1612', fontWeight: 600 }}>
                   Doanh số hợp lệ: {formatVND(settleResult.settlement.validRevenue)} | Thưởng: {formatVND(settleResult.settlement.bonusAmount)}
                 </div>
               </div>
@@ -1138,19 +1138,19 @@ export const CommissionRulesPage: React.FC = () => {
       </div>
 
 
-      <div style={{ marginTop: 26, background: '#FFFFFF', border: '1.5px solid #E8DAC4', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
+      <div style={{ marginTop: 26, background: '#FFFFFF', border: '1.5px solid #EAE4D7', borderRadius: 18, padding: '26px 28px', boxShadow: '0 4px 18px rgba(110, 84, 39, 0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#2C2114' }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 850, color: '#1A1612' }}>
             Lịch Sử Chốt Thưởng Tháng ({historyList.length} lượt chốt - Tháng {selectedMonth}/{selectedYear})
           </h2>
           <button
             onClick={() => loadHistory()}
             style={{
               background: '#F6EFE3',
-              border: '1px solid #E8DAC4',
+              border: '1px solid #EAE4D7',
               borderRadius: 10,
               padding: '9px 18px',
-              color: '#7D6D55',
+              color: '#7D715E',
               fontSize: 14,
               fontWeight: 700,
               display: 'flex',
@@ -1163,16 +1163,16 @@ export const CommissionRulesPage: React.FC = () => {
         </div>
 
         {historyLoading ? (
-          <div style={{ padding: 28, textAlign: 'center', color: '#7D6D55', fontSize: 14 }}>Đang tải lịch sử...</div>
+          <div style={{ padding: 28, textAlign: 'center', color: '#7D715E', fontSize: 14 }}>Đang tải lịch sử...</div>
         ) : historyList.length === 0 ? (
-          <div style={{ padding: 28, textAlign: 'center', color: '#9E8D77', fontSize: 14 }}>
+          <div style={{ padding: 28, textAlign: 'center', color: '#7D715E', fontSize: 14 }}>
             Chưa có lượt chốt thưởng nào cho kỳ Tháng {selectedMonth}/{selectedYear}.
           </div>
         ) : (
           <div data-scrollable-x="true" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, color: '#2C2114' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, color: '#1A1612' }}>
               <thead>
-                <tr style={{ borderBottom: '1.5px solid #E8DAC4', color: '#7D6D55', background: '#FAF6F0', textAlign: 'left' }}>
+                <tr style={{ borderBottom: '1.5px solid #EAE4D7', color: '#7D715E', background: '#FAF8F5', textAlign: 'left' }}>
                   <th style={{ padding: '12px 14px' }}>Kỳ Tháng</th>
                   <th style={{ padding: '12px 14px' }}>Cộng Tác Viên</th>
                   <th style={{ padding: '12px 14px' }}>Doanh Số Hợp Lệ</th>
@@ -1188,19 +1188,19 @@ export const CommissionRulesPage: React.FC = () => {
                 {historyList.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid #ECE1CD' }}>
                     <td style={{ padding: '13px 14px' }}>
-                      <span style={{ fontWeight: 700, color: '#9E7933' }}>
+                      <span style={{ fontWeight: 700, color: '#B88E4F' }}>
                         Tháng {item.yearMonth.split('-')[1]}/{item.yearMonth.split('-')[0]}
                       </span>
-                      <div style={{ fontSize: 12, color: '#9E8D77' }}>Kỳ: {item.yearMonth}</div>
+                      <div style={{ fontSize: 12, color: '#7D715E' }}>Kỳ: {item.yearMonth}</div>
                     </td>
                     <td style={{ padding: '13px 14px' }}>
                       <div style={{ fontWeight: 650 }}>{item.collaboratorName}</div>
-                      <div style={{ fontSize: 12, color: '#7D6D55' }}>{item.collaboratorEmail}</div>
+                      <div style={{ fontSize: 12, color: '#7D715E' }}>{item.collaboratorEmail}</div>
                     </td>
                     <td style={{ padding: '13px 14px', fontWeight: 650 }}>{formatVND(item.validRevenue)}</td>
-                    <td style={{ padding: '13px 14px', color: '#9E7933', fontWeight: 650 }}>{item.appliedRuleName}</td>
-                    <td style={{ padding: '13px 14px', fontWeight: 750, color: '#15803D' }}>{formatVND(item.bonusAmount)}</td>
-                    <td style={{ padding: '13px 14px', fontSize: 12, color: '#7D6D55' }}>
+                    <td style={{ padding: '13px 14px', color: '#B88E4F', fontWeight: 650 }}>{item.appliedRuleName}</td>
+                    <td style={{ padding: '13px 14px', fontWeight: 750, color: '#15803d' }}>{formatVND(item.bonusAmount)}</td>
+                    <td style={{ padding: '13px 14px', fontSize: 12, color: '#7D715E' }}>
                       {item.ruleSnapshot?.formula || 'Đã lưu snapshot đầy đủ'}
                     </td>
                     <td style={{ padding: '13px 14px' }}>
@@ -1209,9 +1209,9 @@ export const CommissionRulesPage: React.FC = () => {
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 700,
-                        background: item.status === 'PAID' ? '#EAF8F0' : item.status === 'APPROVED' ? '#F5E7CC' : '#FFF3DD',
-                        color: item.status === 'PAID' ? '#15803D' : item.status === 'APPROVED' ? '#9E7933' : '#C27803',
-                        border: item.status === 'PAID' ? '1px solid #BBF7D0' : item.status === 'APPROVED' ? '1px solid #DEBE85' : '1px solid #FDE68A',
+                        background: item.status === 'PAID' ? '#FBF5EB' : item.status === 'APPROVED' ? '#ECE1CD' : '#FBF5EB',
+                        color: item.status === 'PAID' ? '#B88E4F' : item.status === 'APPROVED' ? '#B88E4F' : '#B88E4F',
+                        border: item.status === 'PAID' ? '1px solid #EAE4D7' : item.status === 'APPROVED' ? '1px solid #DEBE85' : '1px solid #C59B58',
                       }}>
                         {item.status}
                       </span>
@@ -1219,9 +1219,9 @@ export const CommissionRulesPage: React.FC = () => {
                     <td style={{ padding: '13px 14px' }}>
                       {isReadOnlyAdmin ? (
                         item.status === 'PAID' ? (
-                          <span style={{ color: '#15803D', fontWeight: 700 }}>Đã vào ví</span>
+                          <span style={{ color: '#15803d', fontWeight: 700 }}>Đã vào ví</span>
                         ) : (
-                          <span style={{ color: '#9E8D77', fontSize: 12, fontStyle: 'italic' }}>Chỉ xem (Admin)</span>
+                          <span style={{ color: '#7D715E', fontSize: 12, fontStyle: 'italic' }}>Chỉ xem (Admin)</span>
                         )
                       ) : (
                         <>
@@ -1232,8 +1232,8 @@ export const CommissionRulesPage: React.FC = () => {
                                 border: '1px solid #DEBE85',
                                 borderRadius: 8,
                                 padding: '7px 14px',
-                                background: '#F5E7CC',
-                                color: '#9E7933',
+                                background: '#ECE1CD',
+                                color: '#B88E4F',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                               }}
@@ -1245,11 +1245,11 @@ export const CommissionRulesPage: React.FC = () => {
                             <button
                               onClick={() => handlePayout(item.id)}
                               style={{
-                                border: '1px solid #BBF7D0',
+                                border: '1px solid #EAE4D7',
                                 borderRadius: 8,
                                 padding: '7px 14px',
-                                background: '#EAF8F0',
-                                color: '#15803D',
+                                background: '#FBF5EB',
+                                color: '#15803d',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                               }}
@@ -1257,11 +1257,11 @@ export const CommissionRulesPage: React.FC = () => {
                               Chi trả
                             </button>
                           )}
-                          {item.status === 'PAID' && <span style={{ color: '#15803D', fontWeight: 700 }}>Đã vào ví</span>}
+                          {item.status === 'PAID' && <span style={{ color: '#15803d', fontWeight: 700 }}>Đã vào ví</span>}
                         </>
                       )}
                     </td>
-                    <td style={{ padding: '13px 14px', color: '#7D6D55', fontSize: 12.5 }}>
+                    <td style={{ padding: '13px 14px', color: '#7D715E', fontSize: 12.5 }}>
                       {new Date(item.settledAt).toLocaleString('vi-VN')}
                     </td>
                   </tr>
@@ -1296,7 +1296,7 @@ export const CommissionRulesPage: React.FC = () => {
         >
           <div style={{
             background: '#FFFFFF',
-            border: '1.5px solid #E8DAC4',
+            border: '1.5px solid #EAE4D7',
             borderRadius: 20,
             padding: '30px 36px',
             width: '100%',
@@ -1308,15 +1308,15 @@ export const CommissionRulesPage: React.FC = () => {
             boxSizing: 'border-box',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#2C2114' }}>Thêm Mốc Thưởng Doanh Số</h3>
+              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#1A1612' }}>Thêm Mốc Thưởng Doanh Số</h3>
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(false)}
                 style={{
-                  background: '#FAF6F0',
-                  border: '1px solid #E8DAC4',
+                  background: '#FAF8F5',
+                  border: '1px solid #EAE4D7',
                   borderRadius: 8,
-                  color: '#7D6D55',
+                  color: '#7D715E',
                   cursor: 'pointer',
                   padding: 6,
                   display: 'flex',
@@ -1330,7 +1330,7 @@ export const CommissionRulesPage: React.FC = () => {
 
             <form onSubmit={handleCreate}>
               <div style={{ marginBottom: 16 }}>
-                <label htmlFor={ruleNameInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Tên mốc thưởng *</label>
+                <label htmlFor={ruleNameInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Tên mốc thưởng *</label>
                 <input
                   id={ruleNameInputId}
                   type="text"
@@ -1339,12 +1339,12 @@ export const CommissionRulesPage: React.FC = () => {
                   placeholder="Ví dụ: Mốc Bạc (>= 50 Triệu)"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label htmlFor={ruleDescInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Mô tả chính sách</label>
+                <label htmlFor={ruleDescInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Mô tả chính sách</label>
                 <input
                   id={ruleDescInputId}
                   type="text"
@@ -1352,13 +1352,13 @@ export const CommissionRulesPage: React.FC = () => {
                   placeholder="Mô tả quyền lợi hoặc điều kiện áp dụng"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14, marginBottom: 16 }}>
                 <div>
-                  <label htmlFor={ruleRevenueInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Doanh số tối thiểu (VND) *</label>
+                  <label htmlFor={ruleRevenueInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Doanh số tối thiểu (VND) *</label>
                   <input
                     id={ruleRevenueInputId}
                     type="number"
@@ -1366,25 +1366,25 @@ export const CommissionRulesPage: React.FC = () => {
                     placeholder="50000000"
                     value={formData.minMonthlyRevenue}
                     onChange={(e) => setFormData({ ...formData, minMonthlyRevenue: e.target.value })}
-                    style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                    style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                   />
                 </div>
 
                 <div>
-                  <label htmlFor={ruleAchieveInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Thưởng đạt KPI (VND)</label>
+                  <label htmlFor={ruleAchieveInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Thưởng đạt KPI (VND)</label>
                   <input
                     id={ruleAchieveInputId}
                     type="number"
                     placeholder="500000"
                     value={formData.achievementBonus}
                     onChange={(e) => setFormData({ ...formData, achievementBonus: e.target.value })}
-                    style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                    style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                   />
                 </div>
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label htmlFor={ruleBonusInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Tỷ lệ thưởng phần vượt (%) *</label>
+                <label htmlFor={ruleBonusInputId} style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Tỷ lệ thưởng phần vượt (%) *</label>
                 <input
                   id={ruleBonusInputId}
                   type="number"
@@ -1393,9 +1393,9 @@ export const CommissionRulesPage: React.FC = () => {
                   placeholder="2.00"
                   value={formData.bonusPercentage}
                   onChange={(e) => setFormData({ ...formData, bonusPercentage: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
-                <div style={{ fontSize: 12.5, color: '#9E8D77', marginTop: 6, lineHeight: 1.45 }}>
+                <div style={{ fontSize: 12.5, color: '#7D715E', marginTop: 6, lineHeight: 1.45 }}>
                   Công thức: Đạt KPI thưởng cố định + phần vượt mốc tính theo tỷ lệ này.
                 </div>
               </div>
@@ -1404,13 +1404,13 @@ export const CommissionRulesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  style={{ background: '#F6EFE3', border: '1px solid #E8DAC4', color: '#7D6D55', borderRadius: 10, padding: '12px 24px', fontWeight: 650, cursor: 'pointer', fontSize: 14.5 }}
+                  style={{ background: '#F6EFE3', border: '1px solid #EAE4D7', color: '#7D715E', borderRadius: 10, padding: '12px 24px', fontWeight: 650, cursor: 'pointer', fontSize: 14.5 }}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  style={{ background: 'linear-gradient(135deg, #DEBE85 0%, #C9A363 100%)', border: '1px solid #DEBE85', color: '#2C2114', borderRadius: 10, padding: '12px 28px', fontWeight: 750, cursor: 'pointer', boxShadow: '0 3px 10px rgba(201, 163, 99, 0.3)', fontSize: 14.5 }}
+                  style={{ background: 'linear-gradient(135deg, #DEBE85 0%, #DEBE85 100%)', border: '1px solid #DEBE85', color: '#1A1612', borderRadius: 10, padding: '12px 28px', fontWeight: 750, cursor: 'pointer', boxShadow: '0 3px 10px rgba(201, 163, 99, 0.3)', fontSize: 14.5 }}
                 >
                   Lưu Mốc Thưởng
                 </button>
@@ -1444,7 +1444,7 @@ export const CommissionRulesPage: React.FC = () => {
         >
           <div style={{
             background: '#FFFFFF',
-            border: '1.5px solid #E8DAC4',
+            border: '1.5px solid #EAE4D7',
             borderRadius: 20,
             padding: '30px 36px',
             width: '100%',
@@ -1456,15 +1456,15 @@ export const CommissionRulesPage: React.FC = () => {
             boxSizing: 'border-box',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#2C2114' }}>Chỉnh Sửa Mốc Thưởng (v{editingRule.version})</h3>
+              <h3 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#1A1612' }}>Chỉnh Sửa Mốc Thưởng (v{editingRule.version})</h3>
               <button
                 type="button"
                 onClick={() => setEditingRule(null)}
                 style={{
-                  background: '#FAF6F0',
-                  border: '1px solid #E8DAC4',
+                  background: '#FAF8F5',
+                  border: '1px solid #EAE4D7',
                   borderRadius: 8,
-                  color: '#7D6D55',
+                  color: '#7D715E',
                   cursor: 'pointer',
                   padding: 6,
                   display: 'flex',
@@ -1478,60 +1478,60 @@ export const CommissionRulesPage: React.FC = () => {
 
             <form onSubmit={handleUpdate}>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Tên mốc thưởng *</label>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Tên mốc thưởng *</label>
                 <input
                   type="text"
                   required
                   maxLength={150}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Mô tả chính sách</label>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Mô tả chính sách</label>
                 <input
                   type="text"
                   maxLength={500}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14, marginBottom: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Doanh số tối thiểu (VND) *</label>
+                  <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Doanh số tối thiểu (VND) *</label>
                   <input
                     type="number"
                     required
                     value={formData.minMonthlyRevenue}
                     onChange={(e) => setFormData({ ...formData, minMonthlyRevenue: e.target.value })}
-                    style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                    style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Thưởng đạt KPI (VND)</label>
+                  <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Thưởng đạt KPI (VND)</label>
                   <input
                     type="number"
                     value={formData.achievementBonus}
                     onChange={(e) => setFormData({ ...formData, achievementBonus: e.target.value })}
-                    style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                    style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                   />
                 </div>
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D6D55', marginBottom: 6 }}>Tỷ lệ thưởng phần vượt (%) *</label>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 650, color: '#7D715E', marginBottom: 6 }}>Tỷ lệ thưởng phần vượt (%) *</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={formData.bonusPercentage}
                   onChange={(e) => setFormData({ ...formData, bonusPercentage: e.target.value })}
-                  style={{ width: '100%', background: '#FAF6F0', border: '1.5px solid #E8DAC4', borderRadius: 10, padding: '12px 15px', color: '#2C2114', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
+                  style={{ width: '100%', background: '#FAF8F5', border: '1.5px solid #EAE4D7', borderRadius: 10, padding: '12px 15px', color: '#1A1612', boxSizing: 'border-box', fontSize: 14.5, outline: 'none' }}
                 />
               </div>
 
@@ -1541,9 +1541,9 @@ export const CommissionRulesPage: React.FC = () => {
                   id="editIsActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  style={{ width: 18, height: 18, accentColor: '#C9A363', cursor: 'pointer' }}
+                  style={{ width: 18, height: 18, accentColor: '#EBD08C', cursor: 'pointer' }}
                 />
-                <label htmlFor="editIsActive" style={{ fontSize: 14, color: '#2C2114', cursor: 'pointer', fontWeight: 650 }}>
+                <label htmlFor="editIsActive" style={{ fontSize: 14, color: '#1A1612', cursor: 'pointer', fontWeight: 650 }}>
                   Kích hoạt áp dụng mốc thưởng này ngay
                 </label>
               </div>
@@ -1552,13 +1552,13 @@ export const CommissionRulesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setEditingRule(null)}
-                  style={{ background: '#F6EFE3', border: '1px solid #E8DAC4', color: '#7D6D55', borderRadius: 10, padding: '12px 24px', fontWeight: 650, cursor: 'pointer', fontSize: 14.5 }}
+                  style={{ background: '#F6EFE3', border: '1px solid #EAE4D7', color: '#7D715E', borderRadius: 10, padding: '12px 24px', fontWeight: 650, cursor: 'pointer', fontSize: 14.5 }}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  style={{ background: 'linear-gradient(135deg, #DEBE85 0%, #C9A363 100%)', border: '1px solid #DEBE85', color: '#2C2114', borderRadius: 10, padding: '12px 30px', fontWeight: 750, cursor: 'pointer', boxShadow: '0 3px 12px rgba(201, 163, 99, 0.32)', fontSize: 14.5 }}
+                  style={{ background: 'linear-gradient(135deg, #DEBE85 0%, #DEBE85 100%)', border: '1px solid #DEBE85', color: '#1A1612', borderRadius: 10, padding: '12px 30px', fontWeight: 750, cursor: 'pointer', boxShadow: '0 3px 12px rgba(201, 163, 99, 0.32)', fontSize: 14.5 }}
                 >
                   Cập Nhật Mốc
                 </button>
@@ -1592,7 +1592,7 @@ export const CommissionRulesPage: React.FC = () => {
         >
           <div style={{
             background: '#FFFFFF',
-            border: '1.5px solid #FCA5A5',
+            border: '1.5px solid #DC2626',
             borderRadius: 20,
             padding: '28px 34px',
             width: '100%',
@@ -1602,14 +1602,14 @@ export const CommissionRulesPage: React.FC = () => {
             boxSizing: 'border-box',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-              <div style={{ background: '#FDEBED', padding: 12, borderRadius: 12, color: '#B83A42', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#FEE2E2', padding: 12, borderRadius: 12, color: '#991B1B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ShieldAlert size={26} />
               </div>
-              <h3 style={{ margin: 0, fontSize: 19.5, fontWeight: 750, color: '#2C2114' }}>Xác Nhận Xóa Mốc Thưởng</h3>
+              <h3 style={{ margin: 0, fontSize: 19.5, fontWeight: 750, color: '#1A1612' }}>Xác Nhận Xóa Mốc Thưởng</h3>
             </div>
 
-            <p style={{ margin: '0 0 20px 0', fontSize: 14.5, color: '#7D6D55', lineHeight: 1.6 }}>
-              Bạn có chắc chắn muốn xóa mốc <strong style={{ color: '#2C2114' }}>"{deletingRule.name}"</strong>?
+            <p style={{ margin: '0 0 20px 0', fontSize: 14.5, color: '#7D715E', lineHeight: 1.6 }}>
+              Bạn có chắc chắn muốn xóa mốc <strong style={{ color: '#1A1612' }}>"{deletingRule.name}"</strong>?
               Hệ thống sẽ thực hiện <strong>xóa mềm</strong> để bảo toàn toàn bộ dữ liệu lịch sử đối soát thưởng các tháng trước.
             </p>
 
@@ -1617,7 +1617,7 @@ export const CommissionRulesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setDeletingRule(null)}
-                style={{ background: '#F6EFE3', border: '1px solid #E8DAC4', color: '#7D6D55', borderRadius: 10, padding: '10px 20px', fontWeight: 650, cursor: 'pointer', fontSize: 14 }}
+                style={{ background: '#F6EFE3', border: '1px solid #EAE4D7', color: '#7D715E', borderRadius: 10, padding: '10px 20px', fontWeight: 650, cursor: 'pointer', fontSize: 14 }}
               >
                 Hủy
               </button>

@@ -22,12 +22,12 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
 const SHOP_LOGO_PRESETS = [
-  { id: 'shop-1', label: 'Sora Skin', url: '/assets/shop-sora-skin.jpg' },
-  { id: 'shop-2', label: 'Tech Store', url: '/assets/shop-techstore.jpg' },
-  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: '/assets/shop-my-pham-xanh.jpg' },
-  { id: 'shop-4', label: 'Store A Flagship', url: '/assets/shop-store-a.jpg' },
-  { id: 'shop-5', label: 'Store B Concept', url: '/assets/shop-store-b.jpg' },
-  { id: 'shop-6', label: 'Official Flagship', url: '/assets/shop-flagship.jpg' },
+  { id: 'shop-1', label: 'Sora Skin', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584519/scanms/logos/shop-sora-skin.jpg' },
+  { id: 'shop-2', label: 'Tech Store', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584520/scanms/logos/shop-techstore.jpg' },
+  { id: 'shop-3', label: 'Mỹ Phẩm Xanh', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584525/scanms/logos/shop-my-pham-xanh.jpg' },
+  { id: 'shop-4', label: 'Store A Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584523/scanms/logos/shop-store-a.jpg' },
+  { id: 'shop-5', label: 'Store B Concept', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584524/scanms/logos/shop-store-b.jpg' },
+  { id: 'shop-6', label: 'Official Flagship', url: 'https://res.cloudinary.com/uwha9nbe/image/upload/v1789584522/scanms/logos/shop-flagship.jpg' },
 ];
 
 export default function ShopSettingsPage() {
@@ -41,10 +41,13 @@ export default function ShopSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const [name, setName] = useState('Sora Skin Official Store');
-  const [description, setDescription] = useState('Thương hiệu D2C mỹ phẩm phục hồi da sinh học.');
-  const [logoUrl, setLogoUrl] = useState(SHOP_LOGO_PRESETS[0].url);
-  const [websiteUrl, setWebsiteUrl] = useState('https://soraskin.vn');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [policyReturn, setPolicyReturn] = useState('');
+  const [policyWarranty, setPolicyWarranty] = useState('');
+  const [policyShipping, setPolicyShipping] = useState('');
   const [defaultCommissionRate, setDefaultCommissionRate] = useState<number>(10);
   const [attributionWindowDays, setAttributionWindowDays] = useState<number>(30);
   const [minPayoutAmount, setMinPayoutAmount] = useState<number>(200000);
@@ -79,6 +82,9 @@ export default function ShopSettingsPage() {
       if (store.description) setDescription(store.description);
       if (store.logoUrl) setLogoUrl(store.logoUrl);
       if (store.websiteUrl) setWebsiteUrl(store.websiteUrl);
+      setPolicyReturn(store.policyReturn || '');
+      setPolicyWarranty(store.policyWarranty || '');
+      setPolicyShipping(store.policyShipping || '');
       if (store.defaultCommissionRate) setDefaultCommissionRate(Number(store.defaultCommissionRate));
       if (store.attributionWindowDays) setAttributionWindowDays(store.attributionWindowDays);
       if (store.minPayoutAmount) setMinPayoutAmount(Number(store.minPayoutAmount));
@@ -107,6 +113,9 @@ export default function ShopSettingsPage() {
         description,
         logoUrl: logoUrl.trim(),
         websiteUrl,
+        policyReturn,
+        policyWarranty,
+        policyShipping,
         defaultCommissionRate: Number(defaultCommissionRate),
         attributionWindowDays: Number(attributionWindowDays),
         minPayoutAmount: Number(minPayoutAmount),
@@ -130,7 +139,7 @@ export default function ShopSettingsPage() {
             Khu Vực Dành Cho Chủ Gian Hàng
           </h2>
           <p className="text-xs sm:text-sm text-[#7D715E] leading-relaxed m-0">
-            Cài đặt gian hàng, hạn mức rút tiền tối thiểu và thời hạn lưu vết cookie 30 ngày là tính năng quản trị dành riêng cho Chủ Shop (Sora Skin).
+            Cài đặt gian hàng, hạn mức rút tiền tối thiểu và thời hạn lưu vết cookie là tính năng quản trị dành riêng cho Chủ Shop.
           </p>
           <Button
             variant="gold"
@@ -147,7 +156,7 @@ export default function ShopSettingsPage() {
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto text-left">
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
+        <div className="fixed top-5 right-5 z-50 bg-[#1A1612] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
           <span>{toastMsg}</span>
         </div>
@@ -213,7 +222,7 @@ export default function ShopSettingsPage() {
                       >
                         <img src={p.url} alt={p.label} className="w-7 h-7 rounded-md object-cover" />
                         {isSelected && (
-                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center">
+                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#15803d] text-white flex items-center justify-center">
                             <Check className="w-2.5 h-2.5" />
                           </div>
                         )}
@@ -293,6 +302,24 @@ export default function ShopSettingsPage() {
               />
             </div>
           </div>
+
+          <section className="rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-bold text-[#1A1612]">Chính sách công khai của Shop</h2>
+              <p className="text-xs text-[#7D715E]">Khách sẽ thấy nội dung này trước khi đặt hàng. Nếu chưa nhập chính sách đổi trả, hệ thống hiển thị rõ quy định mặc định của SCANMS.</p>
+            </div>
+            {([
+              ['Đổi trả / hoàn tiền', policyReturn, setPolicyReturn],
+              ['Bảo hành', policyWarranty, setPolicyWarranty],
+              ['Giao hàng', policyShipping, setPolicyShipping],
+            ] as const).map(([label, value, setValue]) => (
+              <label key={label} className="block text-xs font-bold text-[#1A1612]">
+                {label}
+                <textarea value={value} onChange={(event) => setValue(event.target.value)} maxLength={500} rows={2}
+                  className="mt-1 w-full rounded-xl border border-[#EAE4D7] bg-white p-3 text-sm font-normal outline-none focus:border-[#C59B58]" />
+              </label>
+            ))}
+          </section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

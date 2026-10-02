@@ -362,7 +362,7 @@ export function SubmitKolVideoModal({
 
         <header className="flex items-start justify-between gap-4 border-b border-[#EAE4D7] pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-xs">
               <Video className="w-5 h-5" />
             </div>
             <div>
@@ -414,7 +414,7 @@ export function SubmitKolVideoModal({
                     {initialProductTitle}
                   </span>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] shrink-0">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] shrink-0">
                   Đã chọn
                 </span>
               </div>
@@ -515,10 +515,10 @@ export function SubmitKolVideoModal({
                 className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-200 ${
                   isDraggingVideo
                     ? 'border-[#B88E4F] bg-[#F3EFE6] scale-[0.99]'
-                    : 'border-[#B88E4F] bg-[#FBF5EB]/70 hover:border-[#9A733E] hover:bg-[#FBF5EB]'
+                    : 'border-[#B88E4F] bg-[#FBF5EB]/70 hover:border-[#B88E4F] hover:bg-[#FBF5EB]'
                 }`}
               >
-                <div className="w-12 h-12 mx-auto mb-2.5 rounded-full bg-white border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] shadow-sm">
+                <div className="w-12 h-12 mx-auto mb-2.5 rounded-full bg-white border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shadow-sm">
                   <Video className="w-6 h-6" />
                 </div>
                 <p className="text-xs font-bold text-[#1A1612] m-0">
@@ -578,7 +578,7 @@ export function SubmitKolVideoModal({
                       type="button"
                       onClick={() => videoFileInputRef.current?.click()}
                       disabled={isUploadingVideo}
-                      className="text-[11px] font-semibold text-[#B88E4F] hover:text-[#9A733E] hover:underline cursor-pointer disabled:opacity-50"
+                      className="text-[11px] font-semibold text-[#B88E4F] hover:text-[#B88E4F] hover:underline cursor-pointer disabled:opacity-50"
                     >
                       Đổi video khác
                     </button>
@@ -625,7 +625,7 @@ export function SubmitKolVideoModal({
                     : 'border-[#EAE4D7] bg-[#FAF8F5] hover:border-[#B88E4F] hover:bg-[#FBF5EB]'
                 }`}
               >
-                <div className="w-11 h-11 mx-auto mb-2.5 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] shadow-sm">
+                <div className="w-11 h-11 mx-auto mb-2.5 rounded-full bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shadow-sm">
                   <Upload className="w-5 h-5" />
                 </div>
                 <p className="text-xs font-semibold text-[#1A1612] m-0">
@@ -680,7 +680,7 @@ export function SubmitKolVideoModal({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploadingPoster}
-                      className="text-[11px] font-semibold text-[#B88E4F] hover:text-[#9A733E] hover:underline cursor-pointer disabled:opacity-50"
+                      className="text-[11px] font-semibold text-[#B88E4F] hover:text-[#B88E4F] hover:underline cursor-pointer disabled:opacity-50"
                     >
                       Đổi ảnh khác
                     </button>
@@ -711,7 +711,7 @@ export function SubmitKolVideoModal({
                 type="checkbox"
                 checked={isCampaignVideo}
                 onChange={(e) => setIsCampaignVideo(e.target.checked)}
-                className="w-4 h-4 rounded text-[#B88E4F] focus:ring-[#B88E4F] accent-[#B88E4F]"
+                className="w-4 h-4 rounded text-[#B88E4F] focus:ring-[#DEC07A] accent-[#EBD08C]"
               />
               <span className="text-xs font-bold text-[#1A1612]">
                 Video nộp cho Chiến dịch cụ thể
@@ -738,7 +738,7 @@ export function SubmitKolVideoModal({
           </div>
 
 
-          <div className="p-3 bg-[#FBF5EB] border border-[#EEDFC6] rounded-xl text-xs text-[#7D715E] flex items-start gap-2">
+          <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl text-xs text-[#7D715E] flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-[#B88E4F] shrink-0 mt-0.5" />
             <span>
               Video sau khi nộp sẽ ở trạng thái <strong>Chờ duyệt (PENDING)</strong>. Khi được Shop chấp thuận, video sẽ tự động hiển thị trên Landing Page công khai của sản phẩm và ưu tiên hiển thị cho khách mua hàng qua link tiếp thị của bạn!

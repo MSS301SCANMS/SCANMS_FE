@@ -14,7 +14,7 @@ export default function SamplesPage() {
       price: 459000,
       status: 'shipping',
       statusLabel: 'Đang vận chuyển',
-      statusColor: '#D97706',
+      statusColor: '#B88E4F',
       date: '02/09/2026',
       carrier: 'GHTK Express',
       trackingCode: '88992211',
@@ -36,7 +36,7 @@ export default function SamplesPage() {
       price: 389000,
       status: 'pending',
       statusLabel: 'Chờ Shop duyệt',
-      statusColor: '#EA580C',
+      statusColor: '#B88E4F',
       date: '05/09/2026',
       image: '/assets/sunscreen-product.jpg',
     },
@@ -47,7 +47,7 @@ export default function SamplesPage() {
       price: 320000,
       status: 'received',
       statusLabel: 'Đã nhận hàng',
-      statusColor: '#059669',
+      statusColor: '#15803d',
       date: '20/08/2026',
       image: '/assets/toner-bha-product.jpg',
     },
@@ -69,7 +69,7 @@ export default function SamplesPage() {
       price: 279000,
       status: 'rejected',
       statusLabel: 'Từ chối duyệt',
-      statusColor: '#B83A42',
+      statusColor: '#991B1B',
       date: '15/08/2026',
       image: '/assets/cleanser-product.jpg',
     },
@@ -109,7 +109,7 @@ export default function SamplesPage() {
             type="button"
             className="btn"
             onClick={() => setShowRequestModal(true)}
-            style={{ background: 'var(--brand-strong)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ background: 'var(--brand)', color: '#231D15', border: 'none', padding: '9px 18px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <i className="ph ph-plus"></i> Xin mẫu mới
           </button>
@@ -128,9 +128,9 @@ export default function SamplesPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', fontSize: '11.5px', fontWeight: 700 }}>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FEF3C7', color: '#D97706' }}>• Chờ duyệt 1</span>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FFEDD5', color: '#EA580C' }}>• Đang giao 1</span>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#D1FAE5', color: '#059669' }}>• Đã nhận 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FBF5EB', color: '#B88E4F' }}>• Chờ duyệt 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FBF5EB', color: '#B88E4F' }}>• Đang giao 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#D1FAE5', color: '#15803d' }}>• Đã nhận 1</span>
         </div>
       </div>
 
@@ -199,7 +199,7 @@ export default function SamplesPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '11.5px', fontFamily: 'monospace', color: 'var(--muted)' }}>{current.id}</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: '#FEF3C7', color: '#D97706' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: '#FBF5EB', color: '#B88E4F' }}>
                     {current.statusLabel}
                   </span>
                 </div>
@@ -228,7 +228,7 @@ export default function SamplesPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', textAlign: 'center' }}>
               <div style={{ background: 'var(--surface-2)', padding: '12px 8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#059669', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#15803d', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
                   <i className="ph ph-check"></i>
                 </div>
                 <strong style={{ fontSize: '12px', color: 'var(--ink)', display: 'block' }}>1. Đã gửi đề xuất</strong>
@@ -236,7 +236,7 @@ export default function SamplesPage() {
               </div>
 
               <div style={{ background: 'var(--surface-2)', padding: '12px 8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#059669', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#15803d', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
                   <i className="ph ph-check"></i>
                 </div>
                 <strong style={{ fontSize: '12px', color: 'var(--ink)', display: 'block' }}>2. Shop xét duyệt</strong>
@@ -264,7 +264,7 @@ export default function SamplesPage() {
           <div style={{ background: 'var(--surface-2)', padding: '16px', borderRadius: '12px', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: '#EA580C', color: '#fff' }}>GHTK</span>
+                <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: '#B88E4F', color: '#fff' }}>GHTK</span>
                 <span style={{ fontSize: '12.5px', color: 'var(--ink)' }}>Đơn vị vận chuyển: <strong>GHTK Express</strong></span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -366,7 +366,7 @@ export default function SamplesPage() {
                     showToast('Đã gửi yêu cầu nhận hàng mẫu tới Shop!');
                     setShowRequestModal(false);
                   }}
-                  style={{ padding: '10px', borderRadius: '8px', border: 'none', background: 'var(--brand-strong)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ padding: '10px', borderRadius: '8px', border: 'none', background: 'var(--brand)', color: '#231D15', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Gửi yêu cầu
                 </button>

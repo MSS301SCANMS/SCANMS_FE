@@ -8,11 +8,14 @@ export interface Product {
   categoryName?: string;
   description?: string;
   imageUrl?: string;
+  subImages?: string[];
+  mediaAssets?: { id: string; urlOrContent: string }[];
   price: number;
   originalPrice?: number;
   customCommissionRate?: number;
   stockQuantity: number;
   isActive: boolean;
+  isAffiliateEnabled?: boolean;
   store?: {
     id: string;
     name: string;

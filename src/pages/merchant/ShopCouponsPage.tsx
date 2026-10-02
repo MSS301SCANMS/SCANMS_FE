@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   Tag,
@@ -78,7 +78,7 @@ function CustomSandSelect<T extends string>({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border rounded-xl flex items-center justify-between transition-all cursor-pointer text-left ${
           isOpen
-            ? 'border-[#C59B58] ring-2 ring-[#C59B58]/20 bg-white shadow-xs'
+            ? 'border-[#C59B58] ring-2 ring-[#DEC07A]/30 bg-white shadow-xs'
             : 'border-[#EAE4D7] hover:border-[#C59B58]/60 hover:bg-[#F3EFE6]/40'
         } ${buttonClassName}`}
       >
@@ -90,13 +90,13 @@ function CustomSandSelect<T extends string>({
         </div>
         <ChevronDown
           className={`w-4 h-4 text-[#7D715E] shrink-0 transition-transform duration-200 ml-2 ${
-            isOpen ? 'rotate-180 text-[#C59B58]' : ''
+            isOpen ? 'rotate-180 text-[#B88E4F]' : ''
           }`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-60 bg-white border border-[#EEDFC6] rounded-xl shadow-xl overflow-hidden py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-60 bg-white border border-[#EAE4D7] rounded-xl shadow-xl overflow-hidden py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -118,7 +118,7 @@ function CustomSandSelect<T extends string>({
                   <span className="truncate">{opt.label}</span>
                 </div>
                 {isSelected && (
-                  <Check className="w-3.5 h-3.5 text-[#C59B58] shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
                 )}
               </button>
             );
@@ -480,7 +480,7 @@ export const ShopCouponsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6 mb-6">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                 <Store className="w-3.5 h-3.5" />
                 {storeName}
               </span>
@@ -542,8 +542,8 @@ export const ShopCouponsPage: React.FC = () => {
               <span className="text-xs font-medium text-[#7D715E]">
                 Lượt dùng thành công
               </span>
-              <div className="w-8 h-8 rounded-xl bg-[#FAF0DC] border border-[#EEDFC6] flex items-center justify-center shrink-0">
-                <Ticket className="w-4 h-4 text-[#C59B58]" />
+              <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+                <Ticket className="w-4 h-4 text-[#B88E4F]" />
               </div>
             </div>
             <p className="text-2xl font-bold text-[#1A1612]">
@@ -576,14 +576,14 @@ export const ShopCouponsPage: React.FC = () => {
               onClick={() => setActiveTab('PENDING')}
               className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2.5 ${
                 activeTab === 'PENDING'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#ECE1CD] text-[#1A1612] border border-[#DEBE85] shadow-xs'
+                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612] border border-transparent'
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                   activeTab === 'PENDING'
-                    ? 'bg-white border border-[#DEBE85] text-[#8C6B32] shadow-2xs'
+                    ? 'bg-white border border-[#DEBE85] text-[#B88E4F] shadow-2xs'
                     : 'bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]'
                 }`}
               >
@@ -601,14 +601,14 @@ export const ShopCouponsPage: React.FC = () => {
               onClick={() => setActiveTab('ACTIVE')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2.5 ${
                 activeTab === 'ACTIVE'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#ECE1CD] text-[#1A1612] border border-[#DEBE85] shadow-xs'
+                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612] border border-transparent'
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                   activeTab === 'ACTIVE'
-                    ? 'bg-white border border-[#DEBE85] text-[#8C6B32] shadow-2xs'
+                    ? 'bg-white border border-[#DEBE85] text-[#B88E4F] shadow-2xs'
                     : 'bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]'
                 }`}
               >
@@ -621,14 +621,14 @@ export const ShopCouponsPage: React.FC = () => {
               onClick={() => setActiveTab('HISTORY')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2.5 ${
                 activeTab === 'HISTORY'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#ECE1CD] text-[#1A1612] border border-[#DEBE85] shadow-xs'
+                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612] border border-transparent'
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                   activeTab === 'HISTORY'
-                    ? 'bg-white border border-[#DEBE85] text-[#8C6B32] shadow-2xs'
+                    ? 'bg-white border border-[#DEBE85] text-[#B88E4F] shadow-2xs'
                     : 'bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]'
                 }`}
               >
@@ -639,7 +639,7 @@ export const ShopCouponsPage: React.FC = () => {
           </div>
 
           <div className="relative w-full md:w-80">
-            <div className="w-6 h-6 rounded-lg bg-[#FAF0DC] border border-[#EEDFC6] absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#B88E4F] pointer-events-none">
+            <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#B88E4F] pointer-events-none">
               <Search className="w-3.5 h-3.5" />
             </div>
             <input
@@ -655,12 +655,12 @@ export const ShopCouponsPage: React.FC = () => {
 
         {loading ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#C59B58] mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F] mx-auto mb-3" />
             <p className="text-sm text-[#7D715E]">Đang tải dữ liệu coupon...</p>
           </div>
         ) : displayedCoupons.length === 0 ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <Tag className="w-8 h-8 text-[#C59B58] mx-auto mb-2 opacity-50" />
+            <Tag className="w-8 h-8 text-[#B88E4F] mx-auto mb-2 opacity-50" />
             <p className="text-sm text-[#7D715E]">
               Không có mã giảm giá nào trong mục này.
             </p>
@@ -692,8 +692,8 @@ export const ShopCouponsPage: React.FC = () => {
                       >
 
                         <td className="px-5 py-4">
-                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FBF5EB] via-[#FAF8F5] to-[#F3EFE6] border border-[#EEDFC6] shadow-2xs group hover:border-[#C59B58] transition-all">
-                            <div className="w-6 h-6 rounded-lg bg-[#FAF0DC] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-[#C59B58] group-hover:text-white transition-colors">
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FBF5EB] via-[#FAF8F5] to-[#F3EFE6] border border-[#EAE4D7] shadow-2xs group hover:border-[#C59B58] transition-all">
+                            <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-[#DEC07A] group-hover:text-white transition-colors">
                               <Ticket className="w-3.5 h-3.5" />
                             </div>
                             <span className="font-mono font-bold text-xs tracking-wider text-[#1A1612]">
@@ -710,7 +710,7 @@ export const ShopCouponsPage: React.FC = () => {
                                 {coupon.collaborator?.fullName?.charAt(0) || 'K'}
                               </div>
                               <span
-                                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#C59B58] text-white flex items-center justify-center text-[8px] font-bold shadow-xs ring-2 ring-white"
+                                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#EBD08C] text-white flex items-center justify-center text-[8px] font-bold shadow-xs ring-2 ring-white"
                                 title="KOL được chứng thực"
                               >
                                 ★
@@ -721,7 +721,7 @@ export const ShopCouponsPage: React.FC = () => {
                                 <p className="font-semibold text-[#1A1612]">
                                   {coupon.collaborator?.fullName || 'KOL SCANMS'}
                                 </p>
-                                <span className="px-1.5 py-0.2 rounded-md text-[9px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                                <span className="px-1.5 py-0.2 rounded-md text-[9px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                                   KOL
                                 </span>
                               </div>
@@ -743,7 +743,7 @@ export const ShopCouponsPage: React.FC = () => {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2.5">
-                              <div className="w-6 h-6 rounded-lg bg-[#FAF0DC] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0">
+                              <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center shrink-0">
                                 <Percent className="w-3 h-3" />
                               </div>
                               <div>
@@ -868,9 +868,9 @@ export const ShopCouponsPage: React.FC = () => {
                                   onClick={() =>
                                     handleOpenApproveModal(coupon)
                                   }
-                                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#F5E7CC] hover:bg-[#EDD8B5] text-[#1A1612] border border-[#DEBE85] font-bold text-xs transition-all shadow-xs hover:shadow cursor-pointer"
+                                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#ECE1CD] hover:bg-[#EAD2A3] text-[#1A1612] border border-[#DEBE85] font-bold text-xs transition-all shadow-xs hover:shadow cursor-pointer"
                                 >
-                                  <div className="w-5 h-5 rounded-md bg-white border border-[#DEBE85] flex items-center justify-center shrink-0 shadow-2xs text-[#8C6B32]">
+                                  <div className="w-5 h-5 rounded-md bg-white border border-[#DEBE85] flex items-center justify-center shrink-0 shadow-2xs text-[#B88E4F]">
                                     <SlidersHorizontal className="w-3 h-3" />
                                   </div>
                                   <span>Cấu hình & Duyệt</span>
@@ -895,7 +895,7 @@ export const ShopCouponsPage: React.FC = () => {
                                   onClick={() =>
                                     handleOpenApproveModal(coupon)
                                   }
-                                  className="p-2 rounded-xl border border-[#EAE4D7] hover:border-[#C59B58] bg-[#FAF8F5] hover:bg-[#FAF0DC] text-[#7D715E] hover:text-[#B88E4F] transition-all cursor-pointer shadow-2xs"
+                                  className="p-2 rounded-xl border border-[#EAE4D7] hover:border-[#C59B58] bg-[#FAF8F5] hover:bg-[#FBF5EB] text-[#7D715E] hover:text-[#B88E4F] transition-all cursor-pointer shadow-2xs"
                                   title="Chỉnh sửa chính sách ưu đãi"
                                 >
                                   <Sliders className="w-3.5 h-3.5" />
@@ -963,8 +963,8 @@ export const ShopCouponsPage: React.FC = () => {
               )}
 
 
-              <div className="p-3.5 bg-[#FBF5EB] border border-[#EEDFC6] rounded-xl flex items-start gap-3 text-xs text-[#7D715E]">
-                <div className="w-8 h-8 rounded-xl bg-[#FAF0DC] border border-[#EEDFC6] flex items-center justify-center shrink-0 text-[#B88E4F] shadow-2xs">
+              <div className="p-3.5 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl flex items-start gap-3 text-xs text-[#7D715E]">
+                <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center shrink-0 text-[#B88E4F] shadow-2xs">
                   <Coins className="w-4 h-4" />
                 </div>
                 <div>
@@ -1170,7 +1170,7 @@ export const ShopCouponsPage: React.FC = () => {
                         stackableWithProductDiscount: e.target.checked,
                       })
                     }
-                    className="rounded text-[#C59B58] focus:ring-[#C59B58]"
+                    className="rounded text-[#B88E4F] focus:ring-[#C59B58]"
                   />
                   <span>Cho phép cộng dồn với giá giảm thông thường của sản phẩm</span>
                 </label>
@@ -1184,7 +1184,7 @@ export const ShopCouponsPage: React.FC = () => {
                         stackableWithShopVoucher: e.target.checked,
                       })
                     }
-                    className="rounded text-[#C59B58] focus:ring-[#C59B58]"
+                    className="rounded text-[#B88E4F] focus:ring-[#C59B58]"
                   />
                   <span>Cho phép cộng dồn với Voucher khác của Shop</span>
                 </label>
@@ -1202,11 +1202,11 @@ export const ShopCouponsPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingApprove}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#F5E7CC] hover:bg-[#EDD8B5] text-[#1A1612] border border-[#DEBE85] text-xs font-bold transition-all shadow-xs hover:shadow cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#ECE1CD] hover:bg-[#EAD2A3] text-[#1A1612] border border-[#DEBE85] text-xs font-bold transition-all shadow-xs hover:shadow cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingApprove ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#8C6B32]" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#B88E4F]" />
                       Đang xử lý...
                     </>
                   ) : (

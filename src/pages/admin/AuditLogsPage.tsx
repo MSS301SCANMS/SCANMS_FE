@@ -200,16 +200,16 @@ export const AuditLogsPage: React.FC = () => {
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1612] p-6 lg:p-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E6DEC9] pb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-bold tracking-wide uppercase bg-[#C59B58]/15 text-[#8C6B2D] border border-[#C59B58]/30">
+              <span className="px-2.5 py-0.5 rounded-md text-xs font-bold tracking-wide uppercase bg-[#EBD08C]/15 text-[#B88E4F] border border-[#C59B58]/30">
                 FR-32 Enterprise Security
               </span>
               <span className="text-xs text-stone-700 font-medium">Bảo mật bất biến 100%</span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[#1A1612] flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-[#C59B58]" />
+              <ShieldCheck className="w-8 h-8 text-[#B88E4F]" />
               Nhật Ký Kiểm Toán Toàn Diện (Audit Trail)
             </h1>
             <p className="text-sm text-stone-700 mt-1">
@@ -221,7 +221,7 @@ export const AuditLogsPage: React.FC = () => {
             <button
               onClick={handleExportCsv}
               disabled={exporting}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#C59B58] text-white hover:bg-[#B88E4F] transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition-all shadow-sm disabled:opacity-50 cursor-pointer"
             >
               <Download className={`w-4 h-4 ${exporting ? 'animate-bounce' : ''}`} />
               {exporting ? 'Đang xuất CSV...' : 'Xuất Báo Cáo CSV'}
@@ -231,7 +231,7 @@ export const AuditLogsPage: React.FC = () => {
                 loadStatsAndActions();
                 loadLogs();
               }}
-              className="p-2.5 rounded-xl border border-[#E6DEC9] bg-white text-stone-700 hover:text-[#1A1612] hover:border-[#C59B58] transition-all shadow-xs cursor-pointer"
+              className="p-2.5 rounded-xl border border-[#EAE4D7] bg-white text-stone-700 hover:text-[#1A1612] hover:border-[#C59B58] transition-all shadow-xs cursor-pointer"
               title="Làm mới dữ liệu"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -242,10 +242,10 @@ export const AuditLogsPage: React.FC = () => {
         {/* 4 KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           {/* Card 1: Total Events */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E6DEC9] shadow-xs relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Tổng Sự Kiện Đã Ghi</span>
-              <div className="w-10 h-10 rounded-xl bg-[#C59B58]/10 text-[#C59B58] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#EBD08C]/10 text-[#B88E4F] flex items-center justify-center">
                 <FileText className="w-5 h-5" />
               </div>
             </div>
@@ -260,7 +260,7 @@ export const AuditLogsPage: React.FC = () => {
           </div>
 
           {/* Card 2: Financial Events */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E6DEC9] shadow-xs relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Thao Tác Tài Chính</span>
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
@@ -276,7 +276,7 @@ export const AuditLogsPage: React.FC = () => {
           </div>
 
           {/* Card 3: Security & AI Flags */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E6DEC9] shadow-xs relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">An Ninh & AI Gian Lận</span>
               <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center">
@@ -292,7 +292,7 @@ export const AuditLogsPage: React.FC = () => {
           </div>
 
           {/* Card 4: Auth & Identity */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E6DEC9] shadow-xs relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Xác Thực & Quản Trị</span>
               <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
@@ -309,7 +309,7 @@ export const AuditLogsPage: React.FC = () => {
         </div>
 
         {/* Filters & Search Toolbar */}
-        <div className="bg-white rounded-2xl p-5 border border-[#E6DEC9] shadow-xs mt-6">
+        <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs mt-6">
           <div className="flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[280px]">
@@ -319,7 +319,7 @@ export const AuditLogsPage: React.FC = () => {
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="Tìm theo Action, IP, Email hoặc Tên người thao tác..."
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-[#E6DEC9] bg-[#FAF8F5] focus:outline-none focus:border-[#C59B58] focus:bg-white transition-all text-[#1A1612]"
+                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] focus:outline-none focus:border-[#C59B58] focus:bg-white transition-all text-[#1A1612]"
               />
               {searchKeyword && (
                 <button
@@ -334,12 +334,12 @@ export const AuditLogsPage: React.FC = () => {
             {/* Filter Controls */}
             <div className="flex flex-wrap items-center gap-3">
               {/* Timeframe Selector */}
-              <div className="flex items-center gap-1.5 bg-[#FAF8F5] p-1 rounded-xl border border-[#E6DEC9]">
+              <div className="flex items-center gap-1.5 bg-[#FAF8F5] p-1 rounded-xl border border-[#EAE4D7]">
                 <button
                   onClick={() => setSelectedTimeframe('24h')}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                     selectedTimeframe === '24h'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'text-stone-700 hover:text-[#1A1612]'
                   }`}
                 >
@@ -349,7 +349,7 @@ export const AuditLogsPage: React.FC = () => {
                   onClick={() => setSelectedTimeframe('7d')}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                     selectedTimeframe === '7d'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'text-stone-700 hover:text-[#1A1612]'
                   }`}
                 >
@@ -359,7 +359,7 @@ export const AuditLogsPage: React.FC = () => {
                   onClick={() => setSelectedTimeframe('30d')}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                     selectedTimeframe === '30d'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'text-stone-700 hover:text-[#1A1612]'
                   }`}
                 >
@@ -369,7 +369,7 @@ export const AuditLogsPage: React.FC = () => {
                   onClick={() => setSelectedTimeframe('all')}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                     selectedTimeframe === 'all'
-                      ? 'bg-[#C59B58] text-white shadow-xs'
+                      ? 'bg-[#EBD08C] text-white shadow-xs'
                       : 'text-stone-700 hover:text-[#1A1612]'
                   }`}
                 >
@@ -384,7 +384,7 @@ export const AuditLogsPage: React.FC = () => {
                   setSelectedSeverity(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 text-xs font-medium rounded-xl border border-[#E6DEC9] bg-[#FAF8F5] text-stone-700 focus:outline-none focus:border-[#C59B58]"
+                className="px-3 py-2 text-xs font-medium rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-stone-700 focus:outline-none focus:border-[#C59B58]"
               >
                 <option value="ALL">Mức độ: Tất cả</option>
                 <option value="CRITICAL">🔴 Critical (Nghiêm trọng)</option>
@@ -395,7 +395,7 @@ export const AuditLogsPage: React.FC = () => {
           </div>
 
           {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-4 mt-4 border-t border-[#E6DEC9]/60 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pt-4 mt-4 border-t border-[#EAE4D7]/60 scrollbar-none">
             {[
               { id: 'ALL', label: 'Tất cả danh mục' },
               { id: 'AUTH', label: 'Xác thực & IAM' },
@@ -414,7 +414,7 @@ export const AuditLogsPage: React.FC = () => {
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === tab.id
                     ? 'bg-[#1A1612] text-[#FAF8F5] shadow-xs'
-                    : 'bg-[#FAF8F5] text-stone-700 hover:bg-[#E6DEC9]/50 hover:text-[#1A1612]'
+                    : 'bg-[#FAF8F5] text-stone-700 hover:bg-[#EAE4D7]/50 hover:text-[#1A1612]'
                 }`}
               >
                 {tab.label}
@@ -424,7 +424,7 @@ export const AuditLogsPage: React.FC = () => {
         </div>
 
         {/* Audit Logs Table */}
-        <div className="bg-white rounded-2xl border border-[#E6DEC9] shadow-xs mt-6 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-[#EAE4D7] shadow-xs mt-6 overflow-hidden">
           {error && (
             <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-800 text-sm flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -435,7 +435,7 @@ export const AuditLogsPage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[#FAF8F5] border-b border-[#E6DEC9] text-xs font-bold text-stone-700 uppercase tracking-wider">
+                <tr className="bg-[#FAF8F5] border-b border-[#EAE4D7] text-xs font-bold text-stone-700 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Thời gian</th>
                   <th className="py-3.5 px-4">Người thực hiện</th>
                   <th className="py-3.5 px-4">Hành động & Nghiệp vụ</th>
@@ -445,12 +445,12 @@ export const AuditLogsPage: React.FC = () => {
                   <th className="py-3.5 px-4 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E6DEC9]/60 text-sm">
+              <tbody className="divide-y divide-[#EAE4D7]/60 text-sm">
                 {loading ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-stone-600">
                       <div className="flex flex-col items-center justify-center gap-2">
-                        <RefreshCw className="w-6 h-6 animate-spin text-[#C59B58]" />
+                        <RefreshCw className="w-6 h-6 animate-spin text-[#B88E4F]" />
                         <span>Đang truy xuất nhật ký kiểm toán...</span>
                       </div>
                     </td>
@@ -492,7 +492,7 @@ export const AuditLogsPage: React.FC = () => {
                         {/* Actor */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-[#C59B58]/15 text-[#8C6B2D] border border-[#C59B58]/30 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-[#EBD08C]/15 text-[#B88E4F] border border-[#C59B58]/30 flex items-center justify-center font-bold text-xs flex-shrink-0">
                               {log.actor.avatarUrl ? (
                                 <img
                                   src={log.actor.avatarUrl}
@@ -551,7 +551,7 @@ export const AuditLogsPage: React.FC = () => {
                               e.stopPropagation();
                               setSelectedLog(log);
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FAF8F5] text-stone-700 hover:bg-[#C59B58] hover:text-white border border-[#E6DEC9] transition-all cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FAF8F5] text-stone-700 hover:bg-[#DEC07A] hover:text-white border border-[#EAE4D7] transition-all cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             Chi tiết
@@ -566,7 +566,7 @@ export const AuditLogsPage: React.FC = () => {
           </div>
 
           {/* Pagination Controls */}
-          <div className="p-4 border-t border-[#E6DEC9] bg-[#FAF8F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-700">
+          <div className="p-4 border-t border-[#EAE4D7] bg-[#FAF8F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-700">
             <div>
               Hiển thị <span className="font-bold text-[#1A1612]">{logs.length}</span> trên tổng số{' '}
               <span className="font-bold text-[#1A1612]">{totalCount.toLocaleString('vi-VN')}</span> sự kiện
@@ -576,7 +576,7 @@ export const AuditLogsPage: React.FC = () => {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage <= 1 || loading}
-                className="p-1.5 rounded-lg border border-[#E6DEC9] bg-white text-stone-700 hover:border-[#C59B58] disabled:opacity-40 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg border border-[#EAE4D7] bg-white text-stone-700 hover:border-[#C59B58] disabled:opacity-40 transition-all cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -586,7 +586,7 @@ export const AuditLogsPage: React.FC = () => {
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage >= totalPages || loading}
-                className="p-1.5 rounded-lg border border-[#E6DEC9] bg-white text-stone-700 hover:border-[#C59B58] disabled:opacity-40 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg border border-[#EAE4D7] bg-white text-stone-700 hover:border-[#C59B58] disabled:opacity-40 transition-all cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -598,12 +598,12 @@ export const AuditLogsPage: React.FC = () => {
       {/* Modal: Audit Log Inspector (JSON & Diff Details) */}
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-[#E6DEC9] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-[#EAE4D7] flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 border-b border-[#E6DEC9] bg-[#FAF8F5] flex items-center justify-between">
+            <div className="p-5 border-b border-[#EAE4D7] bg-[#FAF8F5] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#C59B58]/15 text-[#8C6B2D] border border-[#C59B58]/30 flex items-center justify-center font-bold">
-                  <ShieldCheck className="w-5 h-5 text-[#C59B58]" />
+                <div className="w-10 h-10 rounded-xl bg-[#EBD08C]/15 text-[#B88E4F] border border-[#C59B58]/30 flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5 text-[#B88E4F]" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#1A1612] flex items-center gap-2">
@@ -626,7 +626,7 @@ export const AuditLogsPage: React.FC = () => {
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-5 text-sm">
               {/* Meta Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#FAF8F5] border border-[#E6DEC9]">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7]">
                 <div>
                   <span className="text-[11px] font-semibold text-stone-600 uppercase block">Thời gian tạo</span>
                   <span className="text-xs font-bold text-[#1A1612] mt-0.5 block">
@@ -660,7 +660,7 @@ export const AuditLogsPage: React.FC = () => {
                 <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wide mb-1">
                   Mô Tả Nghiệp Vụ
                 </h4>
-                <p className="text-xs text-stone-700 leading-relaxed bg-[#FAF8F5] p-3 rounded-xl border border-[#E6DEC9]">
+                <p className="text-xs text-stone-700 leading-relaxed bg-[#FAF8F5] p-3 rounded-xl border border-[#EAE4D7]">
                   {selectedLog.description}
                 </p>
               </div>
@@ -678,7 +678,7 @@ export const AuditLogsPage: React.FC = () => {
                         'json',
                       )
                     }
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#FAF8F5] hover:bg-[#E6DEC9] text-stone-700 transition-colors border border-[#E6DEC9]"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#FAF8F5] hover:bg-[#EAE4D7] text-stone-700 transition-colors border border-[#EAE4D7]"
                   >
                     {copiedField === 'json' ? (
                       <>
@@ -700,7 +700,7 @@ export const AuditLogsPage: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-[#E6DEC9] bg-[#FAF8F5] flex justify-end">
+            <div className="p-4 border-t border-[#EAE4D7] bg-[#FAF8F5] flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
                 className="px-5 py-2 rounded-xl text-xs font-bold bg-[#1A1612] text-[#FAF8F5] hover:bg-stone-800 transition-colors"

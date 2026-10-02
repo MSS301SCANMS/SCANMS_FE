@@ -16,9 +16,11 @@ export interface ChatMessage {
 }
 
 export interface Conversation {
+  _count?: { chatMessages: number };
   id: string;
   storeId: string;
-  collaboratorId: string;
+  collaboratorId?: string | null;
+  customerId?: string | null;
   lastMessageAt: string;
   createdAt: string;
   store: {
@@ -26,7 +28,8 @@ export interface Conversation {
     name: string;
     logoUrl?: string;
   };
-  collaborator: ChatUser;
+  collaborator?: ChatUser | null;
+  customer?: ChatUser | null;
   chatMessages: {
     messageText: string;
     createdAt: string;
