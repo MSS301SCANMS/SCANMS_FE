@@ -9,14 +9,16 @@ import {
   Info,
   Clock,
   Loader2,
+  Radio,
 } from 'lucide-react';
 import { notificationsService, type AppNotification } from '../../services/notifications.service';
 import { authService } from '../../services/auth.service';
+import { liveBroadcastService } from '../../services/liveBroadcast';
 
 export const NotificationDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ORDER' | 'FINANCE' | 'SYSTEM'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ORDER' | 'PROMOTION' | 'SYSTEM'>('ALL');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -42,26 +44,103 @@ export const NotificationDropdown: React.FC = () => {
     } catch {}
   };
 
+  const getLiveNotifications = (): AppNotification[] => {
+    const broadcasts = liveBroadcastService.getAllBroadcasts();
+    return broadcasts.map((b) => ({
+      id: b.id,
+      userId: 'current',
+      title: b.title,
+      message: `${b.storeName} • ${b.creatorName}: Đang livestream trực tiếp trợ giá cực sốc! ${b.discountText || 'Vào xem ngay'}`,
+      type: 'LIVE_SESSION_BROADCAST',
+      data: { sessionId: b.sessionId, liveUrl: b.liveUrl },
+      isRead: !!b.isRead,
+      createdAt: b.createdAt,
+    }));
+  };
+
   const fetchUnreadCount = async () => {
+    const unreadBroadcasts = liveBroadcastService.getUnreadBroadcasts().length;
     const user = authService.getCurrentUser();
-    if (!user) return;
-    const count = await notificationsService.getUnreadCount();
+    let backendUnread = 0;
+    if (user) {
+      backendUnread = await notificationsService.getUnreadCount();
+    }
+    const totalCount = backendUnread + unreadBroadcasts;
     setUnreadCount((prev) => {
-      if (count > prev && prev > 0) {
+      if (totalCount > prev && prev > 0) {
         playNotificationChime();
       }
-      return count;
+      return totalCount;
     });
   };
 
   const fetchNotifications = async () => {
-    const user = authService.getCurrentUser();
-    if (!user) return;
     setLoading(true);
     try {
-      const res = await notificationsService.getNotifications(activeTab, 1, 20);
-      setNotifications(res.items || []);
-      setUnreadCount(res.unreadCount || 0);
+      const user = authService.getCurrentUser();
+      let backendItems: AppNotification[] = [];
+      let backendUnread = 0;
+
+      if (user) {
+        try {
+          const res = await notificationsService.getNotifications(activeTab, 1, 20);
+          backendItems = res.items || [];
+          backendUnread = res.unreadCount || 0;
+        } catch {
+          backendItems = [];
+        }
+      }
+
+      // Merge broadcast notifications for ALL and PROMOTION tabs
+      const liveItems = getLiveNotifications();
+      const now = Date.now();
+      // Lọc bỏ bất kỳ thông báo phiên live nào từ backend mà đã hết thời gian endsAt hoặc đã kết thúc
+      const validBackendItems = backendItems.filter((item) => {
+        if (item.type.startsWith('LIVE_') || item.type.includes('LIVE')) {
+          if (item.type === 'LIVE_SESSION_ENDED') {
+            return false;
+          }
+          const endsAt = (item.data as any)?.endsAt;
+          if (endsAt) {
+            const endMs = new Date(endsAt).getTime();
+            if (Number.isFinite(endMs) && endMs <= now) {
+              return false;
+            }
+          }
+          const createdMs = new Date(item.createdAt).getTime();
+          if (item.type === 'LIVE_SESSION_STARTED' && Number.isFinite(createdMs) && (now - createdMs > 2 * 3600 * 1000)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      // Tránh trùng lặp nếu cả backend lẫn local broadcast đều có cùng sessionId
+      const liveSessionIds = new Set(liveItems.map((i) => i.data?.sessionId).filter(Boolean));
+      const deduplicatedBackend = validBackendItems.filter((item) => {
+        if (item.type === 'LIVE_GOVERNANCE') return true;
+        if (item.type.startsWith('LIVE_') || item.type.includes('LIVE')) {
+          const sId = (item.data as any)?.sessionId;
+          if (sId && liveSessionIds.has(sId)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      let combined: AppNotification[] = [];
+
+      if (activeTab === 'ALL') {
+        combined = [...liveItems, ...deduplicatedBackend];
+      } else if (activeTab === 'PROMOTION') {
+        combined = [...liveItems, ...deduplicatedBackend.filter((i) => i.type.includes('PROMOTION') || i.type.includes('COUPON'))];
+      } else {
+        combined = deduplicatedBackend;
+      }
+
+      setNotifications(combined);
+      const unreadBroadcasts = liveBroadcastService.getUnreadBroadcasts().length;
+      setUnreadCount(backendUnread + unreadBroadcasts);
     } catch {
     } finally {
       setLoading(false);
@@ -70,13 +149,34 @@ export const NotificationDropdown: React.FC = () => {
 
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // 30s polling
-    return () => clearInterval(interval);
+    // Tự động kiểm tra unread định kỳ mỗi 10 giây (khi hết giờ kết thúc phiên live, chuông lập tức hạ số)
+    const interval = setInterval(fetchUnreadCount, 10000);
+
+    // Lắng nghe sự kiện livestream phát sóng thời gian thực cho mọi Role
+    const handleNewLive = () => {
+      playNotificationChime();
+      void fetchNotifications();
+      void fetchUnreadCount();
+    };
+
+    const handleLiveRead = () => {
+      void fetchNotifications();
+      void fetchUnreadCount();
+    };
+
+    window.addEventListener('scanms-new-live-broadcast', handleNewLive);
+    window.addEventListener('scanms-live-broadcast-read', handleLiveRead);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('scanms-new-live-broadcast', handleNewLive);
+      window.removeEventListener('scanms-live-broadcast-read', handleLiveRead);
+    };
   }, []);
 
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications();
+      void fetchNotifications();
     }
   }, [isOpen, activeTab]);
 
@@ -94,14 +194,23 @@ export const NotificationDropdown: React.FC = () => {
   }, [isOpen]);
 
   const handleMarkAllRead = async () => {
-    await notificationsService.markAllAsRead();
+    liveBroadcastService.markAllAsRead();
+    try {
+      await notificationsService.markAllAsRead();
+    } catch {}
     setUnreadCount(0);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
   const handleNotificationClick = async (notif: AppNotification) => {
     if (!notif.isRead) {
-      await notificationsService.markAsRead(notif.id);
+      if (notif.type.startsWith('LIVE_') || notif.type.includes('LIVE')) {
+        liveBroadcastService.markAsRead(notif.id);
+      } else {
+        try {
+          await notificationsService.markAsRead(notif.id);
+        } catch {}
+      }
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)),
       );
@@ -109,7 +218,44 @@ export const NotificationDropdown: React.FC = () => {
     }
     setIsOpen(false);
 
-    // Deep-link routing based on notification type
+    if (notif.type === 'LIVE_GOVERNANCE') {
+      const role = authService.getCurrentUser()?.role;
+      const sessionQuery = `session=${encodeURIComponent(notif.data?.sessionId || '')}`;
+      if (role === 'COLLABORATOR') navigate(`/collaborator/live-sessions?${sessionQuery}`);
+      else if (role === 'SHOP_MANAGER') navigate(`/merchant/promotions?tab=live-sessions&${sessionQuery}`);
+      else if (role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER') navigate(`/admin/affiliate-oversight?tab=live-sessions&${sessionQuery}`);
+      return;
+    }
+
+    // 1. Live stream broadcast notification -> dẫn thẳng vào phòng livestream
+    if (notif.type.startsWith('LIVE_') || notif.type.includes('LIVE')) {
+      const liveUrl = notif.data?.liveUrl;
+      if (liveUrl) {
+        if (liveUrl.startsWith('http')) {
+          try {
+            const urlObj = new URL(liveUrl);
+            if (urlObj.origin === window.location.origin) {
+              navigate(urlObj.pathname + urlObj.search);
+              return;
+            } else {
+              window.open(liveUrl, '_blank');
+              return;
+            }
+          } catch {
+            window.open(liveUrl, '_blank');
+            return;
+          }
+        } else if (liveUrl.startsWith('/')) {
+          navigate(liveUrl);
+          return;
+        }
+      }
+      const sessionId = notif.data?.sessionId || notif.data?.id || 'demo';
+      navigate(`/live/${sessionId}`);
+      return;
+    }
+
+    // 2. Deep-link routing based on notification type
     const user = authService.getCurrentUser();
     const userRole = user?.role;
 
@@ -137,6 +283,15 @@ export const NotificationDropdown: React.FC = () => {
   };
 
   const getNotificationIcon = (type: string) => {
+    if (type === 'LIVE_GOVERNANCE') return <ShieldAlert className="h-4 w-4 text-[#B88E4F]" />;
+    if (type.startsWith('LIVE_') || type.includes('LIVE')) {
+      return (
+        <div className="relative">
+          <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
+          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+        </div>
+      );
+    }
     if (type.startsWith('ORDER_')) {
       return <ShoppingBag className="w-4 h-4 text-[#C59B58]" />;
     }
@@ -166,13 +321,13 @@ export const NotificationDropdown: React.FC = () => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-xl text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition-colors focus:outline-hidden"
+        className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#EAE4D7] bg-[#FAF8F5] hover:bg-[#F3EFE6] text-[#7D715E] hover:text-[#B88E4F] transition-all cursor-pointer shadow-2xs group flex items-center justify-center active:scale-95"
         title="Trung tâm thông báo SCANMS"
-        aria-label="Thông báo"
+        aria-label={`Thông báo: ${unreadCount} chưa đọc`}
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-5 h-5 transition-transform group-hover:scale-105" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-[#DC2626] text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#DC2626] text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -196,7 +351,7 @@ export const NotificationDropdown: React.FC = () => {
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-[11px] font-bold text-[#B88E4F] hover:text-[#8C6226] flex items-center gap-1 transition"
+                className="text-[11px] font-bold text-[#B88E4F] hover:text-[#8C6226] flex items-center gap-1 transition cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Đã đọc tất cả</span>
@@ -204,13 +359,13 @@ export const NotificationDropdown: React.FC = () => {
             )}
           </div>
 
-          {/* 4 Category Tabs */}
+          {/* Category Tabs */}
           <div className="flex border-b border-[#EAE4D7] bg-white px-2 pt-2 gap-1 text-xs">
             {(
               [
                 { id: 'ALL', label: 'Tất cả' },
                 { id: 'ORDER', label: 'Đơn hàng' },
-                { id: 'FINANCE', label: 'Tài chính' },
+                { id: 'PROMOTION', label: 'Livestream & Deal' },
                 { id: 'SYSTEM', label: 'Hệ thống' },
               ] as const
             ).map((tab) => (
@@ -218,7 +373,7 @@ export const NotificationDropdown: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-1.5 px-2 text-center font-bold rounded-lg transition-all ${
+                className={`flex-1 py-1.5 px-2 text-center font-bold rounded-lg transition-all cursor-pointer ${
                   activeTab === tab.id
                     ? 'bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]'
                     : 'text-[#7D715E] hover:text-[#1A1612]'
@@ -243,42 +398,74 @@ export const NotificationDropdown: React.FC = () => {
                 <p className="text-[11px] mt-0.5">Bạn đã cập nhật toàn bộ hoạt động mới nhất.</p>
               </div>
             ) : (
-              notifications.map((n) => (
-                <div
-                  key={n.id}
-                  onClick={() => handleNotificationClick(n)}
-                  className={`p-3.5 hover:bg-[#FAF8F5] transition cursor-pointer flex items-start gap-3 ${
-                    !n.isRead ? 'bg-[#FBF5EB]/50' : 'bg-white'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-xl bg-white border border-[#EAE4D7] shadow-xs flex items-center justify-center shrink-0 mt-0.5">
-                    {getNotificationIcon(n.type)}
-                  </div>
+              notifications.map((n) => {
+                const isLive = n.type.startsWith('LIVE_') || n.type.includes('LIVE');
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <h4 className="text-xs font-black text-[#1A1612] truncate">{n.title}</h4>
-                      {!n.isRead && (
-                        <span className="w-2 h-2 rounded-full bg-[#C59B58] shrink-0" />
-                      )}
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`p-3.5 hover:bg-[#FAF8F5] transition cursor-pointer flex items-start gap-3 relative group ${
+                      isLive
+                        ? !n.isRead
+                          ? 'bg-rose-50/40 border-l-4 border-l-rose-500'
+                          : 'bg-white hover:bg-rose-50/20'
+                        : !n.isRead
+                        ? 'bg-[#FBF5EB]/50'
+                        : 'bg-white'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-xl shadow-xs flex items-center justify-center shrink-0 mt-0.5 ${
+                      isLive
+                        ? 'bg-rose-50 border border-rose-200 text-rose-600'
+                        : 'bg-white border border-[#EAE4D7]'
+                    }`}>
+                      {getNotificationIcon(n.type)}
                     </div>
-                    <p className="text-[11px] text-[#7D715E] line-clamp-2 leading-relaxed">
-                      {n.message}
-                    </p>
-                    <div className="flex items-center gap-1 text-[10px] text-[#A89D8B] mt-1.5 font-medium">
-                      <Clock className="w-3 h-3" />
-                      <span>{formatTimeAgo(n.createdAt)}</span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h4 className="text-xs font-black text-[#1A1612] truncate group-hover:text-[#B88E4F] transition-colors">
+                            {n.title}
+                          </h4>
+                        </div>
+                        {isLive ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            LIVE
+                          </span>
+                        ) : (
+                          !n.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-[#C59B58] shrink-0" />
+                          )
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#7D715E] line-clamp-2 leading-relaxed">
+                        {n.message}
+                      </p>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex items-center gap-1 text-[10px] text-[#A89D8B] font-medium">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatTimeAgo(n.createdAt)}</span>
+                        </div>
+                        {isLive && (
+                          <span className="text-[10.5px] font-extrabold text-rose-600 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                            Vào xem ngay →
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
           {/* Footer */}
           <div className="p-2.5 bg-[#FAF8F5] border-t border-[#EAE4D7] text-center">
             <span className="text-[10px] text-[#7D715E]">
-              Thông báo thời gian thực • Nền tảng tiếp thị liên kết SCANMS
+              Thông báo trực tiếp • Nền tảng tiếp thị liên kết SCANMS
             </span>
           </div>
         </div>

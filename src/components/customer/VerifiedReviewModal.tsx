@@ -3,6 +3,7 @@ import { ImagePlus, Loader2, Star, X } from 'lucide-react';
 import { customerService, type CustomerOrder } from '../../services/customer.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
+import { Select } from '../ui/Select';
 
 interface Props {
   order: CustomerOrder;
@@ -44,9 +45,11 @@ export function VerifiedReviewModal({ order, onClose, onSubmitted }: Props) {
         </div>
         {products.length === 0 ? <p className="py-8 text-center text-sm text-[#7D715E]">Bạn đã đánh giá tất cả sản phẩm trong đơn này.</p> : <div className="space-y-4 mt-5">
           <label className="block text-xs font-bold">Sản phẩm
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-1.5 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
-              {products.map((item) => <option key={item.productId} value={item.productId}>{item.product?.title}</option>)}
-            </select>
+            <div className="mt-1.5">
+              <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full text-xs font-medium">
+                {products.map((item) => <option key={item.productId} value={item.productId}>{item.product?.title}</option>)}
+              </Select>
+            </div>
           </label>
           <div><span className="text-xs font-bold">Mức hài lòng</span><div className="flex gap-1 mt-2">{[1,2,3,4,5].map((value) => <button type="button" key={value} onClick={() => setRating(value)} aria-label={`${value} sao`}><Star className={`w-7 h-7 ${value <= rating ? 'fill-[#C59B58] text-[#C59B58]' : 'text-[#EAE4D7]'}`} /></button>)}</div></div>
           <label className="block text-xs font-bold">Nhận xét

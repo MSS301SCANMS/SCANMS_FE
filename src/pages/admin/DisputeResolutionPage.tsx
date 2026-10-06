@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Scale,
   CheckCircle2,
@@ -144,6 +145,10 @@ export const DisputeResolutionPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link to="/admin/return-disputes"
+              className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3.5 py-2 text-xs font-bold text-[#B88E4F]">
+              Khiếu nại trả hàng mới
+            </Link>
             <button
               onClick={fetchDisputes}
               className="px-3.5 py-2 bg-white border border-[#EAE4D7] hover:border-[#C59B58] rounded-xl text-xs font-bold text-[#1A1612] flex items-center gap-1.5 shadow-xs transition"
@@ -426,7 +431,7 @@ export const DisputeResolutionPage: React.FC = () => {
                     <span
                       className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${
                         selectedOrder.dispute.arbitration.ruling === 'REFUND_BUYER'
-                          ? 'bg-[#059669] text-white'
+                          ? 'bg-[#ECFDF5] text-[#047857]'
                           : 'bg-[#DC2626] text-white'
                       }`}
                     >
@@ -475,7 +480,7 @@ export const DisputeResolutionPage: React.FC = () => {
                       type="button"
                       disabled={submittingRuling}
                       onClick={() => handleArbitrate('REFUND_BUYER')}
-                      className="py-3 px-4 bg-[#059669] hover:bg-[#047857] text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="py-3 px-4 bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] font-extrabold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {submittingRuling ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

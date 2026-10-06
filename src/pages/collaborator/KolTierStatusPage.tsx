@@ -68,22 +68,14 @@ export default function KolTierStatusPage() {
   return (
     <div className="flex flex-col gap-6 text-left">
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#1A1612] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
+        <div className="fixed top-5 right-5 z-50 bg-white text-[#1A1612] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 border border-[#EEDFC6]">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
           <span>{toastMsg}</span>
         </div>
       )}
 
       {/* Header & Sub-Navigation Tabs */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1A1612] tracking-tight m-0">
-            Cấp Bậc &amp; Vinh Danh KOL (Tiers)
-          </h1>
-          <p className="text-xs sm:text-sm text-[#7D715E] mt-1 m-0">
-            Hệ thống xếp hạng tự động định kỳ hàng tháng dựa trên GMV bán và đơn giao thành công.
-          </p>
-        </div>
+      <div className="flex items-center justify-end gap-4">
 
         <Button
           variant="gold"
@@ -94,7 +86,7 @@ export default function KolTierStatusPage() {
         >
           {evaluating ? 'Đang quét...' : 'Kiểm tra thăng hạng ngay'}
         </Button>
-      </header>
+      </div>
 
       {/* Consolidated Feature Tabs */}
       <div className="flex items-center gap-2 border-b border-[#EAE4D7] pb-3">

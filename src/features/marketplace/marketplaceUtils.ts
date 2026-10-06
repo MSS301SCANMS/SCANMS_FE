@@ -21,3 +21,27 @@ export function calculateCart(lines: CartLine[], products: Product[], creator: C
   const discount = eligibleSubtotal >= minimum ? Math.min(Math.round(eligibleSubtotal * creator.voucherInfo.discountPct / 100), maximum) : 0;
   return { subtotal, discount, total: subtotal - discount };
 }
+
+export function getSafeProductImageUrl(
+  imageUrl?: string | null,
+  title?: string,
+  categoryName?: string
+): string {
+  if (
+    imageUrl &&
+    typeof imageUrl === 'string' &&
+    imageUrl.trim() &&
+    !imageUrl.includes('data:image/svg+xml') &&
+    !imageUrl.includes('scanms-placeholder') &&
+    !imageUrl.includes('placeholder.png') &&
+    !imageUrl.includes('placeholder')
+  ) {
+    return imageUrl.trim();
+  }
+
+  // A missing photo must not silently display a different product or brand.
+  // Keep this fallback local so upstream image outages cannot break it too.
+  void title;
+  void categoryName;
+  return '/assets/product-placeholder.svg';
+}

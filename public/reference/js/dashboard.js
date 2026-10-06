@@ -618,7 +618,7 @@ export function dashboard() {
   <section class="card ov-opp-card">
     <div class="ov-opp-inner">
       <div class="ov-opp-thumb">
-        <img src="./assets/serum-hero-optimized.jpg" alt="Serum Vitamin C 15%" class="ov-opp-img" />
+        <img src="./assets/products/real/vitamin-c-15-serum.jpg" alt="Serum Vitamin C 15%" class="ov-opp-img" />
       </div>
 
       <div class="ov-opp-main">

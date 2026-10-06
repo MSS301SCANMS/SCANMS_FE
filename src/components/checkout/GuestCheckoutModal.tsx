@@ -13,7 +13,6 @@ import {
   Tag,
   Loader2,
   Store as StoreIcon,
-  Package,
   MapPin,
   ExternalLink,
   Pencil,
@@ -21,20 +20,44 @@ import {
   Lock,
   LogIn,
   ShieldCheck,
+  MessageSquare,
+  Save,
+  Plus,
+  Trash2,
 } from 'lucide-react';
+
+function normalizeVietnameseAddress(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/\b(thanh pho|tp\.?|tinh|quan|huyen|thi xa|tx\.?|phuong|p\.?|xa|thi tran|tt\.?)\b/g, '')
+    .replace(/[^a-z0-9]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
 import api from '../../services/api';
-import { apiCache } from '../../utils/apiCache';
 import { authService } from '../../services/auth.service';
 import { customerService, type CustomerAddress } from '../../services/customer.service';
 import { GoogleOfficialButton } from '../auth/GoogleOfficialButton';
 import { toast } from '../../utils/toast';
+import { apiCache } from '../../utils/apiCache';
 import {
   loadShippingAddresses,
   type ShippingProvince,
 } from '../../services/order-address.service';
 import { useCart, type CartItem } from '../../context/CartContext';
-import { formatMoney } from '../../features/marketplace/marketplaceUtils';
-import { formatSavedAddressOption, resolveSavedShippingAddress } from '../../utils/checkoutAddress';
+import { useScanmsChat } from '../../context/ScanmsChatContext';
+import { formatMoney, getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { CustomSelect } from '../ui/CustomSelect';
+import { resolveSavedShippingAddress } from '../../utils/checkoutAddress';
+
+const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+const normalizeVariantToken = (value: unknown) =>
+  typeof value === 'string' ? value.trim().toLocaleLowerCase() : '';
 
 export interface ProductVariantItem {
   id: string;
@@ -93,8 +116,30 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { removeItems, editCheckoutCart, continueShoppingFromCheckout } = useCart();
+  const { openChat } = useScanmsChat();
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
   const isSignedIn = Boolean(localStorage.getItem('token') && authService.getCurrentUser());
   const [currentUser, setCurrentUser] = useState<any>(() => authService.getCurrentUser());
+
+  // Bắt buộc đăng nhập khi vào Checkout: nếu chưa đăng nhập, tự động chuyển sang /login
+  useEffect(() => {
+    if (isOpen && !isSignedIn) {
+      toast.info('Vui lòng đăng nhập để tiến hành mua hàng!');
+      onClose();
+      navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
+    }
+  }, [isOpen, isSignedIn, navigate, location, onClose]);
+
+  // Khóa cuộn trang nền khi mở giao diện thanh toán toàn màn hình
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
   const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string>('');
@@ -179,7 +224,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [orderNotes, setOrderNotes] = useState('');
-  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [saveToAddressBook, setSaveToAddressBook] = useState(true);
+  const [setAsDefaultAddress, setSetAsDefaultAddress] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(true);
   const [shopPolicies, setShopPolicies] = useState<Record<string, CheckoutStoreInfo>>({});
   const [policyLoading, setPolicyLoading] = useState(false);
   const [policyError, setPolicyError] = useState<string | null>(null);
@@ -193,6 +241,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
   // Coupons
   const [couponCode, setCouponCode] = useState(initialCouponCode);
+  const [autoCouponDismissed, setAutoCouponDismissed] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
@@ -247,7 +296,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   // Normalize active items to order
   const activeItems = useMemo<CartItem[]>(() => {
     if (checkoutItems && checkoutItems.length > 0) {
-      return checkoutItems;
+      return checkoutItems.map((item) => ({
+        ...item,
+        imageUrl: getSafeProductImageUrl(item.imageUrl, item.title, item.variantName),
+      }));
     }
 
     if (product && store) {
@@ -267,10 +319,11 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
           sku: matchedVariant?.sku || product.sku || '',
           price: unitPrice,
           originalPrice: product.originalPrice ? Number(product.originalPrice) : undefined,
-          imageUrl: product.imageUrl || '/assets/marketplace/scanms-placeholder.png',
+          imageUrl: getSafeProductImageUrl(product.imageUrl, product.title, matchedVariant?.name),
           quantity: singleQuantity,
           stockQuantity: matchedVariant ? matchedVariant.stockQuantity : product.stockQuantity,
           isActive: true,
+          availableVariants: product.variants,
           store: {
             id: store.id,
             name: store.name,
@@ -306,14 +359,22 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     }
     return Array.from(map.values());
   }, [activeItems]);
-  const policyStoreIds = itemsGroupedByShop.map((group) => group.store.id).join(',');
+
+  const policyStoreIds = useMemo(
+    () => Array.from(new Set(itemsGroupedByShop.map((g) => g.store.id).filter(Boolean))).sort().join(','),
+    [itemsGroupedByShop],
+  );
 
   useEffect(() => {
-    if (!isOpen || !policyStoreIds) return;
+    if (!isOpen || !policyStoreIds) {
+      setShopPolicies({});
+      setPolicyLoading(false);
+      setPolicyError(null);
+      return;
+    }
     let active = true;
     setPolicyLoading(true);
     setPolicyError(null);
-    setPolicyAccepted(false);
     apiCache.invalidate('/stores/public/id/');
     Promise.all(policyStoreIds.split(',').map(async (id) => {
       const response: any = await api.get(`/stores/public/id/${id}`);
@@ -394,12 +455,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     return () => window.clearInterval(timer);
   }, [isOpen, orderSuccess?.publicOrderCode, orderSuccess?.paymentStatus]);
 
-  // Auth requirement check (Requirement 5)
-  useEffect(() => {
-    if (isOpen && !isSignedIn) {
-      navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
-    }
-  }, [isOpen, isSignedIn, location.pathname, location.search, navigate]);
 
   // Escape listener
   useEffect(() => {
@@ -415,7 +470,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   // Pre-fill user data & addresses on open
   useEffect(() => {
     if (isOpen) {
-      setPolicyAccepted(false);
+      setPolicyAccepted(true);
       const user = authService.getCurrentUser();
 
       if (user) {
@@ -501,31 +556,226 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const selectedDistrict = selectedProvince?.districts.find((d) => String(d.code) === String(districtCode));
   const selectedWard = selectedDistrict?.wards.find((w) => String(w.code) === String(wardCode));
 
-  const applySavedAddress = useCallback((addrId: string) => {
-    const addr = customerAddresses.find((a) => a.id === addrId);
-    if (!addr) return;
+  const resolveOrderVariantId = async (item: CartItem): Promise<string | undefined> => {
+    const currentId = item.variantId?.trim();
+    if (!currentId) return undefined;
+    if (UUID_RE.test(currentId)) return currentId;
 
+    let variants: any[] = item.availableVariants || [];
+    try {
+      const response: any = await api.get(
+        `/public/products/${encodeURIComponent(item.productId)}/landing`,
+        { headers: { 'x-skip-cache': 'true' } },
+      );
+      const payload = response?.product
+        ? response
+        : response?.data?.product
+          ? response.data
+          : response?.data?.data || response?.data || response;
+      if (Array.isArray(payload?.product?.variants)) {
+        variants = payload.product.variants;
+      }
+    } catch {
+      if (!variants.some((variant) => typeof variant?.id === 'string' && UUID_RE.test(variant.id))) {
+        throw new Error(`Không thể kiểm tra phân loại của “${item.title}”. Hãy tải lại trang rồi thử lại.`);
+      }
+    }
+
+    const tokens = new Set(
+      [currentId, item.sku, item.variantName]
+        .map(normalizeVariantToken)
+        .filter(Boolean),
+    );
+    const matched = variants.find((variant) => {
+      if (typeof variant?.id !== 'string' || !UUID_RE.test(variant.id)) return false;
+      return [variant.id, variant.sku, variant.name]
+        .map(normalizeVariantToken)
+        .some((token) => token && tokens.has(token));
+    }) || (variants.length === 1 && UUID_RE.test(String(variants[0]?.id || '')) ? variants[0] : null);
+
+    if (matched) return matched.id;
+    if (variants.length === 0) return undefined;
+    throw new Error(`Phân loại của “${item.title}” đã cũ hoặc không còn khớp. Hãy chọn lại phân loại trong giỏ hàng.`);
+  };
+
+  const populateAddressFromRecord = (
+    addr: CustomerAddress,
+    provinces: ShippingProvince[],
+  ) => {
     if (addr.fullName) setCustomerName(addr.fullName);
     if (addr.phoneNumber) setCustomerPhone(addr.phoneNumber);
 
-    const resolved = resolveSavedShippingAddress(addr, shippingProvinces);
-    setShippingAddress(resolved.detailAddress);
-    setProvinceCode(resolved.provinceCode);
-    setDistrictCode(resolved.districtCode);
-    setWardCode(resolved.wardCode);
+    const resolved = resolveSavedShippingAddress(addr, provinces);
+    if (resolved.provinceCode) {
+      setShippingAddress(resolved.detailAddress || addr.detailAddress || '');
+      setProvinceCode(resolved.provinceCode);
+      setDistrictCode(resolved.districtCode);
+      setWardCode(resolved.wardCode);
+      return;
+    }
+
+    const normProv = normalizeVietnameseAddress(addr.provinceName || '');
+    const foundProv = provinces.find(
+      (p) =>
+        String(p.code) === String(addr.provinceCode) ||
+        (normProv && (normalizeVietnameseAddress(p.name).includes(normProv) || normProv.includes(normalizeVietnameseAddress(p.name)))),
+    );
+
+    if (foundProv) {
+      setProvinceCode(String(foundProv.code));
+
+      const normDist = normalizeVietnameseAddress(addr.districtName || '');
+      const foundDist = foundProv.districts.find(
+        (d) =>
+          String(d.code) === String(addr.districtCode) ||
+          (normDist && (normalizeVietnameseAddress(d.name).includes(normDist) || normDist.includes(normalizeVietnameseAddress(d.name)))),
+      );
+
+      if (foundDist) {
+        setDistrictCode(String(foundDist.code));
+
+        const normWard = normalizeVietnameseAddress(addr.wardName || '');
+        const foundWard = foundDist.wards.find(
+          (w) =>
+            String(w.code) === String(addr.wardCode) ||
+            (normWard && (normalizeVietnameseAddress(w.name).includes(normWard) || normWard.includes(normalizeVietnameseAddress(w.name)))),
+        );
+
+        if (foundWard) {
+          setWardCode(String(foundWard.code));
+        } else {
+          setWardCode('');
+        }
+      } else {
+        setDistrictCode('');
+        setWardCode('');
+      }
+    }
+  };
+
+  const applySavedAddress = useCallback((addrId: string) => {
+    const addr = customerAddresses.find((a) => a.id === addrId);
+    if (!addr) return;
+    populateAddressFromRecord(addr, shippingProvinces);
   }, [customerAddresses, shippingProvinces]);
+
+  // Tự động phân giải và điền đầy đủ Tỉnh/Thành, Quận/Huyện, Phường/Xã khi cả sổ địa chỉ và shippingProvinces đã tải xong
+  useEffect(() => {
+    if (!isOpen || !selectedSavedAddressId || shippingProvinces.length === 0) return;
+    applySavedAddress(selectedSavedAddressId);
+  }, [applySavedAddress, isOpen, selectedSavedAddressId, shippingProvinces.length]);
 
   const handleSelectSavedAddress = (addrId: string) => {
     setSelectedSavedAddressId(addrId);
     if (addrId) applySavedAddress(addrId);
   };
 
-  // Address data and the province catalog load independently. Re-apply the
-  // selected address once both are available so all three selects are filled.
-  useEffect(() => {
-    if (!isOpen || !selectedSavedAddressId || shippingProvinces.length === 0) return;
-    applySavedAddress(selectedSavedAddressId);
-  }, [applySavedAddress, isOpen, selectedSavedAddressId, shippingProvinces.length]);
+  const handleStartNewAddress = () => {
+    setSelectedSavedAddressId('');
+    setProvinceCode('');
+    setDistrictCode('');
+    setWardCode('');
+    setShippingAddress('');
+    setIsEditingAddress(true);
+  };
+
+  // Quản lý xác nhận xóa địa chỉ chuẩn sàn SCANMS (Chỉ xóa khi click xác nhận, tuyệt đối không đếm giờ)
+  const [addressToDelete, setAddressToDelete] = useState<CustomerAddress | null>(null);
+  const [isDeletingAddress, setIsDeletingAddress] = useState(false);
+
+  const handleExecuteDeleteAddress = async (addr: CustomerAddress) => {
+    setIsDeletingAddress(true);
+    try {
+      await customerService.deleteAddress(addr.id);
+      toast.success('Đã xóa địa chỉ thành công!');
+
+      const updated = await customerService.getAddresses();
+      const newAddresses = Array.isArray(updated) ? updated : [];
+      setCustomerAddresses(newAddresses);
+
+      // Nếu địa chỉ vừa xóa là địa chỉ đang được chọn
+      if (selectedSavedAddressId === addr.id) {
+        if (newAddresses.length > 0) {
+          const nextAddr = newAddresses.find((a) => a.isDefault) || newAddresses[0];
+          setSelectedSavedAddressId(nextAddr.id);
+          populateAddressFromRecord(nextAddr, shippingProvinces);
+        } else {
+          handleStartNewAddress();
+        }
+      }
+      setAddressToDelete(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể xóa địa chỉ lúc này.');
+    } finally {
+      setIsDeletingAddress(false);
+    }
+  };
+
+  const handleSaveNewAddressNow = async () => {
+    if (!customerName.trim()) {
+      toast.error('Vui lòng nhập Họ và tên người nhận hàng.');
+      document.getElementById('checkout-customer-name')?.focus();
+      return;
+    }
+    if (!customerPhone.trim()) {
+      toast.error('Vui lòng nhập Số điện thoại nhận hàng.');
+      document.getElementById('checkout-customer-phone')?.focus();
+      return;
+    }
+    if (!isPhoneValid(customerPhone)) {
+      toast.error('Số điện thoại nhận hàng chưa đúng định dạng Việt Nam (10 chữ số, ví dụ: 0987654321).');
+      document.getElementById('checkout-customer-phone')?.focus();
+      return;
+    }
+    if (!selectedProvince) {
+      toast.error('Vui lòng chọn Tỉnh/Thành phố nhận hàng.');
+      return;
+    }
+    if (!selectedDistrict) {
+      toast.error('Vui lòng chọn Quận/Huyện nhận hàng.');
+      return;
+    }
+    if (!selectedWard) {
+      toast.error('Vui lòng chọn Phường/Xã nhận hàng.');
+      return;
+    }
+    if (!shippingAddress.trim()) {
+      toast.error('Vui lòng nhập địa chỉ cụ thể (số nhà, tổ/ngõ, tên đường).');
+      document.getElementById('checkout-shipping-address')?.focus();
+      return;
+    }
+
+    setIsSavingAddress(true);
+    try {
+      const res: any = await customerService.createAddress({
+        fullName: customerName.trim(),
+        phoneNumber: customerPhone.trim(),
+        provinceCode: String(selectedProvince.code),
+        provinceName: selectedProvince.name,
+        districtCode: String(selectedDistrict.code),
+        districtName: selectedDistrict.name,
+        wardCode: String(selectedWard.code),
+        wardName: selectedWard.name,
+        detailAddress: shippingAddress.trim(),
+        isDefault: setAsDefaultAddress,
+      });
+
+      const newAddr = res?.address || res?.data?.address;
+      toast.success('Đã lưu địa chỉ mới vào sổ địa chỉ thành công!');
+
+      const updated = await customerService.getAddresses();
+      if (Array.isArray(updated)) {
+        setCustomerAddresses(updated);
+        if (newAddr?.id) {
+          setSelectedSavedAddressId(newAddr.id);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể lưu địa chỉ.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
 
   const isPhoneValid = (phone: string) => /^(0[3|5|7|8|9])[0-9]{8}$/.test(phone.trim());
   const isEmailValid = (email: string) =>
@@ -544,6 +794,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         customerPhone: customerPhone.trim() || undefined,
         items: activeItems.map((item) => ({
           productId: item.productId,
+          variantId: item.variantId,
           quantity: item.quantity,
           unitPrice: item.price,
         })),
@@ -574,15 +825,49 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   };
 
   const handleRemoveCoupon = () => {
+    setAutoCouponDismissed(true);
+    setCouponLoading(false);
     setAppliedCoupon(null);
     setCouponCode('');
     setCouponMessage(null);
   };
 
+  const liveCouponCodes = [...new Set(activeItems.map((item) => item.liveCouponCode).filter(Boolean))];
+  const autoCouponCode = initialCouponCode || (liveCouponCodes.length === 1 ? liveCouponCodes[0]! : '');
+  useEffect(() => {
+    if (!isOpen) { setAutoCouponDismissed(false); return; }
+    if (!autoCouponCode || autoCouponDismissed) return;
+    let active = true;
+    setCouponLoading(true);
+    setAppliedCoupon(null);
+    const timer = window.setTimeout(() => {
+      setCouponCode(autoCouponCode);
+      setCouponLoading(true);
+      void api.post('/coupons/validate', {
+        code: autoCouponCode,
+        storeId: activeItems[0]?.store.id || store?.id,
+        customerPhone: customerPhone.trim() || undefined,
+        items: activeItems.map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity, unitPrice: item.price })),
+        hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: false,
+      }).then((response: any) => {
+        if (!active) return;
+        const data = response?.data || response;
+        setAppliedCoupon({ code: data.code, discountAmount: Number(data.discountAmount) || 0, discountType: data.discountType });
+        setCouponMessage({ type: 'success', text: `Đã áp dụng voucher live, giảm ${formatMoney(Number(data.discountAmount) || 0)}.` });
+      }).catch((error: any) => {
+        if (!active) return;
+        setAppliedCoupon(null);
+        setCouponMessage({ type: 'error', text: error?.response?.data?.message || 'Voucher live không còn áp dụng được.' });
+      }).finally(() => { if (active) setCouponLoading(false); });
+    }, 300);
+    return () => { active = false; window.clearTimeout(timer); setCouponLoading(false); };
+  }, [isOpen, autoCouponCode, autoCouponDismissed, activeItems, customerPhone, store?.id]);
+
   // Submit Order (Requirements 7, 8, 9, 10)
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    if (couponLoading) { setErrorMessage('Đang kiểm tra voucher. Vui lòng đợi một chút rồi đặt hàng.'); return; }
 
     if (!currentUser && (!localStorage.getItem('token') || !authService.getCurrentUser())) {
       setErrorMessage(
@@ -631,8 +916,18 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       return;
     }
 
-    if (!policyAccepted || policyLoading || policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])) {
-      setErrorMessage('Bạn cần đọc và đồng ý chính sách đổi trả của các gian hàng trước khi đặt mua.');
+    if (policyLoading) {
+      setErrorMessage('Đang tải chính sách của gian hàng. Vui lòng chờ một chút rồi thử lại.');
+      return;
+    }
+
+    if (policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])) {
+      setErrorMessage(policyError || 'Chưa tải được chính sách của một gian hàng. Vui lòng tải lại trang trước khi đặt mua.');
+      return;
+    }
+
+    if (!policyAccepted) {
+      setErrorMessage('Vui lòng đọc chính sách đổi trả bên dưới và tích xác nhận trước khi đặt mua.');
       return;
     }
 
@@ -656,6 +951,15 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const normalizedItems = await Promise.all(
+        activeItems.map(async (item) => ({
+          productId: item.productId,
+          liveSessionId: item.liveSessionId,
+          variantId: await resolveOrderVariantId(item),
+          quantity: item.quantity,
+        })),
+      );
+
       const payload = {
         storeId: activeItems[0]?.store.id || store?.id,
         customerName: trimmedName,
@@ -667,11 +971,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         paymentMethod,
         couponCode: appliedCoupon?.code || undefined,
         idempotencyKey,
-        items: activeItems.map((item) => ({
-          productId: item.productId,
-          variantId: item.variantId || undefined,
-          quantity: item.quantity,
-        })),
+        items: normalizedItems,
       };
 
       const res = await api.post('/orders', payload);
@@ -727,6 +1027,24 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         JSON.stringify({ publicOrderCode: primaryOrderCode, createdAt: Date.now() }),
       );
 
+      // Tự động lưu địa chỉ mới vào Sổ địa chỉ nếu người dùng chọn checkbox và tài khoản đã đăng nhập
+      if (saveToAddressBook && !selectedSavedAddressId && isSignedIn && selectedProvince && selectedDistrict && selectedWard) {
+        customerService
+          .createAddress({
+            fullName: trimmedName,
+            phoneNumber: customerPhone.trim(),
+            provinceCode: String(selectedProvince.code),
+            provinceName: selectedProvince.name,
+            districtCode: String(selectedDistrict.code),
+            districtName: selectedDistrict.name,
+            wardCode: String(selectedWard.code),
+            wardName: selectedWard.name,
+            detailAddress: addressDetail,
+            isDefault: setAsDefaultAddress,
+          })
+          .catch(() => {});
+      }
+
       setOrderSuccess(orderResult);
       if (onOrderPlaced) {
         onOrderPlaced(orderResult);
@@ -759,32 +1077,64 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
   if (!isOpen) return null;
 
+  const fullShippingAddressString = [
+    shippingAddress.trim(),
+    selectedWard?.name,
+    selectedDistrict?.name,
+    selectedProvince?.name,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="guest-checkout-title"
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] bg-[#F5F5F5] overflow-y-auto min-h-screen text-[#1A1612] font-sans animate-in fade-in duration-150 text-left"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-[#FFFFFF] rounded-3xl max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full p-5 sm:p-7 lg:p-8 border border-[#EAE4D7] shadow-2xl relative max-h-[92vh] overflow-y-auto font-sans text-left"
-      >
-        {/* Close Button at Top Right Corner */}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Đóng cửa sổ"
-          title="Đóng cửa sổ"
-          className="absolute top-4 right-4 sm:top-5 sm:right-5 w-10 h-10 rounded-full bg-white hover:bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#C59B58] text-[#7D715E] hover:text-[#1A1612] flex items-center justify-center transition-all duration-200 active:scale-90 shadow-2xs cursor-pointer z-30 group"
-        >
-          <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
-        </button>
+      {/* 1. Header Chuẩn SCANMS & các sàn lớn (Logo SCANMS | Thanh Toán) */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-xs">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" onClick={onClose} className="flex items-center gap-1.5" title="Về trang chủ SCANMS">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-[#1A1612]">
+                Scan<span className="text-[#C59B58]">MS</span>
+              </span>
+            </Link>
+            <div className="h-6 w-px bg-gray-300" />
+            <span className="text-lg sm:text-xl font-medium text-[#ee4d2d]">
+              Thanh Toán
+            </span>
+          </div>
 
+          <div className="flex items-center gap-3">
+            <div className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] text-[11px] font-bold text-[#B88E4F]">
+              <ShieldCheck className="w-4 h-4 text-[#B88E4F]" />
+              <span>SCANMS SECURE CHECKOUT • XÁC THỰC DANH TÍNH & BẢO HỘ ĐƠN HÀNG 100%</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-400 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 transition cursor-pointer"
+              title="Quay lại mua sắm"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+              <span>Quay lại</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. Dải ruy băng phong bì thư chuyển phát (SCANMS Iconic Address Envelope Stripe) */}
+      <div className="h-1 w-full bg-[repeating-linear-gradient(45deg,#ee4d2d_0,#ee4d2d_30px,#3b82f6_30px,#3b82f6_60px,#f59e0b_60px,#f59e0b_90px)] opacity-85" />
+
+      {/* 3. Main Checkout Container */}
+      <main className="max-w-6xl mx-auto px-4 py-5 sm:py-6 space-y-4 sm:space-y-5">
         {orderSuccess ? (
           /* Order Confirmation Screen (Requirement 10) */
-          <div className="max-w-2xl mx-auto py-2 text-center">
+          <div className="max-w-2xl mx-auto py-8 text-center bg-white rounded-xl shadow-xs border border-gray-200 p-6 sm:p-8">
             <div className="w-16 h-16 rounded-full bg-[#FBF5EB] border-2 border-[#C59B58] text-[#B88E4F] flex items-center justify-center mx-auto mb-3 shadow-xs">
               <CheckCircle2 className="w-10 h-10" />
             </div>
@@ -810,7 +1160,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               {orderSuccess.orders.map((subOrder, index) => (
                 <div
                   key={subOrder.publicOrderCode || index}
-                  className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl p-4 text-left space-y-2.5 shadow-2xs"
+                  className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-4 text-left space-y-2.5 shadow-2xs"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-[#EAE4D7]">
                     <div className="flex items-center gap-2">
@@ -851,7 +1201,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                       <Link
                         to={`/tracking?sn=${encodeURIComponent(subOrder.publicOrderCode)}`}
                         target="_blank"
-                        className="px-2.5 py-1.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        className="px-2.5 py-1.5 bg-[#ee4d2d] hover:bg-[#d03e1e] text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <span>Tra cứu</span>
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -864,7 +1214,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
             {/* PayOS QR Box if PayOS payment method was selected */}
             {orderSuccess.paymentMethod === 'PAYOS' && orderSuccess.payos && (
-              <div className="bg-[#FFFFFF] border-2 border-[#C59B58] rounded-2xl p-4 text-center mb-5 shadow-sm">
+              <div className="bg-[#FFFFFF] border-2 border-[#C59B58] rounded-xl p-4 text-center mb-5 shadow-xs">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FBF5EB] rounded-full text-xs font-bold text-[#B88E4F] mb-3">
                   <QrCode className="w-3.5 h-3.5" />
                   <span>
@@ -892,7 +1242,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                     href={orderSuccess.payos.checkoutUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-[#EBD08C] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#DEC07A]"
+                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-[#ee4d2d] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#d03e1e]"
                   >
                     Mở trang thanh toán PayOS ↗
                   </a>
@@ -902,7 +1252,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
             {/* COD Notice */}
             {orderSuccess.paymentMethod === 'COD' && (
-              <div className="p-3.5 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs text-[#B88E4F] flex items-center gap-2.5 mb-5 text-left">
+              <div className="p-3.5 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs text-[#B88E4F] flex items-center gap-2.5 mb-5 text-left">
                 <Truck className="w-5 h-5 shrink-0" />
                 <div>
                   <strong className="block text-[#1A1612]">Thanh toán tiền mặt khi nhận hàng (COD)</strong>
@@ -916,7 +1266,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               <Link
                 to="/customer/orders"
                 onClick={onClose}
-                className="w-full py-3 bg-[#EBD08C] hover:bg-[#DEC07A] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                className="w-full py-3 bg-[#ee4d2d] hover:bg-[#d03e1e] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
               >
                 <ShoppingBag className="w-4 h-4" />
                 <span>Xem danh sách đơn mua trong tài khoản</span>
@@ -931,27 +1281,18 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
             </div>
           </div>
         ) : (
-          /* Checkout Form (Requirements 6, 7, 8, 9) */
-          <div>
-<div className="mb-6 pb-4 border-b border-[#EAE4D7] pr-8 sm:pr-12">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] text-[10px] font-bold text-[#B88E4F] uppercase tracking-wider mb-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                <span>SCANMS SECURE CHECKOUT • XÁC THỰC DANH TÍNH & BẢO HỘ ĐƠN HÀNG 100%</span>
-              </div>
-              <h2 id="guest-checkout-title" className="text-xl sm:text-2xl font-black text-[#1A1612]">
-                Thông Tin Giao Hàng & Thanh Toán
-              </h2>
-            </div>
-
+          /* Checkout Form (SCANMS Style) */
+          <form onSubmit={handleSubmitOrder} className="space-y-4">
+            {/* Status alerts */}
             {isValidatingCart && (
-              <div className="mb-4 p-2.5 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-xs text-[#B88E4F] flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <div className="p-3 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] text-xs text-[#B88E4F] flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                 <span className="font-semibold">Đang đối chiếu giá và tồn kho từ hệ thống...</span>
               </div>
             )}
 
             {validationWarnings.length > 0 && (
-              <div className="mb-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-800 space-y-1">
+              <div className="p-4 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800 space-y-1 shadow-2xs">
                 <div className="font-bold flex items-center gap-1.5 text-amber-900">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
                   <span>Thông báo biến động giỏ hàng từ máy chủ:</span>
@@ -1064,53 +1405,186 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               </div>
             )}
 
+            {/* Error Message banner */}
             {errorMessage && (
-              <div className="mb-5 p-3.5 rounded-2xl bg-[#DC2626]/10 border border-[#DC2626]/30 text-xs text-[#DC2626] flex items-center gap-2.5">
+              <div className="p-3.5 rounded-lg bg-[#DC2626]/10 border border-[#DC2626]/30 text-xs text-[#DC2626] flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span className="font-medium">{errorMessage}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmitOrder}>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-                <div className="lg:col-span-7 space-y-4 text-left">
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-3">
-                    <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#EAE4D7]">
-                      <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] text-xs font-black flex items-center justify-center shadow-xs ring-2 ring-[#DEC07A]/30 shrink-0">
-                        1
-                      </span>
-                      <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Thông Tin Người Nhận</h3>
-                    </div>
+            {/* ========================================================================= */}
+            {/* BLOCK 1: ĐỊA CHỈ NHẬN HÀNG (Chuẩn SCANMS ẢNH 2) */}
+            {/* ========================================================================= */}
+            <div className="bg-white rounded-lg p-5 sm:p-6 shadow-xs border border-gray-200 text-left">
+              {/* Tiêu đề mục: 📍 Địa Chỉ Nhận Hàng */}
+              <div className="flex items-center gap-2 text-base font-bold text-[#ee4d2d] pb-3 border-b border-gray-100">
+                <MapPin className="w-5 h-5 text-[#ee4d2d] shrink-0" />
+                <span>Địa Chỉ Nhận Hàng</span>
+              </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Dòng tóm tắt địa chỉ người nhận Chuẩn SCANMS (Ảnh 2):
+                  kim ngọc (+84) 787 664 860   43/4f, Đường Giác Đạo, Xã Bà Điểm, Hóc Môn... [Mặc Định] [Thay Đổi] */}
+              <div className="pt-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-gray-800">
+                    <strong className="font-bold text-[#1A1612]">
+                      {customerName ? `${customerName} (${customerPhone || 'Chưa có SĐT'})` : 'Chưa nhập thông tin nhận hàng'}
+                    </strong>
+                    <span className="text-gray-600">
+                      {fullShippingAddressString || 'Vui lòng cung cấp địa chỉ nhận hàng để shop giao tận nơi'}
+                    </span>
+                    {customerAddresses.find((a) => a.id === selectedSavedAddressId)?.isDefault ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-[#ee4d2d] border border-[#ee4d2d] bg-[#FFF5F1]">
+                        Mặc Định
+                      </span>
+                    ) : !selectedSavedAddressId && fullShippingAddressString ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-blue-700 border border-blue-300 bg-blue-50">
+                        Địa Chỉ Giao Mới
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAddress((prev) => !prev)}
+                    className="text-xs font-semibold text-[#0055AA] hover:underline cursor-pointer shrink-0 self-start sm:self-auto"
+                  >
+                    {isEditingAddress ? 'Thu gọn' : 'Thay Đổi'}
+                  </button>
+                </div>
+
+                {/* Form chi tiết địa chỉ (Mở khi bấm Thay Đổi hoặc khi chưa có địa chỉ) */}
+                {(!fullShippingAddressString || isEditingAddress) && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 space-y-3.5 animate-in fade-in duration-150">
+                    {/* Sổ địa chỉ đã lưu dạng thẻ card sáng đẹp */}
+                    {customerAddresses.length > 0 && (
+                      <div className="p-3.5 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#B88E4F] flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-[#B88E4F]" />
+                            Chọn từ sổ địa chỉ đã lưu ({customerAddresses.length} địa chỉ)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleStartNewAddress}
+                            className="px-2.5 py-1 text-xs font-bold text-[#ee4d2d] hover:bg-[#FFF5F1] rounded-md border border-[#ee4d2d] flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Giao đến địa chỉ khác</span>
+                          </button>
+                        </div>
+
+                        {!selectedSavedAddressId && (
+                          <div className="p-2.5 rounded-lg border border-amber-300 bg-amber-50/90 text-amber-900 text-xs flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <MapPin className="w-4 h-4 text-[#C59B58] shrink-0" />
+                              Đang sử dụng địa chỉ giao hàng mới bên dưới
+                            </span>
+                            <span className="text-[11px] text-[#7D715E]">
+                              (Bấm vào thẻ địa chỉ ở trên nếu muốn dùng lại)
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-2 pt-1">
+                          {customerAddresses.map((a) => {
+                            const isSelected = selectedSavedAddressId === a.id;
+                            return (
+                              <div
+                                key={a.id}
+                                onClick={() => handleSelectSavedAddress(a.id)}
+                                className={`p-3 rounded-lg border text-left cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                                  isSelected
+                                    ? 'bg-[#FFF5F1] border-[#ee4d2d] ring-1 ring-[#ee4d2d] shadow-2xs'
+                                    : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-[#FAF8F5]'
+                                }`}
+                              >
+                                <div className="space-y-1 text-xs min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                        isSelected ? 'border-[#ee4d2d] bg-[#ee4d2d]' : 'border-gray-300 bg-white'
+                                      }`}
+                                    >
+                                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </span>
+                                    <strong className="text-[#1A1612] font-bold">{a.fullName}</strong>
+                                    <span className="text-gray-500 font-mono">({a.phoneNumber})</span>
+                                    {a.isDefault && (
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold text-[#ee4d2d] border border-[#ee4d2d] bg-[#FFF5F1]">
+                                        Mặc Định
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-gray-600 pl-5.5 leading-relaxed text-[11px]">
+                                    {a.detailAddress}, {a.wardName}, {a.districtName}, {a.provinceName}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 self-center">
+                                  {isSelected && (
+                                    <span className="text-[11px] font-bold text-[#ee4d2d]">
+                                      Đang dùng ✓
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAddressToDelete(a);
+                                    }}
+                                    className="w-7 h-7 rounded-md flex items-center justify-center text-[#ee4d2d] hover:bg-[#ffeae6] border border-transparent hover:border-[#ffd4cc] transition-colors cursor-pointer active:scale-90 shrink-0"
+                                    title="Xóa địa chỉ này"
+                                    aria-label="Xóa địa chỉ"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-[#ee4d2d]" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Họ tên, SĐT, Email */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-[#1A1612] mb-1">
+                        <label htmlFor="checkout-customer-name" className="block text-xs font-bold text-[#1A1612] mb-1">
                           Họ và tên người nhận <span className="text-[#DC2626]">*</span>
                         </label>
                         <input
+                          id="checkout-customer-name"
                           type="text"
                           required
                           placeholder="Ví dụ: Hoàng Minh Tuấn"
                           value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58] transition"
+                          onChange={(e) => {
+                            setCustomerName(e.target.value);
+                            if (selectedSavedAddressId) setSelectedSavedAddressId('');
+                          }}
+                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-md text-xs text-[#1A1612] focus:outline-none focus:border-[#ee4d2d] transition"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-[#1A1612] mb-1">
+                        <label htmlFor="checkout-customer-phone" className="block text-xs font-bold text-[#1A1612] mb-1">
                           Số điện thoại nhận hàng <span className="text-[#DC2626]">*</span>
                         </label>
                         <input
+                          id="checkout-customer-phone"
                           type="tel"
                           required
                           placeholder="Ví dụ: 0987654321"
                           value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-xs text-[#1A1612] focus:outline-hidden transition font-mono ${
+                          onChange={(e) => {
+                            setCustomerPhone(e.target.value);
+                            if (selectedSavedAddressId) setSelectedSavedAddressId('');
+                          }}
+                          className={`w-full px-3.5 py-2 bg-white border rounded-md text-xs text-[#1A1612] focus:outline-none transition font-mono ${
                             customerPhone && !isPhoneValid(customerPhone)
                               ? 'border-[#DC2626] focus:border-[#DC2626]'
-                              : 'border-[#EAE4D7] focus:border-[#C59B58]'
+                              : 'border-gray-300 focus:border-[#ee4d2d]'
                           }`}
                         />
                         {customerPhone && !isPhoneValid(customerPhone) && (
@@ -1119,465 +1593,664 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                           </span>
                         )}
                       </div>
-                    </div>
 
-                    <div>
-                      <label htmlFor="checkout-customer-email" className="block text-xs font-bold text-[#1A1612] mb-1">
-                        Email nhận xác nhận đơn <span className="font-medium text-[#7D715E]">(Tùy chọn)</span>
-                      </label>
-                      <input
-                        id="checkout-customer-email"
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        maxLength={254}
-                        placeholder="Ví dụ: khachhang@gmail.com"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58] transition"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-3">
-                    <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#EAE4D7]">
-                      <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] text-xs font-black flex items-center justify-center shadow-xs ring-2 ring-[#DEC07A]/30 shrink-0">
-                        2
-                      </span>
-                      <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Địa Chỉ Nhận Hàng</h3>
-                    </div>
-
-                    {customerAddresses.length > 0 && (
-                      <div className="min-w-0 rounded-xl border border-[#EAE4D7] bg-[#FBF5EB] px-3 py-2.5 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-[#B88E4F] flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-[#B88E4F]" />
-                            Sổ địa chỉ của bạn ({customerAddresses.length} địa chỉ)
-                          </span>
-                        </div>
-                        <select
-                          value={selectedSavedAddressId}
-                          onChange={(e) => handleSelectSavedAddress(e.target.value)}
-                          aria-label="Chọn địa chỉ nhận hàng đã lưu"
-                          className="block w-full min-w-0 truncate rounded-xl border border-[#EAE4D7] bg-white px-3 py-2 text-xs font-medium text-[#1A1612] outline-hidden focus:border-[#C59B58]"
-                        >
-                          <option value="">Chọn địa chỉ đã lưu</option>
-                          {customerAddresses.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {formatSavedAddressOption(a, shippingProvinces)}
-                            </option>
-                          ))}
-                        </select>
+                      <div>
+                        <label htmlFor="checkout-customer-email" className="block text-xs font-bold text-[#1A1612] mb-1">
+                          Email nhận xác nhận đơn <span className="font-normal text-[#7D715E]">(Tùy chọn)</span>
+                        </label>
+                        <input
+                          id="checkout-customer-email"
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          maxLength={254}
+                          placeholder="Ví dụ: khachhang@gmail.com"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-md text-xs text-[#1A1612] focus:outline-none focus:border-[#ee4d2d] transition"
+                        />
                       </div>
-                    )}
+                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <select
+                    {/* Địa chỉ 3 cấp: Tỉnh / Quận / Phường */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <CustomSelect
                         required
                         value={provinceCode}
                         disabled={addressLoading}
-                        onChange={(e) => {
-                          setProvinceCode(e.target.value);
+                        onChange={(code) => {
+                          setProvinceCode(code);
                           setDistrictCode('');
                           setWardCode('');
+                          setSelectedSavedAddressId('');
                         }}
-                        className="w-full appearance-none rounded-xl border border-[#EAE4D7] bg-white px-3.5 py-2.5 text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58]"
-                      >
-                        <option value="">{addressLoading ? 'Đang tải Tỉnh/Thành...' : 'Chọn Tỉnh/Thành phố *'}</option>
-                        {shippingProvinces.map((province) => (
-                          <option key={province.code} value={province.code}>
-                            {province.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder={addressLoading ? 'Đang tải Tỉnh/Thành...' : 'Chọn Tỉnh/Thành phố *'}
+                        options={shippingProvinces.map((province) => ({
+                          value: String(province.code),
+                          label: province.name,
+                        }))}
+                      />
 
-                      <select
+                      <CustomSelect
                         required
                         value={districtCode}
                         disabled={!selectedProvince || addressLoading}
-                        onChange={(e) => {
-                          setDistrictCode(e.target.value);
+                        onChange={(code) => {
+                          setDistrictCode(code);
                           setWardCode('');
+                          setSelectedSavedAddressId('');
                         }}
-                        className="w-full appearance-none rounded-xl border border-[#EAE4D7] bg-white px-3.5 py-2.5 text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58]"
-                      >
-                        <option value="">Chọn Quận/Huyện *</option>
-                        {selectedProvince?.districts.map((district) => (
-                          <option key={district.code} value={district.code}>
-                            {district.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                        placeholder="Chọn Quận/Huyện *"
+                        options={(selectedProvince?.districts || []).map((district) => ({
+                          value: String(district.code),
+                          label: district.name,
+                        }))}
+                      />
 
-                    <select
-                      required
-                      value={wardCode}
-                      disabled={!selectedDistrict || addressLoading}
-                      onChange={(e) => setWardCode(e.target.value)}
-                      className="w-full appearance-none rounded-xl border border-[#EAE4D7] bg-white px-3.5 py-2.5 text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58]"
-                    >
-                      <option value="">Chọn Phường/Xã *</option>
-                      {selectedDistrict?.wards.map((ward) => (
-                        <option key={ward.code} value={ward.code}>
-                          {ward.name}
-                        </option>
-                      ))}
-                    </select>
+                      <CustomSelect
+                        required
+                        value={wardCode}
+                        disabled={!selectedDistrict || addressLoading}
+                        onChange={(code) => {
+                          setWardCode(code);
+                          setSelectedSavedAddressId('');
+                        }}
+                        placeholder="Chọn Phường/Xã *"
+                        options={(selectedDistrict?.wards || []).map((ward) => ({
+                          value: String(ward.code),
+                          label: ward.name,
+                        }))}
+                      />
+                    </div>
 
                     {addressError && (
                       <p className="text-[11px] text-[#DC2626] font-medium">{addressError}</p>
                     )}
 
-                    <textarea
-                      required
-                      rows={2}
-                      placeholder="Số nhà, tên đường, tòa nhà, căn hộ... *"
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58] transition resize-none"
-                    />
-                  </div>
-
-                  {/* Card 3: Payment Method Selection (Requirement 9) */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-3">
-                    <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#EAE4D7]">
-                      <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] text-xs font-black flex items-center justify-center shadow-xs ring-2 ring-[#DEC07A]/30 shrink-0">
-                        3
-                      </span>
-                      <h3 className="text-xs sm:text-sm font-black text-[#1A1612]">Phương Thức Thanh Toán</h3>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* COD Option */}
-                      <label
-                        className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                          paymentMethod === 'COD'
-                            ? 'bg-[#FBF5EB] border-[#C59B58] ring-2 ring-[#DEC07A]/30 shadow-xs'
-                            : 'bg-white border-[#EAE4D7] hover:border-[#C59B58]/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="paymentMethod"
-                              value="COD"
-                              checked={paymentMethod === 'COD'}
-                              onChange={() => setPaymentMethod('COD')}
-                              className="w-4 h-4 text-[#B88E4F] accent-[#EBD08C]"
-                            />
-                            <strong className="text-xs sm:text-sm text-[#1A1612]">Thanh toán khi nhận (COD)</strong>
-                          </div>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            Khuyên dùng
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#7D715E] mt-1.5 pl-6 leading-relaxed">
-                          Kiểm tra kiện hàng tận nơi, thanh toán tiền mặt trực tiếp cho nhân viên giao hàng.
-                        </p>
-                      </label>
-
-                      {/* PayOS Option */}
-                      <label
-                        className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all ${
-                          paymentMethod === 'PAYOS'
-                            ? 'bg-[#FBF5EB] border-[#C59B58] ring-2 ring-[#DEC07A]/30 shadow-xs'
-                            : 'bg-white border-[#EAE4D7] hover:border-[#C59B58]/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="paymentMethod"
-                              value="PAYOS"
-                              checked={paymentMethod === 'PAYOS'}
-                              onChange={() => setPaymentMethod('PAYOS')}
-                              className="w-4 h-4 text-[#B88E4F] accent-[#EBD08C]"
-                            />
-                            <strong className="text-xs sm:text-sm text-[#1A1612]">Chuyển khoản PayOS (QR)</strong>
-                          </div>
-                          <span className="text-[10px] font-bold text-[#B88E4F] bg-white px-2 py-0.5 rounded-full border border-[#EAE4D7]">
-                            Tự động 24/7
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#7D715E] mt-1.5 pl-6 leading-relaxed">
-                          Quét mã VietQR chuyển khoản ngân hàng. Hệ thống tự động xác nhận sau khi nhận tiền.
-                        </p>
-                      </label>
-                    </div>
-
-                    {paymentMethod === 'PAYOS' && payosAvailable === false && (
-                      <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                        ℹ️ Cổng PayOS đang ở chế độ thử nghiệm nội bộ (chưa cấu hình webhook HTTPS công khai). Quý khách nên chọn phương thức COD để đơn hàng được duyệt và giao ngay!
-                      </p>
-                    )}
-
                     <div>
-                      <label className="block text-xs font-bold text-[#1A1612] mb-1">
-                        Ghi chú cho các Shop (Tùy chọn)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao..."
-                        value={orderNotes}
-                        onChange={(e) => setOrderNotes(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] focus:outline-hidden focus:border-[#C59B58] transition"
+                      <textarea
+                        id="checkout-shipping-address"
+                        required
+                        rows={2}
+                        placeholder="Số nhà, tên đường, ngõ/tổ, tòa nhà, căn hộ... *"
+                        value={shippingAddress}
+                        onChange={(e) => {
+                          setShippingAddress(e.target.value);
+                          if (selectedSavedAddressId) setSelectedSavedAddressId('');
+                        }}
+                        className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-md text-xs text-[#1A1612] focus:outline-none focus:border-[#ee4d2d] transition resize-none"
                       />
                     </div>
-                  </div>
-                </div>
 
-                {/* RIGHT COLUMN: Full Product List Grouped by Shop & Pricing (5 cols) */}
-                <div className="lg:col-span-5 space-y-4 text-left lg:sticky lg:top-3">
-                  {/* Order Items Grouped by Store (Requirement 7 & 8) */}
-                  <div className="p-4 sm:p-5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-3xl space-y-3.5 shadow-2xs">
-                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE4D7]">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#FBF5EB] to-[#F3EFE6] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs">
-                          <Package className="w-4 h-4 text-[#B88E4F]" />
+                    {/* Hộp tùy chọn Lưu địa chỉ mới vào Sổ địa chỉ */}
+                    {isSignedIn && !selectedSavedAddressId && (
+                      <div className="p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-lg space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <label className="flex items-center gap-2 text-xs font-medium text-[#1A1612] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={saveToAddressBook}
+                              onChange={(e) => setSaveToAddressBook(e.target.checked)}
+                              className="w-4 h-4 rounded text-[#C59B58] focus:ring-[#C59B58] cursor-pointer"
+                            />
+                            <span>Lưu địa chỉ này vào Sổ địa chỉ của tôi</span>
+                          </label>
+
+                          <button
+                            type="button"
+                            disabled={isSavingAddress}
+                            onClick={handleSaveNewAddressNow}
+                            className="px-3.5 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] disabled:opacity-50 text-white rounded-md text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                            title="Lưu địa chỉ này vào Sổ địa chỉ"
+                          >
+                            {isSavingAddress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            <span>Lưu vào sổ địa chỉ ngay</span>
+                          </button>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <h3 className="text-xs sm:text-sm font-black text-[#1A1612] truncate">
-                              Danh Sách Đặt Hàng
-                            </h3>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] shrink-0">
-                              {activeItems.length} món · {itemsGroupedByShop.length} Shop
-                            </span>
-                          </div>
-                        </div>
+
+                        {saveToAddressBook && (
+                          <label className="flex items-center gap-2 text-[11px] text-[#7D715E] pl-6 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={setAsDefaultAddress}
+                              onChange={(e) => setSetAsDefaultAddress(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded text-[#C59B58] focus:ring-[#C59B58] cursor-pointer"
+                            />
+                            <span>Đặt làm địa chỉ nhận hàng mặc định cho tài khoản</span>
+                          </label>
+                        )}
                       </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
 
-                      {/* Luxury Segmented Action Buttons (Pure Icon, Bright Pink-Purple Tone, Symmetrical Rounded Boxes) */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+            {/* ========================================================================= */}
+            {/* BLOCK 2: SẢN PHẨM (Chuẩn SCANMS ẢNH 2 & TIKTOK SHOP) */}
+            {/* ========================================================================= */}
+            <div className="bg-white rounded-lg shadow-xs border border-gray-200 overflow-hidden text-left">
+              {/* Header các cột (Chuẩn Ảnh 2: Sản phẩm | Đơn giá | Số lượng | Thành tiền) */}
+              <div className="hidden sm:grid grid-cols-12 px-6 py-4 border-b border-gray-100 text-xs sm:text-sm font-semibold text-gray-500 bg-white">
+                <div className="col-span-6">Sản phẩm</div>
+                <div className="col-span-2 text-center">Đơn giá</div>
+                <div className="col-span-2 text-center">Số lượng</div>
+                <div className="col-span-2 text-right">Thành tiền</div>
+              </div>
+
+              {/* Từng Gian hàng */}
+              <div className="divide-y divide-gray-200">
+                {itemsGroupedByShop.map((shopGroup, sIdx) => (
+                  <div key={shopGroup.store.id || sIdx} className="space-y-0">
+                    {/* Header Shop (Chuẩn Ảnh 2: [Yêu thích] [Tên Shop] | Chat ngay) */}
+                    <div className="px-5 sm:px-6 py-3 bg-[#FAF8F5]/80 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#ee4d2d] text-white shrink-0">
+                          Yêu thích
+                        </span>
+                        <strong className="text-xs sm:text-sm font-bold text-[#1A1612] truncate">
+                          {shopGroup.store.name}
+                        </strong>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#F3EFE6] text-[#B88E4F] border border-[#EEDFC6] shrink-0">
+                          SHOP
+                        </span>
                         <button
                           type="button"
-                          title="Sửa giỏ hàng"
-                          aria-label="Sửa giỏ hàng"
+                          onClick={() => openChat(shopGroup.store)}
+                          className="text-xs text-[#059669] hover:underline flex items-center gap-1 shrink-0 ml-1.5 cursor-pointer font-medium"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Chat ngay</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
                           onClick={() => {
                             editCheckoutCart(activeItems);
                             onClose();
                           }}
-                          className="w-8 h-8 rounded-xl flex items-center justify-center text-[#A855F7] bg-gradient-to-br from-white via-[#FAF5FF] to-[#F5D0FE]/40 border border-[#F0ABFC] hover:border-[#D946EF] hover:bg-white hover:text-[#7E22CE] transition-all duration-200 active:scale-90 cursor-pointer shadow-xs group"
+                          className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer font-medium"
+                          title="Sửa giỏ hàng"
                         >
-                          <Pencil className="w-4 h-4 text-[#A855F7] group-hover:text-[#7E22CE] group-hover:scale-105 transition-all" strokeWidth={2.2} />
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Sửa giỏ hàng</span>
                         </button>
-                        <div className="w-px h-4.5 bg-gradient-to-b from-[#F5D0FE] via-[#E879F9]/60 to-[#F5D0FE]" />
+                        <span className="text-gray-300">|</span>
                         <button
                           type="button"
-                          title="Mua thêm sản phẩm"
-                          aria-label="Mua thêm sản phẩm"
                           onClick={() => {
                             continueShoppingFromCheckout(activeItems);
                             onClose();
                             navigate('/marketplace#catalog-section');
                           }}
-                          className="w-8 h-8 rounded-xl flex items-center justify-center text-[#C026D3] bg-gradient-to-br from-white via-[#FDF2F8] to-[#F5D0FE]/40 border border-[#F0ABFC] hover:border-[#D946EF] hover:bg-white transition-all duration-200 active:scale-90 cursor-pointer shadow-xs group"
+                          className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer font-medium"
+                          title="Mua thêm sản phẩm"
                         >
-                          <ShoppingCart className="w-4 h-4 text-[#C026D3] group-hover:text-[#A21CAF] group-hover:scale-105 transition-all" strokeWidth={2.2} />
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Mua thêm</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Shop Groups */}
-                    <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
-                      {itemsGroupedByShop.map((shopGroup, sIdx) => (
-                        <div key={shopGroup.store.id || sIdx} className="p-3 bg-white border border-[#EAE4D7] rounded-2xl space-y-2.5">
-                          {/* Store title */}
-                          <div className="flex items-center justify-between pb-2 border-b border-[#EAE4D7]/70">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center shrink-0">
-                                <StoreIcon className="w-3.5 h-3.5 text-[#B88E4F]" />
-                              </div>
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <strong className="text-xs font-bold text-[#1A1612] truncate">
-                                  {shopGroup.store.name}
-                                </strong>
-                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#1A1612] text-[#FAF8F5] shrink-0">
-                                  SHOP
+                    {/* Danh sách sản phẩm của Shop */}
+                    <div className="divide-y divide-gray-100">
+                      {shopGroup.items.map((item) => (
+                        <div
+                          key={item.cartItemId}
+                          className="grid grid-cols-1 sm:grid-cols-12 px-5 sm:px-6 py-4 items-center gap-3 sm:gap-0"
+                        >
+                          {/* Cột 1: Sản phẩm (Ảnh + Tên + Phân loại) */}
+                          <div className="sm:col-span-6 flex items-center gap-3 min-w-0">
+                            <img
+                              src={getSafeProductImageUrl(item.imageUrl, item.title, item.variantName)}
+                              alt={item.title}
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xs object-cover border border-gray-200 shrink-0 bg-white"
+                              onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.dataset.hasFallback) {
+                                  target.dataset.hasFallback = 'true';
+                                  target.src = getSafeProductImageUrl(null, item.title);
+                                }
+                              }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-xs sm:text-sm text-[#1A1612] font-normal line-clamp-2 leading-snug">
+                                {item.title}
+                              </h4>
+                              {item.variantName && (
+                                <span className="text-xs text-gray-500 block mt-1">
+                                  Phân loại: {item.variantName}
                                 </span>
-                              </div>
+                              )}
                             </div>
-                            <span className="text-[11px] font-bold text-[#B88E4F] bg-[#FBF5EB] px-2 py-0.5 rounded-md border border-[#EAE4D7]/60 shrink-0">
-                              {formatMoney(shopGroup.subtotal)}
-                            </span>
                           </div>
 
-                          {/* Items for this Shop */}
-                          <div className="space-y-2">
-                            {shopGroup.items.map((item) => (
-                              <div key={item.cartItemId} className="flex items-center gap-2.5 text-xs">
-                                <div className="w-12 h-12 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] overflow-hidden shrink-0">
-                                  <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="font-bold text-[#1A1612] truncate leading-tight" title={item.title}>
-                                    {item.title}
-                                  </h4>
-                                  {item.variantName && (
-                                    <span className="text-[10px] text-[#B88E4F] font-semibold block mt-0.5">
-                                      Phân loại: {item.variantName}
-                                    </span>
-                                  )}
-                                  <div className="text-[11px] text-[#7D715E] mt-0.5 flex justify-between">
-                                    <span>
-                                      {formatMoney(item.price)} × {item.quantity}
-                                    </span>
-                                    <strong className="text-[#1A1612] font-black">
-                                      {formatMoney(item.price * item.quantity)}
-                                    </strong>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                          {/* Cột 2: Đơn giá */}
+                          <div className="sm:col-span-2 sm:text-center text-xs sm:text-sm text-gray-700">
+                            <span className="sm:hidden font-medium text-gray-500 mr-2">Đơn giá:</span>
+                            {formatMoney(item.price)}
+                          </div>
+
+                          {/* Cột 3: Số lượng */}
+                          <div className="sm:col-span-2 sm:text-center text-xs sm:text-sm text-gray-700">
+                            <span className="sm:hidden font-medium text-gray-500 mr-2">Số lượng:</span>
+                            {item.quantity}
+                          </div>
+
+                          {/* Cột 4: Thành tiền */}
+                          <div className="sm:col-span-2 sm:text-right text-xs sm:text-sm font-semibold text-[#ee4d2d]">
+                            <span className="sm:hidden font-medium text-gray-500 mr-2">Thành tiền:</span>
+                            {formatMoney(item.price * item.quantity)}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
 
-                  {/* Coupon Box */}
-                  <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1612]">
-                      Mã giảm giá voucher (Toàn sàn hoặc Shop)
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Tag className="w-3.5 h-3.5 text-[#B88E4F] absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          placeholder="Nhập mã ưu đãi (VD: SCANMS50K)"
-                          value={couponCode}
-                          disabled={!!appliedCoupon}
-                          onChange={(e) => {
-                            setCouponCode(e.target.value.toUpperCase());
-                            setCouponMessage(null);
-                          }}
-                          className="w-full pl-9 pr-3.5 py-2.5 bg-white disabled:bg-[#F3EFE6] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] uppercase font-bold focus:outline-hidden focus:border-[#C59B58] transition"
-                        />
-                      </div>
-
-                      {appliedCoupon ? (
-                        <button
-                          type="button"
-                          onClick={handleRemoveCoupon}
-                          className="px-3.5 py-2 bg-[#F3EFE6] hover:bg-[#EAE4D7] text-[#DC2626] font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
-                        >
-                          Bỏ mã
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={!couponCode.trim() || couponLoading}
-                          onClick={handleValidateCoupon}
-                          className="px-4 py-2 bg-[#F3EFE6] hover:bg-[#DEC07A] hover:text-white disabled:opacity-50 text-[#1A1612] font-bold text-xs rounded-xl border border-[#EAE4D7] transition flex items-center gap-1.5 cursor-pointer shrink-0"
-                        >
-                          {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Áp dụng'}
-                        </button>
-                      )}
-                    </div>
-
-                    {couponMessage && (
-                      <div
-                        className={`text-[11px] font-semibold flex items-center gap-1.5 ${
-                          couponMessage.type === 'success' ? 'text-emerald-700' : 'text-[#DC2626]'
-                        }`}
-                      >
-                        {couponMessage.type === 'success' ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                        )}
-                        <span>{couponMessage.text}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 sm:p-5 bg-gradient-to-br from-[#FBF5EB] to-[#FAF8F5] border-2 border-[#EEDFC6] rounded-2xl space-y-2 text-xs shadow-xs">
-                    <div className="flex justify-between text-[#7D715E]">
-                      <span>Tiền hàng ({activeUnitCount} món):</span>
-                      <span className="font-semibold text-[#1A1612]">{formatMoney(rawSubtotal)}</span>
-                    </div>
-
-                    {appliedCoupon && (
-                      <div className="flex justify-between text-[#B88E4F] font-bold">
-                        <span>Giảm giá voucher ({appliedCoupon.code}):</span>
-                        <span>-{formatMoney(discountAmount)}</span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between text-[#7D715E]">
-                      <span>Phí vận chuyển:</span>
-                      <span className="text-emerald-700 font-bold">Miễn phí toàn quốc</span>
-                    </div>
-
-                    <div className="pt-2.5 border-t border-[#EEDFC6] flex justify-between items-baseline">
-                      <span className="font-black text-[#1A1612] text-sm">Tổng thanh toán:</span>
-                      <span className="font-black text-[#B88E4F] text-xl">{formatMoney(finalTotal)}</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-xs">
-                    <div className="mb-3 flex items-center gap-2 font-black text-[#1A1612]">
-                      <ShieldCheck className="h-4 w-4 text-[#B88E4F]" />
-                      <span>Cam kết chính sách gian hàng</span>
-                    </div>
-                    <div className="space-y-2 text-[11px] leading-relaxed text-[#7D715E]">
-                      {itemsGroupedByShop.map((group) => (
-                        <div key={group.store.id} className="rounded-xl border border-[#EAE4D7] bg-white p-3">
-                          <strong className="block text-[#1A1612]">{group.store.name}</strong>
-                          {shopPolicies[group.store.id]?.policyReturn
-                            ? <p>• Đổi trả (Shop): {shopPolicies[group.store.id].policyReturn}</p>
-                            : <p>• Đổi trả (quy định SCANMS): yêu cầu trong 14 ngày kể từ khi giao, kèm ảnh và video mở hộp.</p>}
-                          <p>• Bảo hành: {shopPolicies[group.store.id]?.policyWarranty || 'Shop chưa công bố chính sách bảo hành riêng.'}</p>
-                          <p>• Giao hàng: {shopPolicies[group.store.id]?.policyShipping || 'Shop chưa công bố chính sách giao hàng riêng.'}</p>
+                    {/* Tiện ích chân Shop: Lời nhắn + Vận chuyển (Chuẩn Ảnh 2) */}
+                    <div className="bg-[#FAF8F5]/80 px-5 sm:px-6 py-3.5 border-t border-gray-100 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        {/* Lời nhắn cho Người bán */}
+                        <div className="flex items-center gap-2 flex-1 max-w-md">
+                          <span className="text-gray-600 shrink-0">Lời nhắn cho Người bán:</span>
+                          <input
+                            type="text"
+                            placeholder="Lưu ý cho người bán (giờ giao, gọi trước...)"
+                            value={orderNotes}
+                            onChange={(e) => setOrderNotes(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-white border border-gray-300 rounded text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#ee4d2d]"
+                          />
                         </div>
-                      ))}
-                    </div>
-                    {policyLoading && <p className="text-xs text-[#7D715E]">Đang tải chính sách hiện hành...</p>}
-                    {policyError && <p role="alert" className="text-xs text-[#DC2626]">{policyError}</p>}
-                    <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl border border-[#EEDFC6] bg-white p-3">
-                      <input
-                        type="checkbox"
-                        checked={policyAccepted}
-                        disabled={policyLoading || !!policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])}
-                        onChange={(event) => setPolicyAccepted(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 accent-[#C59B58]"
-                      />
-                      <span className="font-semibold leading-relaxed text-[#1A1612]">
-                        Tôi đã đọc và đồng ý với chính sách đổi trả, bảo hành của các Shop trong đơn hàng.
-                      </span>
-                    </label>
-                  </div>
 
-                  {/* Submit Button (Requirement 10: debounce & disable) */}
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || activeItems.length === 0 || !policyAccepted || policyLoading || !!policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])}
-                    className="w-full py-3.5 bg-gradient-to-r from-[#EBD08C] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#D4B26F] disabled:opacity-50 text-[#231D15] font-extrabold text-sm rounded-xl shadow-md hover:shadow-lg shadow-[#C59B58]/20 transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer border border-[#DEC07A]"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Đang ghi nhận đơn hàng...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>
-                          XÁC NHẬN ĐẶT HÀNG • {formatMoney(finalTotal)}
+                        {/* Đơn vị vận chuyển */}
+                        <div className="flex items-center gap-2 text-gray-700 shrink-0">
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <Truck className="w-4 h-4 text-emerald-600" />
+                            Vận Chuyển Nhanh
+                          </span>
+                          <span className="text-gray-500">(2-3 ngày)</span>
+                          <span className="font-bold text-emerald-700">Miễn phí toàn quốc</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end text-xs pt-2 border-t border-dashed border-gray-200">
+                        <span className="text-gray-600 mr-2">
+                          Tổng số tiền ({shopGroup.items.reduce((s, i) => s + i.quantity, 0)} sản phẩm):
                         </span>
-                      </>
-                    )}
-                  </button>
+                        <strong className="text-sm font-bold text-[#ee4d2d]">
+                          {formatMoney(shopGroup.subtotal)}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <section className="rounded-lg border border-[#EEDFC6] bg-white p-4 sm:p-5 text-left space-y-3" aria-labelledby="checkout-return-policies-title">
+              <div className="flex items-center gap-2 border-b border-[#EAE4D7] pb-3">
+                <ShieldCheck className="h-5 w-5 text-[#B88E4F]" />
+                <div>
+                  <h3 id="checkout-return-policies-title" className="text-sm font-bold text-[#1A1612]">Chính sách của gian hàng</h3>
+                  <p className="mt-0.5 text-xs text-[#7D715E]">Vui lòng đọc chính sách đổi trả trước khi đặt hàng.</p>
                 </div>
               </div>
-            </form>
-          </div>
+
+              {policyLoading ? (
+                <p className="flex items-center gap-2 text-xs text-[#7D715E]"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải chính sách Shop…</p>
+              ) : policyError ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{policyError}</p>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {itemsGroupedByShop.map((group) => {
+                      const policy = shopPolicies[group.store.id];
+                      if (!policy) {
+                        return <p key={group.store.id} className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">Chưa tải được chính sách của {group.store.name}. Hãy tải lại trang rồi thử lại.</p>;
+                      }
+
+                      return (
+                        <article key={group.store.id} className="rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-3 text-xs text-[#1A1612]">
+                          <h4 className="font-bold">{policy.name || group.store.name}</h4>
+                          <p className="mt-1"><strong>Đổi trả / hoàn tiền:</strong> {policy.policyReturn?.trim() || 'Theo quy định SCANMS: yêu cầu đổi trả trong 14 ngày kể từ khi nhận hàng, kèm ảnh và video mở hộp.'}</p>
+                          {policy.policyWarranty?.trim() && <p className="mt-1"><strong>Bảo hành:</strong> {policy.policyWarranty}</p>}
+                          {policy.policyShipping?.trim() && <p className="mt-1"><strong>Giao hàng:</strong> {policy.policyShipping}</p>}
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs text-[#1A1612]">
+                    <input
+                      type="checkbox"
+                      checked={policyAccepted}
+                      disabled={itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])}
+                      onChange={(event) => setPolicyAccepted(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-[#C59B58]"
+                    />
+                    <span>Tôi xác nhận đã đọc và đồng ý với chính sách đổi trả của tất cả gian hàng trong đơn.</span>
+                  </label>
+                </>
+              )}
+            </section>
+
+            {/* ========================================================================= */}
+            {/* BLOCK 3: PHƯƠNG THỨC THANH TOÁN (CHUẨN CÁC SÀN LỚN) */}
+            {/* ========================================================================= */}
+            <div className="bg-white rounded-lg p-5 sm:p-6 shadow-xs border border-gray-200 text-left space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <h3 className="text-sm sm:text-base font-bold text-[#1A1612]">Phương Thức Thanh Toán</h3>
+                <span className="text-xs text-gray-500">Mọi giao dịch được bảo hộ 100% qua Quỹ Escrow SCANMS</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* COD Option */}
+                <label
+                  className={`p-4 rounded-lg border text-left cursor-pointer transition-all ${
+                    paymentMethod === 'COD'
+                      ? 'bg-[#FFF5F1]/50 border-[#ee4d2d] ring-1 ring-[#ee4d2d] shadow-2xs'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="COD"
+                        checked={paymentMethod === 'COD'}
+                        onChange={() => setPaymentMethod('COD')}
+                        className="w-4 h-4 text-[#ee4d2d] accent-[#ee4d2d]"
+                      />
+                      <strong className="text-xs sm:text-sm text-[#1A1612]">Thanh toán khi nhận hàng (COD)</strong>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Khuyên dùng
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 mt-1.5 pl-6.5 leading-relaxed">
+                    Kiểm tra kiện hàng tận nơi, thanh toán tiền mặt trực tiếp cho nhân viên giao vận.
+                  </p>
+                </label>
+
+                {/* PayOS Option */}
+                <label
+                  className={`p-4 rounded-lg border text-left cursor-pointer transition-all ${
+                    paymentMethod === 'PAYOS'
+                      ? 'bg-[#FFF5F1]/50 border-[#ee4d2d] ring-1 ring-[#ee4d2d] shadow-2xs'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="PAYOS"
+                        checked={paymentMethod === 'PAYOS'}
+                        onChange={() => setPaymentMethod('PAYOS')}
+                        className="w-4 h-4 text-[#ee4d2d] accent-[#ee4d2d]"
+                      />
+                      <strong className="text-xs sm:text-sm text-[#1A1612]">Chuyển khoản PayOS (VietQR)</strong>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#B88E4F] bg-amber-50 px-2 py-0.5 rounded-full border border-[#EEDFC6]">
+                      Tự động 24/7
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 mt-1.5 pl-6.5 leading-relaxed">
+                    Quét mã VietQR trên ứng dụng ngân hàng bất kỳ. Hệ thống tự động xác nhận sau 10 giây.
+                  </p>
+                </label>
+              </div>
+
+              {paymentMethod === 'PAYOS' && payosAvailable === false && (
+                <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                  ℹ️ Cổng PayOS đang ở chế độ thử nghiệm nội bộ. Quý khách nên chọn phương thức COD để đơn hàng được duyệt và giao ngay!
+                </p>
+              )}
+            </div>
+
+            {/* ========================================================================= */}
+            {/* BLOCK 4: TỔNG KẾT ĐƠN HÀNG & ĐẶT HÀNG (Chuẩn SCANMS ẢNH 2) */}
+            {/* ========================================================================= */}
+            <div className="bg-white rounded-lg p-5 sm:p-6 shadow-xs border border-gray-200 text-left space-y-4">
+              {/* Voucher sàn SCANMS */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[#1A1612]">
+                  <Tag className="w-4 h-4 text-[#ee4d2d]" />
+                  <span>Voucher của SCANMS</span>
+                </div>
+
+                <div className="flex items-center gap-2 max-w-md w-full sm:w-auto">
+                  <input
+                    type="text"
+                    placeholder="Nhập mã ưu đãi (VD: SCANMS50K)"
+                    value={couponCode}
+                    disabled={!!appliedCoupon}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value.toUpperCase());
+                      setAutoCouponDismissed(true);
+                      setCouponLoading(false);
+                      setAppliedCoupon(null);
+                      setCouponMessage(null);
+                    }}
+                    className="px-3.5 py-1.5 bg-white border border-gray-300 rounded text-xs text-[#1A1612] uppercase font-bold focus:outline-none focus:border-[#ee4d2d] flex-1 sm:w-60"
+                  />
+                  {appliedCoupon ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-[#DC2626] font-bold text-xs rounded transition cursor-pointer shrink-0"
+                    >
+                      Bỏ mã
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!couponCode.trim() || couponLoading}
+                      onClick={handleValidateCoupon}
+                      className="px-4 py-1.5 bg-[#ee4d2d] hover:bg-[#d03e1e] text-white disabled:opacity-50 font-bold text-xs rounded transition cursor-pointer shrink-0"
+                    >
+                      {couponLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Áp Dụng'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {couponMessage && (
+                <div
+                  className={`text-[11px] font-semibold flex items-center gap-1.5 ${
+                    couponMessage.type === 'success' ? 'text-emerald-700' : 'text-[#DC2626]'
+                  }`}
+                >
+                  {couponMessage.type === 'success' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span>{couponMessage.text}</span>
+                </div>
+              )}
+
+              {/* Bảng chi tiết tài chính */}
+              <div className="flex flex-col items-end space-y-2.5 text-xs text-gray-600 pt-2">
+                <div className="flex justify-between sm:justify-end gap-8 w-full sm:w-auto">
+                  <span>Tổng tiền hàng ({activeUnitCount} món):</span>
+                  <span className="font-semibold text-[#1A1612] min-w-[130px] text-right">{formatMoney(rawSubtotal)}</span>
+                </div>
+
+                {appliedCoupon && (
+                  <div className="flex justify-between sm:justify-end gap-8 w-full sm:w-auto text-[#ee4d2d]">
+                    <span>Giảm giá Voucher ({appliedCoupon.code}):</span>
+                    <span className="font-bold min-w-[130px] text-right">-{formatMoney(discountAmount)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between sm:justify-end gap-8 w-full sm:w-auto">
+                  <span>Tổng cộng Tiền phí vận chuyển:</span>
+                  <span className="font-semibold text-emerald-700 min-w-[130px] text-right">Miễn phí toàn quốc</span>
+                </div>
+
+                <div className="flex justify-between sm:justify-end gap-8 w-full sm:w-auto items-baseline pt-3 border-t border-gray-200">
+                  <span className="text-sm font-medium text-gray-800">Tổng thanh toán:</span>
+                  <strong className="text-2xl sm:text-3xl font-black text-[#ee4d2d] min-w-[150px] text-right">
+                    {formatMoney(finalTotal)}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Chính sách đổi trả & cam kết Escrow 14 ngày */}
+              <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#8C6B32]">
+                  <ShieldCheck className="w-4 h-4 text-[#C59B58]" />
+                  <span>Chính sách đổi trả 14 ngày & Quỹ Bảo Chứng SCANMS</span>
+                </div>
+                <div className="text-[11px] text-[#7D715E] leading-relaxed space-y-1">
+                  <p>
+                    • <b>Bảo đảm đổi trả:</b> Khách hàng được quyền gửi yêu cầu đổi hàng / trả hàng hoàn tiền trong vòng <b>14 ngày</b> kể từ khi nhận kiện hàng (kèm hình ảnh / video mở hộp).
+                  </p>
+                  <p>
+                    • <b>Bảo vệ quyền lợi:</b> Tiền thanh toán được giữ an toàn tại Quỹ bảo chứng Escrow của sàn cho đến khi khách xác nhận hài lòng hoặc hết hạn khiếu nại.
+                  </p>
+                </div>
+                <label className="flex items-start gap-2.5 pt-2 border-t border-[#EAE4D7] text-xs text-[#1A1612] cursor-pointer select-none font-medium">
+                  <input
+                    type="checkbox"
+                    id="checkout-policy-agreement"
+                    checked={policyAccepted}
+                    onChange={(e) => {
+                      setPolicyAccepted(e.target.checked);
+                      if (e.target.checked && errorMessage?.includes('chính sách đổi trả')) {
+                        setErrorMessage(null);
+                      }
+                    }}
+                    className="w-4 h-4 mt-0.5 rounded text-[#ee4d2d] focus:ring-[#ee4d2d] cursor-pointer shrink-0"
+                  />
+                  <span>
+                    Tôi đã đọc, hiểu rõ và đồng ý với <b>Chính sách đổi trả 14 ngày</b> và điều kiện bảo hành của các gian hàng trên sàn SCANMS.
+                  </span>
+                </label>
+              </div>
+
+              {/* Chân trang thanh toán và nút ĐẶT HÀNG */}
+              <div className="pt-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-[11px] text-gray-500 leading-relaxed text-center sm:text-left max-w-md">
+                  Nhấn "Đặt hàng" đồng nghĩa với việc bạn đồng ý tuân theo{' '}
+                  <a
+                    href="#rules"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toast.info('Chính sách giao dịch an toàn SCANMS: Escrow 14 ngày & Bảo hộ 100%.');
+                    }}
+                    className="text-[#0055AA] hover:underline"
+                  >
+                    Điều khoản SCANMS
+                  </a>{' '}
+                  & Cam kết bảo vệ quyền lợi người mua 100%.
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || activeItems.length === 0}
+                  className="w-full sm:w-60 py-3.5 bg-[#ee4d2d] hover:bg-[#d03e1e] disabled:opacity-50 text-white font-bold text-base rounded shadow-md hover:shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>ĐANG XỬ LÝ...</span>
+                    </>
+                  ) : (
+                    <span>ĐẶT HÀNG</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
         )}
-      </div>
+      </main>
+
+      {/* Modal xác nhận xóa địa chỉ - Chuẩn SCANMS & các sàn lớn (Chỉ xóa khi bấm xác nhận, không bao giờ tự động đếm giờ) */}
+      {addressToDelete && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => !isDeletingAddress && setAddressToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-address-title"
+          >
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-10 h-10 rounded-full bg-[#FFF5F1] text-[#ee4d2d] flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 className="w-5 h-5 text-[#ee4d2d]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 id="delete-address-title" className="text-base font-bold text-[#1A1612]">
+                  Xóa địa chỉ nhận hàng?
+                </h3>
+                <p className="text-xs text-[#7D715E] mt-0.5 leading-relaxed">
+                  Địa chỉ này sẽ bị xóa khỏi sổ địa chỉ của bạn. Thao tác này không thể hoàn tác.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 mb-5 text-xs">
+              <div className="flex items-center gap-2 font-bold text-[#1A1612] mb-1">
+                <span>{addressToDelete.fullName}</span>
+                <span className="text-gray-400">|</span>
+                <span className="font-mono text-gray-600 font-medium">{addressToDelete.phoneNumber}</span>
+                {addressToDelete.isDefault && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold text-[#ee4d2d] border border-[#ee4d2d] bg-[#FFF5F1]">
+                    Mặc định
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-600 leading-relaxed text-[11px]">
+                {[
+                  addressToDelete.detailAddress,
+                  addressToDelete.wardName,
+                  addressToDelete.districtName,
+                  addressToDelete.provinceName,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeletingAddress}
+                onClick={() => setAddressToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-lg transition cursor-pointer select-none active:scale-95 disabled:opacity-50"
+              >
+                Trở lại
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingAddress}
+                onClick={() => handleExecuteDeleteAddress(addressToDelete)}
+                className="px-4 py-2 text-xs font-bold text-white bg-[#ee4d2d] hover:bg-[#d03e1e] rounded-lg transition cursor-pointer select-none active:scale-95 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+              >
+                {isDeletingAddress ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>Đang xóa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5 text-white" />
+                    <span>Xác nhận xóa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

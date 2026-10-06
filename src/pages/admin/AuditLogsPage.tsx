@@ -19,6 +19,7 @@ import {
   Sparkles,
   Eye,
 } from 'lucide-react';
+import { toast } from '../../utils/toast';
 import {
   auditService,
   type AuditLogItem,
@@ -26,6 +27,7 @@ import {
   type AuditCategory,
   type AuditSeverity,
 } from '../../services/audit.service';
+import { Select } from '../../components/ui/Select';
 
 export const AuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
@@ -138,7 +140,9 @@ export const AuditLogsPage: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err: any) {
-      alert('Xuất file kiểm toán thất bại: ' + (err.message || 'Lỗi kết nối'));
+      toast.error('Xuất file kiểm toán thất bại', {
+        description: err.message || 'Lỗi kết nối máy chủ.',
+      });
     } finally {
       setExporting(false);
     }
@@ -155,14 +159,14 @@ export const AuditLogsPage: React.FC = () => {
     switch (severity) {
       case 'CRITICAL':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1 text-[11px] font-semibold text-[#B91C1C]">
             <AlertTriangle className="w-3 h-3" />
             CRITICAL
           </span>
         );
       case 'WARN':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[11px] font-semibold text-[#8A642C]">
             <Clock className="w-3 h-3" />
             WARNING
           </span>
@@ -170,7 +174,7 @@ export const AuditLogsPage: React.FC = () => {
       case 'INFO':
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#EAE4D7] bg-[#F3EFE6] px-2.5 py-1 text-[11px] font-semibold text-[#5F5547]">
             <Info className="w-3 h-3" />
             INFO
           </span>
@@ -182,144 +186,104 @@ export const AuditLogsPage: React.FC = () => {
   const getCategoryInfo = (cat: AuditCategory) => {
     switch (cat) {
       case 'AUTH':
-        return { label: 'Xác thực & IAM', icon: Lock, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' };
+        return { label: 'Xác thực & IAM', icon: Lock, color: 'text-[#8A642C] bg-[#FBF5EB] border-[#EEDFC6]' };
       case 'FINANCIAL':
-        return { label: 'Tài chính & Payout', icon: DollarSign, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+        return { label: 'Tài chính & Payout', icon: DollarSign, color: 'text-[#8A642C] bg-[#FBF5EB] border-[#EEDFC6]' };
       case 'AI_SECURITY':
-        return { label: 'An ninh & AI', icon: Sparkles, color: 'text-rose-700 bg-rose-50 border-rose-200' };
+        return { label: 'An ninh & AI', icon: Sparkles, color: 'text-[#B91C1C] bg-[#FEF2F2] border-[#FECACA]' };
       case 'PRODUCT':
-        return { label: 'Sản phẩm & Media', icon: Layers, color: 'text-amber-700 bg-amber-50 border-amber-200' };
+        return { label: 'Sản phẩm & Media', icon: Layers, color: 'text-[#8A642C] bg-[#FBF5EB] border-[#EEDFC6]' };
       case 'SAMPLE_CAMPAIGN':
-        return { label: 'Chiến dịch & Hàng mẫu', icon: FileText, color: 'text-cyan-700 bg-cyan-50 border-cyan-200' };
+        return { label: 'Chiến dịch & Hàng mẫu', icon: FileText, color: 'text-[#5F5547] bg-[#F3EFE6] border-[#EAE4D7]' };
       default:
-        return { label: 'Hệ thống chung', icon: ShieldCheck, color: 'text-stone-700 bg-stone-50 border-stone-200' };
+        return { label: 'Hệ thống chung', icon: ShieldCheck, color: 'text-[#5F5547] bg-[#FAF8F5] border-[#EAE4D7]' };
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1612] p-6 lg:p-8">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-bold tracking-wide uppercase bg-[#EBD08C]/15 text-[#B88E4F] border border-[#C59B58]/30">
-                FR-32 Enterprise Security
-              </span>
-              <span className="text-xs text-stone-700 font-medium">Bảo mật bất biến 100%</span>
-            </div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[#1A1612] flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-[#B88E4F]" />
-              Nhật Ký Kiểm Toán Toàn Diện (Audit Trail)
-            </h1>
-            <p className="text-sm text-stone-700 mt-1">
-              Ghi nhận và đối soát toàn bộ các thao tác nhạy cảm, tài chính, xác thực và an ninh trong toàn hệ thống.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleExportCsv}
-              disabled={exporting}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition-all shadow-sm disabled:opacity-50 cursor-pointer"
-            >
-              <Download className={`w-4 h-4 ${exporting ? 'animate-bounce' : ''}`} />
-              {exporting ? 'Đang xuất CSV...' : 'Xuất Báo Cáo CSV'}
-            </button>
-            <button
-              onClick={() => {
-                loadStatsAndActions();
-                loadLogs();
-              }}
-              className="p-2.5 rounded-xl border border-[#EAE4D7] bg-white text-stone-700 hover:text-[#1A1612] hover:border-[#C59B58] transition-all shadow-xs cursor-pointer"
-              title="Làm mới dữ liệu"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* 4 KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+    <div className="w-full min-w-0 pt-4 text-[#1A1612] sm:pt-5">
+      <div className="mb-8 w-full min-w-0">
+        {/* 4 KPI Cards - Nhỏ gọn, cân xứng, chuẩn 4 cột trên desktop */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           {/* Card 1: Total Events */}
-          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Tổng Sự Kiện Đã Ghi</span>
-              <div className="w-10 h-10 rounded-xl bg-[#EBD08C]/10 text-[#B88E4F] flex items-center justify-center">
-                <FileText className="w-5 h-5" />
+          <div className="flex flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3.5 sm:p-4 shadow-2xs hover:border-[#C59B58]/40 transition">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Tổng sự kiện đã ghi</span>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+                <FileText className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-[#1A1612]">
+            <div className="mt-2.5">
+              <div className="text-xl sm:text-2xl font-black tracking-tight text-[#1A1612]">
                 {stats?.totalEvents?.toLocaleString('vi-VN') || 0}
               </div>
-              <div className="text-xs text-stone-700 mt-1 flex items-center gap-1">
-                <span className="font-semibold text-emerald-700">+{stats?.eventsToday || 0}</span> sự kiện trong ngày
+              <div className="mt-0.5 flex items-center gap-1 text-[11.5px] text-[#7D715E]">
+                <span className="font-bold text-[#8A642C]">+{stats?.eventsToday || 0}</span> sự kiện trong ngày
               </div>
             </div>
           </div>
 
           {/* Card 2: Financial Events */}
-          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Thao Tác Tài Chính</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <DollarSign className="w-5 h-5" />
+          <div className="flex flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3.5 sm:p-4 shadow-2xs hover:border-[#C59B58]/40 transition">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Thao tác tài chính</span>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+                <DollarSign className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-emerald-800">
+            <div className="mt-2.5">
+              <div className="text-xl sm:text-2xl font-black tracking-tight text-[#8A642C]">
                 {stats?.financialEventsCount?.toLocaleString('vi-VN') || 0}
               </div>
-              <div className="text-xs text-stone-700 mt-1">Duyệt Payout, Hoa hồng, Ví tiền</div>
+              <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">Duyệt payout, hoa hồng, ví tiền</div>
             </div>
           </div>
 
           {/* Card 3: Security & AI Flags */}
-          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">An Ninh & AI Gian Lận</span>
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5" />
+          <div className="flex flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3.5 sm:p-4 shadow-2xs hover:border-[#C59B58]/40 transition">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">An ninh & AI gian lận</span>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]">
+                <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-rose-800">
+            <div className="mt-2.5">
+              <div className="text-xl sm:text-2xl font-black tracking-tight text-[#B91C1C]">
                 {stats?.securityEventsCount?.toLocaleString('vi-VN') || 0}
               </div>
-              <div className="text-xs text-stone-700 mt-1">Cảnh báo traffic, Đóng băng ví</div>
+              <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">Cảnh báo traffic, đóng băng ví</div>
             </div>
           </div>
 
           {/* Card 4: Auth & Identity */}
-          <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Xác Thực & Quản Trị</span>
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                <Lock className="w-5 h-5" />
+          <div className="flex flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3.5 sm:p-4 shadow-2xs hover:border-[#C59B58]/40 transition">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Xác thực & quản trị</span>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#8A642C]">
+                <Lock className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-black text-indigo-900">
+            <div className="mt-2.5">
+              <div className="text-xl sm:text-2xl font-black tracking-tight text-[#1A1612]">
                 {stats?.authEventsCount?.toLocaleString('vi-VN') || 0}
               </div>
-              <div className="text-xs text-stone-700 mt-1">Đăng nhập, KYC, Đổi quyền</div>
+              <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">Đăng nhập, KYC, đổi quyền</div>
             </div>
           </div>
         </div>
 
         {/* Filters & Search Toolbar */}
-        <div className="bg-white rounded-2xl p-5 border border-[#EAE4D7] shadow-xs mt-6">
-          <div className="flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
+        <div className="mt-5 rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-[0_2px_10px_rgba(35,29,21,0.035)] sm:p-5 xl:mt-6">
+          <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)_220px] xl:items-center">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[280px]">
-              <Search className="w-4 h-4 text-stone-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <div className="relative min-w-0">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7D715E]" />
               <input
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="Tìm theo Action, IP, Email hoặc Tên người thao tác..."
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] focus:outline-none focus:border-[#C59B58] focus:bg-white transition-all text-[#1A1612]"
+                className="h-11 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] pl-10 pr-10 text-sm text-[#1A1612] outline-none transition focus:border-[#C59B58] focus:bg-white"
               />
               {searchKeyword && (
                 <button
@@ -332,45 +296,45 @@ export const AuditLogsPage: React.FC = () => {
             </div>
 
             {/* Filter Controls */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_180px] xl:contents">
               {/* Timeframe Selector */}
-              <div className="flex items-center gap-1.5 bg-[#FAF8F5] p-1 rounded-xl border border-[#EAE4D7]">
+              <div className="grid h-11 grid-cols-4 items-center gap-1 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-1">
                 <button
                   onClick={() => setSelectedTimeframe('24h')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  className={`h-full rounded-lg px-2 text-xs font-semibold transition-all ${
                     selectedTimeframe === '24h'
-                      ? 'bg-[#EBD08C] text-white shadow-xs'
-                      : 'text-stone-700 hover:text-[#1A1612]'
+                      ? 'bg-[#C59B58] text-white shadow-sm'
+                      : 'text-[#7D715E] hover:text-[#1A1612]'
                   }`}
                 >
                   24 Giờ
                 </button>
                 <button
                   onClick={() => setSelectedTimeframe('7d')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  className={`h-full rounded-lg px-2 text-xs font-semibold transition-all ${
                     selectedTimeframe === '7d'
-                      ? 'bg-[#EBD08C] text-white shadow-xs'
-                      : 'text-stone-700 hover:text-[#1A1612]'
+                      ? 'bg-[#C59B58] text-white shadow-sm'
+                      : 'text-[#7D715E] hover:text-[#1A1612]'
                   }`}
                 >
                   7 Ngày
                 </button>
                 <button
                   onClick={() => setSelectedTimeframe('30d')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  className={`h-full rounded-lg px-2 text-xs font-semibold transition-all ${
                     selectedTimeframe === '30d'
-                      ? 'bg-[#EBD08C] text-white shadow-xs'
-                      : 'text-stone-700 hover:text-[#1A1612]'
+                      ? 'bg-[#C59B58] text-white shadow-sm'
+                      : 'text-[#7D715E] hover:text-[#1A1612]'
                   }`}
                 >
                   30 Ngày
                 </button>
                 <button
                   onClick={() => setSelectedTimeframe('all')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  className={`h-full rounded-lg px-2 text-xs font-semibold transition-all ${
                     selectedTimeframe === 'all'
-                      ? 'bg-[#EBD08C] text-white shadow-xs'
-                      : 'text-stone-700 hover:text-[#1A1612]'
+                      ? 'bg-[#C59B58] text-white shadow-sm'
+                      : 'text-[#7D715E] hover:text-[#1A1612]'
                   }`}
                 >
                   Tất cả
@@ -378,71 +342,103 @@ export const AuditLogsPage: React.FC = () => {
               </div>
 
               {/* Severity Filter */}
-              <select
+              <Select
                 value={selectedSeverity}
                 onChange={(e) => {
                   setSelectedSeverity(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 text-xs font-medium rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-stone-700 focus:outline-none focus:border-[#C59B58]"
+                className="h-11 w-full text-sm font-medium"
               >
                 <option value="ALL">Mức độ: Tất cả</option>
-                <option value="CRITICAL">🔴 Critical (Nghiêm trọng)</option>
-                <option value="WARN">🟡 Warning (Cảnh báo)</option>
-                <option value="INFO">🔵 Info (Thông tin)</option>
-              </select>
+                <option value="CRITICAL">Critical (Nghiêm trọng)</option>
+                <option value="WARN">Warning (Cảnh báo)</option>
+                <option value="INFO">Info (Thông tin)</option>
+              </Select>
             </div>
           </div>
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-4 mt-4 border-t border-[#EAE4D7]/60 scrollbar-none">
-            {[
-              { id: 'ALL', label: 'Tất cả danh mục' },
-              { id: 'AUTH', label: 'Xác thực & IAM' },
-              { id: 'FINANCIAL', label: 'Tài chính & Payout' },
-              { id: 'AI_SECURITY', label: 'An ninh & AI' },
-              { id: 'PRODUCT', label: 'Sản phẩm & Media' },
-              { id: 'SAMPLE_CAMPAIGN', label: 'Chiến dịch & Mẫu' },
-              { id: 'SYSTEM', label: 'Hệ thống chung' },
-            ].map((tab) => (
+          {/* Category Tabs & Actions */}
+          <div className="mt-4 flex flex-col gap-4 border-t border-[#EAE4D7] pt-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {[
+                { id: 'ALL', label: 'Tất cả danh mục' },
+                { id: 'AUTH', label: 'Xác thực & IAM' },
+                { id: 'FINANCIAL', label: 'Tài chính & Payout' },
+                { id: 'AI_SECURITY', label: 'An ninh & AI' },
+                { id: 'PRODUCT', label: 'Sản phẩm & Media' },
+                { id: 'SAMPLE_CAMPAIGN', label: 'Chiến dịch & Mẫu' },
+                { id: 'SYSTEM', label: 'Hệ thống chung' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setSelectedCategory(tab.id);
+                    setCurrentPage(1);
+                  }}
+                  className={`min-h-9 rounded-xl border px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition-all ${
+                    selectedCategory === tab.id
+                      ? 'border-[#C59B58] bg-[#FBF5EB] text-[#8A642C] shadow-sm'
+                      : 'border-[#EAE4D7] bg-[#FAF8F5] text-[#5F5547] hover:border-[#C59B58] hover:text-[#1A1612]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2 xl:pl-3">
               <button
-                key={tab.id}
-                onClick={() => {
-                  setSelectedCategory(tab.id);
-                  setCurrentPage(1);
-                }}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedCategory === tab.id
-                    ? 'bg-[#1A1612] text-[#FAF8F5] shadow-xs'
-                    : 'bg-[#FAF8F5] text-stone-700 hover:bg-[#EAE4D7]/50 hover:text-[#1A1612]'
-                }`}
+                onClick={handleExportCsv}
+                disabled={exporting}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#C59B58] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#B88E4F] disabled:cursor-wait disabled:opacity-50"
               >
-                {tab.label}
+                <Download className={`w-3.5 h-3.5 ${exporting ? 'animate-bounce' : ''}`} />
+                <span>{exporting ? 'Đang xuất CSV...' : 'Xuất Báo Cáo CSV'}</span>
               </button>
-            ))}
+              <button
+                onClick={() => {
+                  loadStatsAndActions();
+                  loadLogs();
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] shadow-sm transition hover:border-[#C59B58] hover:text-[#1A1612]"
+                title="Làm mới dữ liệu"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#B88E4F]' : ''}`} />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Audit Logs Table */}
-        <div className="bg-white rounded-2xl border border-[#EAE4D7] shadow-xs mt-6 overflow-hidden">
+        <div className="mt-5 overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-[0_2px_12px_rgba(35,29,21,0.04)] xl:mt-6">
           {error && (
-            <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-800 text-sm flex items-center gap-2">
+            <div className="flex items-center gap-2 border-b border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#B91C1C]">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[1180px] table-fixed border-collapse text-left">
+              <colgroup>
+                <col className="w-[12%]" />
+                <col className="w-[20%]" />
+                <col className="w-[23%]" />
+                <col className="w-[15%]" />
+                <col className="w-[11%]" />
+                <col className="w-[10%]" />
+                <col className="w-[9%]" />
+              </colgroup>
               <thead>
-                <tr className="bg-[#FAF8F5] border-b border-[#EAE4D7] text-xs font-bold text-stone-700 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Thời gian</th>
-                  <th className="py-3.5 px-4">Người thực hiện</th>
-                  <th className="py-3.5 px-4">Hành động & Nghiệp vụ</th>
-                  <th className="py-3.5 px-4">Phân loại</th>
-                  <th className="py-3.5 px-4">Mức độ</th>
-                  <th className="py-3.5 px-4">Địa chỉ IP</th>
-                  <th className="py-3.5 px-4 text-right">Thao tác</th>
+                <tr className="border-b border-[#EAE4D7] bg-[#F3EFE6] text-[11px] font-bold uppercase tracking-[0.07em] text-[#5F5547]">
+                  <th className="px-4 py-4">Thời gian</th>
+                  <th className="px-4 py-4">Người thực hiện</th>
+                  <th className="px-4 py-4">Hành động & Nghiệp vụ</th>
+                  <th className="px-4 py-4">Phân loại</th>
+                  <th className="px-4 py-4">Mức độ</th>
+                  <th className="px-4 py-4">Địa chỉ IP</th>
+                  <th className="px-4 py-4 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAE4D7]/60 text-sm">
@@ -472,11 +468,11 @@ export const AuditLogsPage: React.FC = () => {
                     return (
                       <tr
                         key={log.id}
-                        className="hover:bg-[#FAF8F5]/60 transition-colors group cursor-pointer"
+                        className="group cursor-pointer transition-colors hover:bg-[#FBF5EB]/60"
                         onClick={() => setSelectedLog(log)}
                       >
                         {/* Timestamp */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-4 py-4">
                           <div className="text-xs font-semibold text-[#1A1612]">
                             {new Date(log.createdAt).toLocaleTimeString('vi-VN', {
                               hour: '2-digit',
@@ -490,7 +486,7 @@ export const AuditLogsPage: React.FC = () => {
                         </td>
 
                         {/* Actor */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-4 py-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-full bg-[#EBD08C]/15 text-[#B88E4F] border border-[#C59B58]/30 flex items-center justify-center font-bold text-xs flex-shrink-0">
                               {log.actor.avatarUrl ? (
@@ -504,10 +500,10 @@ export const AuditLogsPage: React.FC = () => {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-xs font-bold text-[#1A1612] truncate max-w-[140px]">
+                              <div className="max-w-[190px] truncate text-xs font-bold text-[#1A1612]">
                                 {log.actor.name}
                               </div>
-                              <div className="text-[11px] text-stone-600 truncate max-w-[140px]">
+                              <div className="max-w-[190px] truncate text-[11px] text-[#7D715E]">
                                 {log.actor.email}
                               </div>
                             </div>
@@ -515,17 +511,17 @@ export const AuditLogsPage: React.FC = () => {
                         </td>
 
                         {/* Action Name */}
-                        <td className="py-3.5 px-4">
+                        <td className="px-4 py-4">
                           <div className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
                             <span>{log.actionNameVi}</span>
                           </div>
-                          <div className="text-[11px] font-mono text-stone-600 tracking-tight">
+                          <div className="truncate text-[11px] font-mono tracking-tight text-[#7D715E]">
                             {log.action}
                           </div>
                         </td>
 
                         {/* Category */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-4 py-4">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${catInfo.color}`}
                           >
@@ -535,23 +531,23 @@ export const AuditLogsPage: React.FC = () => {
                         </td>
 
                         {/* Severity */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-4 py-4">
                           {renderSeverityBadge(log.severity)}
                         </td>
 
                         {/* IP Address */}
-                        <td className="py-3.5 px-4 whitespace-nowrap text-xs font-mono text-stone-700">
+                        <td className="whitespace-nowrap px-4 py-4 font-mono text-xs text-[#5F5547]">
                           {log.ipAddress}
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <td className="whitespace-nowrap px-4 py-4 text-right">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedLog(log);
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FAF8F5] text-stone-700 hover:bg-[#DEC07A] hover:text-white border border-[#EAE4D7] transition-all cursor-pointer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] px-3 py-1.5 text-xs font-semibold text-[#5F5547] transition-all hover:border-[#C59B58] hover:bg-[#FBF5EB] hover:text-[#8A642C]"
                           >
                             <Eye className="w-3 h-3" />
                             Chi tiết
@@ -693,7 +689,7 @@ export const AuditLogsPage: React.FC = () => {
                     )}
                   </button>
                 </div>
-                <div className="bg-[#1A1612] text-[#FAF8F5] p-4 rounded-xl font-mono text-xs overflow-x-auto max-h-60 border border-stone-800">
+                <div className="bg-[#FAF8F5] text-[#1A1612] p-4 rounded-xl font-mono text-xs overflow-x-auto max-h-60 border border-[#EAE4D7]">
                   <pre>{JSON.stringify(selectedLog.details || {}, null, 2)}</pre>
                 </div>
               </div>
@@ -703,7 +699,7 @@ export const AuditLogsPage: React.FC = () => {
             <div className="p-4 border-t border-[#EAE4D7] bg-[#FAF8F5] flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-[#1A1612] text-[#FAF8F5] hover:bg-stone-800 transition-colors"
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-[#F3EFE6] text-[#1A1612] hover:bg-[#EAE4D7] border border-[#EAE4D7] transition-colors"
               >
                 Đóng
               </button>

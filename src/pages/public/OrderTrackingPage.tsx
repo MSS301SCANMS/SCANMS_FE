@@ -23,6 +23,7 @@ import api from "../../services/api";
 import { Button } from "../../components/ui/Button";
 import { PublicHeader } from "../../components/layout/PublicHeader";
 import { Card } from "../../components/ui/Card";
+import { getSafeProductImageUrl } from "../../features/marketplace/marketplaceUtils";
 
 interface OrderItem {
   id: string;
@@ -263,7 +264,7 @@ export default function OrderTrackingPage() {
     <div className="min-h-screen bg-[#FAF8F5] text-left flex flex-col font-sans overflow-x-clip relative">
       {/* Toast alert */}
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#1A1612] text-white px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-[#C59B58]">
+        <div className="fixed top-5 right-5 z-50 bg-white text-[#1A1612] px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-[#EEDFC6]">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
           <span>{toastMsg}</span>
         </div>
@@ -503,12 +504,16 @@ export default function OrderTrackingPage() {
                               title="Xem chi tiết sản phẩm"
                             >
                               <img
-                                src={
-                                  item.imageUrl ||
-                                  "/assets/serum-hero-optimized.jpg"
-                                }
+                                src={getSafeProductImageUrl(item.imageUrl, item.productTitle)}
                                 alt={item.productTitle}
                                 className="w-full h-full object-contain hover:scale-105 transition-transform"
+                                onError={(e) => {
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  if (!target.dataset.hasFallback) {
+                                    target.dataset.hasFallback = 'true';
+                                    target.src = getSafeProductImageUrl(null, item.productTitle);
+                                  }
+                                }}
                               />
                             </Link>
                             <div className="min-w-0 flex-1">

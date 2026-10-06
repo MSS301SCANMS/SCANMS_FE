@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import api from '../../services/api';
 import type { Campaign } from '../../types/campaigns';
 import { ExclusiveDealInbox } from '../../components/affiliate/ExclusiveDealInbox';
+import { DateTimePicker } from '../../components/common/DateTimePicker';
 
 
 const STATUS_LABEL: Record<string, string> = {
@@ -95,24 +96,24 @@ function CreateCampaignModal({ onClose, onSuccess }: { onClose: () => void; onSu
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Ngày bắt đầu</label>
-              <input
+              <DateTimePicker
                 id="campaign-start"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
-                type="date"
+                mode="date"
                 value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                onChange={(val) => setForm((f) => ({ ...f, startDate: val }))}
+                placeholder="Chọn ngày bắt đầu"
                 required
               />
             </div>
             <div>
               <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Ngày kết thúc</label>
-              <input
+              <DateTimePicker
                 id="campaign-end"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
-                type="date"
+                mode="date"
                 value={form.endDate}
-                min={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                minDateTime={form.startDate}
+                onChange={(val) => setForm((f) => ({ ...f, endDate: val }))}
+                placeholder="Chọn ngày kết thúc"
                 required
               />
             </div>
@@ -373,15 +374,7 @@ export default function ShopCampaignsPage() {
       )}
 
 
-      <div className="flex items-start sm:items-center justify-between gap-4 flex-wrap pb-2 border-b border-[#EAE4D7]">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1A1612] flex items-center gap-2.5">
-            <span>🎯</span> Chiến Dịch Tiếp Thị Liên Kết
-          </h1>
-          <p className="text-sm text-[#7D715E] mt-1">
-            Tạo chiến dịch hoa hồng thưởng và mời Top KOL quảng bá sản phẩm cho gian hàng
-          </p>
-        </div>
+      <div className="flex items-center justify-end pb-2">
         <button
           id="btn-new-campaign"
           type="button"

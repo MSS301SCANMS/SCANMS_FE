@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format, isToday, isYesterday } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -22,6 +23,11 @@ import {
   Crown,
   ShoppingBag,
   ExternalLink,
+  FileText,
+  Ticket,
+  Copy,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getChatSocket } from '../../services/chat-socket.service';
 import api from '../../services/api';
@@ -33,6 +39,39 @@ function removeAccents(str: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[đĐ]/g, 'd');
+}
+
+function ChatAvatar({
+  src,
+  name,
+  className,
+}: {
+  src?: string | null;
+  name: string;
+  className: string;
+}) {
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'S';
+
+  return (
+    <span className={`${className} relative inline-flex items-center justify-center overflow-hidden bg-[#F3EFE6] text-[#B88E4F] font-bold`}>
+      <span aria-hidden="true">{initials}</span>
+      {src && failedSource !== src && (
+        <img
+          src={src}
+          alt={name}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setFailedSource(src)}
+        />
+      )}
+    </span>
+  );
 }
 
 const ACCENTED_STRICT_PATTERNS = [
@@ -99,7 +138,7 @@ const BANK_FRAUD_KEYWORDS = [
 
 function isBankAccountOrFraudText(text: string): boolean {
   if (!text) return false;
-  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY'))) return false;
+  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY') || text.includes('COUPON_VOUCHER'))) return false;
 
   const raw = text.toLowerCase().trim();
   const unaccented = removeAccents(raw).replace(/\s+/g, ' ').trim();
@@ -122,7 +161,7 @@ function isBankAccountOrFraudText(text: string): boolean {
 
 function isProfaneText(text: string): boolean {
   if (!text) return false;
-  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY'))) return false;
+  if (text.startsWith('{') && (text.includes('CAMPAIGN_') || text.includes('PRODUCT_INQUIRY') || text.includes('COUPON_VOUCHER'))) return false;
 
   const raw = text.toLowerCase().trim();
   const unaccented = removeAccents(raw)
@@ -228,35 +267,75 @@ function ExclusiveDealCardBubble({ card, isMine, isShop }: { card: any; isMine: 
   const isRejected = status === 'REJECTED';
 
   return (
-    <div className="max-w-sm space-y-3 rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-[#1A1612] shadow-xs">
+    <div className="max-w-sm space-y-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-[#1A1612] shadow-2xs">
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#B88E4F]"><Sparkles className="h-3.5 w-3.5" /> EXCLUSIVE DEAL</span>
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isApproved ? 'bg-white text-[#B88E4F]' : isRejected ? 'bg-rose-50 text-rose-700' : 'bg-[#F3EFE6] text-[#7D715E]'}`}>
+        <span className="inline-flex items-center gap-1 rounded-full border border-[#EEDFC6] bg-white px-2 py-0.5 text-[10px] font-extrabold text-[#B88E4F]">
+          <Sparkles className="h-3 w-3" /> EXCLUSIVE DEAL
+        </span>
+        <span className={`whitespace-nowrap shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${isApproved ? 'bg-white text-[#B88E4F]' : isRejected ? 'bg-rose-50 text-rose-700' : 'bg-[#F3EFE6] text-[#7D715E]'}`}>
           {isApproved ? 'Đã duyệt' : isRejected ? 'Đã từ chối' : 'Chờ Shop duyệt'}
         </span>
       </div>
       <div>
-        <div className="text-sm font-extrabold">{card.productTitle || 'Sản phẩm'}</div>
-        {card.storeName && <div className="mt-0.5 text-[11px] text-[#7D715E]">Shop: {card.storeName}</div>}
+        <div className="text-xs sm:text-sm font-bold truncate text-[#1A1612]">{card.productTitle || 'Sản phẩm'}</div>
+        {card.storeName && <div className="text-[10px] text-[#7D715E]">Shop: {card.storeName}</div>}
       </div>
       {card.publicCommissionRate !== undefined && (
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg border border-[#EAE4D7] bg-white p-2.5">Open Offer<strong className="mt-1 block text-sm">{card.publicCommissionRate}%</strong></div>
-          <div className="rounded-lg border border-[#EEDFC6] bg-white p-2.5">Mức VIP đề xuất<strong className="mt-1 block text-sm text-[#B88E4F]">{card.approvedCommissionRate ?? card.proposedCommissionRate}%</strong></div>
+        <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-[#EAE4D7] text-xs">
+          <div>
+            <span className="text-[10px] text-[#7D715E] block leading-tight">Hoa hồng sàn</span>
+            <strong className="text-xs font-bold text-[#1A1612]">{card.publicCommissionRate}%</strong>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] text-[#B88E4F] font-bold block leading-tight">Hoa hồng độc quyền</span>
+            <strong className="text-xs sm:text-sm font-black text-[#B88E4F]">{card.approvedCommissionRate ?? card.proposedCommissionRate}%</strong>
+          </div>
         </div>
       )}
-      {card.salesCommitment && <div className="rounded-lg border border-[#EAE4D7] bg-white p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-[#7D715E]">Cam kết doanh số</div><p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{card.salesCommitment}</p></div>}
+      {card.isRevision && card.currentCommissionRate != null && (
+        <div className="rounded-lg border border-[#EEDFC6] bg-white p-2.5 text-xs">Hoa hồng độc quyền đang áp dụng<strong className="mt-1 block text-sm text-[#B88E4F]">{card.currentCommissionRate}%</strong></div>
+      )}
+      {!isDecisionCard && isMine && status === 'PENDING' && card.isRevision && (
+        <div className="text-[11px] leading-relaxed text-[#7D715E]">Mức hoa hồng độc quyền hiện tại vẫn áp dụng trong lúc Shop xem xét đề xuất mới.</div>
+      )}
+      {!isDecisionCard && !isMine && status === 'PENDING' && card.isRevision && (
+        <div className="text-[11px] leading-relaxed text-[#7D715E]">Đề xuất điều chỉnh hoa hồng độc quyền. Nếu duyệt, mức mới áp dụng cho đơn hàng mới; đơn đã tạo giữ nguyên mức cũ.</div>
+      )}
+      {isDecisionCard && card.message && <div className="text-xs leading-relaxed text-[#7D715E]">{card.message}</div>}
+      {card.salesCommitment && (
+        <div className="rounded-lg border border-[#EAE4D7] bg-white px-2.5 py-2 text-xs">
+          <div className="text-[9.5px] font-bold uppercase tracking-wide text-[#7D715E]">Cam kết doanh số</div>
+          <p className="mt-0.5 whitespace-pre-wrap text-xs text-[#1A1612] leading-relaxed line-clamp-2">{card.salesCommitment}</p>
+        </div>
+      )}
       {card.shopResponse && <div className="text-xs text-[#7D715E]">Phản hồi Shop: {card.shopResponse}</div>}
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{error}</div>}
-      {isApproved && linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 break-all text-xs font-bold text-[#B88E4F] underline"><ExternalLink className="h-3.5 w-3.5 shrink-0" /> Mở link VIP</a>}
+      {isApproved && linkUrl && (
+        <div className="flex items-center gap-2 mt-1">
+          <a href={linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 break-all text-xs font-bold text-[#B88E4F] underline">
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" /> Link tiếp thị độc quyền
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(linkUrl);
+              toast.success('Đã sao chép link tiếp thị độc quyền!');
+            }}
+            className="p-1 rounded text-[#7D715E] hover:text-[#B88E4F] hover:bg-white border border-[#EAE4D7] cursor-pointer"
+            title="Sao chép link tiếp thị"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        </div>
+      )}
       {!isDecisionCard && status === 'PENDING' && isShop && !isMine && (
         <div className="flex gap-2">
-          <button type="button" disabled={loading} onClick={() => void decide(false)} className="flex-1 rounded-lg border border-[#EAE4D7] bg-white px-2 py-2 text-xs font-bold text-[#7D715E] hover:bg-[#F3EFE6] disabled:opacity-50">Từ chối</button>
-          <button type="button" disabled={loading} onClick={() => void decide(true)} className="flex-1 rounded-lg bg-[#C59B58] px-2 py-2 text-xs font-bold text-white hover:bg-[#B88E4F] disabled:opacity-50">{loading ? 'Đang xử lý...' : 'Duyệt & tạo link'}</button>
+          <button type="button" disabled={loading} onClick={() => void decide(false)} className="flex-1 rounded-lg border border-[#EAE4D7] bg-white px-2 py-1.5 text-xs font-bold text-[#7D715E] hover:bg-[#F3EFE6] disabled:opacity-50 cursor-pointer">Từ chối</button>
+          <button type="button" disabled={loading} onClick={() => void decide(true)} className="flex-1 rounded-lg bg-[#C59B58] px-2 py-1.5 text-xs font-bold text-white hover:bg-[#B88E4F] disabled:opacity-50 cursor-pointer">{loading ? 'Đang xử lý...' : card.isRevision ? 'Duyệt đổi deal' : 'Duyệt & tạo link'}</button>
         </div>
       )}
       {!isDecisionCard && status === 'PENDING' && isMine && <div className="text-center text-[11px] font-semibold text-[#7D715E]">Đã gửi Shop · Đang chờ phản hồi</div>}
-      {isDecisionCard && isApproved && <div className="text-[11px] text-[#7D715E]">Shop đã chốt mức VIP. Link riêng đã được cấp cho KOL.</div>}
+      {isDecisionCard && isApproved && <div className="text-[11px] text-[#7D715E]">Shop đã chốt mức hoa hồng độc quyền. Link riêng đã được cấp cho KOL.</div>}
       {isDecisionCard && isRejected && <div className="text-[11px] text-[#7D715E]">Shop đã phản hồi đề xuất này.</div>}
     </div>
   );
@@ -426,7 +505,7 @@ function CampaignCardBubble({
               </button>
               <button
                 id={`btn-reject-campaign-${card.campaignId}`}
-                className="py-2 px-3 bg-stone-700 hover:bg-stone-800 text-stone-100 rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 active:scale-95 cursor-pointer"
+                className="py-2 px-3 bg-[#F3EFE6] hover:bg-[#EAE4D7] text-[#1A1612] border border-[#EAE4D7] rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 active:scale-95 cursor-pointer"
                 disabled={loading}
                 onClick={handleReject}
               >
@@ -546,6 +625,72 @@ function ProductInquiryCardBubble({
         </a>
       </div>
     </div>
+  );
+}
+
+interface CouponVoucherCardData {
+  type: 'COUPON_VOUCHER';
+  couponId: string;
+  couponCode: string;
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discountValue: number;
+  minimumOrderAmount?: number | null;
+  maximumDiscountAmount?: number | null;
+  remainingUses?: number | null;
+  expiresAt?: string | null;
+  scopeType?: string;
+  products?: Array<{ id: string; title: string }>;
+  categories?: string[];
+  storeName?: string;
+}
+
+function tryParseCouponVoucherCard(text: string): CouponVoucherCardData | null {
+  if (!text || !text.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.type === 'COUPON_VOUCHER' && parsed.couponId && parsed.couponCode) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function CouponVoucherCardBubble({ card }: { card: CouponVoucherCardData }) {
+  const [copied, setCopied] = useState(false);
+  const discount = card.discountType === 'PERCENTAGE'
+    ? `Giảm ${card.discountValue}%`
+    : `Giảm ${Number(card.discountValue).toLocaleString('vi-VN')}₫`;
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(card.couponCode);
+      setCopied(true);
+      toast.success('Đã sao chép mã giảm giá.');
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error('Không thể sao chép mã trên thiết bị này.');
+    }
+  };
+
+  return (
+    <article className="max-w-sm rounded-2xl border border-[#EEDFC6] bg-white p-3.5 text-[#1A1612] shadow-xs">
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-[#B88E4F]">
+        <Ticket className="h-4 w-4" /> Mã giảm giá · {card.storeName || 'Shop'}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed border-[#C59B58] bg-[#FBF5EB] p-3">
+        <span className="font-mono text-base font-extrabold tracking-wider text-[#8F682E]">{card.couponCode}</span>
+        <button type="button" onClick={() => void copyCode()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#EEDFC6] bg-white px-2.5 py-1.5 text-xs font-bold text-[#7D715E] hover:bg-[#FAF8F5]">
+          <Copy className="h-3.5 w-3.5" /> {copied ? 'Đã chép' : 'Sao chép'}
+        </button>
+      </div>
+      <div className="mt-2 text-sm font-extrabold">{discount}</div>
+      {card.minimumOrderAmount && <div className="mt-1 text-[11px] text-[#7D715E]">Đơn tối thiểu {Number(card.minimumOrderAmount).toLocaleString('vi-VN')}₫</div>}
+      {card.maximumDiscountAmount && card.discountType === 'PERCENTAGE' && <div className="text-[11px] text-[#7D715E]">Giảm tối đa {Number(card.maximumDiscountAmount).toLocaleString('vi-VN')}₫</div>}
+      {card.scopeType === 'PRODUCTS' && <div className="mt-1 text-[11px] text-[#7D715E]">Áp dụng cho {card.products?.length || 0} sản phẩm trong danh sách Shop.</div>}
+      {card.scopeType === 'CATEGORIES' && <div className="mt-1 text-[11px] text-[#7D715E]">Danh mục: {card.categories?.join(', ') || 'theo điều kiện của Shop'}.</div>}
+      {card.expiresAt && <div className="mt-1 text-[11px] text-[#7D715E]">Hạn đến {new Date(card.expiresAt).toLocaleDateString('vi-VN')}</div>}
+      {card.remainingUses !== null && card.remainingUses !== undefined && <div className="mt-1 text-[11px] text-[#7D715E]">Còn {card.remainingUses} lượt sử dụng</div>}
+    </article>
   );
 }
 
@@ -793,6 +938,7 @@ export default function ChatBoxPage({
   className = '',
   initialProductContext,
 }: ChatBoxPageProps = {}) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = (() => {
     try {
@@ -840,11 +986,16 @@ export default function ChatBoxPage({
   const [hasMore, setHasMore] = useState(false);
   const [oldestMsgId, setOldestMsgId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showVipModal, setShowVipModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const isShop = currentUser?.role === 'SHOP_MANAGER';
   const onlyCustomerChats = isShop && window.location.pathname === '/merchant/customer-messages';
+  const canSeeAffiliateDeals = isShop || currentUser?.role === 'COLLABORATOR';
+  const visibleMessages = canSeeAffiliateDeals
+    ? messages
+    : messages.filter((message) => !tryParseExclusiveDealCard(message.messageText));
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -958,6 +1109,7 @@ export default function ChatBoxPage({
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
     const onNewMessage = (msg: ChatMessage) => {
+      if (!canSeeAffiliateDeals && tryParseExclusiveDealCard(msg.messageText)) return;
       if (!conversationsRef.current.some((conversation) => conversation.id === msg.conversationId)) {
         api.get('/chat/conversations', { headers: { 'x-skip-cache': '1' } }).then((response: any) => {
           const all: Conversation[] = Array.isArray(response) ? response : response?.data || [];
@@ -983,6 +1135,8 @@ export default function ChatBoxPage({
                 chatMessages: [
                   {
                     messageText: msg.messageText,
+                    mediaType: msg.mediaType,
+                    mediaName: msg.mediaName,
                     createdAt: msg.createdAt,
                     senderId: msg.senderId,
                     isRead: msg.isRead,
@@ -1192,149 +1346,320 @@ export default function ChatBoxPage({
       : conv.customer?.fullName || conv.collaborator?.fullName || 'Khách hàng / Đối tác';
   };
 
-  const getOtherAvatar = (conv: Conversation) => {
-    if (!currentUser) return conv.store?.name?.[0]?.toUpperCase() || '💬';
-    return currentUser.role === 'COLLABORATOR' || currentUser.role === 'CUSTOMER'
-      ? conv.store?.name?.[0]?.toUpperCase() || 'S'
-      : conv.customer?.fullName?.[0]?.toUpperCase() || conv.collaborator?.fullName?.[0]?.toUpperCase() || 'K';
+  const getOtherAvatarUrl = (conv: Conversation) => {
+    if (currentUser?.role === 'COLLABORATOR') {
+      return conv.store?.owner?.avatarUrl || conv.store?.logoUrl || undefined;
+    }
+    return (
+      conv.collaborator?.collaboratorProfile?.avatarUrl ||
+      conv.collaborator?.avatarUrl ||
+      undefined
+    );
   };
 
+  // getOtherAvatar replaced by ChatAvatar with getOtherAvatarUrl
+
+  const openOtherProfile = (conv: Conversation) => {
+    if (currentUser?.role === 'COLLABORATOR') {
+      const store = conv.store;
+      if (!store?.id) return;
+      navigate(
+        store.slug
+          ? `/shop/${encodeURIComponent(store.slug)}`
+          : `/marketplace?shop=${encodeURIComponent(store.id)}`
+      );
+      return;
+    }
+
+    if (currentUser?.role === 'SHOP_MANAGER' && conv.collaborator?.id) {
+      navigate(
+        `/merchant/kol-hub?kol=${encodeURIComponent(conv.collaborator.id)}&tab=profile`
+      );
+    }
+  };
+
+  const canOpenOtherProfile = (conv: Conversation) =>
+    (currentUser?.role === 'COLLABORATOR' && Boolean(conv.store?.id)) ||
+    (currentUser?.role === 'SHOP_MANAGER' && Boolean(conv.collaborator?.id));
+
   return (
-    <div
-      className={`flex ${embedded ? 'h-full w-full' : 'h-[calc(100vh-5.5rem)]'} bg-white rounded-2xl border border-[#EAE4D7] shadow-sm overflow-hidden ${className}`}
-      id="chat-page"
-    >
+    <div className={embedded ? 'h-full w-full' : 'mx-auto flex w-full max-w-[1520px] flex-col pt-3 pb-4 sm:pt-4'}>
+      <div
+        className={`flex min-h-0 min-w-0 ${embedded ? 'h-full w-full' : 'h-[calc(100dvh-130px)] min-h-[460px] sm:min-h-[560px]'} overflow-hidden rounded-3xl border border-[#EAE4D7] bg-white shadow-[0_12px_36px_rgba(35,29,21,0.08)] ${className}`}
+        id="chat-page"
+      >
       {!hideSidebar && (
       <aside
-        className={`${activeConvId ? 'hidden sm:flex' : 'flex'} w-full sm:w-80 flex-shrink-0 flex-col border-r border-[#EAE4D7] bg-[#FAF8F5]/60`}
+        className={`${activeConvId ? 'hidden sm:flex' : 'flex'} ${
+          isSidebarCollapsed ? 'w-[72px]' : 'w-full sm:w-[300px] lg:w-[320px] xl:w-[350px]'
+        } min-h-0 flex-shrink-0 flex-col border-r border-[#EAE4D7] bg-[#FAF8F5] transition-[width] duration-300 ease-in-out`}
         aria-label="Danh sách hội thoại"
       >
 
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-stone-200/60 bg-white/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <h1 className="text-base font-bold text-stone-900">Tin nhắn</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              id="btn-new-conversation"
-              className="w-8 h-8 rounded-lg bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center transition-colors shadow-xs"
-              title="Tạo cuộc trò chuyện mới"
-              onClick={() => setShowNewChat(true)}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <div
-              className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-xs ring-2 ring-emerald-200' : 'bg-rose-500'
-                }`}
-              title={isConnected ? 'Đang kết nối Realtime' : 'Mất kết nối'}
-            />
-          </div>
-        </div>
-
-
-        <div className="p-3 border-b border-stone-200/60">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              id="chat-search-input"
-              type="text"
-              className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-              placeholder="Tìm kiếm hội thoại..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-
-        <div className="flex-1 overflow-y-auto divide-y divide-stone-100" role="list">
-          {filteredConversations.length === 0 && (
-            <div className="py-16 text-center text-stone-400 text-xs space-y-2">
-              <MessageSquare className="w-8 h-8 mx-auto text-stone-300 stroke-1" />
-              <p>Chưa có cuộc trò chuyện nào</p>
+        {isSidebarCollapsed ? (
+          /* COLLAPSED VIEW: Only Avatars & Expand Toggle */
+          <div className="flex flex-col h-full items-center">
+            {/* Header with Expand Button */}
+            <div className="h-12 w-full border-b border-[#EAE4D7] bg-white flex items-center justify-center">
               <button
-                className="text-amber-600 hover:underline font-bold"
-                onClick={() => setShowNewChat(true)}
+                type="button"
+                onClick={() => setIsSidebarCollapsed(false)}
+                className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#B88E4F] hover:bg-[#FBF5EB] text-[#7D715E] hover:text-[#B88E4F] flex items-center justify-center transition cursor-pointer shadow-2xs"
+                title="Mở rộng danh sách hội thoại"
+                aria-label="Mở rộng danh sách hội thoại"
               >
-                + Bắt đầu chat ngay
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-          )}
 
-          {filteredConversations.map(conv => {
-            const lastMsg = conv.chatMessages?.[0];
-            const isActive = conv.id === activeConvId;
-            const unread = (conv._count?.chatMessages || 0) > 0 || (lastMsg && !lastMsg.isRead && lastMsg.senderId !== currentUser?.id);
+            {/* Collapsed List: Avatars only */}
+            <div className="flex-1 w-full overflow-y-auto py-2.5 px-2 space-y-2.5 no-scrollbar flex flex-col items-center">
+              {filteredConversations.map((conv) => {
+                const lastMsg = conv.chatMessages?.[0];
+                const isActive = conv.id === activeConvId;
+                const unread = (conv._count?.chatMessages || 0) > 0 || (lastMsg && !lastMsg.isRead && lastMsg.senderId !== currentUser?.id);
+                const otherParty = getOtherParty(conv);
 
-            return (
-              <div
-                key={conv.id}
-                id={`conv-item-${conv.id}`}
-                className={`flex items-center gap-3 p-3.5 cursor-pointer transition-all ${isActive
-                    ? 'bg-amber-50/90 border-l-4 border-amber-600 text-stone-900'
-                    : 'hover:bg-stone-100/70 text-stone-700'
-                  }`}
-                role="listitem"
-                onClick={() => openConversation(conv)}
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && openConversation(conv)}
-              >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-xs">
-                  {getOtherAvatar(conv)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="font-bold text-stone-900 text-sm truncate">
-                      {getOtherParty(conv)}
-                    </span>
-                    {lastMsg && (
-                      <span className="text-[10px] text-stone-400 flex-shrink-0">
-                        {formatConvTime(lastMsg.createdAt)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className={`text-xs truncate ${unread ? 'font-bold text-stone-900' : 'text-stone-500'
-                        }`}
+                return (
+                  <div key={conv.id} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => openConversation(conv)}
+                      className={`relative p-1 rounded-2xl transition cursor-pointer block ${
+                        isActive
+                          ? 'bg-[#FBF5EB] ring-2 ring-[#C59B58] shadow-sm'
+                          : 'hover:bg-[#FAF8F5]'
+                      }`}
                     >
-                      {lastMsg
-                        ? lastMsg.messageText.startsWith('{')
-                          ? lastMsg.messageText.includes('EXCLUSIVE_DEAL_')
-                            ? '🤝 [Đề xuất Exclusive Deal]'
-                            : lastMsg.messageText.includes('PRODUCT_INQUIRY')
-                              ? '🛍️ [Trao đổi về sản phẩm]'
-                              : lastMsg.messageText.includes('CAMPAIGN_')
-                                ? '👑 [Chiến dịch hợp tác VIP]'
-                                : '💬 [Tin nhắn đính kèm]'
-                          : lastMsg.messageText
-                        : 'Bắt đầu cuộc trò chuyện...'}
-                    </span>
-                    {unread && (
-                      <span className="w-2 h-2 rounded-full bg-amber-600 flex-shrink-0" />
-                    )}
+                      <div className="relative">
+                        <ChatAvatar
+                          src={getOtherAvatarUrl(conv)}
+                          name={otherParty}
+                          className="w-9 h-9 rounded-xl border border-[#EAE4D7] text-xs shadow-2xs"
+                        />
+                        {unread && (
+                          <span
+                            className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#DC2626] text-white flex items-center justify-center text-[8px] font-black border-2 border-white shadow-2xs animate-pulse"
+                            title="Tin nhắn mới"
+                          />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Floating Tooltip Card on Hover */}
+                    <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:flex z-50 flex-col min-w-[200px] max-w-[260px] p-2.5 bg-white border border-[#EAE4D7] rounded-xl shadow-xl pointer-events-none whitespace-nowrap animate-in fade-in duration-150 text-left">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#1A1612] truncate">
+                          {otherParty}
+                        </span>
+                        {lastMsg && (
+                          <span className="text-[9.5px] text-[#7D715E]/70 shrink-0 font-medium">
+                            {formatConvTime(lastMsg.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10.5px] text-[#7D715E] truncate mt-1">
+                        {lastMsg?.messageText || 'Bắt đầu cuộc trò chuyện...'}
+                      </span>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* EXPANDED VIEW: Clean, Compact, Warm Sand & Gold */
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2 border-b border-[#EAE4D7] bg-white px-4 py-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shadow-2xs shrink-0">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h1 className="truncate text-sm font-extrabold tracking-tight text-[#1A1612]">
+                    Tin nhắn
+                  </h1>
+                  <div
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      isConnected ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-rose-500'
+                    }`}
+                    title={isConnected ? 'Đang kết nối Realtime' : 'Mất kết nối'}
+                  />
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  id="btn-new-conversation"
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-[#B88E4F] shadow-2xs transition hover:border-[#B88E4F] hover:bg-[#FBF5EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
+                  title="Tạo cuộc trò chuyện mới"
+                  onClick={() => setShowNewChat(true)}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Button to collapse sidebar */}
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(true)}
+                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] shadow-2xs transition hover:border-[#B88E4F] hover:bg-[#FBF5EB] hover:text-[#B88E4F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
+                  title="Thu gọn danh sách (chỉ hiện icon)"
+                  aria-label="Thu gọn danh sách"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="border-b border-[#EAE4D7] bg-[#FAF8F5] p-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#7D715E]" />
+                <input
+                  id="chat-search-input"
+                  type="text"
+                  className="w-full rounded-xl border border-[#EAE4D7] bg-white py-2.5 pl-9 pr-8 text-sm font-medium text-[#1A1612] shadow-2xs transition placeholder:text-[#7D715E]/60 focus:border-[#C59B58] focus:outline-none focus:ring-2 focus:ring-[#C59B58]/15"
+                  placeholder="Tìm kiếm hội thoại..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] text-xs font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Conversation List */}
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2.5 py-2 no-scrollbar" role="list">
+              {filteredConversations.length === 0 && (
+                <div className="py-12 text-center text-[#7D715E] text-xs space-y-2">
+                  <MessageSquare className="w-7 h-7 mx-auto text-[#C59B58]/40 stroke-1" />
+                  <p className="font-medium">Chưa có cuộc trò chuyện nào</p>
+                  <button
+                    className="text-[#B88E4F] hover:underline font-bold text-xs"
+                    onClick={() => setShowNewChat(true)}
+                  >
+                    + Bắt đầu chat ngay
+                  </button>
+                </div>
+              )}
+
+              {filteredConversations.map((conv) => {
+                const lastMsg = conv.chatMessages?.[0];
+                const isActive = conv.id === activeConvId;
+                const unread = (conv._count?.chatMessages || 0) > 0 || (lastMsg && !lastMsg.isRead && lastMsg.senderId !== currentUser?.id);
+                const otherParty = getOtherParty(conv);
+
+                return (
+                  <div
+                    key={conv.id}
+                    id={`conv-item-${conv.id}`}
+                    className={`group relative flex cursor-pointer items-center gap-3 rounded-2xl border px-3 py-3 transition-all duration-150 ${
+                      isActive
+                        ? 'border-[#EEDFC6] bg-[#FBF5EB] shadow-xs'
+                        : 'hover:bg-[#FAF8F5] border border-transparent'
+                    }`}
+                    role="listitem"
+                    onClick={() => openConversation(conv)}
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && openConversation(conv)}
+                  >
+                    {/* Active gold left indicator bar */}
+                    {isActive && (
+                      <div className="absolute left-0 top-2 bottom-2 w-1 bg-[#C59B58] rounded-r-full" />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openOtherProfile(conv);
+                      }}
+                      disabled={!canOpenOtherProfile(conv)}
+                      title={`Xem hồ sơ ${otherParty}`}
+                      aria-label={`Xem hồ sơ ${otherParty}`}
+                      className="rounded-full border-0 bg-transparent p-0 flex-shrink-0 cursor-pointer disabled:cursor-default"
+                    >
+                      <ChatAvatar
+                        src={getOtherAvatarUrl(conv)}
+                        name={otherParty}
+                        className={`h-10 w-10 rounded-full text-xs shadow-2xs transition-transform group-hover:scale-105 ${
+                          isActive ? 'border border-[#C59B58] ring-2 ring-[#C59B58]/20' : 'border border-[#EAE4D7]'
+                        }`}
+                      />
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <span
+                          className={`truncate text-[13px] font-bold transition-colors ${
+                            isActive ? 'text-[#B88E4F]' : 'text-[#1A1612] group-hover:text-[#B88E4F]'
+                          }`}
+                          title={otherParty}
+                        >
+                          {otherParty}
+                        </span>
+                        {lastMsg && (
+                          <span className="shrink-0 text-[10px] font-medium text-[#7D715E]/80">
+                            {formatConvTime(lastMsg.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className={`truncate text-[11px] leading-snug ${
+                            unread ? 'font-bold text-[#1A1612]' : 'text-[#7D715E]'
+                          }`}
+                        >
+                          {lastMsg
+                            ? lastMsg.mediaType
+                              ? `📎 ${lastMsg.mediaName || 'Tệp đính kèm'}`
+                              : lastMsg.messageText.startsWith('{')
+                              ? lastMsg.messageText.includes('EXCLUSIVE_DEAL_')
+                                ? canSeeAffiliateDeals
+                                  ? '🤝 [Đề xuất Exclusive Deal]'
+                                  : 'Shop đã gửi tin nhắn.'
+                                : lastMsg.messageText.includes('PRODUCT_INQUIRY')
+                                ? '🛍️ [Trao đổi về sản phẩm]'
+                                : lastMsg.messageText.includes('COUPON_VOUCHER')
+                                  ? '🎟️ [Mã giảm giá]'
+                                  : lastMsg.messageText.includes('CAMPAIGN_')
+                                    ? '👑 [Chiến dịch hợp tác VIP]'
+                                    : '💬 [Tin nhắn đính kèm]'
+                              : lastMsg.messageText
+                            : 'Bắt đầu cuộc trò chuyện...'}
+                        </span>
+                        {unread && (
+                          <span className="w-2 h-2 rounded-full bg-[#C59B58] flex-shrink-0 animate-pulse" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </aside>
       )}
 
 
-      <main className={`${activeConvId ? 'flex' : 'hidden sm:flex'} flex-1 flex-col bg-[#FAF8F5]/30 relative min-w-0`} aria-label="Khung chat">
+      <main className={`${activeConvId ? 'flex' : 'hidden sm:flex'} relative min-w-0 flex-1 flex-col bg-[#FAF8F5]/60`} aria-label="Khung chat">
         {!activeConv ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
-            <div className="w-16 h-16 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shadow-xs">
-              <MessageSquare className="w-8 h-8" />
+          <div className="flex flex-1 flex-col items-center justify-center space-y-3 p-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F] shadow-xs">
+              <MessageSquare className="h-7 w-7" />
             </div>
-            <h2 className="text-lg font-bold text-stone-800">Chọn một hội thoại</h2>
-            <p className="text-xs text-stone-500 max-w-sm">
+            <h2 className="text-lg font-bold text-[#1A1612]">Chọn một hội thoại</h2>
+            <p className="max-w-sm text-sm text-[#7D715E]">
               Chọn cuộc trò chuyện ở cột bên trái hoặc bấm dấu <strong>+</strong> để bắt đầu trao đổi trực tiếp
             </p>
           </div>
@@ -1342,24 +1667,35 @@ export default function ChatBoxPage({
           <>
 
             {!hideHeaderInChat && (
-            <header className="px-6 py-3.5 bg-white border-b border-[#EAE4D7] flex items-center justify-between shadow-xs">
-              <div className="flex items-center gap-3">
-                <button type="button" className="sm:hidden rounded-lg p-1 text-[#7D715E]" onClick={() => { setActiveConvId(null); activeConvIdRef.current = null; }} aria-label="Về danh sách hội thoại"><ArrowLeft size={20} /></button>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-sm flex items-center justify-center shadow-xs">
-                  {getOtherAvatar(activeConv)}
-                </div>
-                <div>
-                  <div className="font-bold text-stone-900 text-sm">{getOtherParty(activeConv)}</div>
-                  <div className="text-xs text-stone-500 flex items-center gap-1.5">
+            <header className="flex items-center justify-between gap-3 border-b border-[#EAE4D7] bg-white px-4 py-3 shadow-xs sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <button type="button" className="rounded-xl p-2 text-[#7D715E] transition hover:bg-[#F3EFE6] hover:text-[#1A1612] sm:hidden" onClick={() => { setActiveConvId(null); activeConvIdRef.current = null; }} aria-label="Về danh sách hội thoại"><ArrowLeft size={20} /></button>
+                <button
+                  type="button"
+                  onClick={() => openOtherProfile(activeConv)}
+                  disabled={!canOpenOtherProfile(activeConv)}
+                  title={`Xem hồ sơ ${getOtherParty(activeConv)}`}
+                  aria-label={`Xem hồ sơ ${getOtherParty(activeConv)}`}
+                  className="rounded-full border-0 bg-transparent p-0 cursor-pointer disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]"
+                >
+                  <ChatAvatar
+                    src={getOtherAvatarUrl(activeConv)}
+                    name={getOtherParty(activeConv)}
+                    className="h-11 w-11 rounded-full border border-[#EEDFC6] text-sm shadow-xs"
+                  />
+                </button>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-[#1A1612] sm:text-base">{getOtherParty(activeConv)}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#7D715E]">
                     {typingUser ? (
-                      <span className="text-amber-600 font-medium flex items-center gap-1">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-600 animate-bounce" />
+                      <span className="flex items-center gap-1 font-medium text-[#B88E4F]">
+                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#C59B58]" />
                         {typingUser} đang nhập...
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5">
                         <span
-                          className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-rose-500'
+                          className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-rose-500'
                             }`}
                         />
                         {isConnected ? 'Đang hoạt động' : 'Ngoại tuyến'}
@@ -1373,11 +1709,12 @@ export default function ChatBoxPage({
               {isShop && (
                 <button
                   id="btn-open-vip-invite"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer border border-[#EAE4D7]"
+                  type="button"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-xs font-bold text-[#B88E4F] transition hover:border-[#C59B58] hover:bg-[#F3EFE6] hover:text-[#1A1612] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
                   onClick={() => setShowVipModal(true)}
                   title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-100 animate-pulse" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
                   <span>Mời Chiến Dịch VIP</span>
                 </button>
               )}
@@ -1386,7 +1723,7 @@ export default function ChatBoxPage({
 
 
             <div
-              className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4"
+              className={`min-h-0 flex-1 overflow-y-auto ${embedded ? 'space-y-3 p-3 sm:p-4' : 'space-y-5 p-4 sm:p-7 lg:p-8'}`}
               ref={messagesContainerRef}
               onScroll={e => {
                 if ((e.target as HTMLElement).scrollTop < 60 && hasMore) {
@@ -1397,7 +1734,7 @@ export default function ChatBoxPage({
               {hasMore && (
                 <div className="text-center">
                   <button
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-stone-200/70 hover:bg-stone-300 text-stone-700 text-xs font-semibold rounded-full transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#EAE4D7] bg-white px-3 py-1.5 text-xs font-semibold text-[#7D715E] transition hover:border-[#C59B58] hover:bg-[#FBF5EB]"
                     onClick={loadMore}
                   >
                     <ArrowUp className="w-3 h-3" /> Tải thêm tin nhắn cũ hơn
@@ -1406,24 +1743,24 @@ export default function ChatBoxPage({
               )}
 
               {isLoadingMsgs && (
-                <div className="py-12 text-center text-stone-400 text-xs flex flex-col items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="flex flex-col items-center gap-2 py-12 text-xs text-[#7D715E]">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#C59B58] border-t-transparent" />
                   <span>Đang tải tin nhắn...</span>
                 </div>
               )}
 
-              {messages.map((msg, idx) => {
+              {visibleMessages.map((msg, idx) => {
                 const isMine = msg.senderId === currentUser?.id;
                 const showDate =
                   idx === 0 ||
-                  new Date(messages[idx - 1].createdAt).toDateString() !==
+                  new Date(visibleMessages[idx - 1].createdAt).toDateString() !==
                   new Date(msg.createdAt).toDateString();
 
                 return (
                   <div key={msg.id} className="space-y-2">
                     {showDate && (
-                      <div className="flex items-center justify-center my-3">
-                        <span className="bg-stone-200/80 text-stone-600 text-[11px] font-semibold px-3 py-0.5 rounded-full shadow-2xs">
+                      <div className="my-4 flex items-center justify-center">
+                        <span className="rounded-full border border-[#EAE4D7] bg-white px-3 py-1 text-[11px] font-semibold text-[#7D715E] shadow-2xs">
                           {isToday(new Date(msg.createdAt))
                             ? 'Hôm nay'
                             : isYesterday(new Date(msg.createdAt))
@@ -1435,14 +1772,29 @@ export default function ChatBoxPage({
 
                     <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                       {!isMine && (
-                        <div className="w-7 h-7 rounded-full bg-stone-200 text-stone-700 font-bold text-xs flex items-center justify-center flex-shrink-0 mb-1">
-                          {msg.sender.fullName?.[0]?.toUpperCase() || 'U'}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openOtherProfile(activeConv)}
+                          disabled={!canOpenOtherProfile(activeConv)}
+                          title={`Xem hồ sơ ${getOtherParty(activeConv)}`}
+                          aria-label={`Xem hồ sơ ${getOtherParty(activeConv)}`}
+                          className="rounded-full border-0 bg-transparent p-0 flex-shrink-0 mb-1 cursor-pointer disabled:cursor-default hover:ring-2 hover:ring-[#C59B58] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]"
+                        >
+                          <ChatAvatar
+                            src={
+                              msg.sender.collaboratorProfile?.avatarUrl ||
+                              msg.sender.avatarUrl ||
+                              getOtherAvatarUrl(activeConv)
+                            }
+                            name={msg.sender.fullName || getOtherParty(activeConv)}
+                            className="w-7 h-7 rounded-full text-[10px]"
+                          />
+                        </button>
                       )}
 
-                      <div className={`max-w-[72%] space-y-1 ${isMine ? 'items-end' : 'items-start'}`}>
+                      <div className={`max-w-[78%] space-y-1 sm:max-w-[72%] lg:max-w-[68%] ${isMine ? 'items-end' : 'items-start'}`}>
                         {!isMine && (
-                          <div className="text-[11px] text-stone-500 font-medium pl-1">
+                          <div className="pl-1 text-xs font-medium text-[#7D715E]">
                             {msg.sender.fullName}
                           </div>
                         )}
@@ -1450,12 +1802,18 @@ export default function ChatBoxPage({
                         {(() => {
                           const exclusiveDealCard = tryParseExclusiveDealCard(msg.messageText);
                           if (exclusiveDealCard) {
+                            if (!canSeeAffiliateDeals) return null;
                             return <ExclusiveDealCardBubble card={exclusiveDealCard} isMine={isMine} isShop={isShop} />;
                           }
 
                           const inquiryCard = tryParseProductInquiryCard(msg.messageText);
                           if (inquiryCard) {
                             return <ProductInquiryCardBubble card={inquiryCard} isMine={isMine} />;
+                          }
+
+                          const couponCard = tryParseCouponVoucherCard(msg.messageText);
+                          if (couponCard) {
+                            return <CouponVoucherCardBubble card={couponCard} />;
                           }
 
                           const card = tryParseCampaignCard(msg.messageText);
@@ -1465,26 +1823,52 @@ export default function ChatBoxPage({
 
                           return (
                             <div
-                              className={`p-3.5 text-sm shadow-xs ${isMine
-                                  ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white rounded-2xl rounded-tr-xs'
-                                  : 'bg-white text-stone-900 border border-stone-200/80 rounded-2xl rounded-tl-xs'
+                              className={`rounded-2xl p-3.5 text-sm leading-relaxed shadow-xs ${isMine
+                                  ? 'rounded-tr-md border border-[#B88E4F] bg-[#C59B58] text-[#231D15]'
+                                  : 'rounded-tl-md border border-[#EAE4D7] bg-white text-[#1A1612]'
                                 }`}
                             >
-                              {msg.mediaUrl && (
-                                <img
+                              {msg.mediaUrl && msg.mediaType === 'IMAGE' && (
+                                <a href={msg.mediaUrl} target="_blank" rel="noreferrer">
+                                  <img
+                                    src={msg.mediaUrl}
+                                    alt={msg.mediaName || 'Ảnh đính kèm'}
+                                    className="max-w-xs max-h-72 object-contain rounded-lg mb-2 cursor-pointer hover:opacity-95"
+                                  />
+                                </a>
+                              )}
+                              {msg.mediaUrl && msg.mediaType === 'VIDEO' && (
+                                <video
                                   src={msg.mediaUrl}
-                                  alt="media"
-                                  className="max-w-xs rounded-lg mb-2 cursor-pointer hover:opacity-95"
-                                  onClick={() => window.open(msg.mediaUrl, '_blank')}
+                                  controls
+                                  preload="metadata"
+                                  className="max-w-xs max-h-72 rounded-lg mb-2"
                                 />
                               )}
-                              <p className="whitespace-pre-wrap break-words">{msg.messageText}</p>
+                              {msg.mediaUrl && msg.mediaType === 'DOCUMENT' && (
+                                <a
+                                  href={msg.mediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download={msg.mediaName || true}
+                                  className="mb-2 flex items-center gap-2.5 rounded-xl border border-stone-200 bg-white/80 px-3 py-2.5 text-stone-800 hover:bg-white"
+                                >
+                                  <FileText className="h-5 w-5 shrink-0 text-amber-700" />
+                                  <span className="break-all">{msg.mediaName || 'Tải tài liệu đính kèm'}</span>
+                                </a>
+                              )}
+                              {msg.mediaUrl && !msg.mediaType && (
+                                <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="mb-2 inline-flex items-center gap-2 text-amber-800 underline">
+                                  <FileText className="h-4 w-4" /> Tải tệp đính kèm
+                                </a>
+                              )}
+                              {msg.messageText && <p className="whitespace-pre-wrap break-words">{msg.messageText}</p>}
                             </div>
                           );
                         })()}
 
                         <div
-                          className={`flex items-center gap-1 text-[10px] text-stone-400 px-1 ${isMine ? 'justify-end' : 'justify-start'
+                          className={`flex items-center gap-1 px-1 text-[10px] text-[#7D715E]/80 ${isMine ? 'justify-end' : 'justify-start'
                             }`}
                         >
                           <span>{formatMsgTime(msg.createdAt)}</span>
@@ -1506,13 +1890,13 @@ export default function ChatBoxPage({
 
               {typingUser && (
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-stone-200 text-stone-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-[#EAE4D7] bg-[#F3EFE6] text-xs font-bold text-[#7D715E]">
                     {typingUser[0]?.toUpperCase()}
                   </div>
-                  <div className="px-3.5 py-2 bg-white border border-stone-200 rounded-2xl rounded-tl-xs shadow-xs flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" />
+                  <div className="flex items-center gap-1 rounded-2xl rounded-tl-md border border-[#EAE4D7] bg-white px-3.5 py-2 shadow-xs">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#C59B58] [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#C59B58] [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#C59B58]" />
                   </div>
                 </div>
               )}
@@ -1521,7 +1905,7 @@ export default function ChatBoxPage({
             </div>
 
 
-            <div className="bg-white border-t border-stone-200 shadow-xs">
+            <div className="border-t border-[#EAE4D7] bg-white">
               {/* PINNED PRODUCT INQUIRY BANNER */}
               {pinnedProduct && (
                 <div className="mx-4 mt-3 p-3 bg-gradient-to-r from-[#FBF5EB] to-[#FAF8F5] border border-[#EAE4D7] rounded-2xl shadow-2xs">
@@ -1602,9 +1986,11 @@ export default function ChatBoxPage({
                 </div>
               )}
 
-              <div className="p-4 flex items-center gap-2.5">
+              <div className={`${embedded ? 'p-2.5 sm:p-3' : 'px-4 py-3 sm:px-6 sm:py-4'}`}>
+                <div className="flex items-end gap-2 sm:gap-2.5">
                 <button
-                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+                  type="button"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-[#7D715E] transition hover:bg-[#F3EFE6] hover:text-[#B88E4F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
                   id="chat-attach-btn"
                   title="Đính kèm ảnh"
                   onClick={() => fileInputRef.current?.click()}
@@ -1613,8 +1999,9 @@ export default function ChatBoxPage({
                 </button>
                 {isShop && (
                   <button
+                    type="button"
                     id="btn-composer-vip-invite"
-                    className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer"
+                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-[#B88E4F] transition hover:bg-[#FBF5EB] hover:text-[#1A1612] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
                     title="Gửi Thẻ Mời VIP Chiến Dịch Tiếp Thị Độc Quyền"
                     onClick={() => setShowVipModal(true)}
                   >
@@ -1634,8 +2021,8 @@ export default function ChatBoxPage({
                 />
                 <textarea
                   id="chat-message-input"
-                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white resize-none max-h-24 transition-all"
-                  placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter xuống dòng)"
+                  className="min-h-10 max-h-28 flex-1 resize-none rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-4 py-2.5 text-sm text-[#1A1612] transition-all placeholder:text-[#7D715E]/70 focus:border-[#C59B58] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59B58]/15"
+                  placeholder="Nhập tin nhắn..."
                   value={inputText}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
@@ -1643,9 +2030,10 @@ export default function ChatBoxPage({
                 />
                 <button
                   id="chat-send-btn"
-                  className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${inputText.trim() && !isSending
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                      : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                  type="button"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${inputText.trim() && !isSending
+                      ? 'cursor-pointer bg-[#C59B58] text-[#231D15] shadow-xs hover:bg-[#B88E4F]'
+                      : 'cursor-not-allowed bg-[#F3EFE6] text-[#B8AE9D]'
                     }`}
                   onClick={sendMessage}
                   disabled={!inputText.trim() || isSending}
@@ -1653,6 +2041,12 @@ export default function ChatBoxPage({
                 >
                   <Send className="w-4 h-4" />
                 </button>
+                </div>
+                {!embedded && (
+                  <p className="mt-2 pl-1 text-[11px] text-[#7D715E]">
+                    Enter để gửi <span className="px-1 text-[#C8BDAA]">·</span> Shift + Enter để xuống dòng
+                  </p>
+                )}
               </div>
             </div>
           </>
@@ -1661,11 +2055,11 @@ export default function ChatBoxPage({
 
 
       {successMessage && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <CheckCircle2 className="w-5 h-5 text-emerald-200 flex-shrink-0" />
+        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-white text-[#1A1612] border border-[#EEDFC6] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-[#059669] flex-shrink-0" />
           <p className="text-xs font-semibold flex-1 leading-snug">{successMessage}</p>
           <button
-            className="text-emerald-200 hover:text-white p-1"
+            className="text-[#7D715E] hover:text-[#1A1612] p-1"
             onClick={() => setSuccessMessage(null)}
           >
             <X className="w-4 h-4" />
@@ -1675,11 +2069,11 @@ export default function ChatBoxPage({
 
 
       {errorMessage && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-rose-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <AlertTriangle className="w-5 h-5 text-rose-200 flex-shrink-0" />
+        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-white text-[#1A1612] border border-rose-200 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
           <p className="text-xs font-semibold flex-1 leading-snug">{errorMessage}</p>
           <button
-            className="text-rose-200 hover:text-white p-1"
+            className="text-[#7D715E] hover:text-[#1A1612] p-1"
             onClick={() => setErrorMessage(null)}
           >
             <X className="w-4 h-4" />
@@ -1727,6 +2121,7 @@ export default function ChatBoxPage({
           }}
         />
       )}
+      </div>
     </div>
   );
 }

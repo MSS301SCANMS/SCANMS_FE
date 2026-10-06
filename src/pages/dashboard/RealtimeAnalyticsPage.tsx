@@ -25,11 +25,11 @@ import {
   Share2,
   Package,
   Layers,
-  Sparkles,
   Download,
   Flame,
   Radio,
 } from 'lucide-react';
+import { Select } from '../../components/ui/Select';
 import { analyticsService } from '../../services/analytics.service';
 import type {
   DashboardOverviewResponse,
@@ -162,40 +162,19 @@ export const RealtimeAnalyticsPage: React.FC = () => {
   }, [topProducts]);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 pb-8">
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-semibold">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
           {error}
         </div>
       )}
 
       {/* 1. Header Toolbar & Quick Filters */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-3xl border border-[#EAE4D7] shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2.5">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
-              <Sparkles className="w-3.5 h-3.5 mr-1 text-[#B88E4F]" />
-              FR-28 Realtime Analytics
-            </span>
-            {autoRefreshInterval > 0 && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Radio className="w-3 h-3 mr-1 animate-pulse" />
-                Live ({autoRefreshInterval}s)
-              </span>
-            )}
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-[#1A1612]">
-            Trung Tâm Doanh Số & Hiệu Suất Realtime
-          </h1>
-          <p className="text-xs text-[#7D715E]">
-            Theo dõi lưu lượng truy cập, tỷ lệ chốt đơn (CR%), doanh thu và hoa hồng trực tiếp theo từng giây.
-          </p>
-        </div>
-
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EAE4D7] bg-white p-3 shadow-xs sm:p-3.5">
         {/* Action controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 xl:flex-nowrap">
           {/* Range tabs */}
-          <div className="flex items-center bg-[#F3EFE6] p-1 rounded-2xl border border-[#EAE4D7] text-xs font-semibold">
+          <div className="flex h-10 shrink-0 items-center rounded-xl border border-[#EAE4D7] bg-[#F3EFE6] p-1 text-xs font-semibold">
             {[
               { key: 'today', label: 'Hôm nay' },
               { key: '7d', label: '7 ngày' },
@@ -208,9 +187,9 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                   setRange(tab.key);
                   setIsCustomOpen(false);
                 }}
-                className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
+                className={`whitespace-nowrap rounded-lg px-2.5 py-2 transition-all cursor-pointer ${
                   range === tab.key
-                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
+                    ? 'bg-[#C59B58] text-[#231D15] font-bold shadow-xs'
                     : 'text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
                 }`}
               >
@@ -219,9 +198,9 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             ))}
             <button
               onClick={() => setIsCustomOpen(!isCustomOpen)}
-              className={`px-3 py-2 rounded-xl transition-all flex items-center space-x-1 cursor-pointer ${
+              className={`flex items-center space-x-1 whitespace-nowrap rounded-lg px-2.5 py-2 transition-all cursor-pointer ${
                 range === 'custom'
-                  ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
+                  ? 'bg-[#C59B58] text-[#231D15] font-bold shadow-xs'
                   : 'text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
               }`}
             >
@@ -230,43 +209,52 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Auto refresh dropdown */}
-          <select
-            aria-label="Tần suất tự động làm mới"
-            value={autoRefreshInterval}
-            onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-            className="bg-white border border-[#EAE4D7] text-[#1A1612] text-xs px-3 py-2.5 rounded-xl font-medium focus:outline-none focus:border-[#C59B58] transition-colors cursor-pointer"
-          >
-            <option value={0}>Làm mới: Tắt</option>
-            <option value={15}>Làm mới: 15s</option>
-            <option value={30}>Làm mới: 30s</option>
-            <option value={60}>Làm mới: 60s</option>
-          </select>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {autoRefreshInterval > 0 && (
+              <span className="inline-flex h-10 shrink-0 items-center rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 text-[11px] font-semibold text-[#8C6226]">
+                <Radio className="mr-1 h-3 w-3 animate-pulse" />
+                Live ({autoRefreshInterval}s)
+              </span>
+            )}
 
-          {/* Manual refresh button */}
-          <button
-            onClick={() => fetchData(true)}
-            disabled={isRefreshing}
-            className="p-2.5 bg-white hover:bg-[#F3EFE6] text-[#1A1612] rounded-xl border border-[#EAE4D7] transition-all active:scale-95 disabled:opacity-50 cursor-pointer shadow-2xs"
-            title="Làm mới dữ liệu ngay"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#B88E4F]' : ''}`} />
-          </button>
+            {/* Auto refresh dropdown */}
+            <Select
+              aria-label="Tần suất tự động làm mới"
+              value={String(autoRefreshInterval)}
+              onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+              className="h-10 w-36 shrink-0 text-xs font-medium"
+            >
+              <option value="0">Làm mới: Tắt</option>
+              <option value="15">Làm mới: 15s</option>
+              <option value="30">Làm mới: 30s</option>
+              <option value="60">Làm mới: 60s</option>
+            </Select>
 
-          {/* Export CSV button */}
-          <button
-            onClick={handleExportCsv}
-            className="px-3.5 py-2.5 bg-[#F3EFE6] hover:bg-[#EAE4D7] text-[#1A1612] text-xs font-semibold rounded-xl border border-[#EAE4D7] transition-all flex items-center space-x-1.5 active:scale-95 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-[#B88E4F]" />
-            <span>Xuất CSV</span>
-          </button>
+            {/* Manual refresh button */}
+            <button
+              onClick={() => fetchData(true)}
+              disabled={isRefreshing}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#EAE4D7] bg-white text-[#1A1612] transition-all hover:bg-[#F3EFE6] active:scale-95 disabled:opacity-50 cursor-pointer shadow-2xs"
+              title="Làm mới dữ liệu ngay"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#B88E4F]' : ''}`} />
+            </button>
+
+            {/* Export CSV button */}
+            <button
+              onClick={handleExportCsv}
+              className="inline-flex h-10 shrink-0 items-center space-x-1.5 whitespace-nowrap rounded-xl border border-[#EAE4D7] bg-[#F3EFE6] px-3 text-xs font-semibold text-[#1A1612] transition-all hover:bg-[#EAE4D7] active:scale-95 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[#B88E4F]" />
+              <span>Xuất CSV</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Custom Date Range Popover */}
       {isCustomOpen && (
-        <div className="bg-white border border-[#EAE4D7] p-4 rounded-2xl shadow-xl flex flex-wrap items-center gap-4 animate-in fade-in duration-200">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#EAE4D7] bg-white p-3 shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center space-x-2 text-xs">
             <span className="text-[#7D715E]">Từ ngày:</span>
             <input
@@ -288,7 +276,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <button
             onClick={handleApplyCustomRange}
             disabled={!customStartDate || !customEndDate}
-            className="px-4 py-1.5 bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+              className="rounded-lg bg-[#C59B58] px-3.5 py-2 text-xs font-semibold text-[#231D15] shadow-xs transition-colors hover:bg-[#B88E4F] cursor-pointer disabled:opacity-50"
           >
             Áp dụng khoảng ngày
           </button>
@@ -296,20 +284,20 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       )}
 
       {/* 2. Top Summary KPI Cards (5 metrics) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {/* Clicks */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
+        <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Lượt Click</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
-              <MousePointerClick className="w-5 h-5" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#7D715E]">Lượt Click</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <MousePointerClick className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <p className="text-2xl lg:text-3xl font-black text-[#1A1612]">
+            <p className="text-2xl font-bold tracking-tight text-[#1A1612]">
               {formatNumber(overview?.metrics?.totalClicks ?? 0)}
             </p>
-            <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold">
               {(overview?.metrics?.growthClicks ?? 0) >= 0 ? (
                 <span className="flex items-center text-emerald-700">
                   <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -327,18 +315,18 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Total Orders */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
+        <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Đơn Hàng</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#EFF6FF] border border-blue-200 flex items-center justify-center text-[#2563EB] group-hover:scale-110 transition-transform">
-              <ShoppingBag className="w-5 h-5" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#7D715E]">Đơn Hàng</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <ShoppingBag className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <p className="text-2xl lg:text-3xl font-black text-[#1A1612]">
+            <p className="text-2xl font-bold tracking-tight text-[#1A1612]">
               {formatNumber(overview?.metrics?.totalOrders ?? 0)}
             </p>
-            <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold">
               {(overview?.metrics?.growthOrders ?? 0) >= 0 ? (
                 <span className="flex items-center text-emerald-700">
                   <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -356,18 +344,18 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Conversion Rate */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
+        <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Tỷ Lệ Chốt (CR%)</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#ECFDF5] border border-emerald-200 flex items-center justify-center text-emerald-700 group-hover:scale-110 transition-transform">
-              <Percent className="w-5 h-5" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#7D715E]">Tỷ Lệ Chốt (CR%)</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <Percent className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <p className="text-2xl lg:text-3xl font-black text-emerald-700">
+            <p className="text-2xl font-bold tracking-tight text-[#1A1612]">
               {(overview?.metrics?.conversionRate ?? 0).toFixed(2)}%
             </p>
-            <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold">
               {(overview?.metrics?.growthConversionRate ?? 0) >= 0 ? (
                 <span className="flex items-center text-emerald-700">
                   <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -385,18 +373,18 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Gross Revenue */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
+        <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Doanh Thu (GMV)</span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
-              <DollarSign className="w-5 h-5" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#7D715E]">Doanh Thu (GMV)</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <DollarSign className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <p className="text-xl lg:text-2xl font-black text-[#B88E4F] truncate">
+            <p className="truncate text-lg font-bold tracking-tight text-[#8C6226]">
               {formatCurrency(overview?.metrics?.grossRevenue ?? 0)}
             </p>
-            <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold">
               {(overview?.metrics?.growthRevenue ?? 0) >= 0 ? (
                 <span className="flex items-center text-emerald-700">
                   <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -414,20 +402,20 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Commission */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-5 space-y-3 hover:border-[#C59B58]/40 transition-all shadow-xs group">
+        <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#7D715E]">
               {user?.role === 'SHOP_MANAGER' ? 'Hoa Hồng Chi Trả' : 'Hoa Hồng Thực Nhận'}
             </span>
-            <div className="w-10 h-10 rounded-2xl bg-[#FBF5EB] border border-amber-200 flex items-center justify-center text-[#B88E4F] group-hover:scale-110 transition-transform">
-              <Coins className="w-5 h-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <Coins className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <p className="text-xl lg:text-2xl font-black text-[#B88E4F] truncate">
+            <p className="truncate text-lg font-bold tracking-tight text-[#8C6226]">
               {formatCurrency(overview?.metrics?.totalCommission ?? 0)}
             </p>
-            <div className="flex items-center space-x-1.5 mt-2 text-xs font-semibold">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold">
               {(overview?.metrics?.growthCommission ?? 0) >= 0 ? (
                 <span className="flex items-center text-emerald-700">
                   <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -448,13 +436,13 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       </div>
 
       {/* 3. Main Chart & Conversion Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Performance Time-series Area/Bar Chart */}
-        <div className="lg:col-span-2 bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs lg:col-span-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#1A1612] flex items-center space-x-2">
-                <Flame className="w-5 h-5 text-[#B88E4F]" />
+              <h2 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
+                <Flame className="h-4 w-4 text-[#B88E4F]" />
                 <span>Biểu Đồ Diễn Biến Hiệu Suất Theo Thời Gian</span>
               </h2>
               <p className="text-xs text-[#7D715E] mt-0.5">
@@ -463,23 +451,23 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Sub-tabs for switching metrics displayed in Chart */}
-            <div className="flex items-center bg-[#F3EFE6] p-1 rounded-xl border border-[#EAE4D7] text-xs font-semibold">
+            <div className="flex items-center rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-1 text-xs font-semibold">
               <button
                 onClick={() => setActiveChartTab('traffic')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`rounded-md px-2.5 py-1.5 transition-colors cursor-pointer ${
                   activeChartTab === 'traffic'
-                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
-                    : 'text-[#7D715E] hover:text-[#1A1612]'
+                    ? 'bg-[#C59B58] text-[#231D15] font-semibold shadow-xs'
+                    : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'
                 }`}
               >
                 Traffic & Đơn Hàng
               </button>
               <button
                 onClick={() => setActiveChartTab('financial')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`rounded-md px-2.5 py-1.5 transition-colors cursor-pointer ${
                   activeChartTab === 'financial'
-                    ? 'bg-[#EBD08C] text-white font-bold shadow-xs'
-                    : 'text-[#7D715E] hover:text-[#1A1612]'
+                    ? 'bg-[#C59B58] text-[#231D15] font-semibold shadow-xs'
+                    : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'
                 }`}
               >
                 Doanh Thu & Hoa Hồng
@@ -488,7 +476,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           </div>
 
           {/* Chart Canvas */}
-          <div className="h-80 w-full">
+          <div className="h-64 w-full sm:h-72">
             {loading ? (
               <div className="h-full flex items-center justify-center text-[#7D715E] text-xs animate-pulse">
                 Đang nạp dữ liệu biểu đồ thời gian thực...
@@ -506,8 +494,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                       <stop offset="95%" stopColor="#C59B58" stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="ordersGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor="#8C6226" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="#8C6226" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#EAE4D7" />
@@ -517,7 +505,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     contentStyle={{
                       backgroundColor: '#FFFFFF',
                       borderColor: '#EAE4D7',
-                      borderRadius: '1rem',
+                      borderRadius: '0.75rem',
                       fontSize: '12px',
                       color: '#1A1612',
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
@@ -529,7 +517,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     dataKey="clicks"
                     name="Lượt Clicks"
                     stroke="#C59B58"
-                    strokeWidth={3}
+                    strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#clicksGrad)"
                   />
@@ -537,8 +525,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     type="monotone"
                     dataKey="orders"
                     name="Số Đơn Hàng"
-                    stroke="#2563EB"
-                    strokeWidth={3}
+                    stroke="#8C6226"
+                    strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#ordersGrad)"
                   />
@@ -555,7 +543,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     contentStyle={{
                       backgroundColor: '#FFFFFF',
                       borderColor: '#EAE4D7',
-                      borderRadius: '1rem',
+                      borderRadius: '0.75rem',
                       fontSize: '12px',
                       color: '#1A1612',
                       boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
@@ -563,7 +551,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                   />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                   <Bar dataKey="revenue" name="Doanh Thu (GMV)" fill="#C59B58" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="commission" name="Hoa Hồng" fill="#15803d" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="commission" name="Hoa Hồng" fill="#8C6226" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -571,10 +559,10 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Conversion Funnel */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-6 shadow-xs flex flex-col justify-between">
+        <div className="flex flex-col justify-between space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs">
           <div>
-            <h2 className="text-lg font-bold text-[#1A1612] flex items-center space-x-2">
-              <Layers className="w-5 h-5 text-[#B88E4F]" />
+            <h2 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
+              <Layers className="h-4 w-4 text-[#B88E4F]" />
               <span>Phễu Chuyển Đổi (Funnel)</span>
             </h2>
             <p className="text-xs text-[#7D715E] mt-0.5">
@@ -583,7 +571,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           </div>
 
           {/* Stages list */}
-          <div className="space-y-4 my-auto">
+          <div className="my-auto space-y-3">
             {funnel?.stages?.map((st, idx) => (
               <div key={st.stage} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
@@ -592,9 +580,9 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                   </span>
                   <span className="font-extrabold text-[#B88E4F]">{formatNumber(st.count)}</span>
                 </div>
-                <div className="w-full h-3 bg-[#FAF8F5] rounded-full overflow-hidden p-0.5 border border-[#EAE4D7]">
+                <div className="h-2.5 w-full overflow-hidden rounded-full border border-[#EAE4D7] bg-[#FAF8F5] p-0.5">
                   <div
-                    className="h-full bg-[#EBD08C] rounded-full transition-all duration-700"
+                    className="h-full rounded-full bg-[#C59B58] transition-[width] duration-500"
                     style={{ width: `${Math.max(st.percentage, 4)}%` }}
                   />
                 </div>
@@ -608,27 +596,27 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           </div>
 
           {/* Aggregate Funnel Summary Footer */}
-          <div className="bg-[#FAF8F5] rounded-2xl p-4 border border-[#EAE4D7] space-y-2 text-xs">
+          <div className="space-y-2 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-3 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-[#7D715E]">Tỷ lệ chuyển đổi tổng (Click ➔ Đơn):</span>
-              <span className="font-bold text-emerald-700">{funnel?.conversionRate ?? 0}%</span>
+              <span className="font-bold text-[#8C6226]">{funnel?.conversionRate ?? 0}%</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[#7D715E]">Tỷ lệ hoàn thành đơn (Fulfillment):</span>
-              <span className="font-bold text-[#2563EB]">{funnel?.fulfillmentRate ?? 0}%</span>
+              <span className="font-bold text-[#8C6226]">{funnel?.fulfillmentRate ?? 0}%</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 4. Top Performing Products & Marketing Channels Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Top 5 Products by Revenue */}
-        <div className="lg:col-span-2 bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-5 shadow-xs">
+        <div className="space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-                <Package className="w-5 h-5 text-[#B88E4F]" />
+              <h3 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
+                <Package className="h-4 w-4 text-[#B88E4F]" />
                 <span>Top Sản Phẩm Mang Lại Doanh Số Cao Nhất</span>
               </h3>
               <p className="text-xs text-[#7D715E] mt-0.5">Xếp hạng theo tổng giá trị đơn hàng thực tế phát sinh.</p>
@@ -638,15 +626,15 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           {topProducts.length === 0 ? (
             <div className="text-xs text-[#7D715E] py-8 text-center">Chưa có dữ liệu sản phẩm bán ra.</div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {topProducts.map((p) => {
                 const percent = Math.round((p.grossRevenue / maxProductRevenue) * 100);
                 return (
-                  <div key={p.productId} className="bg-[#FAF8F5] p-4 rounded-2xl border border-[#EAE4D7] space-y-3">
+                  <div key={p.productId} className="space-y-2 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-3">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center space-x-3 min-w-0">
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
-                          p.rank === 1 ? 'bg-[#EBD08C] text-white font-bold' :
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
+                          p.rank === 1 ? 'bg-[#C59B58] text-[#231D15]' :
                           p.rank === 2 ? 'bg-[#EAE4D7] text-[#B88E4F] font-bold' :
                           p.rank === 3 ? 'bg-[#F3EFE6] text-[#7D715E] font-bold' :
                           'bg-white text-[#7D715E] border border-[#EAE4D7]'
@@ -666,7 +654,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
                     <div className="w-full h-2 bg-[#EAE4D7] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#EBD08C] rounded-full"
+                        className="h-full rounded-full bg-[#C59B58]"
                         style={{ width: `${Math.max(percent, 5)}%` }}
                       />
                     </div>
@@ -678,10 +666,10 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Marketing Channels Traffic Breakdown */}
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-5 shadow-xs">
+        <div className="space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs">
           <div>
-            <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-              <Share2 className="w-5 h-5 text-[#B88E4F]" />
+            <h3 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
+              <Share2 className="h-4 w-4 text-[#B88E4F]" />
               <span>Phân Bổ Kênh Tiếp Thị</span>
             </h3>
             <p className="text-xs text-[#7D715E] mt-0.5">Tỷ trọng lưu lượng và đơn hàng theo từng mạng xã hội.</p>
@@ -690,16 +678,16 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           {topChannels.length === 0 ? (
             <div className="text-xs text-[#7D715E] py-8 text-center">Chưa có dữ liệu kênh tiếp thị.</div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {topChannels.map((c) => (
-                <div key={c.channel} className="bg-[#FAF8F5] p-3.5 rounded-2xl border border-[#EAE4D7] space-y-2">
+                <div key={c.channel} className="space-y-2 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-[#1A1612]">{c.channel}</span>
                     <span className="font-extrabold text-[#B88E4F]">{c.trafficSharePercent}% traffic</span>
                   </div>
                   <div className="w-full h-2 bg-[#EAE4D7] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#EBD08C] rounded-full"
+                      className="h-full rounded-full bg-[#C59B58]"
                       style={{ width: `${Math.max(c.trafficSharePercent, 6)}%` }}
                     />
                   </div>
@@ -714,14 +702,14 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Exclusive Campaigns Performance Table (FR-27 Integration) */}
+      {/* Exclusive campaign performance */}
       {campaigns.length > 0 && (
-        <div className="bg-white border border-[#EAE4D7] rounded-3xl p-6 space-y-5 shadow-xs">
+        <div className="space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-[#1A1612] flex items-center space-x-2">
-                <Crown className="w-5 h-5 text-[#B88E4F]" />
-                <span>Hiệu Quả Chiến Dịch Tiếp Thị Độc Quyền VIP (FR-27)</span>
+              <h3 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
+                <Crown className="h-4 w-4 text-[#B88E4F]" />
+                <span>Hiệu Quả Chiến Dịch Tiếp Thị Độc Quyền</span>
               </h3>
               <p className="text-xs text-[#7D715E] mt-0.5">Thống kê doanh số phát sinh từ các chiến dịch có hoa hồng thưởng thêm.</p>
             </div>
@@ -729,36 +717,36 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#F3EFE6] text-[#7D715E] uppercase text-[11px] font-bold border-b border-[#EAE4D7]">
+              <thead className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[11px] font-bold uppercase text-[#7D715E]">
                 <tr>
-                  <th className="p-3.5 rounded-l-xl">Tên Chiến Dịch</th>
-                  <th className="p-3.5">Thưởng Thêm</th>
-                  <th className="p-3.5">Gian Hàng</th>
-                  <th className="p-3.5">KOL Tham Gia</th>
-                  <th className="p-3.5">Số Đơn Hàng</th>
-                  <th className="p-3.5">Doanh Thu Phát Sinh</th>
-                  <th className="p-3.5 rounded-r-xl">Hoa Hồng Thưởng Đã Trả</th>
+                  <th className="px-3 py-2.5">Tên Chiến Dịch</th>
+                  <th className="px-3 py-2.5">Thưởng Thêm</th>
+                  <th className="px-3 py-2.5">Gian Hàng</th>
+                  <th className="px-3 py-2.5">KOL Tham Gia</th>
+                  <th className="px-3 py-2.5">Số Đơn Hàng</th>
+                  <th className="px-3 py-2.5">Doanh Thu Phát Sinh</th>
+                  <th className="px-3 py-2.5">Hoa Hồng Thưởng Đã Trả</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EAE4D7]">
                 {campaigns.map((camp) => (
-                  <tr key={camp.campaignId} className="hover:bg-[#FAF8F5] transition-colors">
-                    <td className="p-3.5 font-bold text-[#1A1612]">
-                      <div className="flex items-center space-x-2">
-                        <span>👑</span>
+                  <tr key={camp.campaignId} className="transition-colors hover:bg-[#FAF8F5]">
+                    <td className="px-3 py-2.5 font-bold text-[#1A1612]">
+                      <div className="flex items-center gap-2">
+                        <Crown className="h-3.5 w-3.5 text-[#B88E4F]" />
                         <span>{camp.name}</span>
                       </div>
                     </td>
-                    <td className="p-3.5">
+                    <td className="px-3 py-2.5">
                       <span className="px-2.5 py-1 rounded-full bg-[#FBF5EB] text-[#B88E4F] font-bold border border-[#EAE4D7]">
                         +{camp.bonusCommissionRate}% Bonus
                       </span>
                     </td>
-                    <td className="p-3.5 text-[#7D715E]">{camp.storeName || '—'}</td>
-                    <td className="p-3.5 font-semibold text-[#1A1612]">{camp.participantsCount} KOLs</td>
-                    <td className="p-3.5 font-bold text-[#1A1612]">{camp.totalOrders} đơn</td>
-                    <td className="p-3.5 font-bold text-[#B88E4F]">{formatCurrency(camp.totalRevenue)}</td>
-                    <td className="p-3.5 font-bold text-[#B88E4F]">{formatCurrency(camp.totalCommissions)}</td>
+                    <td className="px-3 py-2.5 text-[#7D715E]">{camp.storeName || '—'}</td>
+                    <td className="px-3 py-2.5 font-semibold text-[#1A1612]">{camp.participantsCount} KOLs</td>
+                    <td className="px-3 py-2.5 font-bold text-[#1A1612]">{camp.totalOrders} đơn</td>
+                    <td className="px-3 py-2.5 font-bold text-[#8C6226]">{formatCurrency(camp.totalRevenue)}</td>
+                    <td className="px-3 py-2.5 font-bold text-[#8C6226]">{formatCurrency(camp.totalCommissions)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -768,8 +756,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       )}
 
 
-      <div className="text-center text-[11px] text-slate-500 pt-4">
-        Dữ liệu được cập nhật lúc {lastUpdated.toLocaleTimeString('vi-VN')} • Hệ thống giám sát thời gian thực SCANMS Analytics Engine
+      <div className="pt-2 text-center text-[11px] text-[#7D715E]">
+        Dữ liệu cập nhật lúc {lastUpdated.toLocaleTimeString('vi-VN')}
       </div>
     </div>
   );

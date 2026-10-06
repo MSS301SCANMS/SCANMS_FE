@@ -289,11 +289,12 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Google Button */}
+            {/* Social sign-in options */}
             <div className="w-full">
               <GoogleOfficialButton
                 onSuccess={onGoogleTokenSuccess}
                 onError={(err) => setError(err)}
+                className="h-11"
               />
             </div>
 

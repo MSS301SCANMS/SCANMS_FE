@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, Store, ExternalLink } from 'lucide-react';
+import { ArrowLeft, LogIn, LogOut, Store, Camera, Loader2, Edit2 } from 'lucide-react';
 import { NAVIGATION_BY_ROLE } from '../../config/navigation.config';
 import { authService, type UserProfile } from '../../services/auth.service';
-import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
+import { uploadService } from '../../services/upload.service';
+import { toast } from '../../utils/toast';
 
 export interface SidebarProps {
   currentUser: UserProfile | null;
@@ -15,6 +16,8 @@ export function Sidebar({ currentUser, onLogout }: SidebarProps) {
   const currentPath = location.pathname;
 
   const [activeWs, setActiveWs] = useState(() => authService.getActiveWorkspace());
+  const [uploading, setUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleWsChange = () => {
@@ -39,14 +42,6 @@ export function Sidebar({ currentUser, onLogout }: SidebarProps) {
   })();
 
   const navConfig = NAVIGATION_BY_ROLE[role] || NAVIGATION_BY_ROLE.COLLABORATOR;
-  const roleLabel = {
-    CUSTOMER: 'Khách Mua Hàng',
-    COLLABORATOR: 'KOL / KOC Đối Tác',
-    SHOP_MANAGER: 'Chủ Gian Hàng',
-    SYSTEM_MANAGER: 'Vận Hành & Tuân Thủ',
-    SYSTEM_ADMIN: 'Ban Quản Trị Tối Cao',
-  }[role] || 'Người Dùng';
-
   const isLinkActive = (path: string) => {
     if (path === '/' || path === '/collaborator/dashboard') {
       return currentPath === '/' || currentPath === '/collaborator/dashboard';
@@ -128,43 +123,108 @@ export function Sidebar({ currentUser, onLogout }: SidebarProps) {
     return currentPath === path || currentPath.startsWith(`${path}/`);
   };
 
-  return (
-    <aside className="w-64 min-w-[256px] h-full shrink-0 flex flex-col bg-[#F3EFE6] border-r border-[#EAE4D7] z-30 text-left select-none overflow-hidden">
+  const displayName = role === 'SHOP_MANAGER'
+    ? currentUser?.stores?.[0]?.name || currentUser?.fullName || 'Gian Hàng Của Bạn'
+    : currentUser?.fullName || currentUser?.email || 'Đối Tác Tiếp Thị';
 
-      <div className="p-4 pb-3 border-b border-[#EAE4D7]/80 flex flex-col gap-2.5">
-        <div className="flex items-center gap-3">
-          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] font-black text-lg flex items-center justify-center shadow-xs">
-            S
-          </span>
-          <div className="flex flex-col">
-            <strong className="text-base font-extrabold text-[#1A1612] leading-tight tracking-wide">
-              SCANMS
-            </strong>
-            <small className="text-[11px] font-bold text-[#7D715E] leading-none mt-1">
-              {navConfig.subTitle}
-            </small>
-          </div>
+  const editProfilePath = role === 'SHOP_MANAGER'
+    ? '/merchant/settings'
+    : role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER'
+    ? '/admin/users'
+    : '/collaborator/profile';
+
+  const editProfileLabel = role === 'SHOP_MANAGER'
+    ? 'Cài Đặt Gian Hàng'
+    : role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER'
+    ? 'Quản Trị Hồ Sơ'
+    : 'Sửa Hồ Sơ';
+
+  return (
+    <aside className="w-64 min-w-[256px] h-full shrink-0 flex flex-col bg-[#FAF8F5] border-r border-[#EAE4D7] z-30 text-left select-none overflow-hidden">
+      {/* Hidden file input for avatar upload */}
+      <input
+        type="file"
+        ref={avatarInputRef}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+
+          if (!file.type.startsWith('image/')) {
+            toast.error('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP)');
+            return;
+          }
+
+          if (file.size > 5 * 1024 * 1024) {
+            toast.error('Kích thước ảnh tối đa 5MB');
+            return;
+          }
+
+          setUploading(true);
+          try {
+            const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
+            await authService.updateAvatar(secureUrl);
+            toast.success('Cập nhật ảnh đại diện thành công!');
+          } catch (err: any) {
+            console.error('Lỗi tải ảnh đại diện:', err);
+            toast.error(err?.response?.data?.message || err?.message || 'Không thể tải ảnh đại diện lên');
+          } finally {
+            setUploading(false);
+            e.target.value = '';
+          }
+        }}
+        accept="image/png,image/jpeg,image/webp,image/jpg"
+        className="hidden"
+      />
+
+      {/* User Identity Header (SCANMS UI Reference Style) */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+        <div className="relative shrink-0 group">
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploading}
+            className="w-12 h-12 rounded-full border border-[#EAE4D7] overflow-hidden bg-white flex items-center justify-center text-[#8C6226] font-bold text-lg select-none relative cursor-pointer group-hover:opacity-90 transition shadow-2xs"
+            title="Bấm vào để tải/đổi ảnh đại diện"
+          >
+            {uploading ? (
+              <Loader2 className="w-4 h-4 text-[#B88E4F] animate-spin" />
+            ) : currentUser?.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>
+                {currentUser?.fullName?.charAt(0).toUpperCase() || (role === 'SHOP_MANAGER' ? 'S' : 'K')}
+              </span>
+            )}
+            {!uploading && (
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <Camera className="w-4 h-4 text-white drop-shadow" />
+              </div>
+            )}
+          </button>
         </div>
 
-        <Link
-          to="/marketplace"
-          className="flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-[#B88E4F] bg-[#FBF5EB] border border-[#EAE4D7] hover:bg-[#ECE1CD] transition shadow-2xs group"
-          title="Mở Sàn Tiếp Thị Đa Gian Hàng Công Khai"
-        >
-          <span className="flex items-center gap-2">
-            <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-            <span>Sàn Mua Sắm Chính</span>
-          </span>
-          <ExternalLink className="w-3 h-3 text-[#7D715E] group-hover:text-[#B88E4F] transition" />
-        </Link>
+        <div className="min-w-0 flex-1 text-left">
+          <strong className="block text-sm font-bold text-[#1A1612] truncate" title={displayName}>
+            {displayName}
+          </strong>
+          <Link
+            to={editProfilePath}
+            className="inline-flex items-center gap-1 text-xs text-[#7D715E] hover:text-[#C59B58] transition-colors mt-0.5 cursor-pointer font-normal"
+          >
+            <Edit2 className="w-3 h-3 text-[#7D715E]" />
+            <span>{editProfileLabel}</span>
+          </Link>
+        </div>
       </div>
 
-      <div className="px-4 pt-3 pb-1 text-[10.5px] font-bold text-[#8C7D6B] uppercase tracking-wider">
-        {navConfig.title}
-      </div>
+      <div className="border-t border-[#EAE4D7] my-0.5" />
 
-
-      <nav className="flex-1 px-3 py-1 flex flex-col gap-1 overflow-y-auto" aria-label="Menu chức năng">
+      {/* SCANMS UI Reference Minimalist Navigation List */}
+      <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto" aria-label="Menu chức năng">
         {navConfig.items.map((item) => {
           const active = isLinkActive(item.path);
           const Icon = item.icon;
@@ -172,27 +232,24 @@ export function Sidebar({ currentUser, onLogout }: SidebarProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`group flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] focus-visible:ring-offset-1 ${
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] transition-all duration-150 cursor-pointer ${
                 active
-                  ? 'bg-[#EBD08C] text-white shadow-xs font-bold'
-                  : 'text-[#1A1612] hover:bg-[#EAE4D7]/70 hover:text-[#1A1612]'
+                  ? 'bg-[#FAF5EB] text-[#B88E4F] font-bold border border-[#EEDFC6]/70 shadow-2xs'
+                  : 'text-[#1A1612] hover:bg-white hover:text-[#B88E4F]'
               }`}
             >
-              <span
-                className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-all duration-200 ${
-                  active
-                    ? 'border-white/25 bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
-                    : 'border-[#EAE4D7] bg-[#FBF5EB] text-[#B88E4F] group-hover:border-[#C59B58] group-hover:bg-[#ECE1CD] group-hover:text-[#B88E4F]'
+              <Icon
+                className={`w-4 h-4 shrink-0 transition-colors ${
+                  active ? 'text-[#B88E4F]' : 'text-[#7D715E] group-hover:text-[#B88E4F]'
                 }`}
-                aria-hidden="true"
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </span>
-              <span className="flex-1 truncate text-xs">{item.label}</span>
+              />
+              <span className="flex-1 truncate">{item.label}</span>
               {item.numBadge && (
                 <span
-                  className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded ${
-                    active ? 'text-white/80' : 'text-[#8C7D6B]'
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${
+                    active
+                      ? 'bg-[#C59B58] text-white'
+                      : 'bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226]'
                   }`}
                 >
                   {item.numBadge}
@@ -203,39 +260,35 @@ export function Sidebar({ currentUser, onLogout }: SidebarProps) {
         })}
       </nav>
 
-      <div className="p-3 border-t border-[#EAE4D7] flex flex-col gap-2 bg-[#FBF5EB]/50">
+      {/* Bottom Actions (SCANMS UI Reference Style) */}
+      <div className="p-3 border-t border-[#EAE4D7] flex flex-col gap-1.5 bg-[#FAF8F5]">
         {currentUser ? (
           <>
-            {/* Workspace Switcher */}
-            <WorkspaceSwitcher variant="sidebar" />
+            {/* Sàn Mua Sắm Link */}
+            <Link
+              to="/marketplace"
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-medium text-[#1A1612] hover:text-[#B88E4F] hover:bg-white transition cursor-pointer group"
+              title="Quay lại Sàn Mua Sắm SCANMS"
+            >
+              <ArrowLeft className="w-4 h-4 text-[#B88E4F] shrink-0" aria-hidden="true" />
+              <Store className="w-4 h-4 text-[#7D715E] group-hover:text-[#B88E4F] shrink-0" />
+              <span>Sàn Mua Sắm</span>
+            </Link>
 
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs">
-              <span className="w-8 h-8 rounded-lg bg-[#EAE4D7] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0 border border-[#EAE4D7]">
-                {currentUser.fullName?.[0]?.toUpperCase() || 'U'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold text-[#1A1612] truncate">
-                  {currentUser.fullName || currentUser.email}
-                </div>
-                <div className="text-[10px] font-semibold text-[#B88E4F] truncate">
-                  {roleLabel}
-                </div>
-              </div>
-            </div>
-
+            {/* Đăng xuất */}
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50/70 border border-rose-200/80 hover:bg-rose-100 hover:text-rose-800 transition cursor-pointer text-center w-full shadow-2xs active:scale-98"
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-semibold text-[#DC2626] hover:bg-rose-50/70 hover:text-red-700 transition cursor-pointer text-left w-full"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-              <span>Đăng xuất an toàn</span>
+              <LogOut className="w-4 h-4 text-[#DC2626] shrink-0" />
+              <span>Đăng xuất</span>
             </button>
           </>
         ) : (
           <Link
             to="/login"
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-[#EBD08C] text-white hover:bg-[#DEC07A] transition cursor-pointer text-center w-full shadow-2xs"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] hover:bg-[#B88E4F] text-white transition cursor-pointer text-center w-full shadow-2xs"
           >
             <LogIn className="w-3.5 h-3.5 shrink-0" />
             <span>Đăng nhập</span>

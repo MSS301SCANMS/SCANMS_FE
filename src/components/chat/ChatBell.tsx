@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, Volume2, VolumeX } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { getChatSocket } from '../../services/chat-socket.service';
@@ -95,15 +95,96 @@ export function ChatBell({ userId, isShop = false }: { userId: string; isShop?: 
     return (conversation._count?.chatMessages || 0) > 0 || (last && !last.isRead && last.senderId !== userId);
   });
 
-  return <div className="relative" ref={boxRef}>
-    <button type="button" aria-label={`Tin nhắn: ${count} chưa đọc`} onClick={() => { setOpen(!open); refresh(); }} className="relative rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-2.5 text-[#B88E4F] hover:bg-[#F3EFE6]">
-      <Bell size={18} />{count > 0 && <span className="absolute -right-1 -top-1 grid min-w-5 h-5 place-items-center rounded-full bg-[#C59B58] px-1 text-[10px] font-bold text-[#231D15]">{count > 99 ? '99+' : count}</span>}
-    </button>
-    {open && <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-[#EAE4D7] bg-white p-3 shadow-xl">
-      <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-2"><strong className="text-sm">{isShop ? 'Tin nhắn khách hàng' : 'Tin nhắn Shop'}</strong><button type="button" onClick={toggleSound} aria-label={soundOn ? 'Tắt âm báo' : 'Bật âm báo'} title={soundOn ? 'Tắt âm báo' : 'Bật âm báo'} className="rounded-lg p-2 text-[#7D715E] hover:bg-[#F3EFE6]">{soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}</button></div>
-      {soundOn && soundBlocked && <button type="button" onClick={unlockSound} className="mt-2 w-full rounded-lg bg-[#FBF5EB] px-2 py-2 text-left text-xs text-[#B88E4F]">Trình duyệt đang chặn âm báo. Bấm để cho phép phát âm.</button>}
-      {unread.length === 0 ? <p className="py-5 text-center text-sm text-[#7D715E]">Không có tin nhắn chưa đọc.</p> : unread.map((conversation) => <button key={conversation.id} type="button" onClick={() => { setOpen(false); navigate(isShop && conversation.customerId ? `/merchant/customer-messages?conversationId=${conversation.id}` : `/chat?conversationId=${conversation.id}`); }} className="block w-full border-b border-[#EAE4D7] px-2 py-3 text-left hover:bg-[#FBF5EB]"><strong className="block text-sm">{isShop ? conversation.customer?.fullName || conversation.collaborator?.fullName || 'Khách hàng' : conversation.store?.name || 'Shop'}</strong><span className="block truncate text-xs text-[#7D715E]">{conversation.chatMessages?.[0]?.messageText}</span></button>)}
-      <button type="button" onClick={() => { setOpen(false); navigate('/chat'); }} className="mt-2 w-full rounded-lg bg-[#FBF5EB] py-2 text-xs font-semibold text-[#B88E4F]">Xem tất cả hội thoại</button>
-    </div>}
-  </div>;
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        type="button"
+        title={isShop ? 'Tin nhắn khách hàng' : 'Tin nhắn trò chuyện'}
+        aria-label={`Tin nhắn: ${count} chưa đọc`}
+        onClick={() => {
+          setOpen(!open);
+          refresh();
+        }}
+        className="relative rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-2 text-[#7D715E] hover:text-[#B88E4F] hover:bg-[#F3EFE6] transition cursor-pointer shadow-2xs"
+      >
+        <MessageSquare className="w-5 h-5 text-[#B88E4F]" />
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#C59B58] text-[#231D15] text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-[#EAE4D7] bg-white p-3 shadow-xl text-left">
+          <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-2">
+            <strong className="text-sm font-bold text-[#1A1612]">
+              {isShop ? 'Tin nhắn khách hàng' : 'Tin nhắn Shop'}
+            </strong>
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label={soundOn ? 'Tắt âm báo' : 'Bật âm báo'}
+              title={soundOn ? 'Tắt âm báo' : 'Bật âm báo'}
+              className="rounded-lg p-1.5 text-[#7D715E] hover:bg-[#F3EFE6] hover:text-[#1A1612] transition"
+            >
+              {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
+            </button>
+          </div>
+
+          {soundOn && soundBlocked && (
+            <button
+              type="button"
+              onClick={unlockSound}
+              className="mt-2 w-full rounded-lg bg-[#FBF5EB] px-2.5 py-2 text-left text-xs font-semibold text-[#B88E4F]"
+            >
+              Trình duyệt đang chặn âm báo. Bấm để cho phép phát âm.
+            </button>
+          )}
+
+          {unread.length === 0 ? (
+            <p className="py-5 text-center text-sm text-[#7D715E]">
+              Không có tin nhắn chưa đọc.
+            </p>
+          ) : (
+            unread.map((conversation) => (
+              <button
+                key={conversation.id}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  navigate(
+                    isShop
+                      ? `/merchant/customer-messages?conversationId=${conversation.id}`
+                      : `/chat?conversationId=${conversation.id}`,
+                  );
+                }}
+                className="block w-full border-b border-[#EAE4D7]/70 px-2 py-3 text-left hover:bg-[#FBF5EB] transition rounded-lg"
+              >
+                <strong className="block text-sm font-bold text-[#1A1612]">
+                  {isShop
+                    ? conversation.customer?.fullName || conversation.collaborator?.fullName || 'Khách hàng'
+                    : conversation.store?.name || 'Shop'}
+                </strong>
+                <span className="block truncate text-xs text-[#7D715E] mt-0.5">
+                  {conversation.chatMessages?.[0]?.messageText}
+                </span>
+              </button>
+            ))
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              navigate(isShop ? '/merchant/customer-messages' : '/chat');
+            }}
+            className="mt-2.5 w-full rounded-xl bg-[#FBF5EB] hover:bg-[#F3EFE6] py-2 text-xs font-bold text-[#B88E4F] transition text-center border border-[#EEDFC6]"
+          >
+            {isShop ? 'Quản lý toàn bộ tin nhắn khách' : 'Xem tất cả hội thoại'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }

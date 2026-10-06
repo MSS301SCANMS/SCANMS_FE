@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Coins,
   Store,
-  Calendar,
   Layers,
   ShieldCheck,
   RotateCcw,
@@ -22,6 +21,7 @@ import {
 import { commissionRulesService } from '../../services/commission-rules.service';
 import api from '../../services/api';
 import { getVietnamCurrentMonthYear } from '../../utils/dateTimeUtils';
+import { Select } from '../../components/ui/Select';
 
 interface MilestoneItem {
   id: string;
@@ -543,122 +543,52 @@ export const KolBonusProgressPage: React.FC = () => {
                 <ShieldCheck size={13} color="#15803d" /> ĐỐI SOÁT TỰ ĐỘNG
               </span>
             </div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 20,
-                fontWeight: 850,
-                color: '#1A1612',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 9,
-              }}
-            >
-              <Trophy size={24} color="#DEBE85" /> Thưởng Doanh Số Tháng (KPI & Lũy Tiến)
-            </h1>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#7D715E', maxWidth: 820, lineHeight: 1.5 }}>
-              Chính sách mốc thưởng do Chủ Shop thiết lập. Đạt doanh số càng cao, tiền thưởng cố định và tỷ lệ % vượt mốc càng lớn.
-            </p>
           </div>
 
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#FAF8F5',
-                padding: '7px 12px',
-                borderRadius: 10,
-                border: '1.5px solid #EAE4D7',
-              }}
+            <Select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              disabled={storesLoading || stores.length === 0}
+              className="w-48 text-xs font-bold"
             >
-              <Store size={15} color="#B88E4F" />
-              <select
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                disabled={storesLoading || stores.length === 0}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 750,
-                  color: '#1A1612',
-                  outline: 'none',
-                  cursor: stores.length > 0 ? 'pointer' : 'default',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {stores.length === 0 ? (
-                  <option value="">Chưa có Shop liên kết</option>
-                ) : (
-                  stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#FAF8F5',
-                padding: '6px 11px',
-                borderRadius: 10,
-                border: '1.5px solid #EAE4D7',
-              }}
-            >
-              <Calendar size={15} color="#B88E4F" />
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 750,
-                  color: '#1A1612',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {Array.from({ length: 12 }, (_, i) => {
-                  const m = String(i + 1).padStart(2, '0');
-                  return (
-                    <option key={m} value={m}>
-                      Tháng {m}
-                    </option>
-                  );
-                })}
-              </select>
-              <span style={{ color: '#EAE4D7' }}>/</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: 12.5,
-                  fontWeight: 750,
-                  color: '#1A1612',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {[Number(currentVnYear) - 1, Number(currentVnYear), Number(currentVnYear) + 1].map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
+              {stores.length === 0 ? (
+                <option value="">Chưa có Shop liên kết</option>
+              ) : (
+                stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
                   </option>
-                ))}
-              </select>
-            </div>
+                ))
+              )}
+            </Select>
+
+            <Select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-32 text-xs font-bold"
+            >
+              {Array.from({ length: 12 }, (_, i) => {
+                const m = String(i + 1).padStart(2, '0');
+                return (
+                  <option key={m} value={m}>
+                    Tháng {m}
+                  </option>
+                );
+              })}
+            </Select>
+
+            <Select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-28 text-xs font-bold"
+            >
+              {[Number(currentVnYear) - 1, Number(currentVnYear), Number(currentVnYear) + 1].map((y) => (
+                <option key={y} value={String(y)}>
+                  Năm {y}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
 

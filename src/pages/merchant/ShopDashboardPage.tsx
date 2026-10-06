@@ -9,6 +9,8 @@ import {
   ArrowRight,
   RefreshCw,
   Box,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { storeService } from '../../services/store.service';
 import {
@@ -20,24 +22,23 @@ import { productService, type Product } from '../../services/product.service';
 import { orderService, type StoreOrderRecord } from '../../services/order.service';
 
 export default function ShopDashboardPage() {
-  const [store, setStore] = useState<any>(null);
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
   const [recentOrders, setRecentOrders] = useState<StoreOrderRecord[]>([]);
+  const [isOrdersExpanded, setIsOrdersExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const currentStore = await storeService.getMyStore().catch(() => null);
-      setStore(currentStore);
 
       const [overviewData, seriesData, productsData, ordersData] = await Promise.all([
         analyticsService.getRealtimeOverview({ days: 30, storeId: currentStore?.id }).catch(() => null),
-        analyticsService.getTimeSeries({ days: 7, interval: 'day', storeId: currentStore?.id }).catch(() => []),
+        analyticsService.getTimeSeries({ days: 7, interval: 'daily', storeId: currentStore?.id }).catch(() => []),
         productService.getProducts({ storeId: currentStore?.id, page: 1, limit: 5 }).catch(() => ({ items: [] })),
-        orderService.getMyStoreOrders({ storeId: currentStore?.id, page: 1, limit: 5 }).catch(() => ({ items: [] })),
+        orderService.getMyStoreOrders({ storeId: currentStore?.id, page: 1, limit: 10 }).catch(() => ({ items: [] })),
       ]);
 
       if (overviewData) setOverview(overviewData);
@@ -59,43 +60,7 @@ export default function ShopDashboardPage() {
   const maxRevenue = Math.max(...(timeSeries.map((t) => t.revenue) || [1]), 1);
 
   return (
-    <div className="flex flex-col gap-6 text-left">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-black text-[#1A1612] tracking-tight m-0">
-              Tổng quan {store?.name || 'Gian hàng của bạn'}
-            </h1>
-            {store?.slug && (
-              <span className="text-xs px-2 py-0.5 rounded-md bg-[#F3EFE6] border border-[#EAE4D7] text-[#7D715E] font-mono">
-                @{store.slug}
-              </span>
-            )}
-          </div>
-          <p className="text-xs sm:text-sm text-[#7D715E] mt-1 m-0">
-            Theo dõi doanh thu liên kết, chi phí hoa hồng và sức khỏe đơn hàng thực tế từ sàn tiếp thị.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadData}
-            title="Tải lại dữ liệu"
-            className="p-2.5 rounded-xl border border-[#EAE4D7] bg-white text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <Link
-            to="/merchant/campaigns"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EBD08C] text-white font-bold text-xs sm:text-sm hover:bg-[#DEC07A] transition shadow-xs"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo chiến dịch</span>
-          </Link>
-        </div>
-      </header>
-
+    <div className="flex flex-col gap-5 text-left pt-3 sm:pt-4 pb-6">
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Doanh thu liên kết */}
@@ -182,7 +147,7 @@ export default function ShopDashboardPage() {
             </div>
             <div className="flex items-center gap-3 text-xs text-[#7D715E] font-bold">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-xs bg-[#EBD08C]" /> Doanh thu (GMV)
+                <span className="w-3 h-3 rounded-xs bg-[#C59B58]" /> Doanh thu (GMV)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-xs bg-[#EAE4D7]" /> Hoa hồng KOL
@@ -206,7 +171,7 @@ export default function ShopDashboardPage() {
                       <div
                         style={{ height: `${revHeight}%` }}
                         title={`Doanh thu: ${col.revenue.toLocaleString('vi-VN')} ₫`}
-                        className="w-3.5 sm:w-5 bg-[#EBD08C] rounded-t-sm transition-all hover:bg-[#DEC07A]"
+                        className="w-3.5 sm:w-5 bg-[#C59B58] rounded-t-sm transition-all hover:bg-[#B88E4F]"
                       />
                       <div
                         style={{ height: `${commHeight}%` }}
@@ -240,10 +205,10 @@ export default function ShopDashboardPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">
-              {recentOrders.map((order) => (
+              {(isOrdersExpanded ? recentOrders : recentOrders.slice(0, 3)).map((order) => (
                 <div
                   key={order.id}
-                  className="flex items-center gap-3 p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7]"
+                  className="flex items-center gap-3 p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7] transition-all hover:bg-[#F3EFE6]/50"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] flex items-center justify-center shrink-0">
                     <ShoppingBag className="w-4 h-4" />
@@ -261,25 +226,64 @@ export default function ShopDashboardPage() {
                   </strong>
                 </div>
               ))}
+
+              {recentOrders.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                  className="w-full py-2.5 px-3 mt-0.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  {isOrdersExpanded ? (
+                    <>
+                      <span>Thu gọn danh sách</span>
+                      <ChevronUp className="w-3.5 h-3.5 text-[#B88E4F]" />
+                    </>
+                  ) : (
+                    <>
+                      <span>Xem thêm ({recentOrders.length - 3} đơn khác)</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#B88E4F]" />
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* Sản phẩm của gian hàng (Dữ liệu thật) */}
-      <div className="bg-white border border-[#EAE4D7] rounded-2xl shadow-xs overflow-hidden">
-        <div className="flex justify-between items-center p-4 sm:p-5 border-b border-[#EAE4D7]">
+      <div className="bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#EAE4D7]">
           <div>
             <h3 className="text-base font-extrabold text-[#1A1612] m-0">Sản phẩm của gian hàng</h3>
             <p className="text-xs text-[#7D715E] mt-0.5 m-0">Danh sách sản phẩm thực tế đang mở bán trên sàn tiếp thị</p>
           </div>
-          <Link
-            to="/merchant/products"
-            className="text-xs font-bold text-[#B88E4F] hover:text-[#B88E4F] flex items-center gap-1"
-          >
-            <span>Quản lý danh mục</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadData}
+              title="Tải lại dữ liệu gian hàng"
+              className="h-8 px-3 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] hover:bg-[#FBF5EB] hover:border-[#B88E4F] text-[#7D715E] hover:text-[#B88E4F] text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#B88E4F]' : 'text-[#7D715E]'}`} />
+              <span>Làm mới</span>
+            </button>
+            <Link
+              to="/merchant/promotions?tab=coupons"
+              title="Tạo chiến dịch khuyến mãi mới"
+              className="h-8 px-3 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] hover:bg-[#C59B58] text-[#B88E4F] hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tạo chiến dịch</span>
+            </Link>
+            <Link
+              to="/merchant/products"
+              className="h-8 px-3.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A37B3E] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+            >
+              <span>Quản lý danh mục</span>
+              <ArrowRight className="w-3.5 h-3.5 text-white" />
+            </Link>
+          </div>
         </div>
 
         {topProducts.length === 0 ? (
@@ -287,58 +291,69 @@ export default function ShopDashboardPage() {
             Gian hàng chưa đăng sản phẩm nào. Hãy bấm Quản lý danh mục để thêm sản phẩm đầu tiên!
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#EAE4D7] hover:[&::-webkit-scrollbar-thumb]:bg-[#C59B58]/40">
+            <table className="w-full text-left text-xs border-collapse min-w-[920px]">
               <thead>
-                <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] font-bold">
-                  <th className="p-3.5">Sản phẩm</th>
-                  <th className="p-3.5">SKU</th>
-                  <th className="p-3.5">Giá bán</th>
-                  <th className="p-3.5">Tồn kho</th>
-                  <th className="p-3.5">Hoa hồng CTV</th>
-                  <th className="p-3.5">Trạng thái</th>
+                <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] text-[11px] font-bold uppercase tracking-wider select-none">
+                  <th className="py-3 px-4 font-bold whitespace-nowrap min-w-[280px]">Sản phẩm</th>
+                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">SKU</th>
+                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Giá bán</th>
+                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[100px]">Tồn kho</th>
+                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Hoa hồng CTV</th>
+                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Trạng thái</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#EAE4D7]">
+              <tbody className="divide-y divide-[#EAE4D7]/70 bg-white">
                 {topProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#FBF5EB]/40 transition">
-                    <td className="p-3.5">
+                  <tr key={p.id} className="group hover:bg-[#FBF5EB]/40 transition-colors duration-150">
+                    <td className="py-3 px-4 align-middle">
                       <div className="flex items-center gap-3">
                         {p.imageUrl ? (
                           <img
                             src={p.imageUrl}
                             alt={p.title}
-                            className="w-9 h-9 rounded-xl object-cover border border-[#EAE4D7] shrink-0"
+                            className="w-10 h-10 rounded-xl object-cover border border-[#EAE4D7] bg-[#FAF8F5] shrink-0 shadow-2xs group-hover:border-[#C59B58]/40 transition-colors"
                           />
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                             <Box className="w-4 h-4" />
                           </div>
                         )}
-                        <strong className="text-xs sm:text-sm font-bold text-[#1A1612] block">
+                        <strong className="text-[12.5px] font-bold text-[#1A1612] truncate max-w-[280px] block leading-snug" title={p.title}>
                           {p.title}
                         </strong>
                       </div>
                     </td>
-                    <td className="p-3.5 font-mono text-[#7D715E]">{p.sku}</td>
-                    <td className="p-3.5 font-bold text-[#1A1612]">
-                      {Number(p.price).toLocaleString('vi-VN')} ₫
+                    <td className="py-3 px-4 align-middle whitespace-nowrap">
+                      <span className="font-mono text-[11px] font-bold text-[#7D715E] bg-[#FAF8F5] px-2 py-0.5 rounded-md border border-[#EAE4D7] shadow-2xs whitespace-nowrap inline-block">
+                        {p.sku || '—'}
+                      </span>
                     </td>
-                    <td className="p-3.5 font-semibold text-[#1A1612]">{p.stockQuantity}</td>
-                    <td className="p-3.5">
-                      <span className="px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] font-bold border border-[#EAE4D7]">
+                    <td className="py-3 px-4 align-middle whitespace-nowrap">
+                      <strong className="font-mono text-[12.5px] font-bold text-[#1A1612] whitespace-nowrap">
+                        {Number(p.price).toLocaleString('vi-VN')} ₫
+                      </strong>
+                    </td>
+                    <td className="py-3 px-4 align-middle whitespace-nowrap">
+                      <span className="font-semibold text-xs text-[#1A1612] whitespace-nowrap">
+                        {p.stockQuantity}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 align-middle whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] font-bold text-[11px] border border-[#EEDFC6] whitespace-nowrap shadow-2xs">
                         {p.customCommissionRate ?? p.store?.defaultCommissionRate ?? 10}%
                       </span>
                     </td>
-                    <td className="p-3.5">
+                    <td className="py-3 px-4 align-middle whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs whitespace-nowrap ${
                           p.isActive
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-gray-50 text-gray-700 border border-gray-200'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-[#FAF8F5] text-[#7D715E] border-[#EAE4D7]'
                         }`}
                       >
-                        {p.isActive ? 'Đang mở bán' : 'Tạm ẩn'}
+                        <span className={`w-1.5 h-1.5 rounded-full ${p.isActive ? 'bg-[#059669]' : 'bg-[#7D715E]'}`} />
+                        <span>{p.isActive ? 'Đang mở bán' : 'Tạm ẩn'}</span>
                       </span>
                     </td>
                   </tr>

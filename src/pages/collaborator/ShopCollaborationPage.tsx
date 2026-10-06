@@ -21,6 +21,8 @@ import {
   Copy,
   AlertTriangle,
   Handshake,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../../services/api';
 import { kycService, type KycProfile } from '../../services/kyc.service';
@@ -29,6 +31,7 @@ import { mediaService, type MediaAsset } from '../../services/media.service';
 import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
 import ChatBoxPage from '../chat/ChatBoxPage';
 import { toast } from '../../utils/toast';
+import { Select } from '../../components/ui/Select';
 import QRCode from 'qrcode';
 
 export interface PartnerStore {
@@ -36,6 +39,8 @@ export interface PartnerStore {
   name: string;
   slug?: string;
   logoUrl?: string;
+  ownerAvatarUrl?: string;
+  ownerName?: string;
   category?: string;
   commissionRange?: string;
   rating?: number;
@@ -45,12 +50,53 @@ export interface PartnerStore {
   pendingSamplesCount?: number;
 }
 
+const getShopLogoUrl = (logoUrl?: string | null) => {
+  const normalized = logoUrl?.trim();
+  if (!normalized || /unsplash\.com/i.test(normalized)) return undefined;
+  return normalized;
+};
+
+function StoreAvatar({
+  name,
+  logoUrl,
+  className,
+}: {
+  name: string;
+  logoUrl?: string;
+  className: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [logoUrl]);
+
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'S';
+
+  return (
+    <span className={`${className} relative inline-flex items-center justify-center overflow-hidden bg-[#F3EFE6] text-[#B88E4F] font-extrabold`}>
+      {logoUrl && !imageFailed ? (
+        <img
+          src={logoUrl}
+          alt={`Logo ${name}`}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span aria-hidden="true">{initials}</span>
+      )}
+    </span>
+  );
+}
+
 const REAL_STORES: PartnerStore[] = [
   {
     id: 'a7e7bd20-bebc-44c9-a98b-004de44cf773',
     name: 'Sora Skin Official Store',
     slug: 'sora-skin',
-    logoUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=150&auto=format&fit=crop&q=80',
     category: 'Dược mỹ phẩm & Phục hồi da',
     commissionRange: '20% - 32%',
     rating: 4.9,
@@ -62,7 +108,6 @@ const REAL_STORES: PartnerStore[] = [
     id: '461bdfe3-2260-4ac7-b93b-6a6da5c45535',
     name: 'Aura Bio Cosmetics Vietnam',
     slug: 'aura-bio-cosmetics',
-    logoUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=150&auto=format&fit=crop&q=80',
     category: 'Mỹ phẩm sinh học & Thuần chay',
     commissionRange: '25% - 35%',
     rating: 4.8,
@@ -74,7 +119,6 @@ const REAL_STORES: PartnerStore[] = [
     id: 'c4444444-4444-4444-8444-444444444444',
     name: 'GreenBio Health & Herbs',
     slug: 'greenbio-health',
-    logoUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=150&auto=format&fit=crop&q=80',
     category: 'Thực phẩm chức năng & Trà',
     commissionRange: '18% - 25%',
     rating: 4.7,
@@ -86,7 +130,6 @@ const REAL_STORES: PartnerStore[] = [
     id: 'd5555555-5555-4555-8555-555555555555',
     name: 'Lumière Lab Vietnam',
     slug: 'lumiere-lab',
-    logoUrl: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=150&auto=format&fit=crop&q=80',
     category: 'Serum & Chăm sóc chuyên sâu',
     commissionRange: '22% - 35%',
     rating: 5.0,
@@ -108,6 +151,7 @@ export default function ShopCollaborationPage() {
   const productImage = searchParams.get('productImage');
   const productPrice = searchParams.get('productPrice');
   const productSku = searchParams.get('productSku');
+  const productVariantId = searchParams.get('productVariantId');
   const commissionRate = searchParams.get('commissionRate');
 
   const initialProductContext = useMemo(() => {
@@ -118,9 +162,10 @@ export default function ShopCollaborationPage() {
       image: productImage || undefined,
       price: productPrice ? Number(productPrice) : 0,
       sku: productSku || undefined,
+      productVariantId: productVariantId || undefined,
       commissionRate: commissionRate ? Number(commissionRate) : undefined,
     };
-  }, [productId, productTitle, productImage, productPrice, productSku, commissionRate]);
+  }, [productId, productTitle, productImage, productPrice, productSku, commissionRate, productVariantId]);
 
   const [stores, setStores] = useState<PartnerStore[]>(REAL_STORES);
   const [selectedStoreId, setSelectedStoreId] = useState<string>(shopParam || REAL_STORES[0].id);
@@ -134,6 +179,7 @@ export default function ShopCollaborationPage() {
   // KOL verification profile & channels (Business Guard)
   const [kycProfile, setKycProfile] = useState<KycProfile | null>(null);
   const [socialChannels, setSocialChannels] = useState<SocialChannel[]>([]);
+  const [sampleEligibility, setSampleEligibility] = useState<any>(null);
   const [loadingKyc, setLoadingKyc] = useState(true);
 
   // Tab 2: Products
@@ -144,6 +190,7 @@ export default function ShopCollaborationPage() {
   // Tab 3: Samples
   const [samples, setSamples] = useState<any[]>([]);
   const [loadingSamples, setLoadingSamples] = useState(false);
+  const [sampleStatusFilter, setSampleStatusFilter] = useState('ALL');
 
   // Tab 4: Media Toolkit
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
@@ -158,10 +205,14 @@ export default function ShopCollaborationPage() {
 
   // Modal 2: Xin Hàng Mẫu 4 Bước (Giải pháp 2)
   const [requestSampleModalProduct, setRequestSampleModalProduct] = useState<any | null>(null);
-  const [sampleContentChannel, setSampleContentChannel] = useState<string>('TIKTOK');
+  const [sampleSocialChannelId, setSampleSocialChannelId] = useState<string>('');
   const [sampleContentType, setSampleContentType] = useState<string>('Video Review 60s (Routine buổi sáng)');
-  const [sampleCommitDeadline, setSampleCommitDeadline] = useState<string>('7 ngày sau khi nhận hàng');
-  const [shippingAddress, setShippingAddress] = useState('Phòng 402, Chung cư Sunrise City, Quận 7, TP.HCM (SĐT: 0987123456)');
+  const [sampleExpectedVideoAt, setSampleExpectedVideoAt] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+  const maxSampleExpectedVideoAt = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const [sampleTermsAccepted, setSampleTermsAccepted] = useState(false);
+  const [sampleRecipientName, setSampleRecipientName] = useState('');
+  const [sampleRecipientPhone, setSampleRecipientPhone] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
   const [submittingSample, setSubmittingSample] = useState(false);
 
   // Modal 3: Nộp link video nghiệm thu
@@ -173,6 +224,25 @@ export default function ShopCollaborationPage() {
   const [loadingMarketplace, setLoadingMarketplace] = useState(false);
   const [discoverSearch, setDiscoverSearch] = useState('');
   const [connectingStoreId, setConnectingStoreId] = useState<string | null>(null);
+
+  // Sidebar Collapse state (Thu gọn / Mở rộng thanh bên gian hàng)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('scanms_collab_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('scanms_collab_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Sync with URL query
   useEffect(() => {
@@ -193,12 +263,15 @@ export default function ShopCollaborationPage() {
     const fetchVerification = async () => {
       if (!kycProfile) setLoadingKyc(true);
       try {
-        const [kycRes, socialRes] = await Promise.all([
+        const [kycRes, socialRes, eligibilityRes] = await Promise.all([
           kycService.getMyKyc().catch(() => null),
           socialService.getMyChannels().catch(() => []),
+          api.get('/sample-requests/my/eligibility').catch(() => null),
         ]);
         setKycProfile(kycRes);
         setSocialChannels(socialRes || []);
+        setSampleEligibility(eligibilityRes?.data || eligibilityRes);
+        if (socialRes?.length) setSampleSocialChannelId((current) => current || socialRes[0].id);
       } finally {
         setLoadingKyc(false);
       }
@@ -208,7 +281,33 @@ export default function ShopCollaborationPage() {
 
   const isKycVerified = kycProfile?.kycStatus === 'VERIFIED';
   const hasSocialChannel = socialChannels.length > 0;
-  const canRequestSample = isKycVerified || hasSocialChannel;
+  const canRequestSample = Boolean(sampleEligibility?.canRequest ?? (isKycVerified && hasSocialChannel));
+  const visibleSamples = sampleStatusFilter === 'ALL'
+    ? samples
+    : samples.filter((sample) => sample.status === sampleStatusFilter);
+
+  const handleCancelSampleRequest = async (sampleId: string) => {
+    try {
+      await api.patch(`/sample-requests/${sampleId}/cancel`, {});
+      toast.success('Đã hủy yêu cầu xin mẫu.');
+      await loadStoreSamples(selectedStore.id);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err.message || 'Không thể hủy yêu cầu mẫu.');
+    }
+  };
+
+  useEffect(() => {
+    if (searchParams.get('sampleRequest') !== '1' || !initialProductContext) return;
+    setRequestSampleModalProduct({
+      ...initialProductContext,
+      imageUrl: initialProductContext.image,
+    });
+    setSampleTermsAccepted(false);
+    setSampleRecipientName('');
+    setSampleRecipientPhone('');
+    setShippingAddress('');
+    setActiveTab('products');
+  }, [initialProductContext, searchParams]);
 
   // Load conversations & stores
   const loadConversationsAndStores = useCallback(async () => {
@@ -226,12 +325,14 @@ export default function ShopCollaborationPage() {
       convList.forEach((conv: any) => {
         const st = conv.store || {};
         const storeId = st.id || conv.storeId;
-        if (storeId) {
+        if (storeId && !mappedStores.some((store) => store.id === storeId)) {
           mappedStores.push({
             id: storeId,
             name: st.name || 'Gian hàng đối tác',
             slug: st.slug || '',
-            logoUrl: st.logoUrl || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=150&auto=format&fit=crop&q=80',
+            logoUrl: getShopLogoUrl(st.logoUrl),
+            ownerAvatarUrl: st.owner?.avatarUrl || undefined,
+            ownerName: st.owner?.fullName || undefined,
             category: 'Thương mại điện tử & Mỹ phẩm',
             commissionRange: `${st.defaultCommissionRate || 20}% - 35%`,
             rating: 4.9,
@@ -247,7 +348,9 @@ export default function ShopCollaborationPage() {
             id: ms.id,
             name: ms.name,
             slug: ms.slug || '',
-            logoUrl: ms.logoUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=150&auto=format&fit=crop&q=80',
+            logoUrl: getShopLogoUrl(ms.logoUrl),
+            ownerAvatarUrl: ms.owner?.avatarUrl || undefined,
+            ownerName: ms.owner?.fullName || undefined,
             category: ms.description?.slice(0, 30) || 'Mỹ phẩm & Chăm sóc da',
             commissionRange: `${ms.defaultCommissionRate || 20}% - 30%`,
             rating: 4.8,
@@ -278,6 +381,14 @@ export default function ShopCollaborationPage() {
   const selectedStore = useMemo(() => {
     return stores.find((s) => s.id === selectedStoreId) || stores[0] || REAL_STORES[0];
   }, [stores, selectedStoreId]);
+
+  const openStorefront = useCallback((store: PartnerStore) => {
+    if (store.slug) {
+      navigate(`/shop/${encodeURIComponent(store.slug)}`);
+      return;
+    }
+    navigate(`/marketplace?shop=${encodeURIComponent(store.id)}`);
+  }, [navigate]);
 
   // Load products (chỉ hiện spinner nếu chưa có sản phẩm)
   const loadStoreProducts = useCallback(async (storeId: string) => {
@@ -344,24 +455,7 @@ export default function ShopCollaborationPage() {
       const matching = list.filter((item: any) => item.product?.storeId === storeId || !item.product?.storeId);
       setSamples(matching);
     } catch {
-      setSamples([
-        {
-          id: 'samp-1',
-          status: 'SHIPPED',
-          createdAt: new Date().toISOString(),
-          trackingNumber: 'GHTK-SCANMS-998124',
-          shippingCarrier: 'GHTK Express',
-          channel: 'TikTok (@thangskincare)',
-          format: 'Video review 60s (Routine buổi sáng)',
-          deadlineDaysLeft: 6,
-          product: {
-            id: 'p-1',
-            title: 'Kem Dưỡng Ẩm Phục Hồi Da B5 Pro Sora Skin',
-            imageUrl: 'https://images.unsplash.com/photo-1608248597359-2e11e3b624f1?w=150&auto=format&fit=crop&q=80',
-            price: 320000,
-          },
-        },
-      ]);
+      setSamples([]);
     } finally {
       setLoadingSamples(false);
     }
@@ -420,21 +514,29 @@ export default function ShopCollaborationPage() {
   const handleSubmitSampleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRequestSample) {
-      toast.error('Vui lòng hoàn tất xác minh KYC hoặc liên kết kênh mạng xã hội trước khi xin mẫu.');
+      toast.error(sampleEligibility?.blockReason || 'Cần hoàn tất KYC, liên kết kênh mạng xã hội và không có yêu cầu mẫu quá hạn.');
       return;
     }
-    if (!requestSampleModalProduct || !shippingAddress.trim()) return;
+    if (!requestSampleModalProduct || !sampleRecipientName.trim() || !sampleRecipientPhone.trim() || !shippingAddress.trim() || !sampleSocialChannelId || !sampleExpectedVideoAt) return;
+    if (!sampleTermsAccepted) {
+      toast.error('Vui lòng xác nhận cam kết nộp video trong 14 ngày sau khi nhận hàng.');
+      return;
+    }
 
     setSubmittingSample(true);
     try {
       await api.post('/sample-requests', {
         productId: requestSampleModalProduct.id,
+        productVariantId: requestSampleModalProduct.productVariantId,
+        recipientName: sampleRecipientName.trim(),
+        recipientPhone: sampleRecipientPhone.trim(),
         shippingAddress: shippingAddress.trim(),
-        contentChannel: sampleContentChannel,
+        socialChannelId: sampleSocialChannelId,
         contentType: sampleContentType,
-        commitDeadline: sampleCommitDeadline,
+        expectedVideoAt: new Date(`${sampleExpectedVideoAt}T00:00:00`).toISOString(),
+        termsAccepted: true,
       });
-      toast.success(`Đã gửi yêu cầu nhận mẫu "${requestSampleModalProduct.title}" kèm cam kết nộp video trong 7 ngày!`);
+      toast.success(`Đã gửi yêu cầu nhận mẫu "${requestSampleModalProduct.title}" kèm cam kết video trong 14 ngày sau khi nhận hàng.`);
       setRequestSampleModalProduct(null);
       loadStoreSamples(selectedStore.id);
       setActiveTab('samples');
@@ -447,11 +549,14 @@ export default function ShopCollaborationPage() {
   };
 
   // KOL confirms receiving sample -> starts countdown
-  const handleConfirmReceivedSample = (sampleId: string) => {
-    setSamples((prev) =>
-      prev.map((s) => (s.id === sampleId ? { ...s, status: 'RECEIVED', deadlineDaysLeft: 7 } : s))
-    );
-    toast.success('Đã xác nhận nhận hàng! Bắt đầu đếm ngược 7 ngày nộp video review.');
+  const handleConfirmReceivedSample = async (sampleId: string) => {
+    try {
+      await api.patch(`/sample-requests/${sampleId}/receive`, {});
+      toast.success('Đã xác nhận nhận hàng! Bạn có 14 ngày để nộp video review.');
+      await loadStoreSamples(selectedStore.id);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err.message || 'Không thể xác nhận đã nhận hàng.');
+    }
   };
 
   // Connect new store
@@ -512,7 +617,8 @@ export default function ShopCollaborationPage() {
           <div className="flex items-center gap-2 text-[#B88E4F]">
             <ShieldAlert className="w-4 h-4 text-[#B88E4F] shrink-0" />
             <span>
-              <strong>Lưu ý:</strong> Bạn cần hoàn tất định danh KYC (CCCD &amp; Kênh TikTok/YouTube) để mở khóa quyền <strong>Xin Hàng Mẫu</strong> và <strong>Nhận Deal Hoa Hồng VIP</strong>.
+              <strong>Lưu ý:</strong> Cần hoàn tất KYC, liên kết ít nhất một kênh mạng xã hội và không có yêu cầu mẫu quá hạn để xin mẫu.
+              {sampleEligibility?.blockReason ? ` ${sampleEligibility.blockReason}` : ''}
             </span>
           </div>
           <button
@@ -527,136 +633,224 @@ export default function ShopCollaborationPage() {
 
       {/* Main Unified Workspace */}
       <div className="flex-1 min-h-0 bg-white border border-[#EAE4D7] rounded-3xl shadow-sm overflow-hidden flex flex-row">
-        {/* LEFT COLUMN: Danh Sách Gian Hàng Tinh Gọn (Clean & Elegant) */}
-        <div className="w-[300px] xl:w-[320px] shrink-0 border-r border-[#EAE4D7] bg-[#FAF8F5]/60 flex flex-col h-full">
-          {/* Top Search & Filter Bar */}
-          <div className="shrink-0 p-3 border-b border-[#EAE4D7] bg-white/90 backdrop-blur-xs flex flex-col gap-2">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#7D715E]" />
-              <input
-                id="search-partner-store"
-                type="text"
-                placeholder="Tìm gian hàng, thương hiệu..."
-                value={searchShopQuery}
-                onChange={(e) => setSearchShopQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs font-medium text-[#1A1612] placeholder:text-[#7D715E]/70 focus:bg-white focus:outline-none focus:border-[#C59B58] transition"
-              />
-            </div>
-
-            {/* Filter chips (Không scrollbar ngang xấu xí) */}
-            <div className="grid grid-cols-4 gap-1">
-              {[
-                { id: 'ALL', label: 'Tất cả' },
-                { id: 'CHAT', label: 'Tin mới' },
-                { id: 'SAMPLES', label: 'Mẫu thử' },
-                { id: 'HIGH_COMM', label: 'Deal cao' },
-              ].map((f) => (
+        {/* LEFT COLUMN: Danh Sách Gian Hàng Tinh Gọn (Có thể thu nhỏ chỉ hiện icon) */}
+        <div
+          className={`${
+            isSidebarCollapsed ? 'w-[64px]' : 'w-[260px] xl:w-[275px]'
+          } shrink-0 border-r border-[#EAE4D7] bg-[#FAF8F5]/60 flex flex-col h-full transition-all duration-300 select-none`}
+        >
+          {isSidebarCollapsed ? (
+            /* COLLAPSED VIEW: Chỉ hiển thị icon gian hàng, bấm icon trên đỉnh để mở rộng */
+            <>
+              <div className="shrink-0 p-2.5 border-b border-[#EAE4D7] bg-white/95 backdrop-blur-xs flex flex-col items-center gap-2">
                 <button
-                  key={f.id}
                   type="button"
-                  onClick={() => setShopFilter(f.id as any)}
-                  className={`py-1 rounded-lg text-[10.5px] font-bold text-center transition cursor-pointer ${
-                    shopFilter === f.id
-                      ? 'bg-[#EBD08C] text-white shadow-2xs'
-                      : 'bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
-                  }`}
+                  onClick={toggleSidebarCollapse}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#7D715E] hover:text-[#B88E4F] transition shadow-2xs cursor-pointer active:scale-95"
+                  title="Mở rộng thanh gian hàng"
+                  aria-label="Mở rộng thanh gian hàng"
                 >
-                  {f.label}
+                  <ChevronRight className="w-4 h-4 text-[#B88E4F]" />
                 </button>
-              ))}
-            </div>
-
-            {/* Nút Khám phá Gian hàng Mới nhẹ nhàng, duyên dáng */}
-            <button
-              id="btn-discover-stores"
-              type="button"
-              onClick={() => {
-                setShowDiscoverModal(true);
-                loadMarketplaceStores();
-              }}
-              className="w-full py-1.5 px-3 rounded-xl bg-[#FBF5EB] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#B88E4F] hover:text-[#B88E4F] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#B88E4F]" />
-              <span>Khám phá gian hàng trên Sàn</span>
-            </button>
-          </div>
-
-          {/* Stores List: Gọn Gàng, Tuyệt Đối Không Hiển Thị Đoạn Text Tin Nhắn Loằng Ngoằng */}
-          <div className="flex-1 overflow-y-auto divide-y divide-[#EAE4D7]/50" role="list">
-            {filteredStores.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#7D715E]">
-                Không có gian hàng nào phù hợp
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDiscoverModal(true);
+                    loadMarketplaceStores();
+                  }}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#FBF5EB] hover:bg-[#F3EFE6] border border-[#EEDFC6] text-[#B88E4F] transition shadow-2xs cursor-pointer active:scale-95"
+                  title="Khám phá gian hàng trên Sàn"
+                  aria-label="Khám phá gian hàng trên Sàn"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#B88E4F]" />
+                </button>
               </div>
-            ) : (
-              filteredStores.map((st) => {
-                const isSelected = st.id === selectedStore.id;
-                return (
-                  <div
-                    key={st.id}
-                    id={`shop-item-${st.id}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedStoreId(st.id);
-                      updateUrl(st.id, activeTab);
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && setSelectedStoreId(st.id)}
-                    className={`px-3.5 py-3 flex items-center gap-3 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-[#FBF5EB] border-l-4 border-l-[#C59B58] text-[#1A1612]'
-                        : 'hover:bg-[#FAF8F5] text-[#1A1612] border-l-4 border-l-transparent'
-                    }`}
-                  >
-                    {/* Logo Gian hàng */}
-                    <div className="relative shrink-0">
-                      {st.logoUrl ? (
-                        <img
-                          src={st.logoUrl}
-                          alt={st.name}
-                          className="w-10 h-10 rounded-xl object-cover border border-[#EAE4D7] bg-white shadow-2xs"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] font-black flex items-center justify-center text-xs shadow-2xs">
-                          {st.name[0]}
-                        </div>
-                      )}
-                      {/* Chấm tròn báo tin nhắn mới nếu có unread */}
-                      {st.unreadCount ? (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#EBD08C] border-2 border-white ring-1 ring-[#C59B58]/30 animate-pulse" />
-                      ) : null}
-                    </div>
 
-                    {/* Tên Shop & Thông Tin (Đã bỏ hoàn toàn text lastMessage) */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <strong className="text-xs font-bold truncate text-[#1A1612] leading-snug">
-                          {st.name}
-                        </strong>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-1 mt-1">
-                        <span className="text-[10.5px] text-[#7D715E] truncate">
-                          {st.category}
-                        </span>
-                        <span className="text-[10px] font-extrabold text-[#B88E4F] bg-white px-1.5 py-0.2 rounded border border-[#EAE4D7] shrink-0">
-                          {st.commissionRange || '20%'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Icon Tin Nhắn Trực Quan bên phải */}
-                    <div className="shrink-0 text-stone-300">
-                      <MessageSquare
-                        className={`w-3.5 h-3.5 transition ${
-                          isSelected || st.unreadCount ? 'text-[#B88E4F]' : 'text-stone-300'
+              {/* Stores List: Chỉ hiển thị icon avatar gian hàng */}
+              <div className="flex-1 overflow-y-auto py-2 flex flex-col items-center gap-2 no-scrollbar" role="list">
+                {filteredStores.map((st) => {
+                  const isSelected = st.id === selectedStore.id;
+                  return (
+                    <div key={st.id} className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedStoreId(st.id);
+                          updateUrl(st.id, activeTab);
+                        }}
+                        title={`${st.name} • Hoa hồng: ${st.commissionRange || '20%'}`}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#FBF5EB] ring-2 ring-[#C59B58] shadow-xs'
+                            : 'hover:bg-white hover:shadow-2xs opacity-85 hover:opacity-100'
                         }`}
-                      />
+                      >
+                        <StoreAvatar
+                          name={st.ownerName || st.name}
+                          logoUrl={st.ownerAvatarUrl || st.logoUrl}
+                          className="w-8.5 h-8.5 rounded-lg border border-[#EAE4D7] bg-white shadow-2xs text-[11px]"
+                        />
+                        {st.unreadCount ? (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EBD08C] border-2 border-white ring-1 ring-[#C59B58]/30 animate-pulse" />
+                        ) : null}
+                      </button>
                     </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            /* EXPANDED VIEW: Tinh gọn, thanh mảnh, có nút thu nhỏ */
+            <>
+              {/* Top Search & Filter Bar */}
+              <div className="shrink-0 p-2.5 border-b border-[#EAE4D7] bg-white/95 backdrop-blur-xs flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#7D715E]" />
+                    <input
+                      id="search-partner-store"
+                      type="text"
+                      placeholder="Tìm gian hàng..."
+                      value={searchShopQuery}
+                      onChange={(e) => setSearchShopQuery(e.target.value)}
+                      className="w-full pl-7.5 pr-2 py-1.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs font-medium text-[#1A1612] placeholder:text-[#7D715E]/70 focus:bg-white focus:outline-none focus:border-[#C59B58] transition"
+                    />
                   </div>
-                );
-              })
-            )}
-          </div>
+                  <button
+                    type="button"
+                    onClick={toggleSidebarCollapse}
+                    className="w-7.5 h-7.5 rounded-xl flex items-center justify-center bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#7D715E] hover:text-[#B88E4F] transition shadow-2xs shrink-0 cursor-pointer active:scale-95"
+                    title="Thu gọn thanh bên (chỉ hiện icon)"
+                    aria-label="Thu gọn thanh bên"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-[#B88E4F]" />
+                  </button>
+                </div>
+
+                {/* Filter chips */}
+                <div className="flex items-center justify-between px-1 py-0.5 border-b border-[#EAE4D7]/50">
+                  {[
+                    { id: 'ALL', label: 'Tất cả' },
+                    { id: 'CHAT', label: 'Tin mới' },
+                    { id: 'SAMPLES', label: 'Mẫu thử' },
+                    { id: 'HIGH_COMM', label: 'Deal cao' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setShopFilter(f.id as any)}
+                      className={`pb-1 text-[11px] font-bold transition cursor-pointer ${
+                        shopFilter === f.id
+                          ? 'text-[#B88E4F] border-b-2 border-[#B88E4F]'
+                          : 'text-[#7D715E] hover:text-[#1A1612] border-b-2 border-transparent'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Nút Khám phá Gian hàng Mới */}
+                <button
+                  id="btn-discover-stores"
+                  type="button"
+                  onClick={() => {
+                    setShowDiscoverModal(true);
+                    loadMarketplaceStores();
+                  }}
+                  className="w-full py-1 text-[#B88E4F] hover:text-[#9A7233] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer select-none group"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#B88E4F]" />
+                  <span className="truncate">Khám phá gian hàng trên Sàn</span>
+                </button>
+              </div>
+
+              {/* Stores List: Gọn gàng */}
+              <div className="flex-1 overflow-y-auto divide-y divide-[#EAE4D7]/50" role="list">
+                {filteredStores.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[#7D715E]">
+                    Không có gian hàng nào phù hợp
+                  </div>
+                ) : (
+                  filteredStores.map((st) => {
+                    const isSelected = st.id === selectedStore.id;
+                    return (
+                      <div
+                        key={st.id}
+                        id={`shop-item-${st.id}`}
+                        className={`px-3 py-2.5 flex items-center gap-2.5 transition-all ${
+                          isSelected
+                            ? 'bg-[#FBF5EB] border-l-4 border-l-[#C59B58] text-[#1A1612]'
+                            : 'hover:bg-[#FAF8F5] text-[#1A1612] border-l-4 border-l-transparent'
+                        }`}
+                      >
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openStorefront(st)}
+                            title={`Mở gian hàng ${st.name}`}
+                            aria-label={`Mở gian hàng ${st.name}`}
+                            className="rounded-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]"
+                          >
+                            <StoreAvatar
+                              name={st.ownerName || st.name}
+                              logoUrl={st.ownerAvatarUrl || st.logoUrl}
+                              className="w-9 h-9 rounded-xl border border-[#EAE4D7] bg-white shadow-2xs text-xs"
+                            />
+                          </button>
+                          {st.unreadCount ? (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#EBD08C] border-2 border-white ring-1 ring-[#C59B58]/30 animate-pulse" />
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStoreId(st.id);
+                            updateUrl(st.id, activeTab);
+                          }}
+                          className="flex-1 min-w-0 text-left cursor-pointer bg-transparent border-0 p-0"
+                          aria-label={`Mở cuộc trò chuyện với ${st.name}`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <strong className="text-xs font-bold truncate text-[#1A1612] leading-snug">
+                              {st.name}
+                            </strong>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-1 mt-0.5">
+                            <span className="text-[10px] text-[#7D715E] truncate">
+                              {st.category}
+                            </span>
+                            <span className="text-[9.5px] font-extrabold text-[#B88E4F] bg-white px-1.5 py-0.2 rounded border border-[#EAE4D7] shrink-0">
+                              {st.commissionRange || '20%'}
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStoreId(st.id);
+                            updateUrl(st.id, activeTab);
+                          }}
+                          title={`Mở chat với ${st.name}`}
+                          aria-label={`Mở chat với ${st.name}`}
+                          className="shrink-0 bg-transparent border-0 p-1 cursor-pointer"
+                        >
+                          <MessageSquare
+                            className={`w-3.5 h-3.5 transition ${
+                              isSelected || st.unreadCount ? 'text-[#B88E4F]' : 'text-stone-300'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Không Gian Làm Việc 1-1 Với Shop */}
@@ -664,23 +858,30 @@ export default function ShopCollaborationPage() {
           {/* Shop Context Header Bar */}
           <div className="shrink-0 px-5 py-2.5 border-b border-[#EAE4D7] bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3 min-w-0">
-              {selectedStore.logoUrl ? (
-                <img
-                  src={selectedStore.logoUrl}
-                  alt={selectedStore.name}
-                  className="w-10 h-10 rounded-xl object-cover border border-[#EAE4D7] shadow-2xs shrink-0"
+              <button
+                type="button"
+                onClick={() => openStorefront(selectedStore)}
+                title={`Mở gian hàng ${selectedStore.name}`}
+                aria-label={`Mở gian hàng ${selectedStore.name}`}
+                className="rounded-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] shrink-0"
+              >
+                <StoreAvatar
+                  name={selectedStore.ownerName || selectedStore.name}
+                  logoUrl={selectedStore.ownerAvatarUrl || selectedStore.logoUrl}
+                  className="w-10 h-10 rounded-xl border border-[#EAE4D7] shadow-2xs text-sm"
                 />
-              ) : (
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#EBD08C] to-[#DEC07A] text-[#231D15] font-extrabold text-sm flex items-center justify-center shadow-xs shrink-0">
-                  {selectedStore.name[0]}
-                </div>
-              )}
+              </button>
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-extrabold text-[#1A1612] truncate m-0">
+                  <button
+                    type="button"
+                    onClick={() => openStorefront(selectedStore)}
+                    className="text-sm font-extrabold text-[#1A1612] truncate m-0 p-0 bg-transparent border-0 hover:text-[#B88E4F] cursor-pointer"
+                    title={`Mở gian hàng ${selectedStore.name}`}
+                  >
                     {selectedStore.name}
-                  </h2>
+                  </button>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                     <CheckCircle2 className="w-3 h-3 text-[#B88E4F]" /> Gian Hàng Xác Minh
                   </span>
@@ -708,10 +909,12 @@ export default function ShopCollaborationPage() {
             {/* Nút Xem Trang Gian Hàng Trên Sàn nhẹ nhàng */}
             <div className="flex items-center gap-2 shrink-0">
               <a
-                href={`/marketplace?shop=${selectedStore.id}`}
+                href={selectedStore.slug
+                  ? `/shop/${encodeURIComponent(selectedStore.slug)}`
+                  : `/marketplace?shop=${encodeURIComponent(selectedStore.id)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] hover:bg-[#F3EFE6] text-xs font-bold text-[#1A1612] flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-1 py-1 text-xs font-bold text-[#B88E4F] hover:text-[#9A7233] transition cursor-pointer group shrink-0 select-none" title={`Xem gian hàng ${selectedStore.name} trên Sàn`}
               >
                 <span>Xem Gian Hàng Trên Sàn</span>
                 <ExternalLink className="w-3 h-3 text-[#B88E4F]" />
@@ -840,6 +1043,9 @@ export default function ShopCollaborationPage() {
                             const isExclusive = prod.policyType === 'EXCLUSIVE' || (prod.commissionRate || 22) >= 30;
                             const commRate = prod.commissionRate || (isExclusive ? 32 : 22);
                             const commAmount = Math.round((Number(prod.price) * commRate) / 100);
+                            const canRequestThisProduct = Boolean(
+                              canRequestSample && prod.sampleEnabled === true && Number(prod.sampleQuota || 0) > Number(prod.sampleGrantedCount || 0),
+                            );
 
                             return (
                               <div
@@ -906,20 +1112,29 @@ export default function ShopCollaborationPage() {
                                     type="button"
                                     onClick={() => {
                                       if (!canRequestSample) {
-                                        toast.error('Cần hoàn tất định danh KYC trước khi xin hàng mẫu.');
+                                        toast.error(sampleEligibility?.blockReason || 'Cần hoàn tất KYC và liên kết kênh mạng xã hội trước khi xin mẫu.');
                                         return;
                                       }
+                                      if (!canRequestThisProduct) {
+                                        toast.error('Shop hiện chưa bật cấp mẫu cho sản phẩm này hoặc đã hết hạn mức.');
+                                        return;
+                                      }
+                                      setSampleTermsAccepted(false);
+                                      setSampleRecipientName('');
+                                      setSampleRecipientPhone('');
+                                      setShippingAddress('');
                                       setRequestSampleModalProduct(prod);
                                     }}
+                                    disabled={!canRequestThisProduct}
                                     className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
-                                      canRequestSample
+                                      canRequestThisProduct
                                         ? 'bg-[#F3EFE6] hover:bg-[#EAE4D7] text-[#1A1612]'
                                         : 'bg-stone-100 text-stone-400 cursor-not-allowed'
                                     }`}
-                                    title={!canRequestSample ? 'Yêu cầu định danh KYC để mở khóa' : 'Xin mẫu dùng thử'}
+                  title={!canRequestSample ? (sampleEligibility?.blockReason || 'Hoàn tất KYC và liên kết kênh mạng xã hội để mở khóa') : !canRequestThisProduct ? 'Shop chưa bật cấp mẫu hoặc đã hết hạn mức' : 'Xin mẫu dùng thử'}
                                   >
                                     <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                                    <span>{canRequestSample ? 'Xin Mẫu Thử' : '🔒 Khóa Xin Mẫu'}</span>
+                                    <span>{!canRequestSample ? 'Khóa điều kiện' : canRequestThisProduct ? 'Xin mẫu thử' : 'Chưa cấp mẫu'}</span>
                                   </button>
                                 </div>
                               </div>
@@ -958,7 +1173,7 @@ export default function ShopCollaborationPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2 border-t border-[#EAE4D7] text-center">
                         <div className="p-2.5 rounded-xl bg-white border border-[#EAE4D7]">
                           <strong className="text-xs text-[#B88E4F] block">1. Đăng ký &amp; Cam kết</strong>
-                          <span className="text-[10.5px] text-[#7D715E]">Kênh đăng &amp; hạn nộp 7 ngày</span>
+                          <span className="text-[10.5px] text-[#7D715E]">Kênh đăng &amp; hạn tối đa 14 ngày sau khi nhận mẫu</span>
                         </div>
                         <div className="p-2.5 rounded-xl bg-white border border-[#EAE4D7]">
                           <strong className="text-xs text-[#B88E4F] block">2. Shop duyệt &amp; Giao hàng</strong>
@@ -976,6 +1191,28 @@ export default function ShopCollaborationPage() {
                     </div>
 
                     {/* Danh sách mẫu */}
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-[#7D715E]">Lịch sử yêu cầu: {samples.length}</span>
+                      <Select
+                        value={sampleStatusFilter}
+                        onChange={(event) => setSampleStatusFilter(event.target.value)}
+                        aria-label="Lọc trạng thái yêu cầu mẫu"
+                        className="w-48 text-xs font-medium"
+                      >
+                        <option value="ALL">Tất cả trạng thái</option>
+                        <option value="PENDING">Chờ Shop duyệt</option>
+                        <option value="APPROVED">Đã duyệt</option>
+                        <option value="SHIPPED">Đang giao</option>
+                        <option value="RECEIVED">Đã nhận mẫu</option>
+                        <option value="VIDEO_SUBMITTED">Chờ nghiệm thu video</option>
+                        <option value="REVISION_REQUIRED">Cần sửa video</option>
+                        <option value="OVERDUE">Quá hạn</option>
+                        <option value="DELIVERY_ISSUE">Sự cố giao hàng</option>
+                        <option value="COMPLETED">Hoàn tất</option>
+                        <option value="REJECTED">Bị từ chối</option>
+                        <option value="CANCELLED">Đã hủy</option>
+                      </Select>
+                    </div>
                     {loadingSamples ? (
                       <div className="p-16 text-center text-[#7D715E] flex flex-col items-center gap-2">
                         <Loader2 className="w-6 h-6 text-[#B88E4F] animate-spin" />
@@ -989,12 +1226,29 @@ export default function ShopCollaborationPage() {
                           Chọn sản phẩm ở tab "Kho Sản Phẩm" để đăng ký nhận mẫu trải nghiệm miễn phí.
                         </p>
                       </div>
+                    ) : visibleSamples.length === 0 ? (
+                      <div className="p-8 text-center bg-white rounded-2xl border border-[#EAE4D7] text-xs text-[#7D715E]">
+                        Không có yêu cầu nào ở trạng thái đã chọn.
+                      </div>
                     ) : (
                       <div className="flex flex-col gap-3">
-                        {samples.map((samp: any) => {
+                        {visibleSamples.map((samp: any) => {
                           const status = samp.status || 'PENDING';
                           const isShipped = status === 'SHIPPED';
-                          const isReceived = status === 'RECEIVED';
+                          const canSubmitVideo = ['RECEIVED', 'OVERDUE', 'REVISION_REQUIRED'].includes(status);
+                          const activeDeadline = samp.revisionDeadlineAt && ['REVISION_REQUIRED', 'OVERDUE'].includes(status)
+                            ? samp.revisionDeadlineAt
+                            : samp.deadlineAt;
+                          const daysLeft = activeDeadline
+                            ? Math.ceil((new Date(activeDeadline).getTime() - Date.now()) / 86400000)
+                            : null;
+                          const statusLabel: Record<string, string> = {
+                            PENDING: 'Chờ Shop duyệt', APPROVED: 'Shop đã duyệt', SHIPPED: 'Đang giao',
+                            RECEIVED: 'Đã nhận · chờ video', VIDEO_SUBMITTED: 'Chờ Shop nghiệm thu',
+                            REVISION_REQUIRED: 'Shop yêu cầu sửa video', COMPLETED: 'Đã hoàn tất',
+                            OVERDUE: 'Quá hạn · đã khóa quyền xin mẫu', REJECTED: 'Shop từ chối',
+                            CANCELLED: 'Đã hủy', DELIVERY_ISSUE: 'Có sự cố giao hàng',
+                          };
 
                           return (
                             <div
@@ -1013,37 +1267,87 @@ export default function ShopCollaborationPage() {
                                   </strong>
                                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                                     <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F]">
-                                      {isReceived
-                                        ? '✅ Đã nhận hàng'
-                                        : isShipped
-                                        ? '🚚 Bưu tá đang giao'
-                                        : '⏳ Chờ shop duyệt'}
+                                      {statusLabel[status] || status}
                                     </span>
                                     {samp.trackingNumber && (
                                       <span className="text-[11px] font-mono text-[#7D715E] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#EAE4D7]">
-                                        Mã vận đơn: <strong>{samp.trackingNumber}</strong> ({samp.shippingCarrier || 'GHTK'})
+                                        Mã vận đơn: <strong>{samp.trackingNumber}</strong> ({samp.carrier || 'Đơn vị vận chuyển'})
                                       </span>
                                     )}
-                                    {isReceived && (
-                                      <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                        ⏰ Còn {samp.deadlineDaysLeft || 7} ngày nộp video
+                                    {activeDeadline && !['COMPLETED', 'REJECTED', 'CANCELLED'].includes(status) && (
+                                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${daysLeft !== null && daysLeft <= 0 ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-[#8C6226] bg-[#FBF5EB] border-[#EEDFC6]'}`}>
+                                        ⏰ {daysLeft !== null && daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đã quá hạn'} · hạn {new Date(activeDeadline).toLocaleDateString('vi-VN')}
                                       </span>
                                     )}
                                   </div>
+                                  <p className="text-[10.5px] text-[#7D715E] mt-1 mb-0">
+                                    Kênh cam kết: {samp.socialPlatformSnapshot || samp.socialChannel?.platformName || '—'} · {samp.socialChannelNameSnapshot || samp.socialChannel?.channelName || '—'}
+                                    {samp.expectedVideoAt ? ` · Dự kiến đăng ${new Date(samp.expectedVideoAt).toLocaleDateString('vi-VN')}` : ''}
+                                  </p>
+                                  {samp.recipientName && (
+                                    <p className="text-[10.5px] text-[#7D715E] mt-1 mb-0">
+                                      Người nhận: {samp.recipientName} · {samp.recipientPhone} · {samp.shippingAddress}
+                                    </p>
+                                  )}
+                                  {samp.videoRejectionReason && (
+                                    <p className="text-[11px] text-rose-700 mt-1 mb-0">Lý do cần sửa: {samp.videoRejectionReason}</p>
+                                  )}
+                                  {samp.rejectedReason && status === 'REJECTED' && (
+                                    <p className="text-[11px] text-rose-700 mt-1 mb-0">Lý do: {samp.rejectedReason}</p>
+                                  )}
+                                  {(samp.events?.length > 0 || samp.videoAssets?.length > 0) && (
+                                    <details className="mt-1.5 text-[10.5px] text-[#7D715E]">
+                                      <summary className="cursor-pointer font-semibold text-[#8C6226]">Xem lịch sử xử lý và video</summary>
+                                      <ul className="pl-4 mt-1 space-y-1">
+                                        {(samp.events || []).map((event: any) => (
+                                          <li key={event.id}>{new Date(event.createdAt).toLocaleString('vi-VN')} · {event.action}</li>
+                                        ))}
+                                        {(samp.videoAssets || []).map((asset: any) => (
+                                          <li key={asset.id}>
+                                            <a href={asset.urlOrContent} target="_blank" rel="noreferrer" className="underline text-[#8C6226]">{asset.title || 'Video đã gửi'}</a>
+                                            {' · '}{asset.status}{asset.rejectionReason ? ` · ${asset.rejectionReason}` : ''}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </details>
+                                  )}
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0">
+                                {status === 'PENDING' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelSampleRequest(samp.id)}
+                                    className="px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-[#7D715E] text-xs font-semibold hover:text-[#DC2626] cursor-pointer"
+                                  >
+                                    Hủy yêu cầu
+                                  </button>
+                                )}
                                 {isShipped && (
                                   <button
                                     type="button"
                                     onClick={() => handleConfirmReceivedSample(samp.id)}
-                                    className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition cursor-pointer"
+                                    className="px-3.5 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] text-xs font-bold transition cursor-pointer"
                                   >
                                     Đã nhận được hàng
                                   </button>
                                 )}
-                                {(isShipped || isReceived) && (
+                                {isShipped && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const reason = window.prompt('Mô tả sự cố giao hàng:');
+                                      if (reason?.trim()) {
+                                        api.patch(`/sample-requests/${samp.id}/delivery-issue`, { reason: reason.trim() })
+                                          .then(() => loadStoreSamples(selectedStore.id))
+                                          .catch((err: any) => toast.error(err?.response?.data?.message || 'Không gửi được báo cáo sự cố.'));
+                                      }
+                                    }}
+                                    className="px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-[#7D715E] text-xs font-semibold cursor-pointer"
+                                  >Báo sự cố</button>
+                                )}
+                                {canSubmitVideo && (
                                   <button
                                     type="button"
                                     onClick={() => setSubmitVideoSample(samp)}
@@ -1458,33 +1762,36 @@ export default function ShopCollaborationPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-[#1A1612] block mb-1">
-                    Kênh cam kết đăng *
+                    Kênh mạng xã hội đã liên kết *
                   </label>
-                  <select
-                    value={sampleContentChannel}
-                    onChange={(e) => setSampleContentChannel(e.target.value)}
-                    className="w-full p-2 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none"
+                  <Select
+                    value={sampleSocialChannelId}
+                    onChange={(e) => setSampleSocialChannelId(e.target.value)}
+                    className="w-full text-xs"
+                    required
                   >
-                    <option value="TIKTOK">TikTok Channel</option>
-                    <option value="YOUTUBE">YouTube Channel / Shorts</option>
-                    <option value="FACEBOOK">Facebook Post / Reels</option>
-                    <option value="INSTAGRAM">Instagram Reels</option>
-                  </select>
+                    <option value="">Chọn kênh đăng video</option>
+                    {socialChannels.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        {channel.platformName} · {channel.channelName || channel.channelUrl} · {Number(channel.followerCount || 0).toLocaleString('vi-VN')} followers
+                      </option>
+                    ))}
+                  </Select>
                 </div>
 
                 <div>
                   <label className="text-xs font-bold text-[#1A1612] block mb-1">
-                    Thời hạn cam kết nộp *
+                    Ngày dự kiến đăng video *
                   </label>
-                  <select
-                    value={sampleCommitDeadline}
-                    onChange={(e) => setSampleCommitDeadline(e.target.value)}
+                  <input
+                    type="date"
+                    min={new Date().toISOString().slice(0, 10)}
+                    max={maxSampleExpectedVideoAt}
+                    value={sampleExpectedVideoAt}
+                    onChange={(e) => setSampleExpectedVideoAt(e.target.value)}
                     className="w-full p-2 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none"
-                  >
-                    <option value="7 ngày sau khi nhận hàng">7 ngày sau khi nhận</option>
-                    <option value="10 ngày sau khi nhận hàng">10 ngày sau khi nhận</option>
-                    <option value="14 ngày sau khi nhận hàng">14 ngày sau khi nhận</option>
-                  </select>
+                    required
+                  />
                 </div>
               </div>
 
@@ -1502,23 +1809,55 @@ export default function ShopCollaborationPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[#1A1612] block mb-1">Họ tên người nhận *</label>
+                  <input
+                    type="text"
+                    maxLength={150}
+                    required
+                    value={sampleRecipientName}
+                    onChange={(e) => setSampleRecipientName(e.target.value)}
+                    placeholder="Nguyễn Văn A"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[#1A1612] block mb-1">Số điện thoại *</label>
+                  <input
+                    type="tel"
+                    maxLength={20}
+                    required
+                    value={sampleRecipientPhone}
+                    onChange={(e) => setSampleRecipientPhone(e.target.value)}
+                    placeholder="09xx xxx xxx"
+                    className="w-full p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-bold text-[#1A1612] block mb-1">
-                  Địa chỉ nhận bưu tá &amp; SĐT người nhận *
-                </label>
+                <label className="text-xs font-bold text-[#1A1612] block mb-1">Địa chỉ nhận hàng mẫu *</label>
                 <textarea
                   rows={2}
                   required
                   value={shippingAddress}
                   onChange={(e) => setShippingAddress(e.target.value)}
-                  placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố và SĐT..."
+                  placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
                   className="w-full p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none"
                 />
               </div>
 
-              <div className="p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-[11px] text-[#7D715E] leading-relaxed">
-                ⚖️ <strong>Cam kết trách nhiệm:</strong> Khi bấm gửi, bạn đồng ý tuân thủ nộp link video nghiệm thu đúng thời hạn để duy trì hạn mức uy tín của KOL trên sàn SCANMS.
-              </div>
+              <label className="p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-[11px] text-[#7D715E] leading-relaxed flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sampleTermsAccepted}
+                  onChange={(e) => setSampleTermsAccepted(e.target.checked)}
+                  className="mt-0.5 accent-[#C59B58]"
+                  required
+                />
+                <span>⚖️ <strong>Cam kết trách nhiệm:</strong> Sau khi xác nhận nhận hàng, bạn có tối đa <strong>14 ngày</strong> để nộp link video đăng trên kênh đã chọn. Quá hạn mà chưa nộp, hệ thống sẽ khóa quyền xin mẫu mới cho đến khi Shop nghiệm thu video.</span>
+              </label>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EAE4D7]">
                 <button
@@ -1530,7 +1869,7 @@ export default function ShopCollaborationPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingSample}
+                  disabled={submittingSample || !sampleRecipientName.trim() || !sampleRecipientPhone.trim() || !sampleSocialChannelId || !sampleExpectedVideoAt || !shippingAddress.trim() || !sampleTermsAccepted}
                   className="px-5 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   {submittingSample && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -1543,11 +1882,12 @@ export default function ShopCollaborationPage() {
       )}
 
       {/* MODAL 3: SUBMIT VIDEO REVIEW NGHIỆM THU */}
-      {submitVideoSample && (
-        <SubmitKolVideoModal
-          isOpen={!!submitVideoSample}
-          initialProductId={submitVideoSample.product?.id}
-          initialProductTitle={submitVideoSample.product?.title || 'Sản phẩm mẫu'}
+              {submitVideoSample && (
+                <SubmitKolVideoModal
+                  isOpen={!!submitVideoSample}
+                  initialProductId={submitVideoSample.product?.id}
+                  initialProductTitle={submitVideoSample.product?.title || 'Sản phẩm mẫu'}
+                  sampleRequestId={submitVideoSample.id}
           onClose={() => setSubmitVideoSample(null)}
           onSuccess={() => {
             setSubmitVideoSample(null);
@@ -1629,10 +1969,10 @@ export default function ShopCollaborationPage() {
                         className="pt-3 first:pt-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border border-[#EAE4D7] bg-[#FAF8F5]/50 hover:bg-white transition"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={ms.logoUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=100&auto=format&fit=crop&q=80'}
-                            alt={ms.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-[#EAE4D7] shrink-0"
+                          <StoreAvatar
+                            name={ms.name}
+                            logoUrl={getShopLogoUrl(ms.logoUrl)}
+                            className="w-12 h-12 rounded-xl border border-[#EAE4D7] shrink-0 text-sm"
                           />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">

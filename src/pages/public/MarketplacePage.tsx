@@ -22,15 +22,18 @@ import {
   Phone,
   Radio,
   BadgeCheck,
-  Calendar,
-  ZoomIn,
   Heart,
   Settings,
   LogOut,
   MapPin,
+  Camera,
+  Loader2,
+  Zap,
 } from 'lucide-react';
 import api from '../../services/api';
 import { authService, type UserProfile } from '../../services/auth.service';
+import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { uploadService } from '../../services/upload.service';
 import { customerService } from '../../services/customer.service';
 import { GuestCheckoutModal, type CheckoutProductItem, type CheckoutStoreInfo } from '../../components/checkout/GuestCheckoutModal';
 import { ScanMSLogo } from '../../components/common/ScanMSLogo';
@@ -39,6 +42,9 @@ import { formatMoney } from '../../features/marketplace/marketplaceUtils';
 import type { Product } from '../../features/marketplace/marketplace.types';
 import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
+import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
+import { LiveCommerceHubModal } from '../../components/marketplace/LiveCommerceHubModal';
+import { NotificationDropdown } from '../../components/layout/NotificationDropdown';
 
 const MARKETPLACE_BANNERS = [
   {
@@ -80,24 +86,29 @@ export default function MarketplacePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<string>('newest');
 
   // Fetch real products with TanStack Query (Zero reload flicker, instant cache hit)
   const { data: items = [], isLoading: loading } = useQuery<Product[]>({
-    queryKey: ['marketplace-products', sortBy],
+    queryKey: ['marketplace-products'],
     queryFn: async () => {
-      const res: any = await api.get('/public/products', { params: { limit: 48, sortBy } });
+      const res: any = await api.get('/public/products', { params: { limit: 48, sortBy: 'newest' } });
       const payload = res?.data !== undefined ? (res.data?.data !== undefined ? res.data.data : res.data) : res;
       const apiItems = Array.isArray(payload) ? payload : (payload?.items || []);
 
       return apiItems.map((dbP: any) => {
         const rawPrice = Number(dbP.price || 0);
         const rawOrigPrice = dbP.originalPrice ? Number(dbP.originalPrice) : 0;
-        const commRate = dbP.customCommissionRate
-          ? Number(dbP.customCommissionRate)
-          : (dbP.store?.defaultCommissionRate ? Number(dbP.store.defaultCommissionRate) : undefined);
+        const commissionValue = dbP.customCommissionRate ?? dbP.commissionRate ?? dbP.store?.defaultCommissionRate;
+        const parsedCommissionRate = commissionValue == null ? undefined : Number(commissionValue);
+        const commRate = parsedCommissionRate !== undefined && Number.isFinite(parsedCommissionRate) && parsedCommissionRate > 0
+          ? parsedCommissionRate
+          : undefined;
         const commAmt = commRate ? Math.round(rawPrice * (commRate / 100)) : undefined;
-        const img = dbP.imageUrl || (dbP.mediaAssets?.[0]?.urlOrContent) || '/reference/assets/serum-hero-optimized.jpg';
+        const img = getSafeProductImageUrl(
+          dbP.imageUrl || (dbP.mediaAssets?.[0]?.urlOrContent),
+          dbP.title || dbP.name,
+          dbP.categoryName
+        );
 
         return {
           id: dbP.id,
@@ -124,24 +135,22 @@ export default function MarketplacePage() {
     },
     staleTime: 1000 * 60 * 5,
   });
+  const { deals: liveDeals, now: liveDealsNow } = useLiveSessionDeals(items.map((product) => product.id));
 
   // Cart & Gateways
-  const { totalCount: totalCartCount, addItem, openCart } = useCart();
+  const { totalCount: totalCartCount, openCart } = useCart();
+
+  const formatSoldCount = (sold?: number | string) => {
+    const count = Number(sold) || 600000;
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}tr+`;
+    if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1).replace('.0', '')}k+`;
+    return `${count}`;
+  };
+
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
   const [activeBanner, setActiveBanner] = useState(0);
-  const [zoomProduct, setZoomProduct] = useState<Product | null>(null);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setZoomProduct(null);
-    };
-    if (zoomProduct) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoomProduct]);
 
   // Sticky compact header state on scroll
   const [isScrolled, setIsScrolled] = useState(false);
@@ -196,22 +205,49 @@ export default function MarketplacePage() {
 
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
+  const isKolUser = currentUser?.role === 'COLLABORATOR';
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Load user profile & customer wishlist
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    setCurrentUser(user);
-    if (user?.role === 'CUSTOMER') {
-      customerService
-        .getWishlist()
-        .then((items) => {
-          if (Array.isArray(items)) {
-            setWishlistIds(new Set(items.map((it) => it.product?.id).filter(Boolean) as string[]));
-          }
-        })
-        .catch(() => {});
-    }
+    const syncUser = () => {
+      const user = authService.getCurrentUser();
+      setCurrentUser(user);
+      if (user?.role === 'CUSTOMER') {
+        customerService
+          .getWishlist()
+          .then((items) => {
+            if (Array.isArray(items)) {
+              setWishlistIds(new Set(items.map((it) => it.product?.id).filter(Boolean) as string[]));
+            }
+          })
+          .catch(() => {});
+      } else {
+        setWishlistIds(new Set());
+      }
+    };
+
+    syncUser();
+
+    const handleWishlistUpdated = (e: any) => {
+      const { productId, wishlisted } = e.detail || {};
+      if (!productId) return;
+      setWishlistIds((prev) => {
+        const next = new Set(prev);
+        if (wishlisted) next.add(productId);
+        else next.delete(productId);
+        return next;
+      });
+    };
+
+    window.addEventListener('auth-user-updated', syncUser);
+    window.addEventListener('wishlist-updated', handleWishlistUpdated as EventListener);
+    return () => {
+      window.removeEventListener('auth-user-updated', syncUser);
+      window.removeEventListener('wishlist-updated', handleWishlistUpdated as EventListener);
+    };
   }, []);
 
   const handleToggleWishlist = async (productId: string) => {
@@ -238,8 +274,42 @@ export default function MarketplacePage() {
         }
         return next;
       });
+      window.dispatchEvent(
+        new CustomEvent('wishlist-updated', {
+          detail: { productId, wishlisted: res.wishlisted },
+        })
+      );
     } catch {
       toast.error('Không thể cập nhật danh sách yêu thích. Vui lòng thử lại.');
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Kích thước ảnh tối đa 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
+      await authService.updateAvatar(secureUrl);
+      setCurrentUser(authService.getCurrentUser());
+      toast.success('Cập nhật ảnh đại diện thành công!');
+    } catch (err: any) {
+      console.error('Lỗi tải ảnh đại diện:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể tải ảnh đại diện lên');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
     }
   };
 
@@ -273,51 +343,7 @@ export default function MarketplacePage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const handleAddToCart = (product: Product, quantity: number = 1) => {
-    addItem({
-      product: {
-        id: product.id,
-        title: product.name,
-        sku: product.sku,
-        price: product.price,
-        originalPrice: product.origPrice,
-        imageUrl: product.image,
-        stockQuantity: product.stockQuantity || 0,
-        variants: product.variants,
-        isActive: true,
-      },
-      store: {
-        id: product.storeId || 'store-default',
-        name: product.brand || 'Gian hàng SCANMS',
-      },
-      quantity,
-      openCartAfterAdd: true,
-    });
-  };
 
-  const handleOpenDirectCheckout = (product: Product) => {
-    if (!product.storeId) {
-      toast.error('Sản phẩm này chưa được liên kết với gian hàng hợp lệ nên chưa thể đặt hàng.');
-      return;
-    }
-    setActiveCheckoutProduct({
-      product: {
-        id: product.id,
-        title: product.name,
-        sku: product.sku,
-        price: product.price,
-        originalPrice: product.origPrice,
-        imageUrl: product.image,
-        stockQuantity: product.stockQuantity || 0,
-        variants: product.variants,
-      },
-      store: {
-        id: product.storeId,
-        name: product.brand,
-      },
-      couponCode: product.kol?.coupon || '',
-    });
-  };
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -408,7 +434,7 @@ export default function MarketplacePage() {
             isScrolled ? 'max-h-0 py-0 opacity-0 border-transparent pointer-events-none' : 'max-h-12 py-2 opacity-100'
           }`}
         >
-          <div className="max-w-[1400px] mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="max-w-[1200px] mx-auto px-3 sm:px-4 lg:px-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#EBD08C] animate-ping"></span>
               <span className="font-bold text-[#1A1612]">ScanMS COMMERCE:</span>
@@ -444,7 +470,7 @@ export default function MarketplacePage() {
           }`}
         >
           <div
-            className={`max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:gap-5 transition-all duration-300 ease-in-out ${
+            className={`max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:gap-6 transition-all duration-300 ease-in-out ${
               isScrolled ? 'py-1.5 sm:py-2' : 'py-3'
             }`}
           >
@@ -459,7 +485,7 @@ export default function MarketplacePage() {
             {/* Header search */}
             <form
               onSubmit={handleSearchSubmit}
-              className={`hidden md:flex min-w-0 w-full max-w-2xl justify-self-center items-center gap-2 rounded-2xl border border-[#EAE4D7] bg-white shadow-sm shadow-[#C59B58]/10 transition-all duration-300 ease-in-out focus-within:border-[#C59B58] ${
+              className={`hidden md:flex min-w-[280px] w-full flex-1 max-w-3xl xl:max-w-4xl justify-self-center items-center gap-2 rounded-2xl border border-[#EAE4D7] bg-white shadow-sm shadow-[#C59B58]/10 transition-all duration-300 ease-in-out focus-within:border-[#C59B58] ${
                 isScrolled ? 'p-1' : 'p-1.5'
               }`}
             >
@@ -469,9 +495,9 @@ export default function MarketplacePage() {
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Tìm sản phẩm, thương hiệu, gian hàng..."
-                  aria-label="Tìm sản phẩm, thương hiệu hoặc gian hàng"
-                  className="min-w-0 w-full bg-transparent text-xs font-medium text-[#1A1612] placeholder:text-[#8C7D6B] outline-none"
+                  placeholder="Tìm kiếm sản phẩm..."
+                  aria-label="Tìm kiếm sản phẩm"
+                  className="min-w-0 w-full bg-transparent text-xs sm:text-[13px] font-medium text-[#1A1612] placeholder:text-[#8C7D6B] outline-none pr-2"
                 />
                 {search && (
                   <button
@@ -487,17 +513,16 @@ export default function MarketplacePage() {
               <button
                 type="button"
                 onClick={() => navigate('/search')}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#B88E4F] transition hover:bg-[#F3EFE6] cursor-pointer active:scale-[0.98] ${
-                  isScrolled ? 'px-2.5 py-1.5' : 'px-3 py-2'
+                className={`inline-flex shrink-0 items-center justify-center rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#8C6226] transition hover:bg-[#F3EFE6] hover:border-[#C59B58]/50 cursor-pointer active:scale-[0.98] ${
+                  isScrolled ? 'p-2' : 'px-3 py-2'
                 }`}
                 title="Mở bộ lọc tìm kiếm"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5 text-[#B88E4F]" />
-                <span>Bộ lọc</span>
               </button>
               <button
                 type="submit"
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#C59B58] text-xs font-bold text-[#1A1612] transition hover:bg-[#B88E4F] cursor-pointer active:scale-[0.98] ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-xs font-bold text-[#1A1612] transition shadow-sm shadow-[#C59B58]/20 cursor-pointer active:scale-[0.98] ${
                   isScrolled ? 'px-3.5 py-1.5' : 'px-4 py-2'
                 }`}
               >
@@ -507,129 +532,223 @@ export default function MarketplacePage() {
             </form>
 
             {/* Header Action Buttons */}
-            <div className="flex items-center gap-2.5 sm:gap-3.5">
-              {currentUser?.role === 'CUSTOMER' && <ChatBell userId={currentUser.id} />}
-              {/* Cart Button */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* SCANMS Standard Minimalist Cart Icon Button */}
               <button
                 type="button"
                 onClick={() => openCart()}
-                className="relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[#1A1612] bg-[#FAF8F5] border border-[#EAE4D7] hover:bg-[#F3EFE6] transition cursor-pointer shadow-2xs"
+                className="relative p-2.5 text-[#B88E4F] hover:text-[#C59B58] transition-colors duration-200 cursor-pointer group active:scale-95 flex items-center justify-center rounded-full hover:bg-[#FBF5EB]"
                 title="Giỏ hàng của bạn"
+                aria-label="Giỏ hàng"
               >
-                <ShoppingCart className="w-4 h-4 text-[#B88E4F]" />
-                <span className="hidden sm:inline">Giỏ hàng</span>
+                <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-[#B88E4F] group-hover:text-[#C59B58] transition-transform group-hover:scale-105" />
                 {totalCartCount > 0 && (
-                  <span className="w-5 h-5 rounded-full bg-[#EBD08C] text-white text-[10px] font-black flex items-center justify-center -mr-1">
-                    {totalCartCount}
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-[19px] px-1 rounded-full bg-white border border-[#C59B58] text-[#B88E4F] text-[11px] font-black flex items-center justify-center shadow-xs">
+                    {totalCartCount > 99 ? '99+' : totalCartCount}
                   </span>
                 )}
               </button>
 
+              {/* Icon Chuông Thông Báo & Live Stream Broadcast Cho Tất Cả Các Tài Khoản */}
+              <NotificationDropdown />
+
+              {currentUser?.role === 'CUSTOMER' && <ChatBell userId={currentUser.id} />}
+
               {/* Customer / Partner Gateways Dropdown */}
               {currentUser ? (
-                <div className="relative" ref={roleDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-[#1A1612] bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#C59B58] transition cursor-pointer shadow-2xs"
-                  >
-                    <div className="w-6 h-6 rounded-full bg-[#EBD08C] text-white flex items-center justify-center font-black text-[11px] shrink-0">
-                      {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                    <span className="hidden sm:inline max-w-[100px] truncate">{currentUser.fullName || 'Tài khoản'}</span>
-                    <ChevronRight className="hidden sm:block w-3.5 h-3.5 text-[#7D715E] rotate-90" />
-                  </button>
+                <div className="flex items-center gap-2">
+                  {currentUser.role === 'CUSTOMER' && (
+                    <Link
+                      to="/customer/upgrade"
+                      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F3EFE6] hover:border-[#C59B58] transition shadow-2xs group"
+                      title="Nâng cấp tài khoản Khách Hàng lên KOL Tiếp Thị hoặc Mở Shop"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#B88E4F] group-hover:scale-110 transition-transform" />
+                      <span>Nâng cấp Đối tác</span>
+                    </Link>
+                  )}
 
-                  {isRoleDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
-                      <div className="p-2 border-b border-[#EAE4D7]">
-                        <strong className="block text-xs font-black text-[#1A1612] truncate">
-                          {currentUser.fullName}
+                  <div className="relative" ref={roleDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                      className={`flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-3 py-1.5 sm:pl-2 sm:pr-3.5 sm:py-1.5 rounded-2xl bg-white/95 border transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-xs group active:scale-[0.98] min-w-[160px] sm:min-w-[190px] ${
+                        isRoleDropdownOpen
+                          ? 'border-[#C59B58] ring-2 ring-[#C59B58]/20 bg-[#FAF8F5]'
+                          : 'border-[#EAE4D7] hover:border-[#C59B58]/60 hover:bg-[#FAF8F5]'
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        {currentUser.avatarUrl ? (
+                          <img
+                            src={currentUser.avatarUrl}
+                            alt={currentUser.fullName || 'Avatar'}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0 border border-[#E8D4B0] shadow-2xs"
+                          />
+                        ) : (
+                          <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#FAF0DD] to-[#F3EFE6] text-[#8C6226] flex items-center justify-center font-black text-xs shrink-0 border border-[#E8D4B0] shadow-2xs">
+                            {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                          </span>
+                        )}
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#059669] border-2 border-white" />
+                      </div>
+                      <div className="text-left hidden md:block max-w-[130px] sm:max-w-[155px] flex-1 min-w-0">
+                        <strong className="block text-xs font-bold text-[#1A1612] truncate leading-none mb-1">
+                          {currentUser.fullName || currentUser.email}
                         </strong>
-                        <small className="text-[11px] text-[#7D715E] block truncate">
-                          {currentUser.email}
-                        </small>
-                        <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] text-[10px] font-bold">
-                          {currentUser.role === 'CUSTOMER'
-                            ? 'Khách Mua Sắm'
-                            : currentUser.role === 'COLLABORATOR'
-                            ? 'Cộng Tác Viên (KOL)'
-                            : currentUser.role === 'SHOP_MANAGER'
-                            ? 'Chủ Gian Hàng (Shop)'
-                            : 'Quản Trị Viên'}
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#FAF0DD] border border-[#E8D4B0] text-[9.5px] font-black text-[#8C6226] truncate leading-none">
+                          {currentUser.role === 'CUSTOMER' ? '🛍️ Khách Mua' : currentUser.role === 'COLLABORATOR' ? '⭐ KOL/KOC' : currentUser.role === 'SHOP_MANAGER' ? '🏪 Shop' : '🛡️ Admin'}
                         </span>
                       </div>
+                      <ChevronRight className={`hidden sm:block w-3.5 h-3.5 text-[#7D715E] shrink-0 transition-transform duration-200 group-hover:text-[#B88E4F] ml-auto ${isRoleDropdownOpen ? 'rotate-90 text-[#B88E4F]' : ''}`} />
+                    </button>
 
-                      {currentUser.role === 'CUSTOMER' ? (
-                        <div className="flex flex-col gap-1 py-1">
-                          <Link
-                            to="/customer/orders"
-                            onClick={() => setIsRoleDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Đơn mua của tôi</span>
-                          </Link>
-                          <Link
-                            to="/customer/addresses"
-                            onClick={() => setIsRoleDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <MapPin className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Sổ địa chỉ nhận hàng</span>
-                          </Link>
-                          <Link
-                            to="/customer/wishlist"
-                            onClick={() => setIsRoleDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <Heart className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Sản phẩm yêu thích ({wishlistIds.size})</span>
-                          </Link>
-                          <Link
-                            to="/customer/profile"
-                            onClick={() => setIsRoleDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <Settings className="w-4 h-4 text-[#7D715E]" />
-                            <span>Hồ sơ & Đổi mật khẩu</span>
-                          </Link>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1 py-1">
-                          <Link
-                            to={
-                              currentUser.role === 'SHOP_MANAGER'
-                                ? '/merchant/dashboard'
+                    {isRoleDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
+                        <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center gap-2.5">
+                          <div className="relative group shrink-0">
+                            {currentUser.avatarUrl ? (
+                              <img
+                                src={currentUser.avatarUrl}
+                                alt={currentUser.fullName || 'Avatar'}
+                                className="w-10 h-10 rounded-xl object-cover border border-[#E8D4B0] shadow-2xs"
+                              />
+                            ) : (
+                              <span className="w-10 h-10 rounded-xl bg-[#EAE4D7] text-[#B88E4F] flex items-center justify-center font-black text-sm border border-[#EAE4D7]">
+                                {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                avatarInputRef.current?.click();
+                              }}
+                              disabled={uploadingAvatar}
+                              title="Bấm để tải ảnh đại diện lên"
+                              className="absolute -bottom-1 -right-1 p-1 rounded-full bg-[#C59B58] hover:bg-[#B88E4F] text-white shadow-xs border-2 border-white transition cursor-pointer"
+                            >
+                              {uploadingAvatar ? (
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              ) : (
+                                <Camera className="w-2.5 h-2.5" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <strong className="block text-xs font-black text-[#1A1612] truncate">
+                              {currentUser.fullName || currentUser.email}
+                            </strong>
+                            <small className="text-[11px] text-[#7D715E] block truncate">
+                              {currentUser.email}
+                            </small>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] text-[10px] font-bold">
+                              {currentUser.role === 'CUSTOMER'
+                                ? 'Khách Mua Sắm'
                                 : currentUser.role === 'COLLABORATOR'
-                                ? '/collaborator/dashboard'
-                                : '/admin/users'
-                            }
-                            onClick={() => setIsRoleDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#1A1612] rounded-xl bg-[#FBF5EB] hover:bg-[#ECE1CD] text-[#B88E4F] transition"
-                          >
-                            <Store className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Vào không gian làm việc ↗</span>
-                          </Link>
+                                ? 'Cộng Tác Viên (KOL)'
+                                : currentUser.role === 'SHOP_MANAGER'
+                                ? 'Chủ Gian Hàng (Shop)'
+                                : 'Quản Trị Viên'}
+                            </span>
+                          </div>
                         </div>
-                      )}
 
-                      <div className="pt-2 border-t border-[#EAE4D7]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsRoleDropdownOpen(false);
-                            authService.logout();
-                            setCurrentUser(null);
-                          }}
-                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-xl transition w-full text-left cursor-pointer"
-                        >
-                          <LogOut className="w-4 h-4 text-rose-600" />
-                          <span>Đăng xuất tài khoản</span>
-                        </button>
+                        <input
+                          type="file"
+                          ref={avatarInputRef}
+                          onChange={handleAvatarUpload}
+                          accept="image/png,image/jpeg,image/webp,image/jpg"
+                          className="hidden"
+                        />
+
+                        {currentUser.role === 'CUSTOMER' ? (
+                          <div className="flex flex-col gap-1 py-1">
+                            <Link
+                              to="/customer/orders"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                            >
+                              <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
+                              <span>Đơn mua của tôi</span>
+                            </Link>
+                            <Link
+                              to="/customer/addresses"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                            >
+                              <MapPin className="w-4 h-4 text-[#B88E4F]" />
+                              <span>Sổ địa chỉ nhận hàng</span>
+                            </Link>
+                            <Link
+                              to="/customer/wishlist"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                            >
+                              <Heart className="w-4 h-4 text-[#B88E4F]" />
+                              <span>Sản phẩm yêu thích ({wishlistIds.size})</span>
+                            </Link>
+                            <Link
+                              to="/customer/profile"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                            >
+                              <Settings className="w-4 h-4 text-[#7D715E]" />
+                              <span>Hồ sơ & Đổi mật khẩu</span>
+                            </Link>
+
+                            {/* Nâng cấp Đối tác (KOL / Shop) */}
+                            <Link
+                              to="/customer/upgrade"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center justify-between px-3 py-2.5 text-xs font-bold text-[#B88E4F] bg-gradient-to-r from-[#FBF5EB] to-[#F7EDE0] hover:from-[#F3EFE6] hover:to-[#EAE4D7] rounded-xl border border-[#EEDFC6] transition mt-1 shadow-2xs group"
+                              title="Nộp hồ sơ nâng cấp thành KOL Tiếp Thị hoặc Mở Gian Hàng"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Sparkles className="w-4 h-4 text-[#B88E4F] shrink-0 group-hover:scale-110 transition-transform" />
+                                <span className="truncate">Nâng cấp Đối tác (KOL / Shop)</span>
+                              </div>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#C59B58] text-white shrink-0 shadow-2xs">
+                                MỚI
+                              </span>
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1 py-1">
+                            <Link
+                              to={
+                                currentUser.role === 'SHOP_MANAGER'
+                                  ? '/merchant/dashboard'
+                                  : currentUser.role === 'COLLABORATOR'
+                                  ? '/collaborator/dashboard'
+                                  : '/admin/users'
+                              }
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#1A1612] rounded-xl bg-[#FBF5EB] hover:bg-[#ECE1CD] text-[#B88E4F] transition"
+                            >
+                              <Store className="w-4 h-4 text-[#B88E4F]" />
+                              <span>Vào không gian làm việc ↗</span>
+                            </Link>
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t border-[#EAE4D7]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsRoleDropdownOpen(false);
+                              authService.logout();
+                              setCurrentUser(null);
+                            }}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-xl transition w-full text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4 text-rose-600" />
+                            <span>Đăng xuất tài khoản</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="relative" ref={roleDropdownRef}>
@@ -732,8 +851,8 @@ export default function MarketplacePage() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm sản phẩm, thương hiệu, gian hàng..."
-                aria-label="Tìm sản phẩm, thương hiệu hoặc gian hàng"
+                placeholder="Tìm kiếm sản phẩm..."
+                aria-label="Tìm kiếm sản phẩm"
                 className="min-w-0 flex-1 bg-transparent text-xs font-medium text-[#1A1612] placeholder:text-[#8C7D6B] outline-none"
               />
               <button type="submit" className="rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] px-3 py-2 text-xs font-bold text-[#1A1612] cursor-pointer">
@@ -749,20 +868,20 @@ export default function MarketplacePage() {
             }`}
             aria-label="Điều hướng nhanh Marketplace"
           >
-            <div className="mx-auto grid max-w-[1040px] grid-cols-5 items-center px-2 sm:px-4">
+            <div className="mx-auto grid max-w-[1040px] grid-cols-5 items-center gap-1.5 px-2 sm:px-4 py-1.5">
               {/* Live KOC Button with pulsing indicator */}
               <button
                 type="button"
                 onClick={() => setIsLiveModalOpen(true)}
-                className="group flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold text-[#1A1612] transition-colors hover:bg-[#FBF5EB] cursor-pointer"
+                className="group flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 text-xs font-bold text-[#9F1239] transition cursor-pointer shadow-2xs"
                 title="Khám phá các phiên Livestream KOC tiếp thị sản phẩm"
               >
-                <span className="relative flex h-2.5 w-2.5">
+                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E11D48] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#E11D48]" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#E11D48]" />
                 </span>
                 <span className="truncate text-[#9F1239] font-black uppercase tracking-wider text-[10px] sm:text-[11px]">Live KOC</span>
-                <span className="hidden sm:inline px-1.5 py-0.5 rounded bg-[#E11D48] text-white text-[9px] font-black tracking-wide uppercase">HOT</span>
+                <span className="hidden sm:inline px-1 py-0.2 rounded bg-[#E11D48] text-white text-[8px] font-black tracking-wide uppercase">HOT</span>
               </button>
 
               <button
@@ -770,7 +889,7 @@ export default function MarketplacePage() {
                 onClick={() => {
                   catalogRef.current?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold text-[#7D715E] transition hover:bg-[#FBF5EB] hover:text-[#1A1612] cursor-pointer"
+                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#7D715E] transition hover:bg-white hover:border-[#C59B58]/60 hover:text-[#1A1612] cursor-pointer shadow-2xs"
               >
                 <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
                 <span className="hidden sm:inline truncate">Gian Hàng Đối Tác</span>
@@ -778,7 +897,7 @@ export default function MarketplacePage() {
 
               <Link
                 to="/search?commission=true"
-                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold text-[#7D715E] transition hover:bg-[#FBF5EB] hover:text-[#1A1612] cursor-pointer"
+                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#7D715E] transition hover:bg-white hover:border-[#C59B58]/60 hover:text-[#1A1612] cursor-pointer shadow-2xs"
               >
                 <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
                 <span className="hidden sm:inline truncate">Săn Deal KOC</span>
@@ -786,7 +905,7 @@ export default function MarketplacePage() {
 
               <Link
                 to="/leaderboard"
-                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold text-[#7D715E] transition hover:bg-[#FBF5EB] hover:text-[#1A1612]"
+                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#7D715E] transition hover:bg-white hover:border-[#C59B58]/60 hover:text-[#1A1612] shadow-2xs"
               >
                 <TrendingUp className="w-3.5 h-3.5 text-[#B88E4F]" />
                 <span className="hidden sm:inline truncate">BXH Doanh Số</span>
@@ -796,7 +915,7 @@ export default function MarketplacePage() {
                 onClick={() => {
                   trackingRef.current?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold text-[#7D715E] transition hover:bg-[#FBF5EB] hover:text-[#1A1612] cursor-pointer"
+                className="flex min-w-0 items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-bold text-[#7D715E] transition hover:bg-white hover:border-[#C59B58]/60 hover:text-[#1A1612] cursor-pointer shadow-2xs"
               >
                 <Package className="w-4 h-4 text-[#B88E4F]" />
                 <span className="hidden sm:inline truncate">Tra cứu đơn</span>
@@ -811,7 +930,7 @@ export default function MarketplacePage() {
 
       {/* SCANMS Creator Commerce stage, built from real marketplace data */}
       <section className="border-b border-[#EAE4D7] bg-[#F3EFE6] py-5 text-left sm:py-6">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1200px] px-3 sm:px-4 lg:px-6">
           <div
             className="group relative isolate min-h-[450px] overflow-hidden rounded-[24px] border border-[#EAE4D7] bg-[#FAF8F5] shadow-[0_16px_44px_rgba(93,70,35,0.10)] sm:min-h-[430px]"
             aria-roledescription="carousel"
@@ -925,55 +1044,18 @@ export default function MarketplacePage() {
 
       {/* Dense commerce catalog with SCANMS affiliate information */}
       <section ref={catalogRef} id="catalog-section" className="w-full scroll-mt-4 bg-[#F3EFE6] py-7 text-left lg:py-9">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1200px] px-3 sm:px-4 lg:px-6">
 
-        {/* Catalog navigation and controls */}
-        <div className="mb-4 border border-[#EAE4D7] bg-white shadow-[0_8px_24px_rgba(75,57,34,0.04)]">
-          <div className="flex min-h-[66px] flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-5 sm:pt-0">
-            <div className="relative flex min-w-0 items-center gap-3 self-stretch pb-3 sm:pb-0">
-              <h2 className="m-0 whitespace-nowrap text-[17px] font-black tracking-[-0.025em] text-[#1A1612] sm:text-[19px]">
-                Dành riêng cho bạn
-              </h2>
-              <span className="absolute inset-x-0 bottom-0 h-[3px] bg-[#EBD08C] sm:w-[174px]" aria-hidden="true" />
-            </div>
-
-            <div className="flex min-w-0 items-center gap-2 pb-3 sm:pb-0">
-              <span className="hidden text-[11px] font-semibold text-[#7D715E] lg:inline">Sắp xếp</span>
-              <div className="hidden items-center border border-[#EAE4D7] bg-[#FAF8F5] p-0.5 md:flex" aria-label="Sắp xếp sản phẩm">
-              {[
-                { value: 'newest', label: 'Mới nhất' },
-                { value: 'price_asc', label: 'Giá thấp' },
-                { value: 'price_desc', label: 'Giá cao' },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSortBy(option.value)}
-                  className={`px-3.5 py-2 text-[11px] font-bold transition cursor-pointer ${
-                    sortBy === option.value
-                      ? 'bg-[#EBD08C] text-white shadow-sm'
-                      : 'text-[#7D715E] hover:bg-[#FBF5EB] hover:text-[#B88E4F]'
-                  }`}
-                  aria-pressed={sortBy === option.value}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="min-w-0 flex-1 border border-[#EAE4D7] bg-[#FAF8F5] px-3 py-2 text-[11px] font-bold text-[#1A1612] outline-none transition focus:border-[#C59B58] md:hidden cursor-pointer"
-              aria-label="Sắp xếp sản phẩm"
+        {/* SCANMS Standard "ĐƠN HÀNG HÔM NAY" Header */}
+        <div className="mb-4 bg-white border border-[#EAE4D7] border-b-[4px] border-b-[#B88E4F] shadow-[0_2px_8px_rgba(75,57,34,0.04)]">
+          <div className="py-3.5 sm:py-4 px-4 text-center">
+            <h2
+              className="m-0 text-base sm:text-[17px] uppercase tracking-[0.04em] select-none"
+              style={{ color: '#B88E4F', fontWeight: 500 }}
             >
-              <option value="newest">Mới nhất</option>
-              <option value="price_asc">Giá thấp đến cao</option>
-              <option value="price_desc">Giá cao đến thấp</option>
-            </select>
-
+              ĐƠN HÀNG HÔM NAY
+            </h2>
           </div>
-        </div>
         </div>
 
         {/* Product Cards Grid (Full-Width Responsive 2-5 Columns) */}
@@ -1007,42 +1089,49 @@ export default function MarketplacePage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((p) => {
               const productDetailUrl = `/products/${p.sku || p.id}`;
               return (
                 <div
                   key={p.id}
-                  className="group flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#C59B58] hover:shadow-[0_8px_24px_rgba(93,70,35,0.10)]"
+                  className="bg-white border border-[#EAE4D7] rounded-xl overflow-hidden hover:-translate-y-1 hover:shadow-[0_10px_24px_rgba(75,57,34,0.12)] hover:border-[#C59B58] transition-all duration-200 flex flex-col justify-between group text-left relative"
                 >
-                  <div>
-                    {/* Clickable Image -> Product Details */}
-                    <div className="relative aspect-square overflow-hidden bg-[#FAF8F5] group/img">
-                      <Link
-                        to={productDetailUrl}
-                        className="block w-full h-full cursor-pointer"
-                        title="Xem chi tiết sản phẩm"
-                      >
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/reference/assets/serum-hero-optimized.jpg';
-                          }}
-                        />
-                        {p.badge && (
-                          <span className={`absolute left-2 top-2 rounded-md px-2 py-0.5 text-[9px] font-black shadow-xs z-10 ${(p.stockQuantity ?? 0) > 0 ? 'bg-[#EBD08C] text-white' : 'bg-[#1A1612] text-white'}`}>
-                            {p.badge}
-                          </span>
-                        )}
-                        {p.origPrice > p.price && (
-                          <span className="absolute top-2 right-10 px-2 py-0.5 rounded-md bg-[#FEE2E2] text-[#EE4D2D] text-[10px] sm:text-[11px] font-bold border border-[#FADCD5] shadow-2xs z-10">
-                            -{Math.round(((p.origPrice - p.price) / p.origPrice) * 100)}%
-                          </span>
-                        )}
-                      </Link>
+                  {/* Entire Card Clickable Area -> Product Details (SCANMS Standard) */}
+                  <div
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => navigate(productDetailUrl)}
+                    onKeyDown={(event) => {
+                      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        navigate(productDetailUrl);
+                      }
+                    }}
+                    className="block flex-1 flex flex-col cursor-pointer"
+                    title={p.name}
+                  >
+                    {/* Image Container with Discount Badge & Wishlist Heart */}
+                    <div className="relative aspect-square bg-[#F3EFE6] overflow-hidden">
+                      <LiveSessionDealBadge deal={liveDeals[p.id]} now={liveDealsNow} />
+                      <img
+                        src={p.image}
+                        alt={p.name}
+                        className="w-full h-full object-cover object-center transition-transform duration-300 scale-[1.02] group-hover:scale-[1.06]"
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          if (!target.dataset.hasFallback) {
+                            target.dataset.hasFallback = 'true';
+                            target.src = getSafeProductImageUrl(null, p.name);
+                          }
+                        }}
+                      />
+                      {p.origPrice > p.price && (
+                        <span className="absolute top-0 left-0 px-1.5 py-0.5 rounded-br-md bg-[#FEE2E2] text-[#DC2626] text-[9.5px] sm:text-[10px] font-bold border-r border-b border-[#FADCD5] shadow-2xs z-10">
+                          -{Math.round(((p.origPrice - p.price) / p.origPrice) * 100)}%
+                        </span>
+                      )}
 
                       {/* Wishlist Heart Button */}
                       <button
@@ -1052,99 +1141,75 @@ export default function MarketplacePage() {
                           e.stopPropagation();
                           handleToggleWishlist(p.id);
                         }}
-                        className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition shadow-2xs z-10 cursor-pointer ${
+                        className={`absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm z-10 cursor-pointer active:scale-90 ${
                           wishlistIds.has(p.id)
-                            ? 'bg-rose-500 text-white'
-                            : 'bg-white/85 hover:bg-white text-[#7D715E] hover:text-rose-500 backdrop-blur-xs'
+                            ? 'bg-white text-[#DC2626] ring-1 ring-[#DC2626]/30 shadow-[0_2px_8px_rgba(220,38,38,0.25)] hover:scale-110'
+                            : 'bg-white/90 hover:bg-white text-[#7D715E] hover:text-[#DC2626] hover:scale-110 backdrop-blur-xs'
                         }`}
                         title={wishlistIds.has(p.id) ? 'Bỏ lưu sản phẩm' : 'Lưu vào danh sách yêu thích'}
                       >
-                        <Heart className={`w-3.5 h-3.5 ${wishlistIds.has(p.id) ? 'fill-current text-white' : ''}`} />
-                      </button>
-
-                      {/* Quick Magnifying Glass Zoom Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setZoomProduct(p);
-                        }}
-                        className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-white/85 hover:bg-white text-[#B88E4F] border border-[#EAE4D7] shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer z-10"
-                        title="Phóng to ảnh sản phẩm"
-                        aria-label="Phóng to ảnh sản phẩm"
-                      >
-                        <ZoomIn className="w-3 h-3 text-[#B88E4F]" />
+                        <Heart className={`w-3.5 h-3.5 transition-colors ${wishlistIds.has(p.id) ? 'fill-[#DC2626] text-[#DC2626]' : ''}`} />
                       </button>
                     </div>
 
-                    <div className="flex flex-col gap-2 p-3 text-left">
-                      <div className="flex min-w-0 items-center justify-between gap-1 text-[10px] text-[#7D715E]">
-                        <Link to={`/shops/${p.storeId}`} className="flex min-w-0 items-center gap-1 truncate font-bold hover:text-[#B88E4F]" onClick={(event) => event.stopPropagation()}>
-                          <Store className="h-3 w-3 shrink-0 text-[#B88E4F]" />
-                          {p.brand}
-                        </Link>
-                        <span className="shrink-0 font-bold text-[#B88E4F]">
-                          KYC
-                        </span>
-                      </div>
-
-                      {/* Clickable Title -> Product Details */}
-                      <Link
-                        to={productDetailUrl}
-                        className="m-0 line-clamp-2 min-h-9 text-xs font-bold leading-[1.45] text-[#1A1612] transition hover:text-[#B88E4F]"
-                        title="Xem chi tiết sản phẩm"
-                      >
-                        {p.name}
-                      </Link>
-
-                      {/* Affiliate Commission Badge */}
-                      {p.commissionRate ? (
-                        <div className="flex items-center justify-between gap-1 rounded-lg border border-[#EAE4D7] bg-[#FBF5EB] px-2 py-1.5 text-[9px]">
-                          <span className="truncate font-bold text-[#B88E4F]">
-                            Hoa hồng {p.commissionRate}%
+{/* Card Content - SCANMS Compact Proportions */}
+                    <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        {/* Row 1: Store Icon & Shop Name • Chính hãng */}
+                        <div className="flex items-center justify-between gap-1 h-5 mb-1 min-w-0">
+                          <Link
+                            to={p.storeId ? `/shops/${p.storeId}` : `/marketplace?store=${encodeURIComponent(p.brand || '')}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10.5px] font-bold text-[#7D715E] hover:text-[#B88E4F] flex items-center gap-1 min-w-0 truncate"
+                            title={p.brand || 'Gian hàng đối tác'}
+                          >
+                            <Store className="w-3 h-3 text-[#B88E4F] shrink-0" />
+                            <span className="truncate max-w-[85px] sm:max-w-[105px]">
+                              {p.brand || 'Gian hàng đối tác'}
+                            </span>
+                          </Link>
+                          <span className="inline-flex items-center px-1 py-0.2 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-[8.5px] sm:text-[9px] font-extrabold text-[#B88E4F] shrink-0">
+                            Chính hãng
                           </span>
-                          {p.commissionAmount && (
-                            <span className="shrink-0 font-black text-[#B88E4F]">
-                              ~{formatMoney(p.commissionAmount)}
+                        </div>
+
+                        {/* Row 2: Product Title (Strictly fixed height 34px - 2 lines, so 1-line and 2-line titles are 100% evenly aligned) */}
+                        <h3
+                          className="text-xs font-semibold text-[#1A1612] group-hover:text-[#B88E4F] transition-colors line-clamp-2 h-[34px] leading-[17px] mb-1 overflow-hidden"
+                          title={p.name}
+                        >
+                          {p.name}
+                        </h3>
+
+                        {/* Row 3: SCANMS Badge Row - "Rẻ Vô Địch" / "Hoa hồng" (Fixed height h-5 to keep all cards uniform) */}
+                        <div className="flex items-center gap-1 h-5 mb-1.5 min-w-0">
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-[9px] font-black text-[#B88E4F] shrink-0 shadow-2xs tracking-tight"
+                            title="Bảo chứng giá tốt nhất sàn - Rẻ Vô Địch"
+                          >
+                            <Zap className="w-2.5 h-2.5 fill-[#B88E4F] text-[#B88E4F] shrink-0" />
+                            <span>Rẻ Vô Địch</span>
+                          </span>
+
+                          {isKolUser && (p.commissionRate || 0) > 0 && (
+                            <span className="text-[9px] text-[#B88E4F] font-bold bg-[#FBF5EB] px-1 py-0.5 rounded border border-[#EEDFC6] truncate">
+                              HH {p.commissionRate}%
                             </span>
                           )}
                         </div>
-                      ) : null}
+                      </div>
 
-                      <div className="pt-0.5">
-                        <strong className="block text-[15px] font-black text-[#B88E4F] sm:text-base">
+                      {/* Row 4: SCANMS Standard Bottom Bar: Big Bold Price on Left, Sold Count on Right */}
+                      <div className="pt-1.5 border-t border-[#EAE4D7]/60 flex items-center justify-between gap-1">
+                        <span className="text-xs sm:text-sm font-black text-[#B88E4F] tracking-tight truncate">
                           {formatMoney(p.price)}
-                        </strong>
-                        <div className="mt-0.5 flex items-center justify-between gap-1 text-[9px] text-[#7D715E]">
-                          {p.origPrice > p.price ? (
-                            <span className="truncate line-through">{formatMoney(p.origPrice)}</span>
-                          ) : <span />}
-                          <span className="shrink-0">Còn {p.stockQuantity || 0}</span>
-                        </div>
+                        </span>
+
+                        <span className="text-[10px] text-[#7D715E] font-medium shrink-0 whitespace-nowrap">
+                          {formatSoldCount(p.sold)} đã bán
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-[38px_1fr] gap-1.5 px-3 pb-3">
-                    <button
-                      type="button"
-                      onClick={() => handleAddToCart(p)}
-                      disabled={(p.stockQuantity ?? 0) <= 0}
-                      className="flex items-center justify-center rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] py-2 text-[#1A1612] transition hover:border-[#C59B58] hover:bg-[#F3EFE6] disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer active:scale-[0.98]"
-                      title="Thêm vào giỏ hàng"
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDirectCheckout(p)}
-                      disabled={(p.stockQuantity ?? 0) <= 0}
-                      className="flex items-center justify-center gap-1 rounded-lg bg-[#EBD08C] px-2 py-2 text-[11px] font-black text-white transition hover:bg-[#DEC07A] disabled:cursor-not-allowed disabled:bg-[#7D715E] cursor-pointer active:scale-[0.98]"
-                    >
-                      <span>Mua ngay</span>
-                      <ArrowRight className="h-3 w-3" />
-                    </button>
                   </div>
                 </div>
               );
@@ -1152,24 +1217,21 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* Continue browsing */}
-        <div className="mt-6 flex items-center gap-3 sm:gap-5">
-          <span className="h-px flex-1 bg-[#EAE4D7]" aria-hidden="true" />
+        {/* SCANMS Standard "Xem Thêm" Button */}
+        <div className="mt-7 sm:mt-9 flex justify-center">
           <Link
             to="/search"
-            className="group inline-flex shrink-0 items-center gap-2 border border-[#C59B58] bg-white px-5 py-2.5 text-xs font-black text-[#B88E4F] shadow-[0_4px_14px_rgba(93,70,35,0.06)] transition hover:bg-[#DEC07A] hover:text-white active:translate-y-px sm:px-7"
+            className="w-full max-w-[390px] h-10 sm:h-11 bg-white border border-[#EAE4D7] hover:border-[#C59B58] rounded-[2px] flex items-center justify-center text-sm font-normal text-[#555555] hover:text-[#1A1612] hover:bg-[#FAF8F5] transition shadow-2xs active:scale-[0.99] select-none"
           >
-            <span>Xem tất cả sản phẩm</span>
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            Xem Thêm
           </Link>
-          <span className="h-px flex-1 bg-[#EAE4D7]" aria-hidden="true" />
         </div>
         </div>
       </section>
 
       {/* Order Tracking Section */}
       <section ref={trackingRef} id="tracking-section" className="border-t border-[#EAE4D7] bg-[#F3EFE6] py-6">
-        <div className="mx-auto max-w-[1400px] px-4 text-left sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1200px] px-3 sm:px-4 lg:px-6 text-left">
           <div className="border-y border-[#EAE4D7] bg-white px-4 py-4 sm:px-5">
             <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:items-center lg:gap-6">
               <div className="flex items-center gap-3">
@@ -1458,293 +1520,10 @@ export default function MarketplacePage() {
 
 
       {/* KOC LIVE COMMERCE PREVIEW MODAL */}
-      {isLiveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setIsLiveModalOpen(false)}
-          />
-          <div className="relative w-full max-w-2xl bg-white border border-[#EAE4D7] rounded-3xl shadow-2xl overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 text-left">
-            {/* Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#1A1612] to-[#1A1612] text-white flex items-center justify-between border-b border-[#7D715E]">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E11D48] to-[#9F1239] flex items-center justify-center text-white shadow-xs">
-                  <Radio className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <strong className="text-sm font-black tracking-tight">KOC Live Commerce Hub</strong>
-                    <span className="px-2 py-0.5 rounded-full bg-[#E11D48] text-white text-[9px] font-black uppercase tracking-wider">
-                      LIVE STREAM
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#EAE4D7] m-0">
-                    Phòng phát sóng bán hàng & tiếp thị liên kết đa gian hàng ScanMS
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsLiveModalOpen(false)}
-                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#EAE4D7] hover:text-white transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Content Body */}
-            <div className="p-6 max-h-[75vh] overflow-y-auto space-y-5 bg-[#FAF8F5]">
-              {/* Feature Intro Banner */}
-              <div className="p-4 rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-[#B88E4F] shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-xs font-black text-[#1A1612] block">
-                    Đặc quyền Live Commerce dành cho KOC & Gian Hàng ScanMS
-                  </strong>
-                  <p className="text-[11px] text-[#7D715E] mt-0.5 m-0 leading-relaxed">
-                    KOL/KOC có thể tạo phòng live trực tiếp, ghim sản phẩm từ hàng trăm gian hàng đã duyệt KYC, nhận đơn hàng tự động và chia sẻ hoa hồng tức thì mà không cần tự nhập kho.
-                  </p>
-                </div>
-              </div>
-
-              {/* Active & Scheduled Live Sessions */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-[#B88E4F] flex items-center gap-1.5">
-                    <Radio className="w-3.5 h-3.5 text-[#E11D48]" />
-                    Phiên Live Đang Phát Sóng & Sắp Diễn Ra
-                  </span>
-                  <span className="text-[11px] font-bold text-[#7D715E]">
-                    Hôm nay, 20/09
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* Live Session 1 */}
-                  <div className="bg-white border border-[#EAE4D7] rounded-2xl p-4 shadow-2xs hover:border-[#C59B58] transition flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFE4E6] text-[#E11D48] text-[10px] font-black">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48] animate-ping" />
-                          ĐANG PHÁT SÓNG
-                        </span>
-                        <span className="text-[10px] font-bold text-[#7D715E]">1.2k người xem</span>
-                      </div>
-                      <strong className="text-xs font-black text-[#1A1612] block mb-1">
-                        Review Siêu Phẩm Dưỡng Ẩm Hydro Boost
-                      </strong>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-5 h-5 rounded-full bg-[#EAE4D7] text-[#B88E4F] text-[9px] font-black flex items-center justify-center">
-                          L
-                        </div>
-                        <span className="text-[11px] font-bold text-[#1A1612]">KOC Linh Trương</span>
-                        <BadgeCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                        <span className="text-[10px] text-[#7D715E]">• Sora Skin</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-between text-xs">
-                        <span className="text-[#7D715E]">Hoa hồng KOC:</span>
-                        <span className="font-extrabold text-[#B88E4F]">28% (~95.000 ₫/đơn)</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toast.success('Đã kết nối luồng Live KOC demo thành công!');
-                      }}
-                      className="mt-3 w-full py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold transition shadow-2xs cursor-pointer"
-                    >
-                      Vào xem phiên Live demo
-                    </button>
-                  </div>
-
-                  {/* Live Session 2 */}
-                  <div className="bg-white border border-[#EAE4D7] rounded-2xl p-4 shadow-2xs hover:border-[#C59B58] transition flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FBF5EB] text-[#B88E4F] text-[10px] font-black">
-                          <Calendar className="w-3.5 h-3.5" />
-                          20:30 HÔM NAY
-                        </span>
-                        <span className="text-[10px] font-bold text-[#7D715E]">530 đặt hẹn</span>
-                      </div>
-                      <strong className="text-xs font-black text-[#1A1612] block mb-1">
-                        Săn Deal Bàn Phím Cơ Custom & Tai Nghe ANC
-                      </strong>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-5 h-5 rounded-full bg-[#EAE4D7] text-[#B88E4F] text-[9px] font-black flex items-center justify-center">
-                          D
-                        </div>
-                        <span className="text-[11px] font-bold text-[#1A1612]">KOC Duy Tech</span>
-                        <BadgeCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                        <span className="text-[10px] text-[#7D715E]">• TechStore</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-between text-xs">
-                        <span className="text-[#7D715E]">Deal độc quyền:</span>
-                        <span className="font-extrabold text-[#B88E4F]">Giảm 25% + Quà tặng</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toast.success('Đã đặt lịch nhắc hẹn! Hệ thống sẽ thông báo khi KOC Duy Tech bắt đầu phiên live.');
-                      }}
-                      className="mt-3 w-full py-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] text-xs font-bold transition cursor-pointer"
-                    >
-                      Nhắc tôi khi lên sóng
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Callout for KOC registration */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-[#1A1612] to-[#1A1612] text-white flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div>
-                  <strong className="text-xs font-black block">Bạn là Nhà Sáng Tạo Nội Dung (KOL/KOC)?</strong>
-                  <p className="text-[11px] text-[#EAE4D7] mt-0.5 m-0">
-                    Đăng ký tài khoản Đối tác để tự do chọn sản phẩm và nhận link tiếp thị bán hàng trên các buổi Livestream.
-                  </p>
-                </div>
-                <Link
-                  to="/register"
-                  onClick={() => setIsLiveModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-[#EBD08C] text-white text-xs font-bold hover:bg-[#DEC07A] transition shrink-0 whitespace-nowrap"
-                >
-                  Đăng ký làm KOC ngay
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* FULL PRODUCT ZOOM MODAL */}
-      {zoomProduct && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setZoomProduct(null)}
-        >
-          <div
-            className="relative w-full max-w-4xl bg-white border border-[#EAE4D7] rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh] animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setZoomProduct(null)}
-              className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-white/95 hover:bg-white text-[#1A1612] border border-[#EAE4D7] shadow-md flex items-center justify-center transition cursor-pointer hover:scale-105"
-              aria-label="Đóng xem chi tiết"
-            >
-              <X className="w-5 h-5 text-[#7D715E]" />
-            </button>
-
-            {/* Left: Large High-Resolution Image Viewport */}
-            <div className="relative flex-1 bg-[#FAF8F5] flex items-center justify-center p-4 sm:p-8 min-h-[320px] md:min-h-[480px] overflow-hidden group">
-              <img
-                src={zoomProduct.image}
-                alt={zoomProduct.name}
-                className="max-h-[55vh] md:max-h-[75vh] w-auto max-w-full object-contain rounded-2xl shadow-sm transition-transform duration-300 hover:scale-105"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/reference/assets/serum-hero-optimized.jpg';
-                }}
-              />
-              <div className="absolute bottom-3 left-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium flex items-center gap-1.5 pointer-events-none">
-                <ZoomIn className="w-3.5 h-3.5 text-[#EAE4D7]" />
-                <span>Xem chi tiết độ phân giải cao</span>
-              </div>
-            </div>
-
-            {/* Right: Product Summary & Quick Actions */}
-            <div className="w-full md:w-80 lg:w-96 p-5 sm:p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-[#EAE4D7] bg-white text-left">
-              <div className="space-y-4">
-                {/* Store badge */}
-                <div className="flex items-center gap-2 text-xs text-[#7D715E]">
-                  <Store className="w-4 h-4 text-[#B88E4F]" />
-                  <span className="font-bold text-[#1A1612]">{zoomProduct.brand}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#FBF5EB] text-[#B88E4F] text-[10px] font-bold border border-[#EAE4D7]">
-                    KYC Verified
-                  </span>
-                </div>
-
-                {/* Title */}
-                <h3 className="text-base sm:text-lg font-black text-[#1A1612] leading-snug">
-                  {zoomProduct.name}
-                </h3>
-
-                {/* Category & SKU */}
-                <div className="flex flex-wrap gap-2 text-[11px] text-[#7D715E]">
-                  {zoomProduct.category && (
-                    <span className="px-2 py-0.5 rounded-md bg-[#FAF8F5] border border-[#EAE4D7]">
-                      {zoomProduct.category}
-                    </span>
-                  )}
-                  {zoomProduct.sku && (
-                    <span className="px-2 py-0.5 rounded-md bg-[#FAF8F5] border border-[#EAE4D7] font-mono">
-                      SKU: {zoomProduct.sku}
-                    </span>
-                  )}
-                </div>
-
-                {/* Price block */}
-                <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] space-y-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xl font-black text-[#B88E4F]">
-                      {formatMoney(zoomProduct.price)}
-                    </span>
-                    {zoomProduct.origPrice > zoomProduct.price && (
-                      <span className="text-xs text-[#7D715E] line-through">
-                        {formatMoney(zoomProduct.origPrice)}
-                      </span>
-                    )}
-                  </div>
-                  {(zoomProduct.commissionRate || 0) > 0 && (
-                    <p className="text-[11px] font-bold text-[#B88E4F] m-0">
-                      Hoa hồng CTV/KOL: {zoomProduct.commissionRate}% (~{formatMoney(zoomProduct.commissionAmount || Math.round((zoomProduct.price * (zoomProduct.commissionRate || 0)) / 100))})
-                    </p>
-                  )}
-                </div>
-
-                {/* Assurance notice */}
-                <div className="p-3 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] text-[11px] text-[#B88E4F] space-y-1">
-                  <p className="font-bold m-0 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    Cam kết chính hãng 100%
-                  </p>
-                  <p className="m-0 text-[#7D715E]">
-                    Đồng kiểm khi nhận hàng · Đổi trả trong 14 ngày nếu có lỗi từ nhà sản xuất.
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-4 space-y-2">
-                <Link
-                  to={`/products/${zoomProduct.sku || zoomProduct.id}`}
-                  onClick={() => setZoomProduct(null)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold text-center flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
-                >
-                  <span>Xem trang chi tiết đầy đủ</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const p = zoomProduct;
-                    setZoomProduct(null);
-                    handleOpenDirectCheckout(p);
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <ShoppingCart className="w-3.5 h-3.5 text-[#B88E4F]" />
-                  <span>Mua ngay sản phẩm này</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <LiveCommerceHubModal
+        isOpen={isLiveModalOpen}
+        onClose={() => setIsLiveModalOpen(false)}
+      />
 
     </div>
   );

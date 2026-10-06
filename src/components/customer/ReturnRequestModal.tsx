@@ -3,6 +3,7 @@ import { AlertTriangle, ImagePlus, Loader2, Upload, Video, X } from 'lucide-reac
 import { customerService, type CustomerOrder, type CustomerReturnRequest } from '../../services/customer.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
+import { Select } from '../ui/Select';
 
 interface Props {
   order: CustomerOrder;
@@ -74,9 +75,11 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
 
         <div className="mt-4 space-y-4">
           <label className="block text-xs font-bold text-[#1A1612]">Lý do
-            <select value={reason} onChange={(e) => setReason(e.target.value as CustomerReturnRequest['reason'])} className="mt-1.5 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3 outline-none focus:border-[#C59B58]">
-              {reasons.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
+            <div className="mt-1.5">
+              <Select value={reason} onChange={(e) => setReason(e.target.value as CustomerReturnRequest['reason'])} className="w-full text-xs font-medium">
+                {reasons.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </Select>
+            </div>
           </label>
           <label className="block text-xs font-bold text-[#1A1612]">Mô tả chi tiết
             <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={4} maxLength={2000} placeholder="Mô tả lỗi, tình trạng bao bì và mong muốn xử lý..." className="mt-1.5 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3 outline-none focus:border-[#C59B58]" />

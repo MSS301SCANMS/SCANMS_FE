@@ -2,7 +2,7 @@
 // SCANMS STOREFRONT - Module Trang Mua Hàng Qua Link Tiếp Thị KOL/CTV (FR-15, FR-16)
 // ==========================================================================
 
-const defaultProductImage = "./assets/serum-hero-optimized.jpg";
+const defaultProductImage = "./assets/products/real/vitamin-c-15-serum.jpg";
 const sampleVideoPath = "./assets/sample-video.mp4";
 
 // Danh mục sản phẩm demo
@@ -15,10 +15,7 @@ const storefrontProducts = {
     reviewCount: 128,
     soldCount: "1.4k",
     images: [
-      { src: "./assets/serum-hero-optimized.jpg", label: "Chai Serum chính diện" },
-      { src: "./assets/toner-bha-product.jpg", label: "Kết cấu serum mỏng nhẹ" },
-      { src: "./assets/cica-mask-product.jpg", label: "Bảng thành phần 15% C" },
-      { src: "./assets/cleanser-product.jpg", label: "Hộp & Tem niêm phong" }
+      { src: "./assets/products/real/vitamin-c-15-serum.jpg", label: "?nh serum Vitamin C 15%" }
     ],
     variants: [
       { id: "30ml", label: "Dung tích 30ml", sub: "Tiêu chuẩn", price: 459000, origPrice: 520000 },
@@ -111,7 +108,7 @@ const customerReviewsData = [
     variant: "30ml",
     comment: "Xem clip review của Nhật xong bấm link mua luôn. Giao hàng GHTK 1 ngày là tới nơi, serum thấm cực nhanh, sáng dậy da căng mịn không đổ dầu. Đóng gói rất cẩn thận 2 lớp bóng khí. Rất hài lòng!",
     verified: true,
-    photos: ["./assets/serum-hero-optimized.jpg", "./assets/toner-bha-product.jpg"]
+    photos: ["./assets/products/real/vitamin-c-15-serum.jpg"]
   },
   {
     id: "rev-02",
@@ -121,7 +118,7 @@ const customerReviewsData = [
     variant: "50ml",
     comment: "Được áp mã NHATXINH10 giảm được gần 50k, hời dã man. Da nhạy cảm như mình dùng không hề rát hay đỏ da. Mình theo dõi kênh của Nhật lâu rồi, thấy review chân thực nên quyết định đặt chai 50ml dưỡng sau mụn. Sau 3 tuần thì các nốt thâm mờ đi trông thấy, da đều màu và mịn màng hơn hẳn. Rất khuyên các bạn nên thử!",
     verified: true,
-    photos: ["./assets/cica-mask-product.jpg"]
+    photos: ["./assets/products/real/vitamin-c-15-serum.jpg"]
   },
   {
     id: "rev-03",

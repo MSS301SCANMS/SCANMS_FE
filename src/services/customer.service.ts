@@ -13,6 +13,7 @@ export interface CustomerProfileResponse {
     email: string;
     fullName: string;
     phoneNumber?: string | null;
+    avatarUrl?: string | null;
     role: string;
     createdAt: string;
   };
@@ -51,6 +52,7 @@ export interface CustomerOrder {
   shippingFee: number | string;
   finalAmount: number | string;
   status: string;
+  overrideReason?: string | null;
   completedAt?: string | null;
   deliveredAt?: string | null;
   policyAcceptedAt?: string | null;
@@ -83,8 +85,12 @@ export interface CustomerReturnRequest {
   details?: string | null;
   imageUrls: string[];
   unboxingVideoUrl: string;
-  status: 'REQUESTED' | 'SHOP_APPROVED' | 'SHOP_REJECTED' | 'DISPUTED' | 'REFUNDED' | 'CLOSED';
+  status: import('./return.service').ReturnStatus;
   deadlineAt: string;
+  shipByAt?: string | null;
+  pickupContact?: import('./return.service').PickupBookingInput | null;
+  returnAddress?: string | null;
+  returnInstructions?: string | null;
   shopResponse?: string | null;
   submittedAt: string;
   updatedAt: string;
@@ -171,13 +177,38 @@ export const customerService = {
     return res?.data?.data || res?.data || res;
   },
 
-  async updateProfile(data: { fullName?: string; phoneNumber?: string }): Promise<any> {
+  async updateProfile(data: { fullName?: string; phoneNumber?: string; avatarUrl?: string }): Promise<any> {
     const res: any = await api.put('/customer/profile', data);
     return res?.data?.data || res?.data || res;
   },
 
   async changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
     const res: any = await api.post('/customer/change-password', data);
+    return res?.data?.data || res?.data || res;
+  },
+
+  async sendPasswordOtp(): Promise<{ success: boolean; maskedEmail: string; message: string; debugOtp?: string }> {
+    const res: any = await api.post('/customer/send-password-otp');
+    return res?.data?.data || res?.data || res;
+  },
+
+  async verifyPasswordOtp(otp: string): Promise<{ success: boolean; message: string }> {
+    const res: any = await api.post('/customer/verify-password-otp', { otp });
+    return res?.data?.data || res?.data || res;
+  },
+
+  async setPasswordWithOtp(data: { otp: string; newPassword: string }): Promise<any> {
+    const res: any = await api.post('/customer/set-password-with-otp', data);
+    return res?.data?.data || res?.data || res;
+  },
+
+  async getIdentity(): Promise<{ isVerified: boolean; fullName: string; idCardNumber: string; address: string; verifiedAt?: string }> {
+    const res: any = await api.get('/customer/identity');
+    return res?.data?.data || res?.data || res;
+  },
+
+  async verifyIdentity(data: { fullName: string; idCardNumber: string; address: string }): Promise<any> {
+    const res: any = await api.post('/customer/identity', data);
     return res?.data?.data || res?.data || res;
   },
 
@@ -198,6 +229,14 @@ export const customerService = {
 
   async cancelOrder(orderId: string, reason?: string): Promise<any> {
     const res: any = await api.post(`/customer/orders/${orderId}/cancel`, { reason });
+    return res?.data?.data || res?.data || res;
+  },
+
+  async requestReturnOrder(
+    orderId: string,
+    data: { reason: string; notes?: string; proofImages?: string[]; proofVideos?: string[] },
+  ): Promise<any> {
+    const res: any = await api.post(`/customer/orders/${orderId}/return`, data);
     return res?.data?.data || res?.data || res;
   },
 

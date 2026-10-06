@@ -1,19 +1,25 @@
 import { useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Share2, Award } from 'lucide-react';
+import { User, ShieldCheck, Share2, Award } from 'lucide-react';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
+import CreatorAccountDetails from './CreatorAccountDetails';
 import KycSubmissionPage from './KycSubmissionPage';
 import SocialChannelsPage from './SocialChannelsPage';
 import KolTierStatusPage from './KolTierStatusPage';
 
 export default function CreatorProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'kyc';
+  const activeTab = searchParams.get('tab') || 'profile';
 
   const handleTabChange = (tabId: string) => {
     setSearchParams({ tab: tabId }, { replace: true });
   };
 
   const tabs: HubTabItem[] = [
+    {
+      id: 'profile',
+      label: 'Hồ Sơ Của Tôi',
+      icon: User,
+    },
     {
       id: 'kyc',
       label: 'Định danh điện tử KYC',
@@ -37,11 +43,15 @@ export default function CreatorProfilePage() {
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
-        title="Hồ Sơ & Cấp Bậc KOL"
-        subtitle="Quản lý hồ sơ định danh điện tử, kết nối kênh mạng xã hội tiếp thị và theo dõi thứ hạng thành tích"
       />
 
       <div className="w-full min-h-[500px]">
+        {activeTab === 'profile' && (
+          <div className="animate-in fade-in-50 duration-200">
+            <CreatorAccountDetails />
+          </div>
+        )}
+
         {activeTab === 'kyc' && (
           <div className="animate-in fade-in-50 duration-200">
             <KycSubmissionPage />

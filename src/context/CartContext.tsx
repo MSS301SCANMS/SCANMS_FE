@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { toast } from '../utils/toast';
 import { authService } from '../services/auth.service';
 import api from '../services/api';
+import { getSafeProductImageUrl } from '../features/marketplace/marketplaceUtils';
 import { customerService } from '../services/customer.service';
+import { normalizeOrderVariantId } from '../utils/orderVariant';
 
 export interface CartVariantInfo {
   id: string;
@@ -16,6 +18,8 @@ export interface CartVariantInfo {
 export interface CartItem {
   cartItemId: string; // `${productId}_${variantId || 'base'}`
   productId: string;
+  liveSessionId?: string;
+  liveCouponCode?: string;
   variantId?: string;
   variantName?: string;
   title: string;
@@ -52,6 +56,8 @@ export interface StoreCartGroup {
 }
 
 interface AddItemParams {
+  liveSessionId?: string;
+  liveCouponCode?: string;
   product: {
     id: string;
     title?: string;
@@ -105,7 +111,9 @@ interface CartContextType {
   isCheckoutOpen: boolean;
   setIsCheckoutOpen: (open: boolean) => void;
   checkoutItems: CartItem[];
-  startCheckout: (customItems?: CartItem[]) => void;
+  checkoutCouponCode?: string;
+  startCheckout: (customItems?: CartItem[], couponCode?: string) => void;
+  buyNow: (params: AddItemParams, couponCode?: string) => void;
   editCheckoutCart: (items: CartItem[]) => void;
   continueShoppingFromCheckout: (items: CartItem[]) => void;
   closeCheckout: () => void;
@@ -115,45 +123,101 @@ interface CartContextType {
   cartSyncedAt: string | null;
 }
 
-const CART_STORAGE_KEY = 'scanms_cart_v1';
-const SELECTED_STORAGE_KEY = 'scanms_cart_selected_v1';
+const getCartStorageKey = (userId?: string | null) => {
+  return userId ? `scanms_cart_u_${userId}` : 'scanms_cart_guest';
+};
+
+const getSelectedStorageKey = (userId?: string | null) => {
+  return userId ? `scanms_cart_selected_u_${userId}` : 'scanms_cart_selected_guest';
+};
+
 const PENDING_CHECKOUT_KEY = 'scanms_pending_checkout';
+const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+const normalizeStoredCartItem = (rawItem: any): CartItem => {
+  const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+  const currentVariantId = typeof item.variantId === 'string' ? item.variantId.trim() : '';
+  const variants = Array.isArray(item.availableVariants) ? item.availableVariants : [];
+  const tokens = new Set(
+    [currentVariantId, item.sku, item.variantName]
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim().toLocaleLowerCase())
+      .filter(Boolean),
+  );
+  const matchedVariant = UUID_RE.test(currentVariantId)
+    ? variants.find((variant: CartVariantInfo) => variant.id === currentVariantId)
+    : variants.find((variant: CartVariantInfo) =>
+        UUID_RE.test(variant.id) &&
+        [variant.id, variant.sku, variant.name]
+          .map((value) => value?.trim().toLocaleLowerCase())
+          .some((token) => token && tokens.has(token)),
+      ) || (variants.length === 1 && UUID_RE.test(String(variants[0]?.id || '')) ? variants[0] : null);
+
+  return {
+    ...item,
+    ...(matchedVariant
+      ? {
+          variantId: matchedVariant.id,
+          variantName: matchedVariant.name || item.variantName,
+          sku: matchedVariant.sku || item.sku,
+          price: matchedVariant.price !== null && matchedVariant.price !== undefined
+            ? Number(matchedVariant.price)
+            : item.price,
+          stockQuantity: matchedVariant.stockQuantity ?? item.stockQuantity,
+        }
+      : {}),
+    imageUrl: getSafeProductImageUrl(item.imageUrl, item.title, item.variantName),
+  } as CartItem;
+};
+
+const loadCartFromStorage = (uid: string | null): CartItem[] => {
+  try {
+    const key = getCartStorageKey(uid);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.map(normalizeStoredCartItem);
+      }
+    }
+  } catch {
+    // Fallback
+  }
+  return [];
+};
+
+const loadSelectedFromStorage = (uid: string | null): string[] => {
+  try {
+    const key = getSelectedStorageKey(uid);
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // Fallback
+  }
+  return [];
+};
+
 const CART_OWNER_KEY = 'scanms_cart_owner';
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Initialize cart from LocalStorage
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // Fallback empty
-    }
-    return [];
-  });
+  const getInitialUserId = () => authService.getCurrentUser()?.id || null;
+  const [activeUserId, setActiveUserId] = useState<string | null>(getInitialUserId);
 
-  // 2. Initialize selected items
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(SELECTED_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // Fallback
-    }
-    return [];
-  });
+  // 1. Initialize user-scoped cart from LocalStorage
+  const [cart, setCart] = useState<CartItem[]>(() => loadCartFromStorage(getInitialUserId()));
+
+  // 2. Initialize selected items for active user
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>(() => loadSelectedFromStorage(getInitialUserId()));
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
+  const [checkoutCouponCode, setCheckoutCouponCode] = useState<string>('');
   const [isValidatingStock, setIsValidatingStock] = useState(false);
   const [isCartSyncing, setIsCartSyncing] = useState(false);
   const [cartSyncedAt, setCartSyncedAt] = useState<string | null>(null);
@@ -198,7 +262,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // subsequent sign-ins. Only an unowned guest cart may be merged.
         const localItems = previousOwner ? [] : cart;
         const merged = new Map<string, CartItem>();
-        for (const item of remote.items || []) merged.set(item.cartItemId, item as CartItem);
+        for (const item of remote.items || []) {
+          const local = loadCartFromStorage(user.id).find((saved) => saved.cartItemId === item.cartItemId);
+          merged.set(item.cartItemId, { ...item, liveSessionId: local?.liveSessionId, liveCouponCode: local?.liveCouponCode } as CartItem);
+        }
         for (const item of localItems) {
           const existing = merged.get(item.cartItemId);
           merged.set(item.cartItemId, existing
@@ -215,7 +282,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (localItems.length > 0) {
           const synced = await customerService.syncCart(next.map((item) => ({
             productId: item.productId,
-            variantId: item.variantId,
+            variantId: normalizeOrderVariantId(item.variantId),
             quantity: item.quantity,
           })));
           if (active) setCartSyncedAt(synced.syncedAt || new Date().toISOString());
@@ -242,7 +309,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       customerService
         .syncCart(cart.map((item) => ({
           productId: item.productId,
-          variantId: item.variantId,
+          variantId: normalizeOrderVariantId(item.variantId),
           quantity: item.quantity,
         })))
         .then((result) => setCartSyncedAt(result.syncedAt || new Date().toISOString()))
@@ -252,23 +319,108 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.clearTimeout(timer);
   }, [cart]);
 
-  // Sync cart to localStorage
+  // Clear legacy shared un-scoped cart so it never leaks between different accounts
   useEffect(() => {
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+      localStorage.removeItem('scanms_cart_v1');
+      localStorage.removeItem('scanms_cart_selected_v1');
+    } catch {}
+  }, []);
+
+  // Listen to user changes (login, logout, switch account) and update cart accordingly
+  useEffect(() => {
+    const handleUserChange = () => {
+      const currentUid = authService.getCurrentUser()?.id || null;
+      if (currentUid !== activeUserId) {
+        setActiveUserId(currentUid);
+        const userCart = loadCartFromStorage(currentUid);
+        setCart(userCart);
+        setSelectedItemIds(loadSelectedFromStorage(currentUid));
+      }
+    };
+
+    window.addEventListener('auth-user-updated', handleUserChange);
+    window.addEventListener('storage', handleUserChange);
+    return () => {
+      window.removeEventListener('auth-user-updated', handleUserChange);
+      window.removeEventListener('storage', handleUserChange);
+    };
+  }, [activeUserId]);
+
+  // Sync cart to active user's localStorage
+  useEffect(() => {
+    try {
+      const key = getCartStorageKey(activeUserId);
+      localStorage.setItem(key, JSON.stringify(cart));
     } catch (err) {
       console.error('Failed to save cart to localStorage', err);
     }
-  }, [cart]);
+  }, [cart, activeUserId]);
 
-  // Sync selectedItemIds to localStorage
+  // Sync selectedItemIds to active user's localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(SELECTED_STORAGE_KEY, JSON.stringify(selectedItemIds));
+      const key = getSelectedStorageKey(activeUserId);
+      localStorage.setItem(key, JSON.stringify(selectedItemIds));
     } catch (err) {
       console.error('Failed to save selectedItemIds to localStorage', err);
     }
-  }, [selectedItemIds]);
+  }, [selectedItemIds, activeUserId]);
+
+  // A cart item stores a product photo snapshot. Refresh legacy photo URLs so
+  // an image corrected in the catalogue is also corrected in an existing cart.
+  useEffect(() => {
+    let cancelled = false;
+    const staleProductIds = Array.from(new Set(
+      cart
+        .filter(({ imageUrl }) =>
+          imageUrl.includes('/scanms/products/') ||
+          (imageUrl.startsWith('/assets/products/') && !imageUrl.startsWith('/assets/products/real/')),
+        )
+        .map(({ productId }) => productId)
+        .filter(Boolean),
+    ));
+
+    if (staleProductIds.length === 0) return;
+
+    const refreshImages = async () => {
+      const imageByProductId = new Map<string, string>();
+      await Promise.all(staleProductIds.map(async (productId) => {
+        try {
+          const response: any = await api.get(
+            `/public/products/${encodeURIComponent(productId)}/landing`,
+            { headers: { 'x-skip-cache': 'true' } },
+          );
+          const payload = response?.product
+            ? response
+            : response?.data?.product
+              ? response.data
+              : response?.data?.data || response?.data || response;
+          const imageUrl = payload?.images?.[0] || payload?.product?.imageUrl;
+          if (typeof imageUrl === 'string' && imageUrl.trim()) {
+            imageByProductId.set(productId, imageUrl.trim());
+          }
+        } catch {
+          // Keep the saved cart usable if the catalogue is temporarily offline.
+        }
+      }));
+
+      if (cancelled || imageByProductId.size === 0) return;
+      const refreshItem = (item: CartItem): CartItem => {
+        const imageUrl = imageByProductId.get(item.productId);
+        return imageUrl
+          ? { ...item, imageUrl: getSafeProductImageUrl(imageUrl, item.title, item.variantName) }
+          : item;
+      };
+      setCart((previous) => previous.map(refreshItem));
+      setCheckoutItems((previous) => previous.map(refreshItem));
+    };
+
+    void refreshImages();
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, activeUserId]);
 
   // Ensure selectedItemIds only contains items currently in cart
   useEffect(() => {
@@ -393,9 +545,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add Item to Cart
   const addItem = useCallback(
-    ({ product, variantId, quantity = 1, store, openCartAfterAdd = true }: AddItemParams) => {
+    ({ product, variantId, quantity = 1, store, openCartAfterAdd = true, liveSessionId, liveCouponCode }: AddItemParams) => {
       const prodTitle = product.title || product.name || 'Sản phẩm';
-      const prodImage = product.imageUrl || product.image || '/assets/marketplace/scanms-placeholder.png';
+      const prodImage = getSafeProductImageUrl(product.imageUrl || product.image, prodTitle);
       const availableVariants = product.variants || [];
 
       // Find variant if specified
@@ -445,12 +597,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             quantity: newQty,
             stockQuantity: availableStock,
             price: finalPrice,
+            liveSessionId,
+            liveCouponCode,
           };
           return next;
         }
 
         // Add new item
         const newItem: CartItem = {
+          liveSessionId,
+          liveCouponCode,
           cartItemId,
           productId: product.id,
           variantId,
@@ -634,14 +790,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearCart = useCallback(() => {
     setCart([]);
     setSelectedItemIds([]);
-    localStorage.removeItem(CART_STORAGE_KEY);
-    localStorage.removeItem(SELECTED_STORAGE_KEY);
-  }, []);
+    try {
+      localStorage.removeItem(getCartStorageKey(activeUserId));
+      localStorage.removeItem(getSelectedStorageKey(activeUserId));
+    } catch {}
+  }, [activeUserId]);
 
   // Start checkout flow (Requirement 4 & 5)
   const startCheckout = useCallback(
-    (customItems?: CartItem[]) => {
-      const itemsToCheckout = customItems || selectedItems;
+    (customItems?: CartItem[], couponCode?: string) => {
+      const itemsToCheckout = customItems && customItems.length > 0 ? customItems : selectedItems;
 
       if (!itemsToCheckout || itemsToCheckout.length === 0) {
         toast.warning('Vui lòng chọn ít nhất 1 sản phẩm để tiến hành đặt hàng.');
@@ -670,10 +828,100 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // User logged in: open checkout modal with selected items
       setCheckoutItems(itemsToCheckout);
+      if (couponCode !== undefined) {
+        setCheckoutCouponCode(couponCode);
+      }
       setIsCartOpen(false);
       setIsCheckoutOpen(true);
     },
     [selectedItems],
+  );
+
+  // Mua ngay sản phẩm trực tiếp (Instant Buy): lập tức mở thanh toán cho sản phẩm được chọn mà không cần chờ chọn checkbox
+  const buyNow = useCallback(
+    (params: AddItemParams, couponCode?: string) => {
+      const prodTitle = params.product.title || params.product.name || 'Sản phẩm';
+      const prodImage = getSafeProductImageUrl(params.product.imageUrl || params.product.image, prodTitle);
+      const availableVariants = params.product.variants || [];
+
+      let matchedVariant: CartVariantInfo | undefined;
+      let finalPrice = Number(params.product.price || 0);
+      let finalSku = params.product.sku || '';
+      let availableStock = Number(params.product.stockQuantity ?? 9999);
+
+      let variantId = params.variantId;
+      if (variantId && availableVariants.length > 0) {
+        matchedVariant = availableVariants.find((v) => v.id === variantId);
+        if (matchedVariant) {
+          if (matchedVariant.price !== null && matchedVariant.price !== undefined) {
+            finalPrice = Number(matchedVariant.price);
+          }
+          finalSku = matchedVariant.sku || finalSku;
+          availableStock = Number(matchedVariant.stockQuantity || 0);
+        }
+      } else if (availableVariants.length > 0) {
+        matchedVariant = availableVariants.find((v) => v.stockQuantity > 0) || availableVariants[0];
+        if (matchedVariant) {
+          variantId = matchedVariant.id;
+          if (matchedVariant.price !== null && matchedVariant.price !== undefined) {
+            finalPrice = Number(matchedVariant.price);
+          }
+          finalSku = matchedVariant.sku || finalSku;
+          availableStock = Number(matchedVariant.stockQuantity || 0);
+        }
+      }
+
+      if (availableStock <= 0) {
+        toast.error(`Sản phẩm "${prodTitle}" hiện đã hết hàng.`);
+        return;
+      }
+
+      const cartItemId = `${params.product.id}_${variantId || 'base'}`;
+      const qty = params.quantity || 1;
+
+      const directItem: CartItem = {
+        liveSessionId: params.liveSessionId,
+        liveCouponCode: params.liveCouponCode,
+        cartItemId,
+        productId: params.product.id,
+        variantId,
+        variantName: matchedVariant?.name,
+        title: prodTitle,
+        sku: finalSku,
+        price: finalPrice,
+        originalPrice: params.product.originalPrice ? Number(params.product.originalPrice) : (params.product.origPrice ? Number(params.product.origPrice) : undefined),
+        imageUrl: prodImage,
+        quantity: Math.min(qty, availableStock),
+        stockQuantity: availableStock,
+        isActive: params.product.isActive !== false,
+        store: {
+          id: params.store.id,
+          name: params.store.name,
+          slug: params.store.slug,
+          logoUrl: params.store.logoUrl,
+          policyReturn: params.store.policyReturn,
+          policyWarranty: params.store.policyWarranty,
+          policyShipping: params.store.policyShipping,
+        },
+        availableVariants,
+      };
+
+      // Đồng thời thêm vào giỏ hàng
+      setCart((prev) => {
+        const existingIndex = prev.findIndex((item) => item.cartItemId === cartItemId);
+        if (existingIndex >= 0) {
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], quantity: Math.min(next[existingIndex].quantity + qty, availableStock) };
+          return next;
+        }
+        return [...prev, directItem];
+      });
+      setSelectedItemIds((prev) => (prev.includes(cartItemId) ? prev : [...prev, cartItemId]));
+
+      // Kích hoạt ngay thanh toán với món hàng này
+      startCheckout([directItem], couponCode);
+    },
+    [startCheckout],
   );
 
   // Preserve direct-buy items in the shared cart without doubling an existing variant.
@@ -711,6 +959,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeCheckout = useCallback(() => {
     setIsCheckoutOpen(false);
     setCheckoutItems([]);
+    setCheckoutCouponCode('');
   }, []);
 
   // Real-time stock & price validation (Requirement 6)
@@ -721,7 +970,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res: any = await api.post('/orders/validate-cart', {
         items: cart.map((i) => ({
           productId: i.productId,
-          variantId: i.variantId,
+          variantId: normalizeOrderVariantId(i.variantId),
           quantity: i.quantity,
           clientPrice: i.price,
         })),
@@ -784,7 +1033,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isCheckoutOpen,
       setIsCheckoutOpen,
       checkoutItems,
+      checkoutCouponCode,
       startCheckout,
+      buyNow,
       editCheckoutCart,
       continueShoppingFromCheckout,
       closeCheckout,
@@ -816,7 +1067,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       selectedItems,
       isCheckoutOpen,
       checkoutItems,
+      checkoutCouponCode,
       startCheckout,
+      buyNow,
       editCheckoutCart,
       continueShoppingFromCheckout,
       closeCheckout,

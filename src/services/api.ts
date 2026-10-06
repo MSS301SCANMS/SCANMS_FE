@@ -20,6 +20,9 @@ api.interceptors.request.use(
     // Client Memory Cache Hit: Nếu là GET request hợp lệ và chưa hết hạn, trả về ngay từ cache không cần chờ mạng
     const isGet = (config.method || 'get').toLowerCase() === 'get';
     const skipCache = Boolean((config.headers as any)?.['x-skip-cache']);
+    if (config.headers && (config.headers as any)['x-skip-cache']) {
+      delete (config.headers as any)['x-skip-cache'];
+    }
 
     if (isGet && !skipCache && config.url && apiCache.isCacheable(config.url)) {
       const cachedData = apiCache.get(config.url, config.params);

@@ -5,13 +5,13 @@ import {
   Store,
   User,
   ShieldAlert,
-  ShieldCheck,
   CheckCircle2,
   Loader2,
   Percent,
   Eye,
   Lock,
   Unlock,
+  RefreshCw,
 } from 'lucide-react';
 import {
   couponService,
@@ -184,26 +184,8 @@ export const AdminCouponsPage: React.FC = () => {
   const totalRedemptions = coupons.reduce((acc, curr) => acc + (curr.usageCount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
-      <div className="max-w-[1520px] mx-auto mb-8">
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6 mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Quản Trị Toàn Sàn (FR-12 Admin)
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1612]">
-              Quản Trị Coupon & Mã Giảm Giá Toàn Sàn
-            </h1>
-            <p className="text-sm sm:text-base text-[#7D715E] mt-1">
-              Giám sát toàn bộ mã ưu đãi của các KOL và Gian hàng. Khóa mã gian lận hoặc can thiệp xử lý khi có vi phạm chính sách.
-            </p>
-          </div>
-        </div>
-
+    <div className="min-h-screen w-full min-w-0 bg-[#FAF8F5] px-0 py-4 text-[#1A1612] sm:py-6 lg:py-8">
+      <div className="w-full min-w-0 mx-auto mb-8">
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
@@ -273,6 +255,17 @@ export const AdminCouponsPage: React.FC = () => {
                 {tab.label}
               </button>
             ))}
+
+            <button
+              type="button"
+              onClick={fetchCoupons}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF8F5] hover:bg-[#F3EFE6] text-[#1A1612] border border-[#EAE4D7] hover:border-[#C59B58] transition cursor-pointer disabled:opacity-50 shrink-0"
+              title="Làm mới dữ liệu"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
+              <span>Làm mới</span>
+            </button>
           </div>
         </div>
 
@@ -576,4 +569,3 @@ export const AdminCouponsPage: React.FC = () => {
 };
 
 export default AdminCouponsPage;
-

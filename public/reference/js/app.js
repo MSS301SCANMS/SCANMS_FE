@@ -57,7 +57,7 @@ import {
 
 import { compressAvatarImage, safeSaveProfile } from './image-utils.js';
 
-const productImage = "./assets/serum-hero-optimized.jpg";
+const productImage = "./assets/products/real/vitamin-c-15-serum.jpg";
 
 const screens = [
   // ==========================================

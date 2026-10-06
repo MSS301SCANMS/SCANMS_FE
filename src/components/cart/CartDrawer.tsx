@@ -11,7 +11,8 @@ import {
   Truck,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { formatMoney } from '../../features/marketplace/marketplaceUtils';
+import { formatMoney, getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { Select } from '../ui/Select';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -227,12 +228,15 @@ export const CartDrawer: React.FC = () => {
                               {/* Product Image */}
                               <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-white border border-[#EAE4D7] overflow-hidden shrink-0 relative">
                                 <img
-                                  src={item.imageUrl}
+                                  src={getSafeProductImageUrl(item.imageUrl, item.title, item.variantName)}
                                   alt={item.title}
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
-                                    (e.target as HTMLImageElement).src =
-                                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23F3EFE6'/%3E%3Ctext x='40' y='44' font-size='10' text-anchor='middle' fill='%23B88E4F'%3ESCANMS%3C/text%3E%3C/svg%3E";
+                                    const target = e.currentTarget as HTMLImageElement;
+                                    if (!target.dataset.hasFallback) {
+                                      target.dataset.hasFallback = 'true';
+                                      target.src = getSafeProductImageUrl(null, item.title);
+                                    }
                                   }}
                                 />
                               </div>
@@ -261,17 +265,17 @@ export const CartDrawer: React.FC = () => {
                                   <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                     {hasVariants ? (
                                       <div className="relative inline-block">
-                                        <select
+                                        <Select
                                           value={item.variantId || ''}
                                           onChange={(e) => updateVariant(item.cartItemId, e.target.value)}
-                                          className="text-[11px] font-semibold bg-white border border-[#EAE4D7] rounded-lg px-2 py-0.5 text-[#1A1612] hover:border-[#C59B58] focus:outline-none focus:ring-1 focus:ring-[#C59B58] cursor-pointer"
+                                          className="text-[11px] font-semibold bg-white border border-[#EAE4D7] rounded-lg px-2 py-0.5 text-[#1A1612] hover:border-[#C59B58] focus:outline-none focus:ring-1 focus:ring-[#C59B58] cursor-pointer min-w-[110px]"
                                         >
                                           {item.availableVariants?.map((v) => (
                                             <option key={v.id} value={v.id}>
                                               {v.name} ({v.stockQuantity > 0 ? `Còn ${v.stockQuantity}` : 'Hết'})
                                             </option>
                                           ))}
-                                        </select>
+                                        </Select>
                                       </div>
                                     ) : item.variantName ? (
                                       <span className="px-2 py-0.5 rounded-md bg-[#F3EFE6] text-[#7D715E] text-[10px] font-semibold border border-[#EAE4D7]">

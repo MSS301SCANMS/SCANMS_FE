@@ -75,6 +75,20 @@
   box-sizing: border-box;
 }
 
+::selection {
+  background-color: #EEDFC6;
+  color: #1A1612;
+}
+
+::-moz-selection {
+  background-color: #EEDFC6;
+  color: #1A1612;
+}
+
+input, select, textarea {
+  color-scheme: light;
+}
+
 html {
   background: var(--canvas);
   scroll-behavior: smooth;
@@ -156,19 +170,34 @@ p, .font-body {
   background: transparent;
 }
 
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 a {
   color: inherit;
   text-decoration: none !important;
   -webkit-tap-highlight-color: transparent;
 }
 
-button, input, select, textarea {
-  font: inherit;
+button, input, html,
+body,
+:root {
+  color-scheme: light !important;
+  supported-color-schemes: light;
 }
 
-button {
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+* {
+  color-scheme: light !important;
 }
 
 img {
@@ -324,27 +353,72 @@ img {
   opacity: 1;
   transform: translateY(0);
 }
-
-
+/* BẮT BUỘC TONE SÁNG TOÀN DIỆN CHO TẤT CẢ Ô CHỌN (SELECT, OPTION, PICKER, INPUT, DIALOG) */
+:root,
+html,
+body,
+#root,
 select,
-select option,
-select optgroup {
+option,
+optgroup,
+input,
+textarea,
+dialog,
+button {
   color-scheme: light !important;
-  background-color: #FAF8F5 !important;
+  supported-color-schemes: light !important;
+}
+
+select {
+  color-scheme: light !important;
+  accent-color: #C59B58 !important;
+  background-color: #FFFFFF !important;
   color: #1A1612 !important;
   border-color: #EAE4D7 !important;
 }
 
-select:focus {
+select:focus,
+select:focus-visible {
   border-color: #C59B58 !important;
   outline: none !important;
+  box-shadow: 0 0 0 2px rgba(197, 155, 88, 0.2) !important;
+}
+
+select option,
+select optgroup {
+  color-scheme: light !important;
+  background-color: #FFFFFF !important;
+  color: #1A1612 !important;
+  padding: 8px 12px !important;
+}
+
+select option:checked,
+select option[selected] {
+  background-color: #FBF5EB !important;
+  color: #B88E4F !important;
+  font-weight: 600 !important;
 }
 
 select option:hover,
-select option:focus,
-select option:checked {
+select option:focus {
   background-color: #F3EFE6 !important;
-  color: #B88E4F !important;
+  color: #1A1612 !important;
+}
+
+::selection {
+  background-color: #EEDFC6 !important;
+  color: #1A1612 !important;
+}
+
+::-moz-selection {
+  background-color: #EEDFC6 !important;
+  color: #1A1612 !important;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: #C59B58 !important;
 }
 
 /* Keep labels readable on the lighter gold primary and hover fills. */
@@ -398,3 +472,141 @@ button[class~="hover:!bg-brand-strong"]:hover {
   background-color: #B88E4F !important;
   color: #231D15 !important;
 }
+
+/* ========================================================================= */
+/* SCANMS PREMIUM TOAST NOTIFICATIONS (CHUẨN SÀN SHOPEE, TIKTOK SHOP, LAZADA) */
+/* ========================================================================= */
+[data-sonner-toaster] {
+  --normal-bg: #FFFFFF;
+  --normal-border: #EAE4D7;
+  --normal-text: #1A1612;
+  font-family: var(--font-sans, "Plus Jakarta Sans", sans-serif) !important;
+  z-index: 999999 !important;
+}
+
+[data-sonner-toast] {
+  padding: 6px 14px !important;
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid #EEDFC6 !important;
+  box-shadow: 0 8px 24px -2px rgba(26, 22, 18, 0.16), 0 2px 6px -1px rgba(26, 22, 18, 0.05) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 34px !important;
+  width: fit-content !important;
+  max-width: min(88vw, 380px) !important;
+  font-family: inherit !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Hover state */
+[data-sonner-toast]:hover {
+  box-shadow: 0 12px 28px -4px rgba(26, 22, 18, 0.2), 0 4px 10px -2px rgba(26, 22, 18, 0.08) !important;
+  transform: translateY(-1px) scale(1.01) !important;
+}
+
+[data-sonner-toast] [data-icon] {
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+[data-sonner-toast] [data-content] {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 0px !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: #1A1612 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 310px !important;
+}
+
+[data-sonner-toast] [data-description] {
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  color: #7D715E !important;
+}
+
+/* Accent borders for distinct toast types */
+[data-sonner-toast][data-type="success"] {
+  border-color: #A7F3D0 !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  border-color: #FECACA !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+}
+
+[data-sonner-toast][data-type="warning"] {
+  border-color: #FDE68A !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+}
+
+[data-sonner-toast][data-type="info"] {
+  border-color: #EEDFC6 !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+}
+
+/* Remove default close button clipping */
+[data-sonner-toast] [data-close-button] {
+  display: none !important;
+}
+
+/* TIKTOK / FACEBOOK LIVE STREAM FLOATING REACTION EMOJIS (Snappy, Authentic 3D Physics) */
+@keyframes liveFloatingReaction {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.2) rotate(var(--rot-start, 0deg));
+    opacity: 0;
+  }
+  8% {
+    /* Explosive Spring Pop */
+    transform: translate3d(calc(var(--drift-x, 0px) * 0.08), -24px, 0) scale(1.38) rotate(var(--rot-mid, 6deg));
+    opacity: 1;
+  }
+  22% {
+    /* High velocity vertical climb with natural aerodynamic sway */
+    transform: translate3d(calc(var(--drift-x, 0px) * 0.25 + var(--sway, 16px)), -125px, 0) scale(1.18) rotate(calc(var(--rot-mid, 6deg) * -1));
+    opacity: 1;
+  }
+  48% {
+    /* Flowing sway to opposite side */
+    transform: translate3d(calc(var(--drift-x, 0px) * 0.55 - var(--sway, 16px) * 1.15), -290px, 0) scale(1.06) rotate(calc(var(--rot-mid, 6deg) * 1.2));
+    opacity: 0.98;
+  }
+  75% {
+    /* High trajectory into upper zone */
+    transform: translate3d(calc(var(--drift-x, 0px) * 0.82 + var(--sway, 16px) * 0.7), -470px, 0) scale(0.94) rotate(calc(var(--rot-mid, 6deg) * -0.75));
+    opacity: 0.85;
+  }
+  92% {
+    /* Fade out near top of stage */
+    transform: translate3d(calc(var(--drift-x, 0px) * 0.95 - var(--sway, 16px) * 0.25), -590px, 0) scale(0.82) rotate(calc(var(--rot-mid, 6deg) * 0.4));
+    opacity: 0.4;
+  }
+  100% {
+    /* Fully dissolve */
+    transform: translate3d(var(--drift-x, 0px), -650px, 0) scale(0.65) rotate(var(--rot-end, 18deg));
+    opacity: 0;
+  }
+}
+
+.animate-floating-reaction {
+  animation: liveFloatingReaction var(--reaction-duration, 1.1s) cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+

@@ -34,6 +34,8 @@ export interface MyRankStatus {
   rankDelta: number;
   myRevenue: number;
   myOrders: number;
+  myConversionRate: number;
+  myCommission: number;
   gapToTop10Revenue: number;
   gapToNextRankRevenue: number;
   currentPeriodLabel: string;

@@ -50,7 +50,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       amber:
         'bg-[#EBD08C] text-white hover:bg-[#DEC07A] shadow-xs focus:ring-[#C59B58]',
       dark:
-        'bg-[#1A1612] text-white hover:bg-[#382E21] shadow-xs focus:ring-[#1A1612]',
+        'bg-[#C59B58] text-[#231D15] hover:bg-[#B88E4F] shadow-xs focus:ring-[#C59B58]',
     };
 
     return (

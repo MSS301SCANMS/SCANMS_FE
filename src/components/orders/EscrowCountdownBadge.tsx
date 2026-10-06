@@ -105,25 +105,25 @@ export const EscrowCountdownBadge: React.FC<EscrowCountdownBadgeProps> = ({
 
       {/* Tooltip giải thích chi tiết cơ chế bảo chứng của sàn */}
       {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-[#1A1612] text-white text-[11px] rounded-xl shadow-xl z-50 pointer-events-none text-left leading-relaxed border border-[#3E3529]">
-          <div className="flex items-center gap-1.5 text-[#C59B58] font-bold pb-1.5 border-b border-white/10 mb-1.5">
-            <ShieldCheck className="w-4 h-4" />
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3.5 bg-white text-[#1A1612] text-[11px] rounded-xl shadow-xl z-50 pointer-events-none text-left leading-relaxed border border-[#EEDFC6]">
+          <div className="flex items-center gap-1.5 text-[#B88E4F] font-bold pb-1.5 border-b border-[#EAE4D7] mb-1.5">
+            <ShieldCheck className="w-4 h-4 text-[#B88E4F]" />
             <span>Quỹ Bảo Chứng Escrow SCANMS</span>
           </div>
-          <p className="text-gray-200">
-            Hoa hồng được sàn giữ an toàn tối thiểu <strong>14 ngày</strong> để đảm bảo khách nhận hàng, đồng kiểm và không phát sinh khiếu nại đổi trả.
+          <p className="text-[#7D715E]">
+            Hoa hồng được sàn giữ an toàn tối thiểu <strong className="text-[#1A1612]">14 ngày</strong> để đảm bảo khách nhận hàng, đồng kiểm và không phát sinh khiếu nại đổi trả.
           </p>
           {holidayDaysAdded > 0 && (
-            <p className="mt-1.5 text-[#EEDFC6] font-medium flex items-start gap-1">
+            <p className="mt-1.5 text-[#8C6226] font-medium flex items-start gap-1">
               <Calendar className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
                 Bộ đếm đã tự động gia hạn thêm <strong>+{holidayDaysAdded} ngày</strong> do rơi vào kỳ nghỉ Lễ/Tết chính thức của Việt Nam.
               </span>
             </p>
           )}
-          <div className="mt-2 text-[10px] text-gray-400 border-t border-white/10 pt-1">
+          <div className="mt-2 text-[10px] text-[#7D715E] border-t border-[#EAE4D7] pt-1">
             Ngày giải ngân dự kiến:{' '}
-            <span className="text-white font-mono">
+            <span className="text-[#1A1612] font-mono font-bold">
               {new Date(availableAt).toLocaleDateString('vi-VN')}
             </span>
           </div>

@@ -16,6 +16,8 @@ import {
   MapPin,
   Heart,
   User,
+  Package,
+  Radio,
   type LucideProps,
 } from 'lucide-react';
 
@@ -51,6 +53,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
       { path: '/collaborator/dashboard', label: 'Tổng quan & Doanh số', icon: TrendingUp },
       { path: '/collaborator/marketing', label: 'Trung tâm Tiếp thị', icon: Link2 },
       { path: '/collaborator/collaboration', label: 'Hợp tác & Liên hệ Shop', icon: MessageSquare },
+      { path: '/collaborator/live-sessions', label: 'Phiên Livestream', icon: Radio },
       { path: '/collaborator/wallet', label: 'Ví & Rút hoa hồng', icon: Wallet },
       { path: '/collaborator/profile', label: 'Hồ sơ & Cấp bậc KOL', icon: ShieldCheck },
     ],
@@ -77,10 +80,11 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     items: [
       { path: '/admin/analytics', label: 'Báo cáo Doanh số & Sàn', icon: TrendingUp },
       { path: '/admin/users', label: 'Tài khoản & Phân quyền', icon: Users },
+      { path: '/admin/sample-requests', label: 'Quản trị hàng mẫu KOL', icon: Package },
+      { path: '/admin/product-moderation', label: 'Kiểm duyệt sản phẩm', icon: Box },
       { path: '/admin/affiliate-oversight', label: 'Tiếp thị & Dòng tiền Sàn', icon: Link2 },
       { path: '/merchant/fraud-sentinel', label: 'AI Giám sát Gian lận Sàn', icon: ShieldAlert },
       { path: '/admin/audit-logs', label: 'Nhật ký Kiểm toán Toàn sàn', icon: ShieldCheck },
-      { path: '/merchant/settings', label: 'Cấu hình Chính sách Sàn', icon: Settings },
     ],
   },
   SYSTEM_MANAGER: {
@@ -88,6 +92,8 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     subTitle: 'Chuyên Viên Vận Hành Sàn',
     items: [
       { path: '/admin/users', label: 'Thẩm định & Duyệt KYC', icon: Users },
+      { path: '/admin/sample-requests', label: 'Quản trị hàng mẫu KOL', icon: Package },
+      { path: '/admin/product-moderation', label: 'Kiểm duyệt sản phẩm', icon: Box },
       { path: '/merchant/products', label: 'Kiểm duyệt Hàng hóa & Shop', icon: Box },
       { path: '/merchant/fraud-sentinel', label: 'AI Chống gian lận Traffic', icon: ShieldAlert },
       { path: '/admin/affiliate-oversight', label: 'Giám sát Link & Khuyến mãi', icon: Link2 },

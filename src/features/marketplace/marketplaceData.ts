@@ -18,7 +18,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 520000,
     price: 459000,
     kolDiscountPrice: 413100,
-    image: "/reference/assets/serum-hero-optimized.jpg",
+    image: "/assets/products/real/vitamin-c-15-serum.jpg",
     kol: {
       name: "Trần Văn Nhật",
       handle: "@nhatbeauty",
@@ -39,7 +39,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 430000,
     price: 389000,
     kolDiscountPrice: 350100,
-    image: "/reference/assets/sunscreen-product.jpg",
+    image: "/assets/products/real/spf50-oil-control.jpg",
     kol: {
       name: "Lê Mai Anh",
       handle: "@maianh.beauty",
@@ -60,7 +60,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 390000,
     price: 349000,
     kolDiscountPrice: 314100,
-    image: "/reference/assets/toner-bha-product.jpg",
+    image: "/assets/products/real/bha-toner-2pct.png",
     kol: {
       name: "Lê Mai Anh",
       handle: "@maianh.beauty",
@@ -80,7 +80,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 220000,
     price: 189000,
     kolDiscountPrice: 170100,
-    image: "/reference/assets/cica-mask-product.jpg",
+    image: "/assets/products/real/centella-sheet-mask.jpg",
     kol: {
       name: "Trần Văn Nhật",
       handle: "@nhatbeauty",
@@ -100,7 +100,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 310000,
     price: 279000,
     kolDiscountPrice: 251100,
-    image: "/reference/assets/cleanser-product.jpg",
+    image: "/assets/products/real/amino-cleanser-ph55.jpg",
     kol: {
       name: "Phạm Khánh Linh",
       handle: "@linhskincare",
@@ -121,7 +121,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 1450000,
     price: 1250000,
     kolDiscountPrice: 1125000,
-    image: "/reference/assets/shop-ctv-collab-hero.jpg",
+    image: "/assets/products/real/air-fryer-65l.jpg",
     kol: {
       name: "Tuấn Review",
       handle: "@tuanreview",
@@ -142,7 +142,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 320000,
     price: 265000,
     kolDiscountPrice: 238500,
-    image: "/reference/assets/toner-bha-product.jpg",
+    image: "/assets/products/real/thermos-500ml.jpg",
     kol: {
       name: "Phạm Khánh Linh",
       handle: "@linhskincare",
@@ -162,7 +162,7 @@ export const marketplaceProducts: Product[] = [
     origPrice: 990000,
     price: 890000,
     kolDiscountPrice: 801000,
-    image: "/reference/assets/creator-shop-collab-hero.jpg",
+    image: "/assets/products/real/keyboard-tri-mode.webp",
     kol: {
       name: "Tuấn Review",
       handle: "@tuanreview",
@@ -302,7 +302,7 @@ export const marketplaceVideos: ReviewVideo[] = [
     duration: "00:45",
     productId: "P01",
     coupon: "NHATXINH10",
-    thumbnail: "/reference/assets/serum-hero-optimized.jpg"
+    thumbnail: "/assets/products/real/vitamin-c-15-serum.jpg"
   },
   {
     id: "vid-02",
@@ -313,7 +313,7 @@ export const marketplaceVideos: ReviewVideo[] = [
     duration: "00:58",
     productId: "P02",
     coupon: "MAIANH12",
-    thumbnail: "/reference/assets/sunscreen-product.jpg"
+    thumbnail: "/assets/products/real/spf50-oil-control.jpg"
   },
   {
     id: "vid-03",
@@ -324,7 +324,7 @@ export const marketplaceVideos: ReviewVideo[] = [
     duration: "00:32",
     productId: "P04",
     coupon: "NHATXINH10",
-    thumbnail: "/reference/assets/cica-mask-product.jpg"
+    thumbnail: "/assets/products/real/centella-sheet-mask.jpg"
   },
   {
     id: "vid-04",
@@ -335,7 +335,7 @@ export const marketplaceVideos: ReviewVideo[] = [
     duration: "01:15",
     productId: "P06",
     coupon: "TUANREVIEW",
-    thumbnail: "/reference/assets/shop-ctv-collab-hero.jpg"
+    thumbnail: "/assets/products/real/air-fryer-65l.jpg"
   }
 ];
 

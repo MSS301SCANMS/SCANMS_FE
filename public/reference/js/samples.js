@@ -4,11 +4,11 @@
 // Bổ sung đầy đủ 7 tính năng UX/UI: Kiểm tra form, Hủy giữ lịch sử, Lưu localStorage, Luồng gửi, Logistics Shipper, Chat ngữ cảnh & Chính sách chiến dịch
 // =====================================================================
 
-const serumImage = "./assets/serum-hero-optimized.jpg";
-const sunscreenImage = "./assets/sunscreen-product.jpg";
-const tonerImage = "./assets/toner-bha-product.jpg";
-const cleanserImage = "./assets/cleanser-product.jpg";
-const cicaMaskImage = "./assets/cica-mask-product.jpg";
+const serumImage = "./assets/products/real/vitamin-c-15-serum.jpg";
+const sunscreenImage = "./assets/products/real/spf50-oil-control.jpg";
+const tonerImage = "./assets/products/real/bha-toner-2pct.png";
+const cleanserImage = "./assets/products/real/amino-cleanser-ph55.jpg";
+const cicaMaskImage = "./assets/products/real/centella-sheet-mask.jpg";
 
 // Danh mục sản phẩm khả dụng cho chương trình hàng mẫu
 export const sampleCatalog = [

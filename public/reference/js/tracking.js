@@ -4,7 +4,7 @@
    Đề tài: Hệ thống quản lý đội ngũ CTV bán hàng và tiếp thị liên kết (FA26SE032)
    ========================================================================== */
 
-const productImage = "./assets/serum-hero-optimized.jpg";
+const productImage = "./assets/products/real/vitamin-c-15-serum.jpg";
 
 // Danh mục đơn hàng mẫu hỗ trợ tra cứu toàn diện
 const mockOrders = [

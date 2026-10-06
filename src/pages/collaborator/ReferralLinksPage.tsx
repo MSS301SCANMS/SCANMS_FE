@@ -13,7 +13,6 @@ import {
   PlayCircle,
   Trash2,
   Search,
-  Filter,
   AlertCircle,
   CheckCircle2,
   TrendingUp,
@@ -27,6 +26,7 @@ import {
   Download,
   ShieldAlert,
   ChevronDown,
+  ChevronUp,
   Clock,
   Flame,
   RotateCcw,
@@ -49,6 +49,8 @@ import type {
   EligibleProduct,
 } from '../../services/referral-links.service';
 import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Select } from '../../components/ui/Select';
 import { toast } from '../../utils/toast';
 
 import QRCode from 'qrcode';
@@ -158,10 +160,51 @@ export default function ReferralLinksPage() {
   const [selectedProduct, setSelectedProduct] = useState<EligibleProduct | null>(null);
   const [dealProposals, setDealProposals] = useState<any[]>([]);
   const [dealProposalProduct, setDealProposalProduct] = useState<EligibleProduct | null>(null);
-  const [dealProposalRate, setDealProposalRate] = useState(0);
+  const [dealProposalRate, setDealProposalRate] = useState('0');
   const [dealSalesCommitment, setDealSalesCommitment] = useState('');
   const [loadingDealProposals, setLoadingDealProposals] = useState(false);
   const [submittingDealProposal, setSubmittingDealProposal] = useState(false);
+  const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
+  const [dealToDelete, setDealToDelete] = useState<any | null>(null);
+  const [dealVideoCount, setDealVideoCount] = useState(4);
+  const [dealLiveCount, setDealLiveCount] = useState(2);
+  const [dealTargetOrders, setDealTargetOrders] = useState(80);
+  const [dealTimeframeDays, setDealTimeframeDays] = useState(30);
+  const [dealAgreedSanctions, setDealAgreedSanctions] = useState(false);
+  const [dealSanctionsPolicyOpen, setDealSanctionsPolicyOpen] = useState(false);
+  const [kolDealStatus, setKolDealStatus] = useState<{
+    isBlocked: boolean;
+    violationsCount: number;
+    cooldownUntil: string | null;
+    remainingDays: number;
+    reason: string | null;
+    sampleRequestsBlocked: boolean;
+  } | null>(null);
+  const [isExclusiveDealsCollapsed, setIsExclusiveDealsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('scanms_deals_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleExclusiveDealsCollapse = () => {
+    setIsExclusiveDealsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('scanms_deals_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const dealStats = useMemo(() => {
+    const total = dealProposals.length;
+    const approved = dealProposals.filter((d) => d.status === 'APPROVED').length;
+    const pending = dealProposals.filter((d) => d.status === 'PENDING').length;
+    const rejected = dealProposals.filter((d) => d.status === 'REJECTED').length;
+    return { total, approved, pending, rejected };
+  }, [dealProposals]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [customExpiresAt, setCustomExpiresAt] = useState<string>('');
   const [formChannel, setFormChannel] = useState<string>('TIKTOK');
@@ -651,6 +694,24 @@ export default function ReferralLinksPage() {
     await loadEligibleProductsAndCampaigns();
   };
 
+  useEffect(() => {
+    const handleOpenCreateLinkEvent = () => {
+      handleOpenCreateModal();
+    };
+    const handleOpenSubmitVideoEvent = () => {
+      setSelectedProductForVideo(null);
+      setIsSubmitVideoModalOpen(true);
+    };
+
+    window.addEventListener('scanms_open_create_link', handleOpenCreateLinkEvent);
+    window.addEventListener('scanms_open_submit_video', handleOpenSubmitVideoEvent);
+
+    return () => {
+      window.removeEventListener('scanms_open_create_link', handleOpenCreateLinkEvent);
+      window.removeEventListener('scanms_open_submit_video', handleOpenSubmitVideoEvent);
+    };
+  }, []);
+
 
   const handleSelectProduct = (prod: EligibleProduct) => {
     setSelectedProduct(prod);
@@ -686,18 +747,122 @@ export default function ReferralLinksPage() {
     }
   };
 
+  const updateCommitmentFromKpis = (video: number, live: number, orders: number, days: number) => {
+    setDealVideoCount(video);
+    setDealLiveCount(live);
+    setDealTargetOrders(orders);
+    setDealTimeframeDays(days);
+    setDealSalesCommitment(
+      `Cam kết trong chu kỳ ${days} ngày: Đăng tối thiểu ${video} video review unboxing chất lượng cao gắn link affiliate, thực hiện ${live} phiên livestream ghim giỏ hàng tối thiểu 45 phút, và hướng đến đạt tối thiểu ${orders} đơn hàng giao thành công. Cam kết tuân thủ quy chế chế tài 4 cấp độ của SCANMS nếu không đạt chỉ tiêu.`,
+    );
+  };
+
   const openExclusiveDealDialog = (product: EligibleProduct) => {
     setDealProposalProduct(product);
-    setDealProposalRate(Math.min(100, Number(product.estimatedCommissionRate) + 5));
-    setDealSalesCommitment('');
+    const currentDeal = dealProposals.find(
+      (deal) => deal.productId === product.id && deal.isCurrentDeal,
+    );
+    const minimumRate = Math.max(
+      Number(product.estimatedCommissionRate),
+      Number(currentDeal?.approvedCommissionRate ?? 0),
+    );
+    setDealProposalRate(String(Math.min(100, minimumRate + 5)));
+    setDealVideoCount(4);
+    setDealLiveCount(2);
+    setDealTargetOrders(80);
+    setDealTimeframeDays(30);
+    setDealAgreedSanctions(false);
+    setDealSanctionsPolicyOpen(false);
+    setDealSalesCommitment(
+      'Cam kết trong chu kỳ 30 ngày: Đăng tối thiểu 4 video review unboxing chất lượng cao gắn link affiliate, thực hiện 2 phiên livestream ghim giỏ hàng tối thiểu 45 phút, và hướng đến đạt tối thiểu 80 đơn hàng giao thành công. Cam kết tuân thủ quy chế chế tài 4 cấp độ của SCANMS nếu không đạt chỉ tiêu.',
+    );
+    referralLinksService.getMyDealStatus()
+      .then((status) => setKolDealStatus(status))
+      .catch(() => setKolDealStatus(null));
+  };
+
+  const openDealRevision = (deal: any) => {
+    const existingProduct = eligibleProducts.find((product) => product.id === deal.productId);
+    const product: EligibleProduct = existingProduct ?? {
+      id: deal.productId,
+      title: deal.product?.title || 'Sản phẩm',
+      sku: '',
+      categoryName: null,
+      imageUrl: deal.product?.imageUrl || null,
+      originalPrice: null,
+      price: deal.product?.price ?? 0,
+      customCommissionRate: deal.publicCommissionRate ?? null,
+      stockQuantity: 0,
+      store: {
+        id: deal.storeId,
+        name: deal.store?.name || 'Shop',
+        slug: '',
+        defaultCommissionRate: deal.publicCommissionRate ?? 0,
+      },
+      estimatedCommissionRate: Number(deal.publicCommissionRate ?? 0),
+      estimatedCommissionAmount: 0,
+    };
+    openExclusiveDealDialog(product);
+  };
+
+  const handleDeleteDeal = (deal: any) => {
+    setDealToDelete(deal);
+  };
+
+  const handleConfirmDeleteDeal = async () => {
+    if (!dealToDelete) return;
+    setDeletingDealId(dealToDelete.id);
+    try {
+      await referralLinksService.deleteExclusiveDeal(dealToDelete.id);
+      setDealProposals((prev) => prev.filter((d) => d.id !== dealToDelete.id));
+      toast.success(
+        dealToDelete.status === 'PENDING'
+          ? 'Đã hủy và thu hồi đề xuất deal thành công!'
+          : 'Đã gỡ bỏ deal thành công!'
+      );
+      setDealToDelete(null);
+      void fetchLinks(true);
+    } catch (err: any) {
+      console.error('Lỗi khi xóa đề xuất deal:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể xóa đề xuất deal lúc này.');
+    } finally {
+      setDeletingDealId(null);
+    }
+  };
+
+  const normalizeDealProposalRate = (value: string) => {
+    const normalized = value.replace(/,/g, '.').replace(/[^\d.]/g, '');
+    const decimalIndex = normalized.indexOf('.');
+    const integerPart = (decimalIndex === -1 ? normalized : normalized.slice(0, decimalIndex))
+      .replace(/^0+(?=\d)/, '');
+
+    if (decimalIndex === -1) return integerPart;
+
+    const decimalPart = normalized.slice(decimalIndex + 1).replace(/\./g, '').slice(0, 2);
+    return `${integerPart || '0'}.${decimalPart}`;
   };
 
   const handleSubmitExclusiveDeal = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!dealProposalProduct || submittingDealProposal) return;
+    if (kolDealStatus?.isBlocked) {
+      toast.error(
+        `Tài khoản đang trong thời gian chế tài (Lần ${kolDealStatus.violationsCount} - Khóa quyền xin deal còn ${kolDealStatus.remainingDays} ngày).`,
+      );
+      return;
+    }
+    if (!dealAgreedSanctions) {
+      toast.error('Vui lòng tích xác nhận cam kết tuân thủ Quy chế Chế tài 4 Cấp độ của SCANMS.');
+      return;
+    }
     const openRate = Number(dealProposalProduct.estimatedCommissionRate);
-    if (dealProposalRate <= openRate || dealProposalRate > 100) {
-      toast.error(`Mức VIP phải cao hơn Open Offer (${openRate}%) và không quá 100%.`);
+    const currentDeal = dealProposals.find(
+      (deal) => deal.productId === dealProposalProduct.id && deal.isCurrentDeal,
+    );
+    const minimumRate = Math.max(openRate, Number(currentDeal?.approvedCommissionRate ?? 0));
+    const proposedRate = Number(dealProposalRate);
+    if (!dealProposalRate.trim() || !Number.isFinite(proposedRate) || proposedRate <= minimumRate || proposedRate > 100) {
+      toast.error(`Mức đề xuất phải cao hơn mức đang áp dụng (${minimumRate}%) và không quá 100%.`);
       return;
     }
     if (dealSalesCommitment.trim().length < 5) {
@@ -709,7 +874,7 @@ export default function ReferralLinksPage() {
     try {
       const proposal = await referralLinksService.createExclusiveDeal({
         productId: dealProposalProduct.id,
-        proposedCommissionRate: dealProposalRate,
+        proposedCommissionRate: proposedRate,
         salesCommitment: dealSalesCommitment.trim(),
       });
       setDealProposals((current) => [proposal, ...current.filter((item) => item.id !== proposal.id)]);
@@ -868,11 +1033,11 @@ export default function ReferralLinksPage() {
               <span>Đã bị khóa</span>
             </span>
             {link.disabledReason && (
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 w-64 p-2.5 bg-gray-900 text-white text-xs rounded-xl shadow-xl text-left">
-                <div className="font-semibold text-rose-300 mb-0.5">Lý do khóa:</div>
-                <div className="text-gray-200">{link.disabledReason}</div>
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 w-64 p-2.5 bg-white text-[#1A1612] border border-[#EEDFC6] text-xs rounded-xl shadow-xl text-left">
+                <div className="font-semibold text-[#DC2626] mb-0.5">Lý do khóa:</div>
+                <div className="text-[#7D715E]">{link.disabledReason}</div>
                 {link.disabledBy && (
-                  <div className="text-[10px] text-gray-400 mt-1">
+                  <div className="text-[10px] text-[#7D715E] mt-1">
                     Người thực hiện khóa: {link.disabledBy}
                   </div>
                 )}
@@ -916,196 +1081,433 @@ export default function ReferralLinksPage() {
     }
   };
 
+  const dealProposalCurrentDeal = dealProposalProduct
+    ? dealProposals.find((deal) => deal.productId === dealProposalProduct.id && deal.isCurrentDeal)
+    : undefined;
+  const dealProposalMinimumRate = Math.max(
+    Number(dealProposalProduct?.estimatedCommissionRate ?? 0),
+    Number(dealProposalCurrentDeal?.approvedCommissionRate ?? 0),
+  );
+
   return (
-    <div className="space-y-4 text-[#1A1612] font-sans pb-8">
+    <div className="space-y-2.5 text-[#1A1612] font-sans pb-6">
 
-      <div className="bg-white rounded-2xl border border-[#EAE4D7] p-4 sm:p-5 shadow-sm relative overflow-hidden">
-
-        <div className="absolute top-0 right-0 w-80 h-80 bg-[#EBD08C]/5 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5 mb-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ECE1CD] text-[#B88E4F] border border-[#DEBE85]">
-                <Sparkles className="w-3 h-3 text-[#B88E4F]" />
-                DÀNH CHO KOL / CTV (FR-10)
-              </span>
-              <span className="text-[11px] bg-[#FAF8F5] text-[#7D715E] border border-[#EAE4D7] px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[#B88E4F]" />
-                Chính sách Last Click 30 ngày
-              </span>
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#1A1612] flex items-center gap-2">
-              Liên Kết Tiếp Thị Của Bạn
-            </h1>
-            <p className="mt-1 text-xs sm:text-[13px] text-[#7D715E] max-w-2xl leading-relaxed">
-              Lấy link Open Offer theo mức công khai của Shop hoặc gửi đề xuất Exclusive Deal để đàm phán hoa hồng VIP riêng.
-            </p>
+      {/* Dải thống kê 4 chỉ số gọn gàng, sạch sẽ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+            <Layers className="w-4 h-4 text-[#B88E4F]" />
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                setSelectedProductForVideo(null);
-                setIsSubmitVideoModalOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#F3EFE6] hover:bg-[#EAE4D7] text-xs font-bold border border-[#EAE4D7] active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Video className="w-4 h-4 text-[#B88E4F]" />
-              Nộp video review (FR-15)
-            </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-xs font-bold shadow-sm shadow-[#B88E4F]/15 border border-[#DEBE85] active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              Tạo link tiếp thị mới
-            </button>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Tổng link đang dùng</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalLinks} <span className="text-[10px] font-normal text-[#7D715E]">/ 500 tối đa</span>
+            </div>
           </div>
         </div>
 
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#EAE4D7]/60">
-          <div className="bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#DEBE85] rounded-xl p-3 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D715E] text-[11px] font-semibold mb-1">
-              <span>Tổng link đang dùng</span>
-              <div className="w-6 h-6 rounded-lg bg-[#ECE1CD] flex items-center justify-center">
-                <Layers className="w-3.5 h-3.5 text-[#B88E4F]" />
-              </div>
-            </div>
-            <div className="text-xl font-extrabold text-[#1A1612]">
-              {totalLinks} <span className="text-xs font-normal text-[#7D715E]">/ 500 tối đa</span>
-            </div>
-            <div className="text-[10px] text-[#7D715E] mt-0.5">Đảm bảo quota không vượt hạn mức</div>
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center shrink-0">
+            <MousePointerClick className="w-4 h-4 text-emerald-600" />
           </div>
-
-          <div className="bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#DEBE85] rounded-xl p-3 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D715E] text-[11px] font-semibold mb-1">
-              <span>Tổng lượt nhấp (Clicks)</span>
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <MousePointerClick className="w-3.5 h-3.5 text-emerald-600" />
-              </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Tổng lượt nhấp (Clicks)</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalClicks.toLocaleString('vi-VN')}
             </div>
-            <div className="text-xl font-extrabold text-[#1A1612]">{totalClicks.toLocaleString('vi-VN')}</div>
-            <div className="text-[10px] text-emerald-600 font-medium mt-0.5">Bao gồm tất cả các nguồn truy cập</div>
           </div>
+        </div>
 
-          <div className="bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#DEBE85] rounded-xl p-3 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D715E] text-[11px] font-semibold mb-1">
-              <span>Lượt nhấp duy nhất (Unique)</span>
-              <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center">
-                <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
-              </div>
-            </div>
-            <div className="text-xl font-extrabold text-[#1A1612]">{totalUniqueClicks.toLocaleString('vi-VN')}</div>
-            <div className="text-[10px] text-amber-600 font-medium mt-0.5">Chống click ảo trong 30 giây</div>
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200/60 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-amber-600" />
           </div>
-
-          <div className="bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#DEBE85] rounded-xl p-3 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D715E] text-[11px] font-semibold mb-1">
-              <span>Đơn hàng chuyển đổi</span>
-              <div className="w-6 h-6 rounded-lg bg-[#ECE1CD] flex items-center justify-center">
-                <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
-              </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Lượt nhấp duy nhất</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalUniqueClicks.toLocaleString('vi-VN')}
             </div>
-            <div className="text-xl font-extrabold text-[#1A1612]">{totalOrders.toLocaleString('vi-VN')}</div>
-            <div className="text-[10px] text-[#B88E4F] font-medium mt-0.5">Ghi nhận hoa hồng theo Last Click</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+            <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Đơn hàng chuyển đổi</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalOrders.toLocaleString('vi-VN')}
+            </div>
           </div>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-sm" aria-labelledby="exclusive-deals-heading">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 id="exclusive-deals-heading" className="text-base font-extrabold text-[#1A1612]">Đề xuất Exclusive Deal</h2>
-            <p className="mt-0.5 text-xs text-[#7D715E]">Gửi mức hoa hồng VIP và cam kết doanh số cho Shop; link riêng chỉ được tạo sau khi Shop duyệt.</p>
-          </div>
-          <button type="button" onClick={() => navigate('/chat')} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] px-2.5 py-1.5 text-[11px] font-bold text-[#7D715E] hover:bg-[#F3EFE6]">
-            <ExternalLink className="h-3 w-3" /> Mở Chat
-          </button>
-        </div>
-        {loadingDealProposals ? (
-          <div className="mt-4 flex items-center gap-2 text-sm text-[#7D715E]"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải đề xuất...</div>
-        ) : dealProposals.length === 0 ? (
-          <p className="mt-3 rounded-lg border border-dashed border-[#EAE4D7] bg-[#FAF8F5] p-3 text-xs text-[#7D715E]">Bạn chưa gửi đề xuất nào. Chọn sản phẩm trong kho hàng rồi bấm “Đề xuất deal VIP”.</p>
-        ) : (
-          <div className="mt-3 grid gap-2.5 md:grid-cols-2">
-            {dealProposals.map((deal) => (
-              <div key={deal.id} className="rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-bold text-[#1A1612]">{deal.product?.title || 'Sản phẩm'}</div>
-                    <div className="mt-1 text-xs text-[#7D715E]">{deal.store?.name || 'Shop'} · {new Date(deal.createdAt).toLocaleDateString('vi-VN')}</div>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${deal.status === 'APPROVED' ? 'bg-[#FBF5EB] text-[#B88E4F]' : deal.status === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-[#F3EFE6] text-[#7D715E]'}`}>
-                    {deal.status === 'APPROVED' ? 'Đã duyệt' : deal.status === 'REJECTED' ? 'Bị từ chối' : 'Chờ Shop duyệt'}
+      <section
+        className={`rounded-2xl border border-[#EAE4D7] bg-white transition-all duration-300 shadow-xs overflow-hidden ${
+          isExclusiveDealsCollapsed ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
+        }`}
+        aria-labelledby="exclusive-deals-heading"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs">
+              <Sparkles className="w-4.5 h-4.5 text-[#B88E4F]" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 id="exclusive-deals-heading" className="text-base font-extrabold text-[#1A1612]">
+                  Đề xuất Exclusive Deal
+                </h2>
+                {dealStats.total > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                    {dealStats.total} đề xuất
                   </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#7D715E]">
-                  <span>Open Offer: <strong>{deal.publicCommissionRate ?? '—'}%</strong></span>
-                  <span>Đề xuất VIP: <strong className="text-[#B88E4F]">{deal.approvedCommissionRate ?? deal.proposedCommissionRate}%</strong></span>
-                </div>
-                {deal.status === 'APPROVED' && deal.shortUrl && <a href={deal.shortUrl} className="mt-3 inline-block break-all text-xs font-bold text-[#B88E4F] underline">Mở link VIP: {deal.shortUrl}</a>}
-                {deal.status === 'REJECTED' && deal.shopResponse && <p className="mt-2 text-xs text-[#7D715E]">Phản hồi Shop: {deal.shopResponse}</p>}
+                )}
+                {dealStats.approved > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3EFE6] text-[#1A1612] border border-[#EAE4D7]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                    <span>{dealStats.approved} đang áp dụng</span>
+                  </span>
+                )}
+                {dealStats.pending > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FFF9E6] text-[#D97706] border border-[#FFE082]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                    <span>{dealStats.pending} chờ duyệt</span>
+                  </span>
+                )}
               </div>
-            ))}
+              <p className="mt-0.5 text-xs text-[#7D715E] line-clamp-1">
+                Đề xuất mức hoa hồng độc quyền và cam kết doanh số cho Shop; link tiếp thị độc quyền sẽ được kích hoạt sau khi Shop duyệt.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={toggleExclusiveDealsCollapse}
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#B88E4F] hover:text-[#A47B3E] transition cursor-pointer select-none active:scale-95"
+              title={isExclusiveDealsCollapsed ? 'Mở rộng danh sách đề xuất Exclusive Deal' : 'Thu gọn danh sách đề xuất'}
+              aria-expanded={!isExclusiveDealsCollapsed}
+            >
+              <span>{isExclusiveDealsCollapsed ? 'Mở rộng' : 'Thu gọn'}</span>
+              {isExclusiveDealsCollapsed ? (
+                <ChevronDown className="w-3.5 h-3.5 text-[#B88E4F]" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5 text-[#7D715E]" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/chat')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer select-none"
+              title="Mở hộp chat trao đổi với Shop"
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-[#B88E4F]" />
+              <span>Mở Chat</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Nội dung danh sách deal (Có thể thu gọn / mở rộng) */}
+        {!isExclusiveDealsCollapsed && (
+          <div className="mt-4 pt-3.5 border-t border-[#EAE4D7]/70">
+            {loadingDealProposals ? (
+              <div className="py-4 flex items-center justify-center gap-2 text-sm text-[#7D715E]">
+                <Loader2 className="h-4 w-4 animate-spin text-[#B88E4F]" />
+                <span>Đang tải danh sách đề xuất Exclusive Deal...</span>
+              </div>
+            ) : dealProposals.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[#EAE4D7] bg-[#FAF8F5] p-4 text-center text-xs text-[#7D715E]">
+                Bạn chưa gửi đề xuất nào. Chọn sản phẩm trong kho hàng rồi bấm “Đề xuất deal độc quyền”.
+              </p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 max-h-[460px] overflow-y-auto pr-1">
+                {dealProposals.map((deal) => (
+                  <div
+                    key={deal.id}
+                    className="rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] hover:border-[#C59B58]/60 hover:bg-white p-3.5 transition-all shadow-2xs flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Tiêu đề & Trạng thái */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs sm:text-[13px] font-bold text-[#1A1612] truncate" title={deal.product?.title || 'Sản phẩm'}>
+                            {deal.product?.title || 'Sản phẩm'}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[#7D715E]">
+                            {deal.store?.name || 'Shop'} · {new Date(deal.createdAt).toLocaleDateString('vi-VN')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold border ${
+                              deal.status === 'APPROVED'
+                                ? 'bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]'
+                                : deal.status === 'REJECTED'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-[#FFF9E6] text-[#D97706] border-[#FFE082]'
+                            }`}
+                          >
+                            {deal.status === 'APPROVED'
+                              ? (deal.isCurrentDeal ? 'Đang áp dụng' : 'Deal đã thay thế')
+                              : deal.status === 'REJECTED'
+                              ? 'Bị từ chối'
+                              : 'Chờ Shop duyệt'}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[#7D715E] hover:text-[#DC2626] hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                            title={
+                              deal.status === 'PENDING'
+                                ? 'Hủy và thu hồi đề xuất này'
+                                : deal.status === 'REJECTED'
+                                ? 'Xóa đề xuất đã bị từ chối'
+                                : 'Gỡ bỏ deal độc quyền này'
+                            }
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#DC2626]" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Các chỉ số hoa hồng */}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-[#7D715E]">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-[#EAE4D7] text-[11px]">
+                          Sàn: <strong className="ml-1 text-[#1A1612]">{deal.publicCommissionRate ?? '—'}%</strong>
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FBF5EB] border border-[#EEDFC6] text-[11px] text-[#B88E4F]">
+                          Độc quyền: <strong className="ml-1 text-[#B88E4F]">{deal.approvedCommissionRate ?? deal.proposedCommissionRate}%</strong>
+                        </span>
+                        {deal.status === 'PENDING' && deal.currentCommissionRate != null && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#F3EFE6] border border-[#EAE4D7] text-[11px] text-[#1A1612]">
+                            Đang áp dụng: <strong className="ml-1 text-[#B88E4F]">{deal.currentCommissionRate}%</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      {deal.status === 'PENDING' && deal.currentCommissionRate != null && (
+                        <p className="mt-2 text-[11px] leading-relaxed text-[#7D715E] bg-white/70 p-2 rounded-lg border border-[#EAE4D7]/80">
+                          Mức hoa hồng độc quyền hiện tại tiếp tục áp dụng trong lúc Shop xem xét. Đơn đã tạo giữ nguyên mức hoa hồng lúc đặt.
+                        </p>
+                      )}
+
+                      {deal.status === 'REJECTED' && deal.shopResponse && (
+                        <p className="mt-2 text-[11px] text-rose-700 bg-rose-50/80 p-2 rounded-lg border border-rose-200">
+                          Phản hồi Shop: {deal.shopResponse}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Dòng link tiếp thị độc quyền và nút điều chỉnh / hủy / gỡ deal */}
+                    <div className="mt-3 pt-2.5 border-t border-[#EAE4D7]/60">
+                      {deal.status === 'APPROVED' && deal.shortUrl ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex-1 min-w-[200px] flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-[#EEDFC6] text-xs">
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="text-[11px] font-bold text-[#7D715E] shrink-0 font-sans">Link:</span>
+                              <a
+                                href={deal.shortUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono font-bold text-[#B88E4F] hover:underline truncate text-xs"
+                                title={deal.shortUrl}
+                              >
+                                {deal.shortUrl}
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyLink(deal.shortUrl!, deal.shortCode || deal.id)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
+                                copiedCode === (deal.shortCode || deal.id)
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-[#FAF8F5] text-[#1A1612] hover:bg-[#F3EFE6] border border-[#EAE4D7]'
+                              }`}
+                              title="Sao chép link tiếp thị độc quyền"
+                            >
+                              {copiedCode === (deal.shortCode || deal.id) ? (
+                                <>
+                                  <Check className="h-3 w-3 text-emerald-600" />
+                                  <span>Đã chép</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 text-[#B88E4F]" />
+                                  <span>Sao chép</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {deal.isCurrentDeal && !dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') && (
+                            <button
+                              type="button"
+                              onClick={() => openDealRevision(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EEDFC6] bg-white text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] shadow-2xs transition shrink-0 cursor-pointer"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-[#B88E4F]" />
+                              <span>Điều chỉnh</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-white text-xs font-semibold text-[#7D715E] hover:text-[#DC2626] hover:border-rose-200 hover:bg-rose-50 shadow-2xs transition shrink-0 cursor-pointer"
+                            title="Gỡ bỏ deal độc quyền (sản phẩm hết hạn, hết hàng hoặc không muốn chạy deal nữa)"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Gỡ deal</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'APPROVED' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          {deal.isCurrentDeal && !dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') ? (
+                            <button
+                              type="button"
+                              onClick={() => openDealRevision(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EEDFC6] bg-white text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] shadow-2xs transition cursor-pointer"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-[#B88E4F]" />
+                              <span>Đề xuất điều chỉnh hoa hồng</span>
+                            </button>
+                          ) : deal.isCurrentDeal && dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') ? (
+                            <p className="text-[11px] font-semibold text-[#B88E4F] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#B88E4F]" />
+                              <span>Đang có đề xuất thay đổi chờ Shop phản hồi.</span>
+                            </p>
+                          ) : (
+                            <span className="text-[11px] text-[#7D715E] italic">Deal đã hoàn tất hoặc được thay thế.</span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Gỡ bỏ deal này"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Gỡ deal</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'PENDING' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#D97706] font-medium flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> Chờ Shop xem xét duyệt
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Hủy và rút lại đề xuất gửi đến Shop"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Hủy đề xuất</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'REJECTED' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#7D715E] italic">
+                            Shop không chấp thuận đề xuất này.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Xóa đề xuất này khỏi danh sách"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      <div className="bg-white rounded-2xl border border-[#EAE4D7] p-3 sm:p-4 shadow-sm">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-2.5">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7D715E]" />
-            <input
-              type="text"
-              placeholder="Tìm theo mã rút gọn, tên sản phẩm hoặc nhãn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#DEC07A]/30 text-xs sm:text-sm text-[#1A1612] outline-none transition-all"
-            />
-          </div>
+      {/* Thanh tìm kiếm & bộ lọc trực tiếp, không khung bọc to cồng kềnh */}
+      <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7D715E]" />
+          <input
+            type="text"
+            placeholder="Tìm theo mã rút gọn, tên sản phẩm hoặc nhãn..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 rounded-xl border border-[#EAE4D7] bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 text-xs sm:text-sm text-[#1A1612] outline-none transition-all shadow-2xs"
+          />
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#7D715E]" />
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-3 py-2.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs sm:text-sm text-[#1A1612] focus:border-[#C59B58] focus:bg-white outline-none cursor-pointer transition-all"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hoạt động</option>
-                <option value="PAUSED">Tạm ngừng</option>
-                <option value="EXPIRED">Đã hết hạn</option>
-                <option value="BLOCKED">Đã bị khóa</option>
-              </select>
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="w-44 text-xs sm:text-sm font-medium"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="PAUSED">Tạm ngừng</option>
+            <option value="EXPIRED">Đã hết hạn</option>
+            <option value="BLOCKED">Đã bị khóa</option>
+          </Select>
 
-            <select
-              value={selectedChannel}
-              onChange={(e) => setSelectedChannel(e.target.value)}
-              className="px-3 py-2.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs sm:text-sm text-[#1A1612] focus:border-[#C59B58] focus:bg-white outline-none cursor-pointer transition-all"
-            >
-              <option value="">Tất cả kênh</option>
-              <option value="TIKTOK">TikTok</option>
-              <option value="YOUTUBE">YouTube</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="ZALO">Zalo</option>
-              <option value="OTHER">Kênh khác</option>
-            </select>
+          <Select
+            value={selectedChannel}
+            onChange={(e) => setSelectedChannel(e.target.value)}
+            className="w-40 text-xs sm:text-sm font-medium"
+          >
+            <option value="">Tất cả kênh</option>
+            <option value="TIKTOK">TikTok</option>
+            <option value="YOUTUBE">YouTube</option>
+            <option value="FACEBOOK">Facebook</option>
+            <option value="INSTAGRAM">Instagram</option>
+            <option value="ZALO">Zalo</option>
+            <option value="OTHER">Kênh khác</option>
+          </Select>
 
-            <button
-              type="submit"
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-xs sm:text-sm text-white font-bold shadow-sm shadow-[#B88E4F]/20 transition-all active:scale-95"
-            >
-              Áp dụng
-            </button>
-          </div>
-        </form>
-      </div>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] border border-[#C59B58] text-xs sm:text-sm text-white font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          >
+            Áp dụng
+          </button>
+        </div>
+      </form>
 
 
       <div className="bg-white rounded-2xl border border-[#EAE4D7] shadow-sm overflow-hidden">
@@ -1167,7 +1569,7 @@ export default function ReferralLinksPage() {
                           <img
                             src={
                               link.product?.imageUrl ||
-                              'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
+                              '/assets/product-placeholder.svg'
                             }
                             alt={link.product?.title}
                             className="w-11 h-11 rounded-lg object-cover border border-[#EAE4D7] flex-shrink-0 bg-[#FAF8F5]"
@@ -1526,7 +1928,7 @@ export default function ReferralLinksPage() {
                       <div className="p-2 bg-[#FAF8F5] border border-[#DEBE85] rounded-xl flex items-center justify-between gap-2.5 shadow-2xs animate-fadeIn">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
-                            src={selectedProduct.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'}
+                            src={selectedProduct.imageUrl || '/assets/product-placeholder.svg'}
                             alt={selectedProduct.title}
                             className="w-9 h-9 rounded-lg object-cover border border-[#EAE4D7] flex-shrink-0 bg-white"
                           />
@@ -1582,7 +1984,7 @@ export default function ReferralLinksPage() {
                             )}
                           </div>
                           <div className="sm:col-span-3">
-                            <select
+                            <Select
                               value={modalShopFilter}
                               onChange={(e) => setModalShopFilter(e.target.value)}
                               className="w-full px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
@@ -1591,10 +1993,10 @@ export default function ReferralLinksPage() {
                               {availableShops.map((s) => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                           <div className="sm:col-span-3">
-                            <select
+                            <Select
                               value={modalCategoryFilter}
                               onChange={(e) => setModalCategoryFilter(e.target.value)}
                               className="w-full px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
@@ -1603,7 +2005,7 @@ export default function ReferralLinksPage() {
                               {availableCategories.map((cat) => (
                                 <option key={cat} value={cat}>{cat}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                         </div>
 
@@ -1649,7 +2051,7 @@ export default function ReferralLinksPage() {
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <img
-                                      src={p.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'}
+                                      src={p.imageUrl || '/assets/product-placeholder.svg'}
                                       alt={p.title}
                                       className="w-7 h-7 rounded object-cover border border-[#EAE4D7] flex-shrink-0 bg-[#FAF8F5]"
                                     />
@@ -1691,7 +2093,7 @@ export default function ReferralLinksPage() {
                         onClick={() => openExclusiveDealDialog(selectedProduct)}
                         className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-xs font-bold text-[#B88E4F] hover:bg-[#F3EFE6]"
                       >
-                        <Sparkles className="h-3.5 w-3.5" /> Đề xuất deal VIP với Shop
+                        <Sparkles className="h-3.5 w-3.5" /> Đề xuất deal độc quyền với Shop
                       </button>
                     )}
 
@@ -1717,7 +2119,7 @@ export default function ReferralLinksPage() {
                           {eligibleCampaignsForProduct.length} khả dụng
                         </span>
                       </div>
-                      <select
+                      <Select
                         value={selectedCampaignId}
                         onChange={(e) => handleSelectCampaign(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-[#EAE4D7] bg-white text-xs font-medium text-[#1A1612] focus:border-[#C59B58] outline-none transition-all cursor-pointer"
@@ -1736,7 +2138,7 @@ export default function ReferralLinksPage() {
                             </option>
                           );
                         })}
-                      </select>
+                      </Select>
                     </div>
                   )}
 
@@ -1748,7 +2150,7 @@ export default function ReferralLinksPage() {
                       <label className="block text-xs font-bold text-[#7D715E] uppercase tracking-wider mb-1">
                         2. Kênh quảng bá *
                       </label>
-                      <select
+                      <Select
                         value={formChannel}
                         onChange={(e) => {
                           setFormChannel(e.target.value);
@@ -1763,7 +2165,7 @@ export default function ReferralLinksPage() {
                         <option value="THREADS">Threads</option>
                         <option value="ZALO">Zalo</option>
                         <option value="OTHER">Kênh khác / Livestream</option>
-                      </select>
+                      </Select>
                     </div>
 
                     <div>
@@ -2747,37 +3149,304 @@ export default function ReferralLinksPage() {
 
 
       {dealProposalProduct && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#231D15]/45 p-4" onMouseDown={(event) => {
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#231D15]/50 p-4 backdrop-blur-xs" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !submittingDealProposal) setDealProposalProduct(null);
         }}>
-          <form onSubmit={handleSubmitExclusiveDeal} className="w-full max-w-lg rounded-2xl border border-[#EAE4D7] bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-[#EAE4D7] p-5">
+          <form onSubmit={handleSubmitExclusiveDeal} className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl border border-[#EAE4D7] bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#EAE4D7] px-6 py-4 bg-[#FAF8F5]">
               <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[11px] font-bold text-[#B88E4F]"><Sparkles className="h-3.5 w-3.5" /> EXCLUSIVE DEAL</span>
-                <h2 className="mt-2 text-lg font-extrabold text-[#1A1612]">Đề xuất deal riêng với Shop</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-0.5 text-[11px] font-extrabold text-[#B88E4F]">
+                  <Sparkles className="h-3.5 w-3.5" /> EXCLUSIVE DEAL
+                </span>
+                <h2 className="mt-1 text-lg font-black text-[#1A1612]">Đề xuất deal riêng với Shop</h2>
+                <p className="text-xs text-[#7D715E] mt-0.5">Cam kết sản lượng nội dung & chỉ tiêu đơn hàng để nhận hoa hồng độc quyền</p>
               </div>
-              <button type="button" onClick={() => setDealProposalProduct(null)} disabled={submittingDealProposal} className="rounded-lg p-2 text-[#7D715E] hover:bg-[#F3EFE6]" aria-label="Đóng"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="flex items-center gap-3 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
-                <img src={dealProposalProduct.imageUrl || ''} alt="" className="h-12 w-12 rounded-lg border border-[#EAE4D7] bg-white object-cover" />
-                <div className="min-w-0"><div className="truncate text-sm font-bold text-[#1A1612]">{dealProposalProduct.title}</div><div className="mt-1 text-xs text-[#7D715E]">{dealProposalProduct.store.name} · Open Offer {dealProposalProduct.estimatedCommissionRate}%</div></div>
-              </div>
-              <label className="block text-sm font-bold text-[#1A1612]">Mức hoa hồng VIP đề xuất (%)
-                <input type="number" min={Number(dealProposalProduct.estimatedCommissionRate) + 0.01} max="100" step="0.01" value={dealProposalRate} onChange={(event) => setDealProposalRate(Number(event.target.value))} className="mt-1.5 w-full rounded-xl border border-[#EAE4D7] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C59B58]" required />
-              </label>
-              <label className="block text-sm font-bold text-[#1A1612]">Cam kết doanh số
-                <textarea value={dealSalesCommitment} onChange={(event) => setDealSalesCommitment(event.target.value)} rows={4} maxLength={1000} minLength={5} placeholder="Ví dụ: tạo 4 video review trong tháng đầu và hướng đến 80 đơn hàng." className="mt-1.5 w-full resize-y rounded-xl border border-[#EAE4D7] bg-white px-3 py-2.5 text-sm font-normal outline-none focus:border-[#C59B58]" required />
-                <span className="mt-1 block text-right text-[11px] font-normal text-[#7D715E]">{dealSalesCommitment.length}/1000</span>
-              </label>
-              <div className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs leading-relaxed text-[#7D715E]">Đề xuất sẽ được gửi trong Chat. Shop duyệt thì hệ thống tự tạo link riêng cho bạn; link này áp mức VIP đã chốt thay cho Open Offer.</div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-[#EAE4D7] p-4">
-              <button type="button" onClick={() => setDealProposalProduct(null)} disabled={submittingDealProposal} className="rounded-xl border border-[#EAE4D7] px-4 py-2.5 text-sm font-bold text-[#7D715E] hover:bg-[#FAF8F5]">Hủy</button>
-              <button type="submit" disabled={submittingDealProposal || dealProposalRate <= Number(dealProposalProduct.estimatedCommissionRate) || dealProposalRate > 100 || dealSalesCommitment.trim().length < 5} className="inline-flex items-center gap-2 rounded-xl bg-[#C59B58] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#B88E4F] disabled:cursor-not-allowed disabled:opacity-50">
-                {submittingDealProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                Gửi đề xuất qua Chat
+              <button type="button" onClick={() => setDealProposalProduct(null)} disabled={submittingDealProposal} className="rounded-lg p-2 text-[#7D715E] hover:bg-[#F3EFE6] cursor-pointer" aria-label="Đóng">
+                <X className="h-4 w-4" />
               </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto space-y-4 p-6 text-left">
+              {/* Penalty Alert if under Cooldown */}
+              {kolDealStatus?.isBlocked && (
+                <div className="rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/10 p-3.5 text-xs text-[#DC2626]">
+                  <div className="flex items-center gap-2 font-black text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Tài khoản đang bị chế tài vi phạm cam kết (Lần {kolDealStatus.violationsCount})
+                  </div>
+                  <p className="mt-1.5 leading-relaxed text-[#DC2626]/90">
+                    Bạn đang bị tạm khóa tính năng đề xuất Deal riêng trong <strong>{kolDealStatus.remainingDays} ngày</strong> (đến ngày {new Date(kolDealStatus.cooldownUntil!).toLocaleDateString('vi-VN')}) do chưa đáp ứng cam kết trước đó.
+                    {kolDealStatus.sampleRequestsBlocked && ' Hạn ngạch nhận mẫu thử hiện tại = 0.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Product Info Card */}
+              <div className="flex items-center gap-3.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
+                <img src={dealProposalProduct.imageUrl || ''} alt="" className="h-14 w-14 rounded-lg border border-[#EAE4D7] bg-white object-cover shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold text-[#1A1612]">{dealProposalProduct.title}</div>
+                  <div className="mt-1 text-xs text-[#7D715E]">
+                    Gian hàng: <strong className="text-[#1A1612]">{dealProposalProduct.store.name}</strong> · Hoa hồng sàn: <span className="text-[#1A1612] font-semibold">{dealProposalProduct.estimatedCommissionRate}%</span>
+                  </div>
+                  {dealProposalCurrentDeal && (
+                    <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-[#B88E4F]">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Deal độc quyền đang áp dụng: {dealProposalCurrentDeal.approvedCommissionRate}%
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Proposed Commission Rate */}
+              <div>
+                <label className="block text-xs font-bold text-[#1A1612] mb-1">
+                  Mức hoa hồng độc quyền đề xuất (%) <span className="text-[#DC2626]">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={dealProposalRate}
+                    onChange={(event) => setDealProposalRate(normalizeDealProposalRate(event.target.value))}
+                    onFocus={(event) => event.currentTarget.select()}
+                    aria-label="Mức hoa hồng độc quyền đề xuất theo phần trăm"
+                    className="w-full rounded-xl border border-[#EAE4D7] bg-white px-3.5 py-2.5 text-sm font-bold text-[#1A1612] outline-none focus:border-[#C59B58] focus:ring-3 focus:ring-[#C59B58]/12"
+                    required
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7D715E]">%</span>
+                </div>
+                <span className={`mt-1.5 block text-xs font-medium ${
+                  dealProposalMinimumRate >= 100 ||
+                  Number(dealProposalRate) > 100 ||
+                  (dealProposalRate.trim() && Number(dealProposalRate) <= dealProposalMinimumRate)
+                    ? 'text-[#DC2626]'
+                    : 'text-[#7D715E]'
+                }`}>
+                  {dealProposalMinimumRate >= 100
+                    ? 'Mức deal hiện tại đã là 100%, không thể đề xuất cao hơn trong giới hạn cho phép.'
+                    : Number(dealProposalRate) > 100
+                      ? 'Mức đề xuất không được vượt quá 100%.'
+                      : dealProposalRate.trim() && Number(dealProposalRate) <= dealProposalMinimumRate
+                        ? `Mức đề xuất phải cao hơn ${dealProposalMinimumRate}%. Ví dụ: ${Math.min(100, dealProposalMinimumRate + 1)}%.`
+                        : `Mức cao nhất hiện tại là ${dealProposalMinimumRate}%; hãy nhập mức cao hơn.`}
+                </span>
+              </div>
+
+              {/* SMART Commitment Builder Section */}
+              <div className="rounded-xl border border-[#EAE4D7] bg-white p-4 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-[#1A1612] flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-[#C59B58]" /> Chỉ tiêu cam kết đo lường (SMART KPIs)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, dealTargetOrders, dealTimeframeDays)}
+                    className="text-[11px] font-bold text-[#B88E4F] hover:underline cursor-pointer"
+                  >
+                    ⚡ Khôi phục mẫu cam kết
+                  </button>
+                </div>
+
+                {/* 1. Chu kỳ cam kết */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1.5">
+                    Chu kỳ đánh giá cam kết (Timeframe):
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[14, 30, 45].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, dealTargetOrders, days)}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                          dealTimeframeDays === days
+                            ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F] shadow-2xs'
+                            : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
+                        {days} ngày {days === 30 ? '(Khuyến nghị)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Sản lượng nội dung */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                      <Video className="h-3.5 w-3.5 text-[#C59B58]" /> Số video review ngắn:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {[2, 4, 6].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => updateCommitmentFromKpis(num, dealLiveCount, dealTargetOrders, dealTimeframeDays)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            dealVideoCount === num
+                              ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                              : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                          }`}
+                        >
+                          {num} video
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-[#C59B58]" /> Phiên Livestream ghim giỏ:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {[0, 1, 2, 4].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => updateCommitmentFromKpis(dealVideoCount, num, dealTargetOrders, dealTimeframeDays)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            dealLiveCount === num
+                              ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                              : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                          }`}
+                        >
+                          {num === 0 ? 'Không live' : `${num} live`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Mục tiêu đơn hàng */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                    <ShoppingBag className="h-3.5 w-3.5 text-[#C59B58]" /> Mục tiêu số đơn hàng giao thành công:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[30, 50, 80, 150].map((orders) => (
+                      <button
+                        key={orders}
+                        type="button"
+                        onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, orders, dealTimeframeDays)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                          dealTargetOrders === orders
+                            ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                            : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
+                        {orders} đơn
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Textarea */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1">
+                    Mô tả cam kết chi tiết gửi đến Shop <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <textarea
+                    value={dealSalesCommitment}
+                    onChange={(event) => setDealSalesCommitment(event.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    minLength={5}
+                    placeholder="Mô tả kế hoạch truyền thông và cam kết doanh số..."
+                    className="w-full resize-y rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-3.5 py-2.5 text-xs font-normal text-[#1A1612] outline-none focus:border-[#C59B58] focus:bg-white"
+                    required
+                  />
+                  <div className="mt-1 flex justify-between items-center text-[11px] text-[#7D715E]">
+                    <span>Có thể bổ sung thời gian đăng bài dự kiến hoặc chiến lược cụ thể</span>
+                    <span>{dealSalesCommitment.length}/1000</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4-LEVEL SANCTIONS POLICY CARD */}
+              <div className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-xs leading-relaxed">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-black text-[#1A1612] text-xs uppercase tracking-wide">
+                    <ShieldAlert className="h-4 w-4 text-[#C59B58]" />
+                    Quy chế chế tài 4 cấp độ của sàn SCANMS
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDealSanctionsPolicyOpen(!dealSanctionsPolicyOpen)}
+                    className="text-[11px] font-bold text-[#B88E4F] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {dealSanctionsPolicyOpen ? 'Thu gọn' : 'Xem chi tiết 4 cấp độ'}
+                    {dealSanctionsPolicyOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                <div className={`mt-2.5 space-y-2 text-[#7D715E] ${dealSanctionsPolicyOpen ? 'block' : 'line-clamp-2'}`}>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 1 (Tự động hạ hoa hồng):</strong> Hết chu kỳ cam kết ({dealTimeframeDays} ngày), nếu không đạt chỉ tiêu, Shop có quyền hoàn nguyên hoa hồng về mức Open Offer tiêu chuẩn (đơn hàng cũ đã phát sinh giữ nguyên hoa hồng).
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 2 (Trừ điểm tín nhiệm):</strong> Hồ sơ ghi nhận vi phạm, giảm Tỷ lệ hoàn thành cam kết và hạ bậc ưu tiên trên Bảng xếp hạng Leaderboard & AI Matching.
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 3 (Đóng băng quyền xin Deal & Mẫu thử theo 4 nấc vi phạm):</strong>
+                    <ul className="list-disc list-inside mt-1 space-y-0.5 pl-1 text-[11px]">
+                      <li>Vi phạm lần 1: Tạm khóa xin deal <strong>1 tuần</strong>.</li>
+                      <li>Vi phạm lần 2: Tạm khóa xin deal <strong>2 tuần</strong>.</li>
+                      <li>Vi phạm lần 3: Tạm khóa xin deal <strong>3 tuần</strong>.</li>
+                      <li>Vi phạm lần 4+: Tạm khóa xin deal <strong>4 tuần</strong> và <strong>Khóa hạn ngạch nhận mẫu thử (Sample Quota = 0)</strong>.</li>
+                    </ul>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 4 (Trọng tài sàn & Bồi thường):</strong> Trường hợp nhận hàng mẫu/tài trợ mà không thực hiện cam kết (bùng hàng/ghosting), Shop được quyền khiếu nại lên Trọng tài SCANMS để truy thu bồi thường hoặc khóa tài khoản vĩnh viễn.
+                  </div>
+                </div>
+
+                {/* Mandatory Agreement Checkbox */}
+                <label className="mt-3.5 flex items-start gap-2.5 pt-3 border-t border-[#EEDFC6] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={dealAgreedSanctions}
+                    onChange={(e) => setDealAgreedSanctions(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded-md border-[#C59B58] text-[#C59B58] focus:ring-[#C59B58] cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-[#1A1612]">
+                    Tôi đã đọc, hiểu rõ và cam kết tuân thủ <span className="text-[#B88E4F]">Quy chế chế tài 4 cấp độ</span> của sàn SCANMS khi nhận mức hoa hồng độc quyền.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#EAE4D7] px-6 py-4 bg-[#FAF8F5]">
+              <span className="text-xs text-[#7D715E]">
+                {dealProposalCurrentDeal ? 'Đơn hàng cũ giữ nguyên hoa hồng hiện tại.' : 'Đề xuất sẽ được chuyển tới hộp Chat của Shop.'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDealProposalProduct(null)}
+                  disabled={submittingDealProposal}
+                  className="rounded-xl border border-[#EAE4D7] px-4 py-2.5 text-xs font-bold text-[#7D715E] hover:bg-white cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    submittingDealProposal ||
+                    kolDealStatus?.isBlocked ||
+                    !dealAgreedSanctions ||
+                    !dealProposalRate.trim() ||
+                    Number(dealProposalRate) <= dealProposalMinimumRate ||
+                    Number(dealProposalRate) > 100 ||
+                    dealSalesCommitment.trim().length < 5
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#C59B58] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#B88E4F] disabled:cursor-not-allowed disabled:opacity-50 shadow-md shadow-[#C59B58]/20 cursor-pointer transition"
+                >
+                  {submittingDealProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Gửi đề xuất qua Chat
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -2795,6 +3464,36 @@ export default function ReferralLinksPage() {
           setIsSubmitVideoModalOpen(false);
           setSelectedProductForVideo(null);
         }}
+      />
+
+      {/* Modal xác nhận xóa / hủy / gỡ deal độc quyền chuẩn thương hiệu */}
+      <ConfirmModal
+        isOpen={Boolean(dealToDelete)}
+        onClose={() => !deletingDealId && setDealToDelete(null)}
+        onConfirm={handleConfirmDeleteDeal}
+        isLoading={Boolean(deletingDealId)}
+        title={
+          dealToDelete?.status === 'PENDING'
+            ? 'Xác nhận hủy đề xuất Exclusive Deal'
+            : dealToDelete?.status === 'APPROVED'
+            ? 'Xác nhận gỡ bỏ deal độc quyền'
+            : 'Xác nhận xóa đề xuất deal'
+        }
+        message={
+          dealToDelete?.status === 'PENDING'
+            ? `Bạn có chắc chắn muốn hủy và thu hồi đề xuất Exclusive Deal cho sản phẩm "${dealToDelete?.product?.title || 'này'}"? Shop sẽ không còn nhận được yêu cầu này nữa.`
+            : dealToDelete?.status === 'APPROVED'
+            ? `Bạn có chắc chắn muốn gỡ bỏ deal độc quyền cho sản phẩm "${dealToDelete?.product?.title || 'này'}"? Link tiếp thị sẽ quay về mức hoa hồng sàn cơ bản nếu bạn tiếp tục sử dụng.`
+            : `Xóa vĩnh viễn đề xuất deal cho sản phẩm "${dealToDelete?.product?.title || 'này'}" khỏi danh sách của bạn?`
+        }
+        confirmText={
+          dealToDelete?.status === 'PENDING'
+            ? 'Hủy đề xuất'
+            : dealToDelete?.status === 'APPROVED'
+            ? 'Gỡ deal'
+            : 'Xóa'
+        }
+        variant="danger"
       />
     </div>
   );

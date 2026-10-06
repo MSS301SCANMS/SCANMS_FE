@@ -4,6 +4,9 @@ import { BadgeCheck, Heart, MessageSquare, Search, Store } from 'lucide-react';
 import api from '../../services/api';
 import { authService } from '../../services/auth.service';
 import { PublicHeader } from '../../components/layout/PublicHeader';
+import { useScanmsChat } from '../../context/ScanmsChatContext';
+import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
+import { Select } from '../../components/ui/Select';
 
 type Shop = { id: string; name: string; logoUrl?: string; description?: string; isActive: boolean; isVerified: boolean; productCount: number; followerCount: number; categories: string[] };
 type Product = { id: string; sku: string; title: string; imageUrl?: string; price: number; originalPrice?: number; categoryName?: string };
@@ -14,6 +17,7 @@ const money = (value: number) => `${Number(value).toLocaleString('vi-VN')} ₫`;
 export default function ShopPage() {
   const { shopId } = useParams();
   const navigate = useNavigate();
+  const { openChat } = useScanmsChat();
   const [shop, setShop] = useState<Shop | null>(null);
   const [result, setResult] = useState<ProductResult | null>(null);
   const [error, setError] = useState('');
@@ -25,6 +29,7 @@ export default function ShopPage() {
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
+  const { deals: liveDeals, now: liveDealsNow } = useLiveSessionDeals((result?.items || []).map((product) => product.id));
 
   useEffect(() => {
     if (!shopId) return;
@@ -55,11 +60,13 @@ export default function ShopPage() {
   }, [shopId, shop?.id, search, category, sortBy, page]);
 
   const chat = () => {
-    if (!authService.getCurrentUser()) {
-      navigate(`/login?redirect=${encodeURIComponent(`/shops/${shopId}`)}`);
-      return;
-    }
-    navigate(`/chat?storeId=${shopId}`);
+    if (!shop) return;
+    openChat({
+      id: shop.id,
+      name: shop.name,
+      logoUrl: shop.logoUrl,
+      isVerified: Boolean(shop.isVerified),
+    });
   };
   const toggleFollow = async () => {
     if (!authService.getCurrentUser()) {
@@ -102,14 +109,14 @@ export default function ShopPage() {
           <form onSubmit={(event) => { event.preventDefault(); setPage(1); setSearch(searchInput.trim()); }} className="mt-4 flex flex-wrap gap-2">
             <label className="flex min-w-[180px] flex-1 items-center gap-2 rounded-xl border border-[#EAE4D7] px-3"><Search size={16} /><input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm trong Shop" className="w-full py-2.5 outline-none" /></label>
             <button type="submit" className="rounded-xl bg-[#C59B58] px-4 py-2 font-semibold">Tìm</button>
-            <select aria-label="Danh mục" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="rounded-xl border border-[#EAE4D7] bg-white px-3 py-2"><option value="all">Tất cả danh mục</option>{shop.categories.map((name) => <option key={name} value={name}>{name}</option>)}</select>
-            <select aria-label="Sắp xếp" value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} className="rounded-xl border border-[#EAE4D7] bg-white px-3 py-2"><option value="newest">Mới nhất</option><option value="price_asc">Giá tăng dần</option><option value="price_desc">Giá giảm dần</option></select>
+            <Select aria-label="Danh mục" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }} className="min-w-[160px]"><option value="all">Tất cả danh mục</option>{shop.categories.map((name) => <option key={name} value={name}>{name}</option>)}</Select>
+            <Select aria-label="Sắp xếp" value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} className="min-w-[140px]"><option value="newest">Mới nhất</option><option value="price_asc">Giá tăng dần</option><option value="price_desc">Giá giảm dần</option></Select>
           </form>
           {error && <p role="alert" className="mt-3 text-sm text-[#DC2626]">{error}</p>}
           {result?.items.length === 0 && <p className="py-12 text-center text-[#7D715E]">Chưa có sản phẩm phù hợp.</p>}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {result?.items.map((product) => <Link key={product.id} to={`/products/${product.sku || product.id}`} className="overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white transition hover:border-[#C59B58] hover:shadow-md">
-              <div className="aspect-square bg-[#F3EFE6]">{product.imageUrl && <img src={product.imageUrl} alt={product.title} loading="lazy" className="h-full w-full object-cover" />}</div>
+              <div className="relative aspect-square bg-[#F3EFE6]"><LiveSessionDealBadge deal={liveDeals[product.id]} now={liveDealsNow} />{product.imageUrl && <img src={product.imageUrl} alt={product.title} loading="lazy" className="h-full w-full object-cover" />}</div>
               <div className="p-3"><p className="line-clamp-2 min-h-10 text-sm font-semibold">{product.title}</p><p className="mt-2 font-bold text-[#B88E4F]">{money(product.price)}</p>{product.originalPrice && Number(product.originalPrice) > Number(product.price) && <p className="text-xs text-[#7D715E] line-through">{money(product.originalPrice)}</p>}</div>
             </Link>)}
           </div>

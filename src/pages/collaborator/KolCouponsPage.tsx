@@ -394,13 +394,7 @@ export const KolCouponsPage: React.FC = () => {
                 Mạng lưới Tiếp thị Liên kết (FR-12)
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1612]">
-              Mã giảm giá cá nhân (Coupon Attribution)
-            </h1>
-            <p className="text-sm sm:text-base text-[#7D715E] mt-1">
-              Đề xuất mã riêng mang thương hiệu của bạn. Đơn hàng khách nhập mã
-              sẽ được giảm giá và tự động ghi nhận hoa hồng cho bạn.
-            </p>
+            
           </div>
 
           <button

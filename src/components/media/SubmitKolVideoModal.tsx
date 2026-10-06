@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Video,
@@ -9,6 +9,9 @@ import {
   Loader2,
   Upload,
   Trash2,
+  ChevronDown,
+  Search,
+  Check,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { mediaService } from '../../services/media.service';
@@ -22,6 +25,9 @@ const ALLOWED_DOMAINS = [
   'res.cloudinary.com',
   'youtube.com',
   'youtu.be',
+  'facebook.com',
+  'fb.watch',
+  'instagram.com',
   'tiktok.com',
   'vimeo.com',
   'supabase.co',
@@ -34,6 +40,7 @@ export interface SubmitKolVideoModalProps {
   onClose: () => void;
   initialProductId?: string;
   initialProductTitle?: string;
+  sampleRequestId?: string;
   onSuccess?: (newAsset: any) => void;
 }
 
@@ -42,6 +49,7 @@ export function SubmitKolVideoModal({
   onClose,
   initialProductId,
   initialProductTitle,
+  sampleRequestId,
   onSuccess,
 }: SubmitKolVideoModalProps) {
   const [products, setProducts] = useState<EligibleProduct[]>([]);
@@ -69,6 +77,40 @@ export function SubmitKolVideoModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    };
+    if (isProductDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isProductDropdownOpen]);
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearchQuery.trim()) return products;
+    const q = productSearchQuery.toLowerCase();
+    return products.filter(
+      (p) =>
+        p.title?.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q) ||
+        p.store?.name?.toLowerCase().includes(q)
+    );
+  }, [products, productSearchQuery]);
+
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId),
+    [products, selectedProductId]
+  );
 
 
   const processSelectedVideoFile = async (file: File) => {
@@ -264,7 +306,9 @@ export function SubmitKolVideoModal({
     }
   };
 
-  const isUrlValid = isDomainAllowed(videoUrl);
+  const isUrlValid = sampleRequestId
+    ? videoUrl.startsWith('https://') && isDomainAllowed(videoUrl)
+    : isDomainAllowed(videoUrl);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,11 +340,9 @@ export function SubmitKolVideoModal({
 
     setSubmitting(true);
     try {
-      const payload: any = {
-        productId: selectedProductId,
-        title: title.trim(),
-        videoUrl: videoUrl.trim(),
-      };
+      const payload: any = sampleRequestId
+        ? { title: title.trim(), videoUrl: videoUrl.trim(), caption: caption.trim() }
+        : { productId: selectedProductId, title: title.trim(), videoUrl: videoUrl.trim() };
 
       if (posterUrl.trim()) {
         payload.posterUrl = posterUrl.trim();
@@ -313,7 +355,9 @@ export function SubmitKolVideoModal({
         payload.requiresCampaignParticipation = true;
       }
 
-      const res = await mediaService.submitKolVideo(payload);
+      const res = sampleRequestId
+        ? await api.post(`/sample-requests/${sampleRequestId}/video`, payload)
+        : await mediaService.submitKolVideo(payload);
 
       setSuccessMsg(
         res?.message ||
@@ -402,7 +446,7 @@ export function SubmitKolVideoModal({
           )}
 
 
-          <div>
+          <div ref={productDropdownRef}>
             <label className="text-xs font-bold text-[#1A1612] block mb-1">
               Sản phẩm review <span className="text-rose-500">*</span>
             </label>
@@ -420,35 +464,143 @@ export function SubmitKolVideoModal({
               </div>
             ) : (
               <div className="relative">
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
+                {/* Trigger button */}
+                <button
+                  type="button"
                   disabled={loadingProducts || products.length === 0}
-                  className="w-full p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none focus:border-[#B88E4F] transition appearance-none cursor-pointer"
-                  required
+                  onClick={() => setIsProductDropdownOpen((prev) => !prev)}
+                  className={`w-full p-2.5 sm:p-3 bg-[#FAF8F5] border rounded-xl text-xs text-[#1A1612] outline-none transition flex items-center justify-between gap-2 cursor-pointer text-left shadow-2xs ${
+                    isProductDropdownOpen ? 'border-[#B88E4F] ring-2 ring-[#B88E4F]/15 bg-white' : 'border-[#EAE4D7] hover:border-[#C59B58]'
+                  } ${loadingProducts || products.length === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  {loadingProducts ? (
-                    <option value="">Đang tải danh sách sản phẩm...</option>
-                  ) : products.length === 0 ? (
-                    <option value="">Bạn chưa có sản phẩm nào được duyệt hợp tác</option>
-                  ) : (
-                    products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title} ({p.sku}) — {p.store?.name} (
-                        {Number(p.price).toLocaleString('vi-VN')} ₫)
-                      </option>
-                    ))
-                  )}
-                </select>
-                {loadingProducts && (
-                  <div className="absolute right-3 top-3.5 pointer-events-none">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#B88E4F]" />
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Package className="w-4 h-4 text-[#B88E4F] shrink-0" />
+                    {loadingProducts ? (
+                      <span className="text-[#7D715E]">Đang tải danh sách sản phẩm...</span>
+                    ) : products.length === 0 ? (
+                      <span className="text-[#7D715E]">Bạn chưa có sản phẩm nào được duyệt hợp tác</span>
+                    ) : selectedProduct ? (
+                      <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                        <span className="font-bold text-[#1A1612] truncate" title={selectedProduct.title}>
+                          {selectedProduct.title}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F3EFE6] text-[#7D715E] font-medium">
+                            {selectedProduct.sku}
+                          </span>
+                          <span className="text-xs font-black text-[#B88E4F]">
+                            {Number(selectedProduct.price).toLocaleString('vi-VN')} ₫
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[#7D715E]">Chọn sản phẩm muốn làm video review...</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {loadingProducts ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#B88E4F]" />
+                    ) : (
+                      <ChevronDown
+                        className={`w-4 h-4 text-[#7D715E] transition-transform duration-200 ${
+                          isProductDropdownOpen ? 'rotate-180 text-[#B88E4F]' : ''
+                        }`}
+                      />
+                    )}
+                  </div>
+                </button>
+
+                {/* Dropdown popup - Gọn gàng bên trong khung modal, không tràn màn hình */}
+                {isProductDropdownOpen && products.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150 flex flex-col max-h-72 w-full max-w-full">
+                    {/* Ô tìm kiếm nhanh */}
+                    <div className="p-2 border-b border-[#EAE4D7] bg-[#FAF8F5]">
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-[#EAE4D7]">
+                        <Search className="w-3.5 h-3.5 text-[#7D715E] shrink-0" />
+                        <input
+                          type="text"
+                          value={productSearchQuery}
+                          onChange={(e) => setProductSearchQuery(e.target.value)}
+                          placeholder="Tìm theo tên sản phẩm, mã SKU hoặc Shop..."
+                          className="w-full bg-transparent text-xs text-[#1A1612] placeholder:text-[#9C8F7C] outline-none"
+                          autoFocus
+                        />
+                        {productSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setProductSearchQuery('')}
+                            className="text-[#7D715E] hover:text-[#1A1612] text-xs p-0.5 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Danh sách sản phẩm cuộn gọn gàng */}
+                    <div className="overflow-y-auto divide-y divide-[#EAE4D7]/50 max-h-56 p-1">
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-[#7D715E]">
+                          Không tìm thấy sản phẩm phù hợp với từ khóa "{productSearchQuery}"
+                        </div>
+                      ) : (
+                        filteredProducts.map((p) => {
+                          const isSelected = p.id === selectedProductId;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedProductId(p.id);
+                                setIsProductDropdownOpen(false);
+                                setProductSearchQuery('');
+                              }}
+                              className={`w-full p-2.5 rounded-xl text-left flex items-center justify-between gap-3 transition cursor-pointer ${
+                                isSelected ? 'bg-[#FBF5EB] border border-[#EEDFC6]' : 'hover:bg-[#FAF8F5] border border-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div className="w-8 h-8 rounded-lg bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+                                  <Package className="w-4 h-4 text-[#B88E4F]" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-bold text-[#1A1612] truncate" title={p.title}>
+                                    {p.title}
+                                  </div>
+                                  <div className="text-[11px] text-[#7D715E] truncate flex items-center gap-1.5 mt-0.5">
+                                    <span className="font-mono text-[#B88E4F]">{p.sku}</span>
+                                    <span>·</span>
+                                    <span className="truncate">{p.store?.name || 'Shop'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <div className="text-xs font-black text-[#1A1612]">
+                                  {Number(p.price).toLocaleString('vi-VN')} ₫
+                                </div>
+                                {isSelected ? (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 mt-0.5">
+                                    <Check className="w-3 h-3" /> Đã chọn
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-[#7D715E]">Bấm để chọn</span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             )}
             <p className="text-[11px] text-[#7D715E] mt-1 m-0">
-              Chỉ nộp được cho sản phẩm thuộc gian hàng bạn đã được phê duyệt làm CTV (StoreCollaborator = APPROVED).
+              {sampleRequestId
+                ? 'Video sẽ được gắn với yêu cầu nhận mẫu này và Shop sẽ kiểm duyệt.'
+                : 'Chỉ nộp được cho sản phẩm thuộc gian hàng bạn đã được phê duyệt làm CTV (StoreCollaborator = APPROVED).'}
             </p>
           </div>
 
@@ -471,7 +623,7 @@ export function SubmitKolVideoModal({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-[#1A1612]">
-                Video Review Sản phẩm <span className="text-rose-500 font-bold">* (Bắt buộc phải tải video)</span>
+                Video Review Sản phẩm <span className="text-rose-500 font-bold">{sampleRequestId ? '* (Dán link video đã đăng)' : '* (Bắt buộc phải tải video)'}</span>
               </label>
               {videoPreview && (
                 <button
@@ -484,6 +636,19 @@ export function SubmitKolVideoModal({
               )}
             </div>
 
+            {sampleRequestId && (
+              <input
+                type="url"
+                value={videoUrl.startsWith('blob:') ? '' : videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.tiktok.com/@kenh/video/..."
+                className="w-full mb-3 p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
+                required
+              />
+            )}
+
+            {!sampleRequestId && (
+              <>
             <input
               ref={videoFileInputRef}
               type="file"
@@ -586,6 +751,8 @@ export function SubmitKolVideoModal({
                 </div>
               </div>
             )}
+              </>
+            )}
           </div>
 
 
@@ -619,21 +786,26 @@ export function SubmitKolVideoModal({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-200 ${
+                className={`border border-dashed rounded-xl px-3.5 py-2.5 flex items-center gap-3 cursor-pointer transition-all duration-150 ${
                   isDragging
-                    ? 'border-[#B88E4F] bg-[#F3EFE6] scale-[0.99]'
+                    ? 'border-[#B88E4F] bg-[#F3EFE6]'
                     : 'border-[#EAE4D7] bg-[#FAF8F5] hover:border-[#B88E4F] hover:bg-[#FBF5EB]'
                 }`}
               >
-                <div className="w-11 h-11 mx-auto mb-2.5 rounded-full bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shadow-sm">
-                  <Upload className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] shrink-0">
+                  <Upload className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-semibold text-[#1A1612] m-0">
-                  Bấm để chọn ảnh từ máy tính <span className="text-[#7D715E] font-normal">hoặc kéo thả vào đây</span>
-                </p>
-                <p className="text-[11px] text-[#7D715E] mt-1 m-0">
-                  Hỗ trợ: JPG, PNG, WEBP (tối đa 5 MB). Khuyên dùng tỷ lệ 9:16 (video dọc) hoặc 16:9.
-                </p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-[#1A1612] m-0 truncate">
+                    Bấm để chọn ảnh từ máy tính <span className="text-[#7D715E] font-normal text-[11px]">hoặc kéo thả vào đây</span>
+                  </p>
+                  <p className="text-[10.5px] text-[#7D715E] mt-0.5 m-0 truncate">
+                    Hỗ trợ: JPG, PNG, WEBP (tối đa 5 MB) • Khuyên dùng 9:16 hoặc 16:9
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 text-[11px] font-bold text-[#B88E4F] bg-white border border-[#EEDFC6] rounded-lg shrink-0 hover:bg-[#FAF8F5]">
+                  Chọn ảnh
+                </span>
               </div>
             ) : (
               <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 flex items-center gap-3.5">
@@ -705,7 +877,7 @@ export function SubmitKolVideoModal({
           </div>
 
 
-          <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7]">
+          {!sampleRequestId && <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7]">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -735,7 +907,7 @@ export function SubmitKolVideoModal({
                 </p>
               </div>
             )}
-          </div>
+          </div>}
 
 
           <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl text-xs text-[#7D715E] flex items-start gap-2">
@@ -750,7 +922,7 @@ export function SubmitKolVideoModal({
             <span className="text-[11px] text-[#7D715E]">
               {!videoUrl.trim() ? (
                 <span className="text-rose-600 font-semibold flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> Bắt buộc phải tải video để gửi duyệt
+                  <AlertCircle className="w-3.5 h-3.5" /> {sampleRequestId ? 'Dán link video để gửi Shop duyệt' : 'Bắt buộc phải tải video để gửi duyệt'}
                 </span>
               ) : (
                 <span className="text-emerald-700 font-semibold flex items-center gap-1">
@@ -775,7 +947,7 @@ export function SubmitKolVideoModal({
                   ? 'Đang tải video...'
                   : !videoUrl.trim()
                   ? 'Cần tải video để gửi'
-                  : 'Gửi video cho Shop duyệt'}
+                  : sampleRequestId ? 'Gửi link video cho Shop duyệt' : 'Gửi video cho Shop duyệt'}
               </Button>
             </div>
           </div>

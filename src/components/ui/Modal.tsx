@@ -10,6 +10,7 @@ export interface ModalProps {
   icon?: ReactNode;
   children: ReactNode;
   className?: string;
+  stickyHeader?: boolean;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 }
 
@@ -21,6 +22,7 @@ export function Modal({
   icon,
   children,
   className,
+  stickyHeader = false,
   maxWidth = 'md',
 }: ModalProps) {
   useEffect(() => {
@@ -58,7 +60,10 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {(title || icon) && (
-          <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+          <div className={cn(
+            'flex justify-between items-center pb-2 border-b border-slate-100',
+            stickyHeader && 'sticky top-0 z-20 -mx-6 -mt-6 bg-white px-6 pt-6 pb-3 sm:-mx-7 sm:-mt-7 sm:px-7 sm:pt-7'
+          )}>
             <div className="flex items-center gap-2.5">
               {icon && (
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-lg shrink-0">
@@ -73,6 +78,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
+              aria-label="Đóng cửa sổ"
               className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
