@@ -23,7 +23,6 @@ import {
   Users,
   Printer,
   Zap,
-  Play,
   Store,
 } from "lucide-react";
 import { toast } from "../../utils/toast";

@@ -43,9 +43,7 @@ const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboar
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/merchant/KycApprovalPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
-const PayoutApprovalPage = lazyRetry(() => import('../pages/merchant/PayoutApprovalPage'));
 
-const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
 const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
 const CustomerPortalPage = lazyRetry(() => import('../pages/customer/CustomerPortalPage'));
 const ReturnDetailPage = lazyRetry(() => import('../pages/returns/ReturnDetailPage'));

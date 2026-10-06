@@ -38,7 +38,6 @@ import {
   KeyRound,
   Lock,
   Wallet,
-  MessageSquare,
 } from 'lucide-react';
 import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
 import { authService, type UserProfile } from '../../services/auth.service';
