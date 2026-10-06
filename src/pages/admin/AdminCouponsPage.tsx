@@ -1,17 +1,17 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Tag,
   Search,
   Store,
   User,
   ShieldAlert,
-  ShieldCheck,
   CheckCircle2,
   Loader2,
   Percent,
   Eye,
   Lock,
   Unlock,
+  RefreshCw,
 } from 'lucide-react';
 import {
   couponService,
@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<CouponStatus, { label: string; bg: string; text: str
     label: 'Đang hoạt động',
     bg: 'bg-[#FBF5EB]',
     text: 'text-[#B88E4F]',
-    border: 'border-[#EEDFC6]',
+    border: 'border-[#EAE4D7]',
   },
   PENDING_APPROVAL: {
     label: 'Chờ Shop duyệt',
@@ -184,32 +184,14 @@ export const AdminCouponsPage: React.FC = () => {
   const totalRedemptions = coupons.reduce((acc, curr) => acc + (curr.usageCount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
-      <div className="max-w-[1520px] mx-auto mb-8">
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6 mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Quản Trị Toàn Sàn (FR-12 Admin)
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1612]">
-              Quản Trị Coupon & Mã Giảm Giá Toàn Sàn
-            </h1>
-            <p className="text-sm sm:text-base text-[#7D715E] mt-1">
-              Giám sát toàn bộ mã ưu đãi của các KOL và Gian hàng. Khóa mã gian lận hoặc can thiệp xử lý khi có vi phạm chính sách.
-            </p>
-          </div>
-        </div>
-
+    <div className="min-h-screen w-full min-w-0 bg-[#FAF8F5] px-0 py-4 text-[#1A1612] sm:py-6 lg:py-8">
+      <div className="w-full min-w-0 mx-auto mb-8">
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[#7D715E]">Tổng coupon toàn sàn</span>
-              <Tag className="w-4 h-4 text-[#C59B58]" />
+              <Tag className="w-4 h-4 text-[#B88E4F]" />
             </div>
             <p className="text-2xl font-bold text-[#1A1612]">{totalCount}</p>
           </div>
@@ -266,25 +248,36 @@ export const AdminCouponsPage: React.FC = () => {
                 onClick={() => setStatusFilter(tab.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   statusFilter === tab.key
-                    ? 'bg-[#C59B58] text-white shadow-xs'
-                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612]'
+                    ? 'bg-[#EBD08C] text-white shadow-xs'
+                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612]'
                 }`}
               >
                 {tab.label}
               </button>
             ))}
+
+            <button
+              type="button"
+              onClick={fetchCoupons}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF8F5] hover:bg-[#F3EFE6] text-[#1A1612] border border-[#EAE4D7] hover:border-[#C59B58] transition cursor-pointer disabled:opacity-50 shrink-0"
+              title="Làm mới dữ liệu"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
+              <span>Làm mới</span>
+            </button>
           </div>
         </div>
 
 
         {loading ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#C59B58] mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F] mx-auto mb-3" />
             <p className="text-sm text-[#7D715E]">Đang tải danh sách coupon toàn sàn...</p>
           </div>
         ) : filteredCoupons.length === 0 ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <Tag className="w-10 h-10 text-[#C59B58] mx-auto mb-3 opacity-60" />
+            <Tag className="w-10 h-10 text-[#B88E4F] mx-auto mb-3 opacity-60" />
             <h3 className="text-base font-bold text-[#1A1612]">Không tìm thấy mã giảm giá phù hợp</h3>
             <p className="text-xs text-[#7D715E] mt-1">Thử thay đổi từ khóa hoặc bộ lọc trạng thái để tra cứu.</p>
           </div>
@@ -313,7 +306,7 @@ export const AdminCouponsPage: React.FC = () => {
                     return (
                       <tr key={coupon.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-[#1A1612]">
-                          <span className="bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EEDFC6] text-[#B88E4F]">
+                          <span className="bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D7] text-[#B88E4F]">
                             {coupon.displayCode}
                           </span>
                         </td>
@@ -416,7 +409,7 @@ export const AdminCouponsPage: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-[#EAE4D7] shadow-2xl text-left my-auto max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-4 mb-4">
               <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-[#C59B58]" />
+                <Tag className="w-5 h-5 text-[#B88E4F]" />
                 <h3 className="text-lg font-bold text-[#1A1612]">
                   Chi tiết Coupon: {detailCoupon.displayCode}
                 </h3>
@@ -576,4 +569,3 @@ export const AdminCouponsPage: React.FC = () => {
 };
 
 export default AdminCouponsPage;
-

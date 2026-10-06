@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { toast } from '../../utils/toast';
+import { Select } from '../../components/ui/Select';
 
 export default function SamplesPage() {
   const [selectedId, setSelectedId] = useState('SMP-9821');
@@ -14,7 +15,7 @@ export default function SamplesPage() {
       price: 459000,
       status: 'shipping',
       statusLabel: 'Đang vận chuyển',
-      statusColor: '#D97706',
+      statusColor: '#B88E4F',
       date: '02/09/2026',
       carrier: 'GHTK Express',
       trackingCode: '88992211',
@@ -27,7 +28,7 @@ export default function SamplesPage() {
       channel: 'TikTok (@nhat_skincare) • 128K Followers',
       format: 'Video review 9:16 (Routine buổi sáng, 45 giây)',
       deadline: '15/09/2026',
-      image: '/assets/serum-hero-optimized.jpg',
+      image: '/assets/products/real/vitamin-c-15-serum.jpg',
     },
     {
       id: 'SMP-9810',
@@ -36,9 +37,9 @@ export default function SamplesPage() {
       price: 389000,
       status: 'pending',
       statusLabel: 'Chờ Shop duyệt',
-      statusColor: '#EA580C',
+      statusColor: '#B88E4F',
       date: '05/09/2026',
-      image: '/assets/sunscreen-product.jpg',
+      image: '/assets/products/real/spf50-oil-control.jpg',
     },
     {
       id: 'SMP-9795',
@@ -47,9 +48,9 @@ export default function SamplesPage() {
       price: 320000,
       status: 'received',
       statusLabel: 'Đã nhận hàng',
-      statusColor: '#059669',
+      statusColor: '#15803d',
       date: '20/08/2026',
-      image: '/assets/toner-bha-product.jpg',
+      image: '/assets/products/real/bha-toner-2pct.png',
     },
     {
       id: 'SMP-9780',
@@ -60,7 +61,7 @@ export default function SamplesPage() {
       statusLabel: 'Shop đã duyệt',
       statusColor: '#2563EB',
       date: '06/09/2026',
-      image: '/assets/cica-mask-product.jpg',
+      image: '/assets/products/real/centella-sheet-mask.jpg',
     },
     {
       id: 'SMP-9755',
@@ -69,9 +70,9 @@ export default function SamplesPage() {
       price: 279000,
       status: 'rejected',
       statusLabel: 'Từ chối duyệt',
-      statusColor: '#B83A42',
+      statusColor: '#991B1B',
       date: '15/08/2026',
-      image: '/assets/cleanser-product.jpg',
+      image: '/assets/products/real/amino-cleanser-ph55.jpg',
     },
   ];
 
@@ -86,15 +87,7 @@ export default function SamplesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {toastMsg && <div className="toast show">{toastMsg}</div>}
 
-      <header className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-        <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 4px', color: 'var(--ink)' }}>
-            Hàng mẫu dùng thử
-          </h1>
-          <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--muted)' }}>
-            Gửi yêu cầu nhận mẫu và theo dõi quá trình giao hàng.
-          </p>
-        </div>
+      <header className="page-head" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
 
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
@@ -109,7 +102,7 @@ export default function SamplesPage() {
             type="button"
             className="btn"
             onClick={() => setShowRequestModal(true)}
-            style={{ background: 'var(--brand-strong)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ background: 'var(--brand)', color: '#231D15', border: 'none', padding: '9px 18px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <i className="ph ph-plus"></i> Xin mẫu mới
           </button>
@@ -128,9 +121,9 @@ export default function SamplesPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', fontSize: '11.5px', fontWeight: 700 }}>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FEF3C7', color: '#D97706' }}>• Chờ duyệt 1</span>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FFEDD5', color: '#EA580C' }}>• Đang giao 1</span>
-          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#D1FAE5', color: '#059669' }}>• Đã nhận 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FBF5EB', color: '#B88E4F' }}>• Chờ duyệt 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#FBF5EB', color: '#B88E4F' }}>• Đang giao 1</span>
+          <span style={{ padding: '4px 10px', borderRadius: '6px', background: '#D1FAE5', color: '#15803d' }}>• Đã nhận 1</span>
         </div>
       </div>
 
@@ -139,15 +132,14 @@ export default function SamplesPage() {
         <div className="card" style={{ padding: '16px', background: 'var(--surface)', borderRadius: '14px', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: 'var(--shadow)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{samplesList.length} yêu cầu</span>
-            <select
-              className="select"
+            <Select
               defaultValue="all"
-              style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--surface-2)', fontSize: '11.5px', color: 'var(--ink)' }}
+              className="w-40 text-xs font-semibold"
             >
               <option value="all">Tất cả ({samplesList.length})</option>
               <option value="shipping">Đang vận chuyển (1)</option>
               <option value="pending">Chờ duyệt (1)</option>
-            </select>
+            </Select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -199,7 +191,7 @@ export default function SamplesPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '11.5px', fontFamily: 'monospace', color: 'var(--muted)' }}>{current.id}</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: '#FEF3C7', color: '#D97706' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: '#FBF5EB', color: '#B88E4F' }}>
                     {current.statusLabel}
                   </span>
                 </div>
@@ -228,7 +220,7 @@ export default function SamplesPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', textAlign: 'center' }}>
               <div style={{ background: 'var(--surface-2)', padding: '12px 8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#059669', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#15803d', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
                   <i className="ph ph-check"></i>
                 </div>
                 <strong style={{ fontSize: '12px', color: 'var(--ink)', display: 'block' }}>1. Đã gửi đề xuất</strong>
@@ -236,7 +228,7 @@ export default function SamplesPage() {
               </div>
 
               <div style={{ background: 'var(--surface-2)', padding: '12px 8px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#059669', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#D1FAE5', color: '#15803d', display: 'grid', placeItems: 'center', margin: '0 auto 6px', fontSize: '14px' }}>
                   <i className="ph ph-check"></i>
                 </div>
                 <strong style={{ fontSize: '12px', color: 'var(--ink)', display: 'block' }}>2. Shop xét duyệt</strong>
@@ -264,7 +256,7 @@ export default function SamplesPage() {
           <div style={{ background: 'var(--surface-2)', padding: '16px', borderRadius: '12px', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: '#EA580C', color: '#fff' }}>GHTK</span>
+                <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: '#B88E4F', color: '#fff' }}>GHTK</span>
                 <span style={{ fontSize: '12.5px', color: 'var(--ink)' }}>Đơn vị vận chuyển: <strong>GHTK Express</strong></span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -341,11 +333,13 @@ export default function SamplesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="field">
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', marginBottom: '4px', display: 'block' }}>Sản phẩm muốn xin mẫu</label>
-                <select className="select" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}>
+                <Select
+                  className="w-full text-xs font-semibold"
+                >
                   <option>Serum vitamin C 15% (Còn 18 mẫu)</option>
                   <option>Kem chống nắng SPF50+ (Còn 12 mẫu)</option>
                   <option>Nước hoa hồng BHA 2% (Còn 8 mẫu)</option>
-                </select>
+                </Select>
               </div>
 
               <div className="field">
@@ -366,7 +360,7 @@ export default function SamplesPage() {
                     showToast('Đã gửi yêu cầu nhận hàng mẫu tới Shop!');
                     setShowRequestModal(false);
                   }}
-                  style={{ padding: '10px', borderRadius: '8px', border: 'none', background: 'var(--brand-strong)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ padding: '10px', borderRadius: '8px', border: 'none', background: 'var(--brand)', color: '#231D15', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Gửi yêu cầu
                 </button>

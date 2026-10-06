@@ -12,7 +12,6 @@ import {
   TrendingUp,
   ArrowUpRight,
   Sparkles,
-  ChevronDown,
   RefreshCw,
 } from 'lucide-react';
 import { tierService, type TierStatus } from '../services/tier.service';
@@ -24,6 +23,7 @@ import {
 } from '../services/analytics.service';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { Select } from '../components/ui/Select';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -45,7 +45,7 @@ export default function HomePage() {
         walletService.getMyWallet().catch(() => null),
         walletService.getMyLedger(1).catch(() => null),
         analyticsService.getRealtimeOverview({ days }).catch(() => null),
-        analyticsService.getTimeSeries({ days, interval: 'day' }).catch(() => []),
+        analyticsService.getTimeSeries({ days, interval: 'daily' }).catch(() => []),
         tierService.getMyTierStatus().catch(() => null),
       ]);
 
@@ -81,61 +81,27 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-6 text-left">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1A1612] tracking-tight m-0">
-            Tổng quan CTV / KOL
-          </h1>
-          <p className="text-xs sm:text-sm text-[#7D715E] mt-1 m-0">
-            Theo dõi lưu lượng tiếp thị, kết quả đơn hàng và hoa hồng bán mỹ phẩm thời gian thực.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="md"
-            icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-            onClick={loadData}
-          >
-            Làm mới
-          </Button>
-          <Button
-            variant="gold"
-            size="md"
-            icon={<PlusCircle className="w-4 h-4" />}
-            onClick={() => navigate('/collaborator/referral-links')}
-          >
-            Tạo link tiếp thị
-          </Button>
-        </div>
-      </header>
-
-      {/* Filter Bar */}
-      <Card className="p-4 bg-white border border-[#EAE4D7]">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-[#7D715E] flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-[#B88E4F]" />
-                Khoảng thời gian phân tích
-              </label>
-              <div className="relative">
-                <select
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  className="bg-[#F3EFE6] border border-[#EAE4D7] rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-[#1A1612] appearance-none outline-none cursor-pointer hover:bg-[#EAE4D7] transition"
-                >
-                  <option value="7">7 ngày gần nhất</option>
-                  <option value="30">30 ngày gần nhất</option>
-                  <option value="90">90 ngày gần nhất</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#7D715E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
+      {/* Filter & Action Bar - Không khung bọc ngoài, chừa icon và tên sạch đẹp */}
+      <div className="flex flex-wrap items-center justify-between gap-4 py-1 px-0.5">
+        <div className="flex items-center gap-2.5">
+          <label className="text-xs font-bold text-[#7D715E] flex items-center gap-1.5 shrink-0 select-none">
+            <Calendar className="w-3.5 h-3.5 text-[#B88E4F]" />
+            <span>Khoảng thời gian phân tích:</span>
+          </label>
+          <div className="shrink-0 min-w-[170px]">
+            <Select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              aria-label="Khoảng thời gian phân tích"
+            >
+              <option value="7">7 ngày gần nhất</option>
+              <option value="30">30 ngày gần nhất</option>
+              <option value="90">90 ngày gần nhất</option>
+            </Select>
           </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-4">
           <div className="text-xs font-semibold text-[#7D715E]">
             {overview?.period ? (
               <span>
@@ -145,11 +111,33 @@ export default function HomePage() {
               <span>Dữ liệu thực tế từ ví &amp; giao dịch sàn</span>
             )}
           </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={loadData}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer select-none"
+              title="Làm mới dữ liệu"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
+              <span>Làm mới</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/collaborator/referral-links')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B88E4F] hover:text-[#A47B3E] transition cursor-pointer select-none"
+              title="Tạo link tiếp thị"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-[#B88E4F]" />
+              <span>Tạo link tiếp thị</span>
+            </button>
+          </div>
         </div>
-      </Card>
+      </div>
 
       {/* Real Wallet Balance Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#1A1612] p-6 sm:p-7 shadow-2xs">
+      <div className="relative overflow-hidden rounded-2xl bg-[#FAF5EB] border border-[#EEDFC6] text-[#1A1612] p-6 sm:p-7 shadow-2xs">
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
           <div className="flex flex-col gap-1">
             <span className="text-xs sm:text-sm font-semibold text-[#7D715E] flex items-center gap-1.5">
@@ -174,15 +162,16 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => navigate('/collaborator/wallet')}
-            className="px-5 py-2.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer shadow-xs shrink-0 flex items-center justify-center gap-2"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#B88E4F] hover:text-[#9A7233] transition cursor-pointer shrink-0 group select-none"
+            title="Quản lý ví & Rút tiền"
           >
-            <span>Quản lý ví &amp; Rút tiền</span>
-            <ArrowUpRight className="w-4 h-4 text-white" />
+            <span className="group-hover:underline">Quản lý ví &amp; Rút tiền</span>
+            <ArrowUpRight className="w-4 h-4 text-[#B88E4F] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </div>
 
-        <div className="absolute -right-12 -top-12 w-72 h-72 rounded-full border-24 border-[#EEDFC6]/40 pointer-events-none" />
-        <div className="absolute right-4 top-2 w-52 h-52 rounded-full border-16 border-[#EEDFC6]/50 pointer-events-none" />
+        <div className="absolute -right-12 -top-12 w-72 h-72 rounded-full border-24 border-[#EAE4D7]/40 pointer-events-none" />
+        <div className="absolute right-4 top-2 w-52 h-52 rounded-full border-16 border-[#EAE4D7]/50 pointer-events-none" />
       </div>
 
       {/* 4 Real Metric Cards */}
@@ -217,7 +206,7 @@ export default function HomePage() {
         {/* Đơn hàng thành công */}
         <Card className="p-4 flex flex-col justify-between gap-3 bg-white">
           <div className="flex justify-between items-center">
-            <div className="w-8 h-8 rounded-xl bg-[#FEF5E7] text-[#D97706] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FEF5E7] text-[#B88E4F] flex items-center justify-center">
               <ShoppingBag className="w-4 h-4" />
             </div>
             {metrics?.growthOrders !== undefined && (
@@ -265,7 +254,7 @@ export default function HomePage() {
         {/* Doanh thu GMV & Hoa hồng */}
         <Card className="p-4 flex flex-col justify-between gap-3 bg-white">
           <div className="flex justify-between items-center">
-            <div className="w-8 h-8 rounded-xl bg-[#EAF8F1] text-[#059669] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#FBF5EB] text-[#B88E4F] flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
             {metrics?.growthRevenue !== undefined && (
@@ -305,19 +294,17 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <select
+            <div className="min-w-[190px]">
+              <Select
                 value={metric}
                 onChange={(e) => setMetric(e.target.value as any)}
                 aria-label="Chọn chỉ số biểu đồ"
-                className="bg-[#F3EFE6] border border-[#EAE4D7] rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-[#1A1612] appearance-none outline-none cursor-pointer hover:bg-[#EAE4D7] transition"
               >
                 <option value="clicks">Lượt nhấp (Traffic)</option>
                 <option value="orders">Đơn hàng (Orders)</option>
                 <option value="revenue">Doanh thu GMV (₫)</option>
                 <option value="commission">Hoa hồng ghi nhận (₫)</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-[#7D715E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </Select>
             </div>
           </div>
 
@@ -342,12 +329,12 @@ export default function HomePage() {
                     className="flex flex-col items-center gap-1.5 flex-1 group"
                     title={`${d.label}: ${formattedVal}`}
                   >
-                    <span className="text-[10px] font-bold text-[#A49B8B] group-hover:text-[#1A1612] transition truncate max-w-[50px]">
+                    <span className="text-[10px] font-bold text-[#7D715E] group-hover:text-[#1A1612] transition truncate max-w-[50px]">
                       {val > 1000 ? `${(val / 1000).toFixed(1)}k` : val}
                     </span>
                     <div
                       style={{ height: `${heightPct}%` }}
-                      className="w-full max-w-[36px] rounded-t-lg bg-[#EEDFC6] group-hover:bg-[#B88E4F] transition-all"
+                      className="w-full max-w-[36px] rounded-t-lg bg-[#EAE4D7] group-hover:bg-[#C59B58] transition-all"
                     />
                     <span className="text-xs font-bold text-[#7D715E] transition group-hover:text-[#B88E4F]">
                       {d.label}
@@ -419,7 +406,7 @@ export default function HomePage() {
           </div>
 
           {/* Cấp bậc thực tế */}
-          <div className="p-3.5 bg-[#FBF5EB] rounded-xl border border-[#EEDFC6] flex flex-col gap-1.5 mt-auto">
+          <div className="p-3.5 bg-[#FBF5EB] rounded-xl border border-[#EAE4D7] flex flex-col gap-1.5 mt-auto">
             <div className="flex items-center gap-2">
               <Crown className="w-4 h-4 text-[#B88E4F] shrink-0" />
               <strong className="text-xs font-bold text-[#1A1612]">

@@ -1,7 +1,23 @@
 import api from "./api";
 
 export type ManagedOrderStatus =
-  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURNED";
+  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURN_REQUESTED" | "DISPUTED" | "RETURNED";
+
+export interface StoreReturnRequest {
+  id: string;
+  reason: string;
+  details: string | null;
+  imageUrls: string[];
+  unboxingVideoUrl: string;
+  status: import('./return.service').ReturnStatus;
+  deadlineAt: string;
+  shipByAt?: string | null;
+  returnAddress?: string | null;
+  returnInstructions?: string | null;
+  submittedAt: string;
+  shopResponse: string | null;
+  shopRespondedAt: string | null;
+}
 
 export interface ManualOrderItemInput {
   productId?: string;
@@ -88,7 +104,9 @@ export interface StoreOrderRecord {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  deliveredAt: string | null;
   status: ManagedOrderStatus;
+  returnRequest?: StoreReturnRequest | null;
   customerName: string;
   customerPhone: string;
   customerEmail: string | null;
@@ -151,6 +169,14 @@ export const orderService = {
     return response.data;
   },
 
+  async respondReturnRequest(orderId: string, data: { decision: 'APPROVE' | 'REJECT'; response: string }) {
+    const response = (await api.patch(`/orders/${orderId}/return-request/respond`, data)) as unknown as ApiEnvelope<{
+      message: string;
+      returnRequest: StoreReturnRequest;
+    }>;
+    return response.data;
+  },
+
   async quoteDiscount(data: {
     storeId?: string;
     customerPhone: string;
@@ -202,6 +228,21 @@ export const orderService = {
       headers: { "Content-Type": "multipart/form-data" },
       timeout: 60000,
     })) as unknown as ApiEnvelope<ExcelImportResult>;
+    return response.data;
+  },
+
+  /**
+   * Shop chủ động hủy đơn hàng (chỉ PENDING) — gọi POST /orders/:id/cancel
+   * Backend tự động: hoàn kho, thu hồi coupon, clawback hoa hồng KOL.
+   */
+  async shopCancelOrder(
+    orderId: string,
+    reason: string,
+  ): Promise<{ message: string; order: any }> {
+    const response = (await api.post(
+      `/orders/${orderId}/cancel`,
+      { reason },
+    )) as unknown as ApiEnvelope<{ message: string; order: any }>;
     return response.data;
   },
 };

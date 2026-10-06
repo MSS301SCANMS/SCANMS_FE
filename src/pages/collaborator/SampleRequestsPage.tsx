@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import api from '../../services/api';
 import type { SampleRequest, SampleRequestStatus } from '../../types/samples';
 import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
+import { Select } from '../../components/ui/Select';
 
 
 const STATUS_LABEL: Record<SampleRequestStatus, string> = {
@@ -10,6 +11,13 @@ const STATUS_LABEL: Record<SampleRequestStatus, string> = {
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
   SHIPPED: 'Đang giao',
+  RECEIVED: 'Đã nhận · chờ video',
+  VIDEO_SUBMITTED: 'Chờ Shop nghiệm thu',
+  REVISION_REQUIRED: 'Cần sửa video',
+  COMPLETED: 'Hoàn tất',
+  OVERDUE: 'Quá hạn',
+  CANCELLED: 'Đã hủy',
+  DELIVERY_ISSUE: 'Sự cố giao hàng',
 };
 
 const STATUS_CLASS: Record<SampleRequestStatus, string> = {
@@ -17,6 +25,13 @@ const STATUS_CLASS: Record<SampleRequestStatus, string> = {
   APPROVED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   REJECTED: 'bg-rose-50 text-rose-700 border border-rose-200',
   SHIPPED: 'bg-blue-50 text-blue-700 border border-blue-200',
+  RECEIVED: 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]',
+  VIDEO_SUBMITTED: 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]',
+  REVISION_REQUIRED: 'bg-rose-50 text-rose-700 border border-rose-200',
+  COMPLETED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  OVERDUE: 'bg-rose-50 text-rose-700 border border-rose-200',
+  CANCELLED: 'bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]',
+  DELIVERY_ISSUE: 'bg-rose-50 text-rose-700 border border-rose-200',
 };
 
 const STATUS_ICON: Record<SampleRequestStatus, string> = {
@@ -24,6 +39,13 @@ const STATUS_ICON: Record<SampleRequestStatus, string> = {
   APPROVED: '✅',
   REJECTED: '❌',
   SHIPPED: '🚚',
+  RECEIVED: '📦',
+  VIDEO_SUBMITTED: '🎬',
+  REVISION_REQUIRED: '📝',
+  COMPLETED: '✅',
+  OVERDUE: '⚠️',
+  CANCELLED: '—',
+  DELIVERY_ISSUE: '🚨',
 };
 
 function formatDate(d: string) {
@@ -129,9 +151,9 @@ function RequestModal({
                 Đang tải danh sách sản phẩm...
               </div>
             ) : products.length > 0 ? (
-              <select
+              <Select
                 id="sr-product-id"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
+                className="w-full text-xs"
                 value={productId}
                 onChange={(e) => setProductId(e.target.value)}
                 required
@@ -141,7 +163,7 @@ function RequestModal({
                     {p.title} - {p.store?.name || 'Shop'} ({Number(p.price).toLocaleString('vi-VN')} đ)
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <input
                 id="sr-product-id"
@@ -208,7 +230,7 @@ function RequestModal({
             <button
               type="submit"
               id="btn-submit-sample"
-              className="px-5 py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
               disabled={loading || !productId.trim() || !shippingAddress.trim()}
             >
               {loading ? '⏳ Đang gửi...' : '📤 Gửi yêu cầu xin mẫu'}
@@ -263,19 +285,11 @@ export default function SampleRequestsPage() {
   return (
     <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-sample-requests-page">
 
-      <div className="flex items-start sm:items-center justify-between gap-4 flex-wrap pb-2 border-b border-[#EAE4D7]">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1A1612] flex items-center gap-2.5">
-            <span>📦</span> Sản Phẩm Mẫu Trải Nghiệm
-          </h1>
-          <p className="text-sm text-[#7D715E] mt-1">
-            Yêu cầu gian hàng gửi mẫu sản phẩm dùng thử để sáng tạo nội dung review chất lượng
-          </p>
-        </div>
+      <div className="flex items-center justify-end gap-4 pb-2">
         <button
           id="btn-new-sample-request"
           type="button"
-          className="px-4 py-2.5 rounded-full bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+          className="px-4 py-2.5 rounded-full bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer flex items-center gap-1.5"
           onClick={() => setShowModal(true)}
         >
           <span>+</span> Xin Mẫu Mới
@@ -293,7 +307,7 @@ export default function SampleRequestsPage() {
             aria-selected={filterStatus === s}
             className={`px-3.5 py-2 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
               filterStatus === s
-                ? 'bg-white border-[#EEDFC6] text-[#B88E4F] shadow-xs'
+                ? 'bg-white border-[#EAE4D7] text-[#B88E4F] shadow-xs'
                 : 'bg-[#F3EFE6] border-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612]'
             }`}
             onClick={() => setFilterStatus(s)}
@@ -329,7 +343,7 @@ export default function SampleRequestsPage() {
           {filtered.map((req) => (
             <div
               key={req.id}
-              className="bg-white border border-[#EAE4D7] rounded-2xl p-5 shadow-xs hover:border-[#EEDFC6] transition space-y-4"
+              className="bg-white border border-[#EAE4D7] rounded-2xl p-5 shadow-xs hover:border-[#EAE4D7] transition space-y-4"
               id={`request-${req.id}`}
             >
 
@@ -380,11 +394,11 @@ export default function SampleRequestsPage() {
 
 
               {req.trackingNumber && (
-                <div className="p-3 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-between gap-3 flex-wrap text-xs">
+                <div className="p-3 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-between gap-3 flex-wrap text-xs">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🚚</span>
                     <span className="font-semibold text-[#7D715E]">Mã vận đơn:</span>
-                    <code className="font-mono font-black text-[#1A1612] bg-white px-2 py-0.5 rounded border border-[#EEDFC6]">
+                    <code className="font-mono font-black text-[#1A1612] bg-white px-2 py-0.5 rounded border border-[#EAE4D7]">
                       {req.trackingNumber}
                     </code>
                   </div>
@@ -409,7 +423,7 @@ export default function SampleRequestsPage() {
                         {receivedIds[req.id] ? 'Đã nhận mẫu trải nghiệm thành công' : 'Mẫu sản phẩm đang được bưu cục vận chuyển'}
                       </div>
                       <div className="text-[11px] text-[#7D715E]">
-                        Quy chế: Nộp liên kết bài Review trong vòng 7 ngày kể từ khi nhận mẫu
+                        Quy chế: Nộp link video review trong vòng 14 ngày kể từ khi xác nhận nhận mẫu
                       </div>
                     </div>
                   </div>
@@ -418,7 +432,7 @@ export default function SampleRequestsPage() {
                       <button
                         type="button"
                         onClick={() => setReceivedIds((prev) => ({ ...prev, [req.id]: true }))}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] font-bold text-xs transition cursor-pointer"
                       >
                         ✓ Đã Nhận Hàng
                       </button>
@@ -426,7 +440,7 @@ export default function SampleRequestsPage() {
                     <button
                       type="button"
                       onClick={() => setReviewModalReq(req)}
-                      className="px-3 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
+                      className="px-3 py-1.5 rounded-lg bg-[#EBD08C] hover:bg-[#DEC07A] text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
                     >
                       <span>🎬</span> Nộp Video Review
                     </button>
@@ -442,7 +456,7 @@ export default function SampleRequestsPage() {
                     <div key={s} className="flex items-center gap-2 text-xs">
                       <div
                         className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
-                          done ? 'bg-[#059669] text-white' : 'bg-[#EAE4D7] text-[#7D715E]'
+                          done ? 'bg-[#15803d] text-white' : 'bg-[#EAE4D7] text-[#7D715E]'
                         }`}
                       >
                         {done ? '✓' : i + 1}

@@ -68,22 +68,14 @@ export default function KolTierStatusPage() {
   return (
     <div className="flex flex-col gap-6 text-left">
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
+        <div className="fixed top-5 right-5 z-50 bg-white text-[#1A1612] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 border border-[#EEDFC6]">
           <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
           <span>{toastMsg}</span>
         </div>
       )}
 
       {/* Header & Sub-Navigation Tabs */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1A1612] tracking-tight m-0">
-            Cấp Bậc &amp; Vinh Danh KOL (Tiers)
-          </h1>
-          <p className="text-xs sm:text-sm text-[#7D715E] mt-1 m-0">
-            Hệ thống xếp hạng tự động định kỳ hàng tháng dựa trên GMV bán và đơn giao thành công.
-          </p>
-        </div>
+      <div className="flex items-center justify-end gap-4">
 
         <Button
           variant="gold"
@@ -94,29 +86,29 @@ export default function KolTierStatusPage() {
         >
           {evaluating ? 'Đang quét...' : 'Kiểm tra thăng hạng ngay'}
         </Button>
-      </header>
+      </div>
 
       {/* Consolidated Feature Tabs */}
       <div className="flex items-center gap-2 border-b border-[#EAE4D7] pb-3">
         <Link
           to="/collaborator/tiers"
-          className="px-4 py-2 rounded-xl text-xs font-bold bg-[#C59B58] text-white shadow-2xs flex items-center gap-2"
+          className="px-4 py-2 rounded-xl text-xs font-bold bg-[#EBD08C] text-white shadow-2xs flex items-center gap-2"
         >
           <Award className="w-3.5 h-3.5" />
           <span>Cấp bậc &amp; Quyền lợi</span>
         </Link>
         <Link
           to="/collaborator/leaderboard"
-          className="px-4 py-2 rounded-xl text-xs font-bold text-[#4A3E2D] bg-white border border-[#EAE4D7] hover:bg-[#F3EFE6] transition flex items-center gap-2"
+          className="px-4 py-2 rounded-xl text-xs font-bold text-[#1A1612] bg-white border border-[#EAE4D7] hover:bg-[#F3EFE6] transition flex items-center gap-2"
         >
-          <Trophy className="w-3.5 h-3.5 text-[#C59B58]" />
+          <Trophy className="w-3.5 h-3.5 text-[#B88E4F]" />
           <span>Bảng vinh danh Top Creator</span>
         </Link>
         <Link
           to="/collaborator/bonus-progress"
-          className="px-4 py-2 rounded-xl text-xs font-bold text-[#4A3E2D] bg-white border border-[#EAE4D7] hover:bg-[#F3EFE6] transition flex items-center gap-2"
+          className="px-4 py-2 rounded-xl text-xs font-bold text-[#1A1612] bg-white border border-[#EAE4D7] hover:bg-[#F3EFE6] transition flex items-center gap-2"
         >
-          <Target className="w-3.5 h-3.5 text-[#C59B58]" />
+          <Target className="w-3.5 h-3.5 text-[#B88E4F]" />
           <span>Tiến độ thưởng doanh số</span>
         </Link>
       </div>
@@ -137,7 +129,7 @@ export default function KolTierStatusPage() {
           </div>
           <Link
             to="/collaborator/leaderboard"
-            className="text-xs font-bold text-[#B88E4F] hover:text-[#9A7032]"
+            className="text-xs font-bold text-[#B88E4F] hover:text-[#B88E4F]"
           >
             Xem bảng xếp hạng đầy đủ →
           </Link>
@@ -170,10 +162,10 @@ export default function KolTierStatusPage() {
 
           {/* Hạng 1 (Quán quân) */}
           <div className="bg-[#FBF5EB] border-2 border-[#B88E4F] rounded-2xl p-6 flex flex-col items-center text-center gap-3 relative order-1 md:order-2 shadow-sm scale-105">
-            <div className="absolute -top-3.5 px-3 py-0.5 rounded-full bg-[#B88E4F] text-white text-xs font-black flex items-center gap-1 shadow-xs">
+            <div className="absolute -top-3.5 px-3 py-0.5 rounded-full bg-[#EBD08C] text-white text-xs font-black flex items-center gap-1 shadow-xs">
               <Crown className="w-3.5 h-3.5" /> QUÁN QUÂN
             </div>
-            <div className="w-20 h-20 rounded-full bg-[#EEDFC6] border-4 border-[#B88E4F] flex items-center justify-center text-2xl font-black text-[#B88E4F] mt-2">
+            <div className="w-20 h-20 rounded-full bg-[#EAE4D7] border-4 border-[#B88E4F] flex items-center justify-center text-2xl font-black text-[#B88E4F] mt-2">
               {podium?.rank1?.fullName?.charAt(0) || '1'}
             </div>
             <div>
@@ -184,7 +176,7 @@ export default function KolTierStatusPage() {
                 {podium?.rank1?.tierName || 'Top Creator'}
               </span>
             </div>
-            <div className="w-full bg-white rounded-xl p-3 border border-[#EEDFC6]">
+            <div className="w-full bg-white rounded-xl p-3 border border-[#EAE4D7]">
               <span className="text-[11px] text-[#7D715E] block">Doanh số GMV xuất sắc</span>
               <strong className="text-base font-black text-[#B88E4F]">
                 {podium?.rank1?.grossRevenue ? `${Number(podium.rank1.grossRevenue).toLocaleString('vi-VN')} ₫` : '0 ₫'}
@@ -224,7 +216,7 @@ export default function KolTierStatusPage() {
       </Card>
 
       {/* Cấp bậc & Tiến độ hiện tại của bạn */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] p-6 sm:p-7 shadow-2xs">
+      <div className="relative overflow-hidden rounded-2xl bg-[#FBF5EB] border border-[#EAE4D7] p-6 sm:p-7 shadow-2xs">
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
           <div>
             <span className="text-xs font-bold text-[#7D715E] uppercase tracking-wider flex items-center gap-1.5">
@@ -232,7 +224,7 @@ export default function KolTierStatusPage() {
               Cấp bậc hiện tại của bạn
             </span>
             <div className="flex items-center gap-3.5 mt-2">
-              <div className="w-12 h-12 rounded-xl bg-[#EEDFC6] text-[#B88E4F] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-[#EAE4D7] text-[#B88E4F] flex items-center justify-center">
                 <Crown className="w-6 h-6" />
               </div>
               <div>
@@ -246,7 +238,7 @@ export default function KolTierStatusPage() {
             </div>
           </div>
 
-          <div className="bg-white px-4 py-3 rounded-xl border border-[#EEDFC6] shrink-0">
+          <div className="bg-white px-4 py-3 rounded-xl border border-[#EAE4D7] shrink-0">
             <span className="text-[11px] text-[#7D715E] block font-medium">Hạn mức quyền lợi</span>
             <strong className="text-sm font-extrabold text-[#1A1612]">
               {currentTier.extraBonusPercentage > 2 ? '5 mẫu/tháng + Hỗ trợ VIP' : '2 mẫu/tháng • Tiêu chuẩn'}
@@ -256,7 +248,7 @@ export default function KolTierStatusPage() {
 
         {/* Tiến độ lên hạng tiếp theo */}
         {nextTier ? (
-          <div className="mt-6 pt-5 border-t border-[#EEDFC6]/80">
+          <div className="mt-6 pt-5 border-t border-[#EAE4D7]/80">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs sm:text-sm font-bold text-[#1A1612]">
                 Tiến độ thăng hạng <strong>{nextTier.name} (+{nextTier.extraBonusPercentage || 0}% Thưởng)</strong>
@@ -266,8 +258,8 @@ export default function KolTierStatusPage() {
               </span>
             </div>
 
-            <div className="h-2 w-full bg-[#FAF8F5] rounded-full overflow-hidden border border-[#EEDFC6]">
-              <div className="h-full bg-[#B88E4F] rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+            <div className="h-2 w-full bg-[#FAF8F5] rounded-full overflow-hidden border border-[#EAE4D7]">
+              <div className="h-full bg-[#EBD08C] rounded-full transition-all" style={{ width: `${progressPct}%` }} />
             </div>
 
             <div className="flex justify-between text-xs text-[#7D715E] mt-2 font-medium">
@@ -280,7 +272,7 @@ export default function KolTierStatusPage() {
             </div>
           </div>
         ) : (
-          <div className="mt-6 pt-5 border-t border-[#EEDFC6]/80 text-xs text-[#7D715E]">
+          <div className="mt-6 pt-5 border-t border-[#EAE4D7]/80 text-xs text-[#7D715E]">
             🎉 Bạn đã đạt cấp bậc cao nhất trong hệ thống đối tác!
           </div>
         )}
@@ -323,7 +315,7 @@ export default function KolTierStatusPage() {
                       <div className="flex items-center gap-2">
                         <strong className="text-xs sm:text-sm font-bold text-[#1A1612]">{t.name}</strong>
                         {isCurrent && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#B88E4F] text-white">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#EBD08C] text-white">
                             Cấp hiện tại
                           </span>
                         )}

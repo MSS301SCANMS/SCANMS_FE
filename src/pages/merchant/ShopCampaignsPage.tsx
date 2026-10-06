@@ -1,7 +1,9 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import api from '../../services/api';
 import type { Campaign } from '../../types/campaigns';
+import { ExclusiveDealInbox } from '../../components/affiliate/ExclusiveDealInbox';
+import { DateTimePicker } from '../../components/common/DateTimePicker';
 
 
 const STATUS_LABEL: Record<string, string> = {
@@ -94,24 +96,24 @@ function CreateCampaignModal({ onClose, onSuccess }: { onClose: () => void; onSu
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Ngày bắt đầu</label>
-              <input
+              <DateTimePicker
                 id="campaign-start"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
-                type="date"
+                mode="date"
                 value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                onChange={(val) => setForm((f) => ({ ...f, startDate: val }))}
+                placeholder="Chọn ngày bắt đầu"
                 required
               />
             </div>
             <div>
               <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Ngày kết thúc</label>
-              <input
+              <DateTimePicker
                 id="campaign-end"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
-                type="date"
+                mode="date"
                 value={form.endDate}
-                min={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                minDateTime={form.startDate}
+                onChange={(val) => setForm((f) => ({ ...f, endDate: val }))}
+                placeholder="Chọn ngày kết thúc"
                 required
               />
             </div>
@@ -128,7 +130,7 @@ function CreateCampaignModal({ onClose, onSuccess }: { onClose: () => void; onSu
             <button
               id="btn-create-campaign"
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
               disabled={loading}
             >
               {loading ? '⏳ Đang tạo...' : '🚀 Tạo chiến dịch'}
@@ -187,7 +189,7 @@ function InviteKolModal({
           </button>
         </div>
 
-        <div className="p-4 mx-6 mt-4 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] space-y-1">
+        <div className="p-4 mx-6 mt-4 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] space-y-1">
           <div className="text-xs font-bold text-[#1A1612]">🎯 {campaign.name}</div>
           <div className="text-sm font-extrabold text-[#B88E4F]">
             +{campaign.bonusCommissionRate}% hoa hồng thưởng
@@ -226,7 +228,7 @@ function InviteKolModal({
             <button
               id="btn-send-invite"
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
               disabled={loading || !collaboratorId.trim()}
             >
               {loading ? '⏳ Đang gửi...' : '💌 Gửi thẻ mời VIP'}
@@ -247,7 +249,7 @@ function CampaignCard({ campaign, onInvite }: { campaign: Campaign; onInvite: (c
   return (
     <div
       className={`bg-white border rounded-2xl p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between ${
-        expired ? 'border-[#EAE4D7] opacity-75' : 'border-[#EEDFC6]'
+        expired ? 'border-[#EAE4D7] opacity-75' : 'border-[#EAE4D7]'
       }`}
       id={`campaign-${campaign.id}`}
     >
@@ -273,7 +275,7 @@ function CampaignCard({ campaign, onInvite }: { campaign: Campaign; onInvite: (c
           </span>
         </div>
 
-        <div className="my-3 p-3 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-between">
+        <div className="my-3 p-3 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-between">
           <span className="text-xs font-semibold text-[#7D715E]">Hoa hồng thưởng thêm</span>
           <span className="text-xl font-black text-[#B88E4F]">+{campaign.bonusCommissionRate}%</span>
         </div>
@@ -299,7 +301,7 @@ function CampaignCard({ campaign, onInvite }: { campaign: Campaign; onInvite: (c
                 id={`participant-${p.id}`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 rounded-full bg-[#EEDFC6] text-[#B88E4F] font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-[#EAE4D7] text-[#B88E4F] font-bold flex items-center justify-center text-[10px] flex-shrink-0">
                     {p.collaborator?.fullName?.[0] || '?'}
                   </div>
                   <span className="text-xs font-semibold text-[#1A1612] truncate">
@@ -319,7 +321,7 @@ function CampaignCard({ campaign, onInvite }: { campaign: Campaign; onInvite: (c
         <button
           id={`btn-invite-${campaign.id}`}
           type="button"
-          className="w-full py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
           onClick={() => onInvite(campaign)}
           disabled={expired}
         >
@@ -364,7 +366,7 @@ export default function ShopCampaignsPage() {
 
       {toast && (
         <div
-          className="fixed bottom-6 right-6 px-4 py-3 rounded-xl bg-white border border-[#EEDFC6] text-[#B88E4F] text-xs font-extrabold shadow-lg z-50"
+          className="fixed bottom-6 right-6 px-4 py-3 rounded-xl bg-white border border-[#EAE4D7] text-[#B88E4F] text-xs font-extrabold shadow-lg z-50"
           role="alert"
         >
           {toast}
@@ -372,24 +374,18 @@ export default function ShopCampaignsPage() {
       )}
 
 
-      <div className="flex items-start sm:items-center justify-between gap-4 flex-wrap pb-2 border-b border-[#EAE4D7]">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1A1612] flex items-center gap-2.5">
-            <span>🎯</span> Chiến Dịch Tiếp Thị Liên Kết
-          </h1>
-          <p className="text-sm text-[#7D715E] mt-1">
-            Tạo chiến dịch hoa hồng thưởng và mời Top KOL quảng bá sản phẩm cho gian hàng
-          </p>
-        </div>
+      <div className="flex items-center justify-end pb-2">
         <button
           id="btn-new-campaign"
           type="button"
-          className="px-4 py-2.5 rounded-full bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+          className="px-4 py-2.5 rounded-full bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer flex items-center gap-1.5"
           onClick={() => setShowCreate(true)}
         >
           <span>+</span> Tạo Chiến Dịch Mới
         </button>
       </div>
+
+      <ExclusiveDealInbox />
 
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 p-20 text-[#7D715E]">
@@ -405,7 +401,7 @@ export default function ShopCampaignsPage() {
           </p>
           <button
             type="button"
-            className="px-4 py-2 rounded-full bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-extrabold transition shadow-xs cursor-pointer"
+            className="px-4 py-2 rounded-full bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer"
             onClick={() => setShowCreate(true)}
           >
             + Tạo Chiến Dịch Ngay

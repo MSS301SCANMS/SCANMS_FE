@@ -9,11 +9,12 @@ import {
   PauseCircle,
   Eye,
   Activity,
-  Bot,
   Sparkles,
   Info,
   Shield,
   Layers,
+  X,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,10 +24,13 @@ import {
   type FraudRiskLevel,
   type FraudMitigationAction,
 } from '../../services/ai-fraud.service';
+import { Select } from '../../components/ui/Select';
+import './AiFraudSentinelPage.css';
 
 export default function AiFraudSentinelPage() {
   const [summary, setSummary] = useState<FraudScanSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<'ALL' | 'CRITICAL' | 'SUSPICIOUS' | 'LOW' | 'FROZEN'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIncident, setActiveIncident] = useState<FraudIncident | null>(null);
@@ -36,12 +40,15 @@ export default function AiFraudSentinelPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await aiFraudService.scanTraffic({ timeframe });
       setSummary(data);
     } catch (err: any) {
       console.error(err);
-      toast.error('Không thể tải dữ liệu quét gian lận AI. Vui lòng thử lại.');
+      const message = 'Không thể tải dữ liệu quét gian lận AI. Vui lòng thử lại.';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -72,30 +79,30 @@ export default function AiFraudSentinelPage() {
     switch (level) {
       case 'FRAUD_CRITICAL':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
-            <Flame className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
-            NGUY CƠ CAO ({score}đ)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1 text-[10px] font-bold text-[#B91C1C]">
+            <Flame className="h-3.5 w-3.5" />
+            Cao · {score}đ
           </span>
         );
       case 'SUSPICIOUS':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-            NGHI VẤN ({score}đ)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[10px] font-bold text-[#8A642C]">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Nghi vấn · {score}đ
           </span>
         );
       case 'LOW_RISK':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-stone-100 text-stone-700 border border-stone-300">
-            <Info className="w-3.5 h-3.5 text-stone-500" />
-            THEO DÕI ({score}đ)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EAE4D7] bg-[#F3EFE6] px-2.5 py-1 text-[10px] font-semibold text-[#5F5547]">
+            <Info className="h-3.5 w-3.5" />
+            Theo dõi · {score}đ
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            AN TOÀN ({score}đ)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[10px] font-semibold text-[#5F5547]">
+            <ShieldCheck className="h-3.5 w-3.5 text-[#059669]" />
+            An toàn · {score}đ
           </span>
         );
     }
@@ -104,19 +111,19 @@ export default function AiFraudSentinelPage() {
   const getAnomalyLabel = (type: string) => {
     switch (type) {
       case 'ZOMBIE_TRAFFIC':
-        return { label: 'Click ảo / Zombie Traffic', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+        return { label: 'Click ảo / Zombie Traffic', color: 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]' };
       case 'CLICK_BURST_BOT':
-        return { label: 'Bot Spam Click', color: 'bg-orange-50 text-orange-700 border-orange-200' };
+        return { label: 'Bot Spam Click', color: 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]' };
       case 'IP_CLUSTER':
-        return { label: 'Tập trung IP Proxy', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+        return { label: 'Tập trung IP Proxy', color: 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8A642C]' };
       case 'FLASH_CONVERSION':
-        return { label: 'Checkout chớp nhoáng', color: 'bg-amber-50 text-amber-800 border-amber-200' };
+        return { label: 'Checkout chớp nhoáng', color: 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8A642C]' };
       case 'CONVERSION_SPIKE':
-        return { label: 'Đột biến chuyển đổi', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+        return { label: 'Đột biến chuyển đổi', color: 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8A642C]' };
       case 'SELF_REFERRAL':
-        return { label: 'Tự mua qua link mình', color: 'bg-stone-100 text-stone-700 border-stone-300' };
+        return { label: 'Tự mua qua link mình', color: 'border-[#EAE4D7] bg-[#F3EFE6] text-[#5F5547]' };
       default:
-        return { label: type, color: 'bg-stone-100 text-stone-700 border-stone-200' };
+        return { label: type, color: 'border-[#EAE4D7] bg-[#FAF8F5] text-[#5F5547]' };
     }
   };
 
@@ -136,229 +143,270 @@ export default function AiFraudSentinelPage() {
     if (selectedTab === 'FROZEN') return inc.status === 'FROZEN';
     return true;
   });
+  const isInitialLoading = loading && summary === null;
+  const countLabel = (count?: number) => {
+    if (isInitialLoading) return '…';
+    if (!summary && loadError) return '—';
+    return (count ?? 0).toLocaleString('vi-VN');
+  };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-orange-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black tracking-wider bg-white/20 backdrop-blur-xs text-amber-100 border border-white/20">
-              <Bot className="w-4 h-4 text-amber-300" />
-              <span>FR-31: AI FRAUD SENTINEL & TRAFFIC DEFENSE</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Động Cơ AI Phát Hiện Gian Lận & Click Ảo
-            </h1>
-            <p className="text-amber-100/90 text-sm leading-relaxed">
-              Hệ thống AI phân tích hành vi đa chiều (Multi-Dimensional Heuristic Anomaly Detection) tự động quét lưu lượng traffic, nhận diện click bot, zombie traffic và bảo vệ ngân sách hoa hồng gian hàng.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              id="timeframe-select"
-              value={timeframe}
-              onChange={(e) => setTimeframe(e.target.value as any)}
-              className="px-4 py-2.5 bg-white/15 hover:bg-white/20 border border-white/25 text-white rounded-xl text-xs font-bold outline-none cursor-pointer transition-all backdrop-blur-xs"
-            >
-              <option value="24h" className="text-stone-900">24 giờ qua</option>
-              <option value="7d" className="text-stone-900">7 ngày gần nhất</option>
-              <option value="30d" className="text-stone-900">30 ngày qua</option>
-              <option value="all" className="text-stone-900">Toàn thời gian</option>
-            </select>
-
-            <button
-              id="btn-rescan-traffic"
-              onClick={loadData}
-              disabled={loading}
-              className="px-4 py-2.5 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Quét lại toàn sàn</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="sentinel-page w-full min-w-0 space-y-4 pb-8 pt-4 sm:pt-5">
+      {/* KPI Metric Cards - Nhỏ gọn, cân xứng, chuẩn 4 cột trên desktop */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         {/* Total Clicks Scanned */}
-        <div className="p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-stone-500">
-            <span className="text-xs font-semibold">Lưu Lượng Đã Quét</span>
-            <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
-              <Activity className="w-4 h-4" />
+        <div className="flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3 sm:p-3.5 transition hover:border-[#C59B58]/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Lưu lượng đã quét</span>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <Activity className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-stone-900">
-            {(summary?.totalScannedClicks || 0).toLocaleString('vi-VN')}{' '}
-            <span className="text-xs font-medium text-stone-500">clicks</span>
-          </div>
-          <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-stone-400" />
-            <span>Trên <strong>{summary?.totalScannedLinks || 0}</strong> link tiếp thị</span>
+          <div className="mt-2">
+            <div className="text-xl font-semibold tracking-tight text-[#1A1612]">
+              {isInitialLoading ? (
+                <span aria-hidden="true" className="inline-block h-7 w-20 animate-pulse rounded bg-[#F3EFE6] align-middle" />
+              ) : !summary && loadError ? '—' : <>{(summary?.totalScannedClicks ?? 0).toLocaleString('vi-VN')}{' '}<span className="text-xs font-semibold text-[#7D715E]">clicks</span></>}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-[#7D715E] truncate">
+              {isInitialLoading ? (
+                <span aria-hidden="true" className="inline-block h-3.5 w-32 animate-pulse rounded bg-[#F3EFE6]" />
+              ) : !summary && loadError ? 'Chưa tải được số liệu' : <><Layers className="h-3.5 w-3.5 text-[#B88E4F] shrink-0" /><span>Trên <strong className="font-bold text-[#1A1612]">{summary?.totalScannedLinks ?? 0}</strong> link tiếp thị</span></>}
+            </div>
           </div>
         </div>
 
         {/* Critical Alerts */}
-        <div className="p-5 bg-gradient-to-br from-rose-50/70 to-white rounded-2xl border border-rose-200 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-rose-700">
-            <span className="text-xs font-bold">Cảnh Báo Nguy Cơ Cao</span>
-            <div className="p-2 bg-rose-100 rounded-xl text-rose-700">
-              <Flame className="w-4 h-4" />
+        <div className="flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3 sm:p-3.5 transition hover:border-[#EEDFC6]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#B91C1C] truncate">Cảnh báo nguy cơ cao</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]">
+              <Flame className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-900">
-            {summary?.criticalCount || 0}{' '}
-            <span className="text-xs font-medium text-rose-600">sự vụ</span>
-          </div>
-          <div className="text-[11px] text-rose-700 font-medium">
-            + {summary?.suspiciousCount || 0} sự vụ mức độ nghi vấn
+          <div className="mt-2.5">
+            <div className="text-xl font-semibold tracking-tight text-[#B91C1C]">
+              {isInitialLoading ? (
+                <span aria-hidden="true" className="inline-block h-7 w-12 animate-pulse rounded bg-[#F3EFE6] align-middle" />
+              ) : !summary && loadError ? '—' : <>{summary?.criticalCount ?? 0}{' '}<span className="text-xs font-semibold text-[#B91C1C]">sự vụ</span></>}
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">
+              {isInitialLoading ? <span aria-hidden="true" className="inline-block h-3.5 w-36 animate-pulse rounded bg-[#F3EFE6]" /> : !summary && loadError ? 'Chưa tải được số liệu' : <><span className="font-bold text-[#8A642C]">{summary?.suspiciousCount ?? 0}</span> sự vụ mức độ nghi vấn</>}
+            </div>
           </div>
         </div>
 
         {/* Potential Saved Budget */}
-        <div className="p-5 bg-gradient-to-br from-amber-50/70 to-white rounded-2xl border border-amber-200 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-amber-800">
-            <span className="text-xs font-bold">Ngân Sách Được Bảo Vệ</span>
-            <div className="p-2 bg-amber-100 rounded-xl text-amber-800">
-              <Shield className="w-4 h-4" />
+        <div className="flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3 sm:p-3.5 transition hover:border-[#C59B58]/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Ngân sách được bảo vệ</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
+              <Shield className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-950">
-            {((summary?.potentialSavedAmount || 0) / 1000).toLocaleString('vi-VN')}k{' '}
-            <span className="text-xs font-medium text-amber-700">VND</span>
-          </div>
-          <div className="text-[11px] text-amber-800 font-medium">
-            Hoa hồng ví chờ đang được cách ly
+          <div className="mt-2.5">
+            <div className="text-xl font-semibold tracking-tight text-[#8A642C]">
+              {isInitialLoading ? (
+                <span aria-hidden="true" className="inline-block h-7 w-16 animate-pulse rounded bg-[#F3EFE6] align-middle" />
+              ) : !summary && loadError ? '—' : <>{((summary?.potentialSavedAmount ?? 0) / 1000).toLocaleString('vi-VN')}k{' '}<span className="text-xs font-semibold text-[#7D715E]">VND</span></>}
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">{isInitialLoading ? 'Đang tổng hợp dữ liệu…' : !summary && loadError ? 'Chưa tải được số liệu' : 'Hoa hồng chờ đang được cách ly'}</div>
           </div>
         </div>
 
         {/* Healthy Traffic Ratio */}
-        <div className="p-5 bg-gradient-to-br from-emerald-50/70 to-white rounded-2xl border border-emerald-200 shadow-xs space-y-2">
-          <div className="flex items-center justify-between text-emerald-800">
-            <span className="text-xs font-bold">Tỷ Lệ Traffic Sạch</span>
-            <div className="p-2 bg-emerald-100 rounded-xl text-emerald-800">
-              <ShieldCheck className="w-4 h-4" />
+        <div className="flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-[#EAE4D7] bg-white p-3 sm:p-3.5 transition hover:border-[#C59B58]/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#7D715E] truncate">Tỷ lệ traffic sạch</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#059669]">
+              <ShieldCheck className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-950">
-            {summary && summary.totalScannedLinks > 0
-              ? `${Math.round(((summary.cleanCount + summary.lowRiskCount) / summary.totalScannedLinks) * 100)}%`
-              : '100%'}
-          </div>
-          <div className="text-[11px] text-emerald-700 font-medium">
-            Lưu lượng tự nhiên đạt chuẩn an toàn
+          <div className="mt-2.5">
+            <div className="text-xl font-semibold tracking-tight text-[#1A1612]">
+              {isInitialLoading ? (
+                <span aria-hidden="true" className="inline-block h-7 w-16 animate-pulse rounded bg-[#F3EFE6] align-middle" />
+              ) : !summary && loadError ? '—' : summary && summary.totalScannedLinks > 0
+                ? `${Math.round(((summary.cleanCount + summary.lowRiskCount) / summary.totalScannedLinks) * 100)}%`
+                : '100%'}
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-[#7D715E] truncate">{isInitialLoading ? 'Đang phân tích lưu lượng…' : !summary && loadError ? 'Chưa tải được số liệu' : 'Lưu lượng tự nhiên đạt chuẩn an toàn'}</div>
           </div>
         </div>
       </div>
 
       {/* Main Table & Filter Container */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
+      <div className="sentinel-panel min-w-0 overflow-hidden rounded-xl border border-[#EAE4D7] bg-white">
         {/* Filter Navigation Bar */}
-        <div className="p-4 sm:p-5 border-b border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-50/40">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="sentinel-toolbar flex min-w-0 flex-col gap-2 border-b border-[#EAE4D7] bg-white p-3">
+          <div className="sentinel-toolbar-main flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="sentinel-tabs flex min-w-0 max-w-full flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
             <button
+              type="button"
               onClick={() => setSelectedTab('ALL')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition ${
                 selectedTab === 'ALL'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                  ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226]'
+                  : 'border-transparent bg-white text-[#7D715E] hover:bg-[#FAF8F5]'
               }`}
             >
-              Tất cả ({summary?.incidents.length || 0})
+              <Layers className="h-3.5 w-3.5" />
+              Tất cả ({countLabel(summary?.incidents.length)})
             </button>
             <button
+              type="button"
               onClick={() => setSelectedTab('CRITICAL')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition ${
                 selectedTab === 'CRITICAL'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'bg-white text-rose-700 hover:bg-rose-50 border border-rose-200'
+                  ? 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                  : 'border-transparent bg-white text-[#B91C1C] hover:bg-[#FEF2F2]'
               }`}
             >
-              🔥 Nguy cơ cao ({summary?.criticalCount || 0})
+              <Flame className="h-3.5 w-3.5" />
+              Nguy cơ cao ({countLabel(summary?.criticalCount)})
             </button>
             <button
+              type="button"
               onClick={() => setSelectedTab('SUSPICIOUS')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition ${
                 selectedTab === 'SUSPICIOUS'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
+                  ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8A642C]'
+                  : 'border-transparent bg-white text-[#7D715E] hover:bg-[#FAF8F5]'
               }`}
             >
-              ⚠️ Nghi vấn ({summary?.suspiciousCount || 0})
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Nghi vấn ({countLabel(summary?.suspiciousCount)})
             </button>
             <button
+              type="button"
               onClick={() => setSelectedTab('LOW')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition ${
                 selectedTab === 'LOW'
-                  ? 'bg-stone-700 text-white shadow-xs'
-                  : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                  ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#5F5547]'
+                  : 'border-transparent bg-white text-[#7D715E] hover:bg-[#FAF8F5]'
               }`}
             >
-              ℹ️ Theo dõi ({summary?.lowRiskCount || 0})
+              <Info className="h-3.5 w-3.5" />
+              Theo dõi ({countLabel(summary?.lowRiskCount)})
             </button>
             <button
+              type="button"
               onClick={() => setSelectedTab('FROZEN')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition ${
                 selectedTab === 'FROZEN'
-                  ? 'bg-purple-700 text-white shadow-xs'
-                  : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+                  ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#5F5547]'
+                  : 'border-transparent bg-white text-[#7D715E] hover:bg-[#FAF8F5]'
               }`}
             >
-              🔒 Đã đóng băng ({summary?.incidents.filter((i) => i.status === 'FROZEN').length || 0})
+              <Lock className="h-3.5 w-3.5" />
+              Đã đóng băng ({countLabel(summary?.incidents.filter((i) => i.status === 'FROZEN').length)})
             </button>
+            </div>
+
+            <div className="sentinel-toolbar-actions flex shrink-0 items-center justify-end gap-1">
+              <div className="sentinel-timeframe relative w-[156px] shrink-0">
+                <Calendar className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[#8A642C]" />
+                <Select
+                  id="timeframe-select"
+                  value={timeframe}
+                  onChange={(e) => setTimeframe(e.target.value as any)}
+                  aria-label="Chọn khoảng thời gian quét"
+                  className="h-9 w-full pl-9 pr-1 text-xs"
+                >
+                  <option value="24h">24 giờ qua</option>
+                  <option value="7d">7 ngày gần nhất</option>
+                  <option value="30d">30 ngày qua</option>
+                  <option value="all">Toàn thời gian</option>
+                </Select>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadData}
+                disabled={loading}
+                aria-label={loading ? 'Đang quét lại toàn sàn' : 'Quét lại toàn sàn'}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[#8C6226] transition hover:text-[#B88E4F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40 disabled:cursor-wait disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Quét lại toàn sàn
+              </button>
+            </div>
           </div>
 
-          <div className="relative min-w-[260px]">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input
-              id="search-incident-input"
-              type="text"
-              placeholder="Tìm theo mã sự vụ, tên KOL, link..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-stone-200 rounded-xl text-xs font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-            />
+          <div className="sentinel-controls flex min-w-0 items-center justify-end gap-2">
+            <div className="relative min-w-0">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7D715E]" />
+              <input
+                id="search-incident-input"
+                aria-label="Tìm sự vụ gian lận"
+                type="text"
+                placeholder="Tìm theo mã sự vụ, tên KOL, link..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 w-full rounded-lg border border-[#EAE4D7] bg-white pl-9 pr-3 text-xs text-[#1A1612] outline-none transition placeholder:text-[#7D715E] focus:border-[#C59B58]"
+              />
+            </div>
+
           </div>
         </div>
 
         {/* Table Content */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="sentinel-table-scroll overflow-x-auto">
+          <table className="sentinel-table w-full min-w-[1120px] table-fixed border-collapse text-left">
+            <colgroup>
+              <col style={{width:'12%'}} /><col style={{width:'16%'}} /><col style={{width:'16%'}} /><col style={{width:'10%'}} /><col style={{width:'16%'}} /><col style={{width:'10%'}} /><col style={{width:'10%'}} /><col style={{width:'10%'}} />
+            </colgroup>
             <thead>
-              <tr className="border-b border-stone-100 bg-stone-50/70 text-[11px] font-bold text-stone-500 uppercase tracking-wider">
-                <th className="py-3.5 px-5">Mã Sự Vụ</th>
-                <th className="py-3.5 px-4">Đối Tác KOL</th>
-                <th className="py-3.5 px-4">Link & Sản Phẩm</th>
-                <th className="py-3.5 px-4 text-center">Traffic & CR</th>
-                <th className="py-3.5 px-4">Dấu Hiệu Bất Thường</th>
-                <th className="py-3.5 px-4 text-center">Điểm Rủi Ro</th>
-                <th className="py-3.5 px-4 text-center">Trạng Thái</th>
-                <th className="py-3.5 px-5 text-right">Thao Tác</th>
+              <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[10px] font-semibold uppercase tracking-[0.04em] text-[#7D715E]">
+                <th className="px-4 py-4">Mã sự vụ</th>
+                <th className="px-4 py-4">Đối tác KOL</th>
+                <th className="px-4 py-4">Link & sản phẩm</th>
+                <th className="px-3 py-4 text-center">Traffic & CR</th>
+                <th className="px-4 py-4">Dấu hiệu bất thường</th>
+                <th className="px-3 py-4 text-center">Điểm rủi ro</th>
+                <th className="px-3 py-4 text-center">Trạng thái</th>
+                <th className="px-4 py-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100 text-xs text-stone-800 font-medium">
+            <tbody className="divide-y divide-[#EAE4D7]/70 text-xs font-medium text-[#1A1612]">
               {loading && (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-stone-400 font-semibold">
+                <tr className="sentinel-state-row">
+                  <td colSpan={8} className="py-14 text-center font-semibold text-[#7D715E]">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#C59B58] border-t-transparent" />
                       <span>Đang quét phân tích dữ liệu AI...</span>
                     </div>
                   </td>
                 </tr>
               )}
 
-              {!loading && filteredIncidents.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-stone-400 font-semibold">
+              {!loading && !summary && loadError && (
+                <tr className="sentinel-state-row">
+                  <td colSpan={8} className="py-14 text-center">
+                    <div role="alert" className="flex flex-col items-center gap-2 text-[#7D715E]">
+                      <AlertTriangle className="h-8 w-8 text-[#B88E4F]" />
+                      <p className="font-semibold text-[#1A1612]">Không tải được dữ liệu quét</p>
+                      <p className="text-xs">Kiểm tra kết nối rồi thử lại.</p>
+                      <button
+                        type="button"
+                        onClick={loadData}
+                        className="mt-1 inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-[#8C6226] hover:bg-[#FBF5EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Thử lại
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+
+              {!loading && summary && filteredIncidents.length === 0 && (
+                <tr className="sentinel-state-row">
+                  <td colSpan={8} className="py-14 text-center font-semibold text-[#7D715E]">
                     <div className="flex flex-col items-center gap-2">
-                      <ShieldCheck className="w-10 h-10 text-emerald-500 stroke-1" />
-                      <p className="text-stone-700 font-bold">Không tìm thấy sự vụ nghi vấn nào</p>
-                      <p className="text-xs text-stone-400 font-normal">Toàn bộ lưu lượng trong phạm vi quét đều hợp lệ và an toàn.</p>
+                      <ShieldCheck className="h-10 w-10 stroke-1 text-[#059669]" />
+                      <p className="font-bold text-[#1A1612]">Không tìm thấy sự vụ nghi vấn nào</p>
+                      <p className="text-xs font-normal text-[#7D715E]">Toàn bộ lưu lượng trong phạm vi quét đều hợp lệ và an toàn.</p>
                     </div>
                   </td>
                 </tr>
@@ -369,56 +417,57 @@ export default function AiFraudSentinelPage() {
                   <tr
                     key={inc.id}
                     id={`incident-row-${inc.id}`}
-                    className="hover:bg-amber-50/40 transition-colors group cursor-pointer"
+                    className="sentinel-row group cursor-pointer transition-colors hover:bg-[#FBF5EB]/55"
                     onClick={() => setActiveIncident(inc)}
                   >
-                    <td className="py-4 px-5">
-                      <div className="font-extrabold text-stone-900 font-mono text-xs">
+                    <td data-label="Mã sự vụ" className="px-3 py-3">
+                      <div className="break-words font-mono text-[11px] font-bold text-[#1A1612]">
                         {inc.incidentCode}
                       </div>
-                      <div className="text-[10px] text-stone-400 font-normal mt-0.5">
+                      <div className="mt-1 text-[10px] font-normal text-[#7D715E]">
                         {new Date(inc.detectedAt).toLocaleDateString('vi-VN')}
                       </div>
                     </td>
 
-                    <td className="py-4 px-4">
+                    <td data-label="Đối tác KOL" className="px-3 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-xs flex items-center justify-center shadow-xs flex-shrink-0">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#EEDFC6] bg-[#FBF5EB] text-xs font-bold text-[#8A642C]">
                           {inc.collaboratorName?.[0]?.toUpperCase() || 'K'}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-bold text-stone-900 truncate max-w-[140px]">
+                          <div className="truncate font-semibold text-[#1A1612]">
                             {inc.collaboratorName}
                           </div>
-                          <div className="text-[10px] text-amber-800 font-semibold">
+                          <div className="text-[10px] font-medium text-[#8A642C]">
                             Hạng {inc.collaboratorTier}
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    <td className="py-4 px-4">
-                      <div className="font-bold text-stone-800 truncate max-w-[150px]">
+                    <td data-label="Link & sản phẩm" className="px-3 py-3">
+                      <div className="truncate font-semibold text-[#1A1612]">
                         {inc.productName}
                       </div>
-                      <div className="text-[10px] font-mono text-stone-500 truncate">
+                      <div className="truncate text-[10px] font-mono text-[#7D715E]">
                         Link: {inc.referralLinkCode}
                       </div>
                     </td>
 
-                    <td className="py-4 px-4 text-center">
-                      <div className="font-extrabold text-stone-900">
-                        {inc.totalClicks.toLocaleString('vi-VN')} <span className="font-normal text-[10px] text-stone-500">clicks</span>
+                    <td data-label="Traffic & CR" className="px-2 py-3 text-center">
+                      <div className="font-bold text-[#1A1612]">
+                        {inc.totalClicks.toLocaleString('vi-VN')} <span className="text-[10px] font-normal text-[#7D715E]">clicks</span>
                       </div>
-                      <div className="text-[10px] text-stone-500">
+                      <div className="text-[10px] text-[#7D715E]">
                         {inc.totalOrders} đơn ({inc.conversionRate}%)
                       </div>
                     </td>
 
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                    <td data-label="Dấu hiệu bất thường" className="px-3 py-3">
+                      <div className="flex flex-wrap gap-1.5">
                         {inc.anomalyTypes.length === 0 ? (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 rounded-md border border-[#EAE4D7] bg-[#F3EFE6] px-2 py-1 text-[10px] font-medium text-[#5F5547]">
+                            <ShieldCheck className="h-3 w-3 text-[#059669]" />
                             Traffic sạch
                           </span>
                         ) : (
@@ -427,7 +476,7 @@ export default function AiFraudSentinelPage() {
                             return (
                               <span
                                 key={idx}
-                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${badge.color}`}
+                                className={`rounded-md border px-2 py-1 text-[10px] font-medium ${badge.color}`}
                               >
                                 {badge.label}
                               </span>
@@ -437,40 +486,41 @@ export default function AiFraudSentinelPage() {
                       </div>
                     </td>
 
-                    <td className="py-4 px-4 text-center">
+                    <td data-label="Điểm rủi ro" className="px-2 py-3 text-center">
                       {getRiskBadge(inc.riskLevel, inc.riskScore)}
                     </td>
 
-                    <td className="py-4 px-4 text-center">
+                    <td data-label="Trạng thái" className="px-2 py-3 text-center">
                       {inc.status === 'FROZEN' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                          ĐÃ ĐÓNG BĂNG
+                        <span className="inline-flex items-center justify-center gap-1 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[10px] font-semibold text-[#8A642C]">
+                          <Lock className="h-3 w-3" /> Đóng băng
                         </span>
                       )}
                       {inc.status === 'DISMISSED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600">
-                          ĐÃ BÁC BỎ
+                        <span className="inline-flex items-center justify-center gap-1 rounded-full border border-[#EAE4D7] bg-[#F3EFE6] px-2.5 py-1 text-[10px] font-semibold text-[#5F5547]">
+                          <Info className="h-3 w-3" /> Đã bác bỏ
                         </span>
                       )}
                       {inc.status === 'RESOLVED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          ĐÃ XỬ LÝ
+                        <span className="inline-flex items-center justify-center gap-1 rounded-full border border-[#EAE4D7] bg-[#F3EFE6] px-2.5 py-1 text-[10px] font-semibold text-[#5F5547]">
+                          <ShieldCheck className="h-3 w-3 text-[#059669]" /> Đã xử lý
                         </span>
                       )}
                       {inc.status === 'ACTIVE' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          ĐANG THEO DÕI
+                        <span className="inline-flex items-center justify-center gap-1 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[10px] font-semibold text-[#8A642C]">
+                          <Activity className="h-3 w-3" /> Theo dõi
                         </span>
                       )}
                     </td>
 
-                    <td className="py-4 px-5 text-right">
+                    <td data-label="Thao tác" className="sentinel-action-cell px-2 py-3 text-right">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveIncident(inc);
                         }}
-                        className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-2 py-1.5 text-[11px] font-semibold text-[#8A642C] transition hover:border-[#C59B58] hover:bg-[#F3EFE6]"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>Xem AI</span>
@@ -486,101 +536,103 @@ export default function AiFraudSentinelPage() {
       {/* Incident Detail & AI Evidence Modal */}
       {activeIncident && (
         <div
-          className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#231D15]/55 p-4 backdrop-blur-sm"
           onClick={() => setActiveIncident(null)}
         >
           <div
-            className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
+            className="flex max-h-[90vh] w-full max-w-2xl animate-in flex-col overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-2xl duration-150 fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="p-6 border-b border-stone-100 bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-stone-50 flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-black text-amber-800 bg-amber-200/70 px-2.5 py-0.5 rounded-lg border border-amber-300">
+            <div className="flex items-center justify-between gap-4 border-b border-[#EAE4D7] bg-[#FBF5EB] p-5 sm:p-6">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-lg border border-[#EEDFC6] bg-white px-2.5 py-1 font-mono text-xs font-semibold text-[#8A642C]">
                     {activeIncident.incidentCode}
                   </span>
                   {getRiskBadge(activeIncident.riskLevel, activeIncident.riskScore)}
                 </div>
-                <h3 className="text-lg font-black text-stone-900">
+                <h3 className="text-lg font-bold text-[#1A1612]">
                   Báo Cáo Phân Tích Bất Thường AI
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveIncident(null)}
-                className="w-8 h-8 rounded-full hover:bg-stone-200/80 text-stone-400 hover:text-stone-700 flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Đóng chi tiết sự vụ"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#7D715E] transition hover:bg-white hover:text-[#1A1612]"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+            <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
               {/* KOL Summary Card */}
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EAE4D7] bg-white p-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-base flex items-center justify-center shadow-xs">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#EEDFC6] bg-[#FBF5EB] text-base font-bold text-[#8A642C]">
                     {activeIncident.collaboratorName?.[0]?.toUpperCase() || 'K'}
                   </div>
                   <div>
-                    <div className="font-extrabold text-stone-900 text-sm">
+                    <div className="text-sm font-semibold text-[#1A1612]">
                       {activeIncident.collaboratorName}
                     </div>
-                    <div className="text-xs text-stone-500">
+                    <div className="text-xs text-[#7D715E]">
                       {activeIncident.collaboratorEmail} • Hạng <strong>{activeIncident.collaboratorTier}</strong>
                     </div>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-xs text-stone-500 font-semibold">Hoa hồng ví chờ</div>
-                  <div className="text-base font-black text-amber-900">
+                  <div className="text-xs font-medium text-[#7D715E]">Hoa hồng ví chờ</div>
+                  <div className="text-base font-bold text-[#8A642C]">
                     {activeIncident.pendingCommissionAmount.toLocaleString('vi-VN')} ₫
                   </div>
                 </div>
               </div>
 
               {/* AI Reasoning Narrative */}
-              <div className="p-4 bg-gradient-to-br from-amber-50 via-orange-50/60 to-amber-100/40 rounded-2xl border border-amber-200 text-xs text-stone-800 space-y-2">
-                <div className="flex items-center gap-2 font-bold text-amber-900">
-                  <Sparkles className="w-4 h-4 text-amber-600" />
+              <div className="space-y-2 rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-xs text-[#1A1612]">
+                <div className="flex items-center gap-2 font-semibold text-[#8A642C]">
+                  <Sparkles className="h-4 w-4 text-[#B88E4F]" />
                   <span>Kết Luận Phân Tích Của AI:</span>
                 </div>
-                <p className="leading-relaxed text-stone-700 font-medium">
+                <p className="font-medium leading-relaxed text-[#5F5547]">
                   {activeIncident.aiReasoning}
                 </p>
               </div>
 
               {/* Multi-Factor Evidences */}
               <div className="space-y-2.5">
-                <div className="text-xs font-bold text-stone-900 flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3 text-xs font-semibold text-[#1A1612]">
                   <span>Bằng chứng & Chỉ số vi phạm chi tiết ({activeIncident.evidences.length})</span>
-                  <span className="text-[11px] text-stone-500 font-normal">Được ghi nhận từ máy chủ CDN & Redis</span>
+                  <span className="text-right text-[11px] font-normal text-[#7D715E]">Được ghi nhận từ máy chủ CDN & Redis</span>
                 </div>
 
                 <div className="space-y-2">
                   {activeIncident.evidences.map((ev, idx) => (
                     <div
                       key={idx}
-                      className="p-3.5 bg-white rounded-xl border border-stone-200 space-y-1 shadow-2xs"
+                      className="space-y-1 rounded-xl border border-[#EAE4D7] bg-white p-3.5"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-stone-900 text-xs">
-                          📌 {ev.metric}
+                        <span className="flex items-center gap-2 text-xs font-semibold text-[#1A1612]">
+                          <Activity className="h-3.5 w-3.5 shrink-0 text-[#B88E4F]" /> {ev.metric}
                         </span>
                         <span
-                          className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
+                          className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
                             ev.severity === 'HIGH'
-                              ? 'bg-rose-100 text-rose-800'
+                              ? 'bg-[#FEF2F2] text-[#B91C1C]'
                               : ev.severity === 'MEDIUM'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-[#FBF5EB] text-[#8A642C]'
+                              : 'bg-[#F3EFE6] text-[#5F5547]'
                           }`}
                         >
                           {ev.value}
                         </span>
                       </div>
-                      <p className="text-[11px] text-stone-600 leading-normal">
+                      <p className="text-[11px] leading-normal text-[#7D715E]">
                         {ev.description}
                       </p>
                     </div>
@@ -589,8 +641,8 @@ export default function AiFraudSentinelPage() {
               </div>
 
               {/* Action Form */}
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
-                <div className="text-xs font-bold text-stone-900">
+              <div className="space-y-3 rounded-2xl border border-[#EAE4D7] bg-[#FAF8F5] p-4">
+                <div className="text-xs font-semibold text-[#1A1612]">
                   Xử lý sự vụ & Biện pháp phòng vệ:
                 </div>
                 <input
@@ -598,15 +650,16 @@ export default function AiFraudSentinelPage() {
                   placeholder="Ghi chú lý do xử lý (tùy chọn)..."
                   value={actionNote}
                   onChange={(e) => setActionNote(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-white border border-stone-200 rounded-xl text-xs font-medium text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-amber-500"
+                  className="h-11 w-full rounded-xl border border-[#EAE4D7] bg-white px-3.5 text-xs font-medium text-[#1A1612] outline-none placeholder:text-[#7D715E] focus:border-[#C59B58]"
                 />
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
                     id="btn-freeze-commission"
+                    type="button"
                     disabled={actionLoading || activeIncident.status === 'FROZEN'}
                     onClick={() => handleAction('FREEZE_COMMISSION')}
-                    className="flex-1 py-2.5 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#DC2626] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Lock className="w-3.5 h-3.5" />
                     <span>Đóng băng hoa hồng</span>
@@ -614,9 +667,10 @@ export default function AiFraudSentinelPage() {
 
                   <button
                     id="btn-pause-link"
+                    type="button"
                     disabled={actionLoading || activeIncident.status === 'FROZEN'}
                     onClick={() => handleAction('PAUSE_LINK')}
-                    className="flex-1 py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#C59B58] px-3 py-2 text-xs font-semibold text-[#231D15] transition hover:bg-[#B88E4F] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <PauseCircle className="w-3.5 h-3.5" />
                     <span>Tạm ngưng link</span>
@@ -624,9 +678,10 @@ export default function AiFraudSentinelPage() {
 
                   <button
                     id="btn-dismiss-incident"
+                    type="button"
                     disabled={actionLoading || activeIncident.status === 'DISMISSED'}
                     onClick={() => handleAction('DISMISS')}
-                    className="py-2.5 px-4 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                    className="min-h-10 rounded-lg border border-[#EAE4D7] bg-white px-4 py-2 text-xs font-semibold text-[#5F5547] transition hover:border-[#C59B58] hover:bg-[#F3EFE6] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>Bác bỏ (An toàn)</span>
                   </button>

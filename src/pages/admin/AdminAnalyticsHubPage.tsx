@@ -32,13 +32,12 @@ export default function AdminAnalyticsHubPage() {
   ];
 
   return (
-    <div className="w-full flex flex-col" id="admin-analytics-hub">
+    <div className="w-full min-w-0 flex flex-col pt-4 text-[#1A1612] sm:pt-5" id="admin-analytics-hub">
       <HubTabs
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
-        title="Giám Sát & Hiệu Suất Toàn Sàn"
-        subtitle="Theo dõi biến động doanh thu theo thời gian thực, bảng xếp hạng các nhà sáng tạo hàng đầu và điều phối AI matching"
+        tone="white"
       />
 
       <div className="w-full min-h-[500px]">
@@ -50,7 +49,7 @@ export default function AdminAnalyticsHubPage() {
 
         {activeTab === 'leaderboard' && (
           <div className="animate-in fade-in-50 duration-200">
-            <LeaderboardPage />
+            <LeaderboardPage alignToContainer />
           </div>
         )}
 

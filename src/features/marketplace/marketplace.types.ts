@@ -1,13 +1,24 @@
-export type Category = 'all' | 'skincare' | 'home' | 'tech';
+export type Category = string;
 export interface Product {
-  id: string; name: string; brand: string; category: Exclude<Category, 'all'>;
-  categoryLabel: string; rating: number; reviews: number; sold: string;
-  origPrice: number; price: number; kolDiscountPrice: number; image: string;
-  kol: { name: string; handle: string; coupon: string; tier: string };
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  categoryLabel: string;
+  rating: number;
+  reviews: number;
+  sold: string;
+  origPrice: number;
+  price: number;
+  kolDiscountPrice?: number;
+  image: string;
+  kol?: { name: string; handle?: string; coupon?: string; tier?: string };
   badge?: string;
   storeId?: string;
   sku?: string;
   stockQuantity?: number;
+  commissionRate?: number;
+  commissionAmount?: number;
   variants?: Array<{
     id: string;
     productId?: string;

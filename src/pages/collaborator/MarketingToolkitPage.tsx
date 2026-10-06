@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { Link2, Images, Tag } from 'lucide-react';
+import { Link2, Images, Tag, Clock, Video, Plus } from 'lucide-react';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
 import ReferralLinksPage from './ReferralLinksPage';
 import MediaHubBrowserPage from './MediaHubBrowserPage';
@@ -31,14 +31,52 @@ export default function MarketingToolkitPage() {
     },
   ];
 
+  const actions = (
+    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <span className="hidden 2xl:inline-flex items-center gap-1.5 text-xs font-semibold text-[#7D715E] whitespace-nowrap">
+        <Clock className="w-3.5 h-3.5 text-[#B88E4F]" />
+        <span>Chính sách Last Click 30 ngày</span>
+      </span>
+
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('scanms_open_submit_video'))}
+        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer select-none whitespace-nowrap shrink-0"
+        title="Nộp video review sản phẩm"
+      >
+        <Video className="w-3.5 h-3.5 text-[#B88E4F]" />
+        <span>Nộp video review</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (activeTab !== 'links') {
+            handleTabChange('links');
+            setTimeout(() => window.dispatchEvent(new CustomEvent('scanms_open_create_link')), 150);
+          } else {
+            window.dispatchEvent(new CustomEvent('scanms_open_create_link'));
+          }
+        }}
+        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-bold text-[#B88E4F] hover:text-[#A47B3E] transition cursor-pointer select-none whitespace-nowrap shrink-0"
+        title="Tạo link tiếp thị mới"
+      >
+        <Plus className="w-3.5 h-3.5 text-[#B88E4F]" />
+        <span>Tạo link tiếp thị mới</span>
+      </button>
+    </div>
+  );
+
   return (
-    <div className="w-full flex flex-col" id="marketing-toolkit-hub">
+    <div className="w-full flex flex-col pt-1 sm:pt-1.5" id="marketing-toolkit-hub">
       <HubTabs
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
-        title="Trung Tâm Tiếp Thị"
-        subtitle="Bộ công cụ toàn diện dành cho KOL: quản lý link affiliate, tải ảnh/video tư liệu và nhận mã giảm giá độc quyền"
+        variant="pills"
+        actions={actions}
+        compact
+        className="mb-1.5"
       />
 
       <div className="w-full min-h-[500px]">

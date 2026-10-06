@@ -1,35 +1,47 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, RefreshCw, Store, ExternalLink, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, LogIn, LogOut, Store, Camera, Loader2, Edit2 } from 'lucide-react';
 import { NAVIGATION_BY_ROLE } from '../../config/navigation.config';
-import type { UserProfile } from '../../services/auth.service';
+import { authService, type UserProfile } from '../../services/auth.service';
+import { uploadService } from '../../services/upload.service';
+import { toast } from '../../utils/toast';
 
 export interface SidebarProps {
   currentUser: UserProfile | null;
-  onOpenRoleSwitcher: () => void;
   onLogout: () => void;
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
-export function Sidebar({
-  currentUser,
-  onOpenRoleSwitcher,
-  onLogout,
-  isCollapsed = false,
-  onToggleCollapse,
-}: SidebarProps) {
+export function Sidebar({ currentUser, onLogout }: SidebarProps) {
   const location = useLocation();
   const currentPath = location.pathname;
 
-  const role = currentUser?.role || 'COLLABORATOR';
-  const navConfig = NAVIGATION_BY_ROLE[role] || NAVIGATION_BY_ROLE.COLLABORATOR;
-  const roleLabel = {
-    COLLABORATOR: 'Cộng tác viên / KOL',
-    SHOP_MANAGER: 'Chủ gian hàng',
-    SYSTEM_MANAGER: 'Vận hành hệ thống',
-    SYSTEM_ADMIN: 'Quản trị hệ thống',
-  }[role] || 'Người dùng';
+  const [activeWs, setActiveWs] = useState(() => authService.getActiveWorkspace());
+  const [uploading, setUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const handleWsChange = () => {
+      setActiveWs(authService.getActiveWorkspace());
+    };
+    window.addEventListener('scanms_workspace_changed', handleWsChange);
+    window.addEventListener('storage', handleWsChange);
+    return () => {
+      window.removeEventListener('scanms_workspace_changed', handleWsChange);
+      window.removeEventListener('storage', handleWsChange);
+    };
+  }, []);
+
+  const role = (() => {
+    if (activeWs === 'shop') return 'SHOP_MANAGER';
+    if (activeWs === 'kol') return 'COLLABORATOR';
+    if (activeWs === 'customer') return 'CUSTOMER';
+    if (activeWs === 'admin') {
+      return currentUser?.role === 'SYSTEM_MANAGER' ? 'SYSTEM_MANAGER' : 'SYSTEM_ADMIN';
+    }
+    return currentUser?.role || 'COLLABORATOR';
+  })();
+
+  const navConfig = NAVIGATION_BY_ROLE[role] || NAVIGATION_BY_ROLE.COLLABORATOR;
   const isLinkActive = (path: string) => {
     if (path === '/' || path === '/collaborator/dashboard') {
       return currentPath === '/' || currentPath === '/collaborator/dashboard';
@@ -93,13 +105,6 @@ export function Sidebar({
       );
     }
 
-    if (path === '/admin/system') {
-      return (
-        currentPath.startsWith('/admin/system') ||
-        currentPath.startsWith('/admin/services')
-      );
-    }
-
     if (path === '/admin/analytics') {
       return (
         currentPath.startsWith('/admin/analytics') ||
@@ -108,98 +113,118 @@ export function Sidebar({
       );
     }
 
+    if (path === '/admin/users') {
+      return (
+        currentPath.startsWith('/admin/users') ||
+        currentPath.startsWith('/merchant/kyc-approval')
+      );
+    }
+
     return currentPath === path || currentPath.startsWith(`${path}/`);
   };
 
+  const displayName = role === 'SHOP_MANAGER'
+    ? currentUser?.stores?.[0]?.name || currentUser?.fullName || 'Gian Hàng Của Bạn'
+    : currentUser?.fullName || currentUser?.email || 'Đối Tác Tiếp Thị';
+
+  const editProfilePath = role === 'SHOP_MANAGER'
+    ? '/merchant/settings'
+    : role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER'
+    ? '/admin/users'
+    : '/collaborator/profile';
+
+  const editProfileLabel = role === 'SHOP_MANAGER'
+    ? 'Cài Đặt Gian Hàng'
+    : role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER'
+    ? 'Quản Trị Hồ Sơ'
+    : 'Sửa Hồ Sơ';
+
   return (
-    <aside
-      className={`h-full shrink-0 flex flex-col bg-[#F3EFE6] border-r border-[#EAE4D7] z-30 text-left select-none overflow-hidden transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-[76px] min-w-[76px]' : 'w-64 min-w-[256px]'
-      }`}
-    >
-      <div
-        className={`p-3.5 pb-3 border-b border-[#EAE4D7]/80 flex flex-col gap-2.5 transition-all ${
-          isCollapsed ? 'items-center px-2' : ''
-        }`}
-      >
-        {!isCollapsed ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-[#C59B58] to-[#B88E4F] text-white font-black text-lg flex items-center justify-center shadow-xs">
-                S
+    <aside className="w-64 min-w-[256px] h-full shrink-0 flex flex-col bg-[#FAF8F5] border-r border-[#EAE4D7] z-30 text-left select-none overflow-hidden">
+      {/* Hidden file input for avatar upload */}
+      <input
+        type="file"
+        ref={avatarInputRef}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+
+          if (!file.type.startsWith('image/')) {
+            toast.error('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP)');
+            return;
+          }
+
+          if (file.size > 5 * 1024 * 1024) {
+            toast.error('Kích thước ảnh tối đa 5MB');
+            return;
+          }
+
+          setUploading(true);
+          try {
+            const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
+            await authService.updateAvatar(secureUrl);
+            toast.success('Cập nhật ảnh đại diện thành công!');
+          } catch (err: any) {
+            console.error('Lỗi tải ảnh đại diện:', err);
+            toast.error(err?.response?.data?.message || err?.message || 'Không thể tải ảnh đại diện lên');
+          } finally {
+            setUploading(false);
+            e.target.value = '';
+          }
+        }}
+        accept="image/png,image/jpeg,image/webp,image/jpg"
+        className="hidden"
+      />
+
+      {/* User Identity Header (SCANMS UI Reference Style) */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+        <div className="relative shrink-0 group">
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploading}
+            className="w-12 h-12 rounded-full border border-[#EAE4D7] overflow-hidden bg-white flex items-center justify-center text-[#8C6226] font-bold text-lg select-none relative cursor-pointer group-hover:opacity-90 transition shadow-2xs"
+            title="Bấm vào để tải/đổi ảnh đại diện"
+          >
+            {uploading ? (
+              <Loader2 className="w-4 h-4 text-[#B88E4F] animate-spin" />
+            ) : currentUser?.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>
+                {currentUser?.fullName?.charAt(0).toUpperCase() || (role === 'SHOP_MANAGER' ? 'S' : 'K')}
               </span>
-              <div className="flex flex-col min-w-0">
-                <strong className="text-base font-extrabold text-[#1A1612] leading-tight tracking-wide truncate">
-                  SCANMS
-                </strong>
-                <small className="text-[11px] font-bold text-[#7D715E] leading-none mt-0.5 truncate">
-                  {navConfig.subTitle}
-                </small>
+            )}
+            {!uploading && (
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <Camera className="w-4 h-4 text-white drop-shadow" />
               </div>
-            </div>
-
-            {onToggleCollapse && (
-              <button
-                type="button"
-                onClick={onToggleCollapse}
-                className="p-1.5 rounded-lg text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7] transition cursor-pointer shrink-0"
-                title="Thu gọn thanh điều hướng (mở rộng màn hình)"
-                aria-label="Thu gọn thanh điều hướng"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 w-full">
-            <span className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-[#C59B58] to-[#B88E4F] text-white font-black text-lg flex items-center justify-center shadow-xs">
-              S
-            </span>
-            {onToggleCollapse && (
-              <button
-                type="button"
-                onClick={onToggleCollapse}
-                className="p-1.5 rounded-lg text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7] transition cursor-pointer shrink-0"
-                title="Mở rộng thanh điều hướng"
-                aria-label="Mở rộng thanh điều hướng"
-              >
-                <PanelLeftOpen className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        )}
+          </button>
+        </div>
 
-        <Link
-          to="/marketplace"
-          className={`flex items-center ${
-            isCollapsed
-              ? 'justify-center w-10 h-10 rounded-xl mx-auto'
-              : 'justify-between px-3 py-1.5 rounded-xl text-xs'
-          } font-bold text-[#8A662C] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F5E7CC] transition shadow-2xs group`}
-          title="Mở Sàn Tiếp Thị Đa Gian Hàng Công Khai"
-        >
-          <span className="flex items-center gap-2">
-            <Store className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
-            {!isCollapsed && <span>Sàn Mua Sắm Chính</span>}
-          </span>
-          {!isCollapsed && (
-            <ExternalLink className="w-3 h-3 text-[#A49B8B] group-hover:text-[#B88E4F] transition shrink-0" />
-          )}
-        </Link>
+        <div className="min-w-0 flex-1 text-left">
+          <strong className="block text-sm font-bold text-[#1A1612] truncate" title={displayName}>
+            {displayName}
+          </strong>
+          <Link
+            to={editProfilePath}
+            className="inline-flex items-center gap-1 text-xs text-[#7D715E] hover:text-[#C59B58] transition-colors mt-0.5 cursor-pointer font-normal"
+          >
+            <Edit2 className="w-3 h-3 text-[#7D715E]" />
+            <span>{editProfileLabel}</span>
+          </Link>
+        </div>
       </div>
 
-      {!isCollapsed ? (
-        <div className="px-4 pt-3 pb-1 text-[10.5px] font-bold text-[#8C7D6B] uppercase tracking-wider truncate">
-          {navConfig.title}
-        </div>
-      ) : (
-        <div className="my-2 mx-3 border-t border-[#EAE4D7]" />
-      )}
+      <div className="border-t border-[#EAE4D7] my-0.5" />
 
-      <nav
-        className={`flex-1 ${isCollapsed ? 'px-2' : 'px-3'} py-1 flex flex-col gap-1 overflow-y-auto`}
-        aria-label="Menu chức năng"
-      >
+      {/* SCANMS UI Reference Minimalist Navigation List */}
+      <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto" aria-label="Menu chức năng">
         {navConfig.items.map((item) => {
           const active = isLinkActive(item.path);
           const Icon = item.icon;
@@ -207,106 +232,66 @@ export function Sidebar({
             <Link
               key={item.path}
               to={item.path}
-              title={isCollapsed ? item.label : undefined}
-              className={`group relative flex items-center ${
-                isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2 py-1.5 text-xs sm:text-sm'
-              } rounded-xl font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] focus-visible:ring-offset-1 ${
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] transition-all duration-150 cursor-pointer ${
                 active
-                  ? 'bg-[#B88E4F] text-white shadow-xs font-bold'
-                  : 'text-[#4A3E2D] hover:bg-[#EAE4D7]/70 hover:text-[#1A1612]'
+                  ? 'bg-[#FAF5EB] text-[#B88E4F] font-bold border border-[#EEDFC6]/70 shadow-2xs'
+                  : 'text-[#1A1612] hover:bg-white hover:text-[#B88E4F]'
               }`}
             >
-              <span
-                className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition-all duration-200 ${
-                  active
-                    ? 'border-white/25 bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
-                    : 'border-[#E4D3B7] bg-[#FBF5EB] text-[#8A662C] group-hover:border-[#C59B58] group-hover:bg-[#F5E7CC] group-hover:text-[#6F4E1D]'
+              <Icon
+                className={`w-4 h-4 shrink-0 transition-colors ${
+                  active ? 'text-[#B88E4F]' : 'text-[#7D715E] group-hover:text-[#B88E4F]'
                 }`}
-                aria-hidden="true"
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-
-              {!isCollapsed && (
-                <>
-                  <span className="flex-1 truncate text-xs">{item.label}</span>
-                  {item.numBadge && (
-                    <span
-                      className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded ${
-                        active ? 'text-white/80' : 'text-[#8C7D6B]'
-                      }`}
-                    >
-                      {item.numBadge}
-                    </span>
-                  )}
-                </>
-              )}
-
-              {isCollapsed && item.numBadge && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#F3EFE6]" />
+              />
+              <span className="flex-1 truncate">{item.label}</span>
+              {item.numBadge && (
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${
+                    active
+                      ? 'bg-[#C59B58] text-white'
+                      : 'bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226]'
+                  }`}
+                >
+                  {item.numBadge}
+                </span>
               )}
             </Link>
           );
         })}
       </nav>
 
-      <div
-        className={`p-3 border-t border-[#EAE4D7] flex flex-col gap-1.5 bg-[#EAE4D7]/30 ${
-          isCollapsed ? 'items-center px-2' : ''
-        }`}
-      >
-        <button
-          type="button"
-          onClick={onOpenRoleSwitcher}
-          aria-label={`Chuyển vai trò. Vai trò hiện tại: ${roleLabel}`}
-          title={isCollapsed ? `Chuyển vai trò (${roleLabel})` : 'Chọn không gian làm việc khác'}
-          className={`group flex items-center ${
-            isCollapsed ? 'justify-center p-2 w-full' : 'w-full gap-2.5 px-2.5 py-2'
-          } rounded-xl border border-[#E4D3B7] bg-white text-left shadow-[0_2px_8px_rgba(91,65,28,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-[#C59B58] hover:bg-[#FBF5EB] hover:shadow-[0_5px_14px_rgba(91,65,28,0.10)] active:translate-y-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58] focus-visible:ring-offset-2`}
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#FBF5EB] text-[#B88E4F] ring-1 ring-[#EEDFC6] transition-colors group-hover:bg-[#C59B58] group-hover:text-white">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          </span>
-          {!isCollapsed && (
-            <>
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-extrabold leading-tight text-[#1A1612]">
-                  Chuyển vai trò
-                </span>
-                <span className="mt-0.5 block truncate text-[10px] font-medium leading-tight text-[#7D715E]">
-                  Hiện tại: {roleLabel}
-                </span>
-              </span>
-              <ChevronRight
-                className="h-3.5 w-3.5 shrink-0 text-[#A49B8B] transition-transform group-hover:translate-x-0.5 group-hover:text-[#B88E4F]"
-                aria-hidden="true"
-              />
-            </>
-          )}
-        </button>
-
+      {/* Bottom Actions (SCANMS UI Reference Style) */}
+      <div className="p-3 border-t border-[#EAE4D7] flex flex-col gap-1.5 bg-[#FAF8F5]">
         {currentUser ? (
-          <button
-            type="button"
-            onClick={onLogout}
-            title={isCollapsed ? 'Đăng xuất' : undefined}
-            className={`flex items-center ${
-              isCollapsed ? 'justify-center p-2 w-full' : 'gap-2 px-3 py-2'
-            } rounded-xl text-xs font-bold text-rose-700 hover:bg-rose-50 transition cursor-pointer text-left`}
-          >
-            <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
-            {!isCollapsed && <span>Đăng xuất</span>}
-          </button>
+          <>
+            {/* Sàn Mua Sắm Link */}
+            <Link
+              to="/marketplace"
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-medium text-[#1A1612] hover:text-[#B88E4F] hover:bg-white transition cursor-pointer group"
+              title="Quay lại Sàn Mua Sắm SCANMS"
+            >
+              <ArrowLeft className="w-4 h-4 text-[#B88E4F] shrink-0" aria-hidden="true" />
+              <Store className="w-4 h-4 text-[#7D715E] group-hover:text-[#B88E4F] shrink-0" />
+              <span>Sàn Mua Sắm</span>
+            </Link>
+
+            {/* Đăng xuất */}
+            <button
+              type="button"
+              onClick={onLogout}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-semibold text-[#DC2626] hover:bg-rose-50/70 hover:text-red-700 transition cursor-pointer text-left w-full"
+            >
+              <LogOut className="w-4 h-4 text-[#DC2626] shrink-0" />
+              <span>Đăng xuất</span>
+            </button>
+          </>
         ) : (
           <Link
             to="/login"
-            title={isCollapsed ? 'Đăng nhập' : undefined}
-            className={`flex items-center ${
-              isCollapsed ? 'justify-center p-2 w-full' : 'gap-2 px-3 py-2'
-            } rounded-xl text-xs font-bold text-white bg-[#C59B58] hover:bg-[#B88E4F] transition cursor-pointer text-left`}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-[#C59B58] hover:bg-[#B88E4F] text-white transition cursor-pointer text-center w-full shadow-2xs"
           >
-            <LogIn className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span>Đăng nhập</span>}
+            <LogIn className="w-3.5 h-3.5 shrink-0" />
+            <span>Đăng nhập</span>
           </Link>
         )}
       </div>

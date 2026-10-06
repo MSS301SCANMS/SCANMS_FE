@@ -3,11 +3,11 @@
 // Dành cho KOL / Cộng Tác Viên: Tìm kiếm, lọc, xem trước, tải tệp & caption
 // =====================================================================
 
-const productImage = "./assets/serum-hero-optimized.jpg";
-const sunscreenImage = "./assets/sunscreen-product.jpg";
-const tonerImage = "./assets/toner-bha-product.jpg";
-const cleanserImage = "./assets/cleanser-product.jpg";
-const cicaMaskImage = "./assets/cica-mask-product.jpg";
+const productImage = "./assets/products/real/vitamin-c-15-serum.jpg";
+const sunscreenImage = "./assets/products/real/spf50-oil-control.jpg";
+const tonerImage = "./assets/products/real/bha-toner-2pct.png";
+const cleanserImage = "./assets/products/real/amino-cleanser-ph55.jpg";
+const cicaMaskImage = "./assets/products/real/centella-sheet-mask.jpg";
 const sampleVideoUrl = "./assets/sample-video.mp4";
 
 // Danh mục 5 sản phẩm chuẩn

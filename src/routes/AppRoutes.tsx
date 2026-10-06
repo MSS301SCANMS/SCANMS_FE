@@ -1,32 +1,54 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
+
+/**
+ * Tự động retry dynamic import module nếu gặp lỗi kết nối hoặc Vite HMR reload
+ */
+function lazyRetry<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch {
+      await new Promise((r) => setTimeout(r, 400));
+      return await factory();
+    }
+  });
+}
 
 import MainLayout from '../components/layout/MainLayout';
-const DashboardDispatcher = lazy(() => import('../pages/DashboardDispatcher'));
-const HomePage = lazy(() => import('../pages/HomePage'));
+const DashboardDispatcher = lazyRetry(() => import('../pages/DashboardDispatcher'));
+const HomePage = lazyRetry(() => import('../pages/HomePage'));
 
-const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
-const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
+const LoginPage = lazyRetry(() => import('../pages/auth/LoginPage'));
+const RegisterPage = lazyRetry(() => import('../pages/auth/RegisterPage'));
 
-const ProductDetailPage = lazy(() => import('../pages/ProductDetailPage'));
-const RedirectHandlerPage = lazy(() => import('../pages/RedirectHandlerPage'));
+const ProductDetailPage = lazyRetry(() => import('../pages/ProductDetailPage'));
+const RedirectHandlerPage = lazyRetry(() => import('../pages/RedirectHandlerPage'));
 
-const UiReferencePage = lazy(() => import('../pages/UiReferencePage'));
-const MarketplacePage = lazy(() => import('../pages/public/MarketplacePage'));
-const BuyerVouchersPage = lazy(() => import('../pages/public/BuyerVouchersPage'));
+const UiReferencePage = lazyRetry(() => import('../pages/UiReferencePage'));
+const MarketplacePage = lazyRetry(() => import('../pages/public/MarketplacePage'));
+const ShopPage = lazyRetry(() => import('../pages/public/ShopPage'));
+const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
+const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
+const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
 
-const ProductManagementPage = lazy(() => import('../pages/merchant/ProductManagementPage'));
-const ShopDashboardPage = lazy(() => import('../pages/merchant/ShopDashboardPage'));
-const ShopSettingsPage = lazy(() => import('../pages/merchant/ShopSettingsPage'));
-const KycApprovalPage = lazy(() => import('../pages/merchant/KycApprovalPage'));
-const OrdersManagementPage = lazy(() => import('../pages/merchant/OrdersManagementPage'));
-const PayoutApprovalPage = lazy(() => import('../pages/merchant/PayoutApprovalPage'));
+const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductManagementPage'));
+const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
+const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
+const KycApprovalPage = lazyRetry(() => import('../pages/merchant/KycApprovalPage'));
+const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
+const PayoutApprovalPage = lazyRetry(() => import('../pages/merchant/PayoutApprovalPage'));
 
-const WalletPage = lazy(() => import('../pages/collaborator/WalletPage'));
-const OrderTrackingPage = lazy(() => import('../pages/public/OrderTrackingPage'));
-const ChatBoxPage = lazy(() => import('../pages/chat/ChatBoxPage'));
-const RealtimeAnalyticsPage = lazy(() => import('../pages/dashboard/RealtimeAnalyticsPage'));
-const LeaderboardPage = lazy(() => import('../pages/dashboard/LeaderboardPage'));
+const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
+const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
+const CustomerPortalPage = lazyRetry(() => import('../pages/customer/CustomerPortalPage'));
+const ReturnDetailPage = lazyRetry(() => import('../pages/returns/ReturnDetailPage'));
+const AdminReturnDisputesPage = lazyRetry(() => import('../pages/admin/AdminReturnDisputesPage'));
+const ChatBoxPage = lazyRetry(() => import('../pages/chat/ChatBoxPage'));
+const RealtimeAnalyticsPage = lazyRetry(() => import('../pages/dashboard/RealtimeAnalyticsPage'));
+const LeaderboardPage = lazyRetry(() => import('../pages/dashboard/LeaderboardPage'));
 
 // Consolidated Hub Pages (Tối ưu trải nghiệm gộp Menu)
 const ShopCollaborationPage = lazy(() => import('../pages/collaborator/ShopCollaborationPage'));
@@ -34,8 +56,11 @@ const MarketingToolkitPage = lazy(() => import('../pages/collaborator/MarketingT
 const CreatorProfilePage = lazy(() => import('../pages/collaborator/CreatorProfilePage'));
 const ShopKolHubPage = lazy(() => import('../pages/merchant/ShopKolHubPage'));
 const ShopPromotionsHubPage = lazy(() => import('../pages/merchant/ShopPromotionsHubPage'));
+const CollaboratorLiveSessionsPage = lazy(() => import('../pages/collaborator/LiveSessionsPage'));
 const AdminOversightHubPage = lazy(() => import('../pages/admin/AdminOversightHubPage'));
 const AdminAnalyticsHubPage = lazy(() => import('../pages/admin/AdminAnalyticsHubPage'));
+const AdminSampleRequestsPage = lazy(() => import('../pages/admin/AdminSampleRequestsPage'));
+const ProductModerationPage = lazy(() => import('../pages/admin/ProductModerationPage'));
 
 // AI Anti-Fraud Sentinel & Traffic Defense (Quý - FR-31)
 const AiFraudSentinelPage = lazy(() => import('../pages/merchant/AiFraudSentinelPage'));
@@ -43,21 +68,77 @@ const AiFraudSentinelPage = lazy(() => import('../pages/merchant/AiFraudSentinel
 // Audit Logs & Security Trail (Quý - FR-32)
 const AuditLogsPage = lazy(() => import('../pages/admin/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 
-// System Management & Services Health Check
-const AdminSystemManagementPage = lazy(() => import('../pages/admin/AdminSystemManagementPage'));
+// Dispute Arbitration Portal (Leader Thắng - Nhiệm vụ 4)
+const DisputeResolutionPage = lazy(() => import('../pages/admin/DisputeResolutionPage').then(m => ({ default: m.DisputeResolutionPage })));
+
+// Shop Return Requests (Merchant - Tiếp nhận đổi trả 14 ngày)
+const ShopReturnRequestsPage = lazy(() => import('../pages/merchant/ShopReturnRequestsPage').then(m => ({ default: m.ShopReturnRequestsPage })));
+const ShopStorefrontPage = lazy(() => import('../pages/public/ShopStorefrontPage'));
 
 import { RouteContent } from './RouteContent';
+import { CartProvider, useCart } from '../context/CartContext';
+import { ScanmsChatProvider } from '../context/ScanmsChatContext';
+import { ScanmsFloatingChatWidget } from '../components/chat/ScanmsFloatingChatWidget';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { CartDrawer } from '../components/cart/CartDrawer';
+import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
+import { PublicHeader } from '../components/layout/PublicHeader';
+import { authService } from '../services/auth.service';
+
+function GlobalCheckoutModal() {
+  const { isCheckoutOpen, closeCheckout, checkoutItems, checkoutCouponCode } = useCart();
+  if (!isCheckoutOpen) return null;
+  return (
+    <GuestCheckoutModal
+      isOpen={isCheckoutOpen}
+      onClose={closeCheckout}
+      checkoutItems={checkoutItems}
+      initialCouponCode={checkoutCouponCode}
+    />
+  );
+}
+
+function PublicLeaderboardPage() {
+  const user = authService.getCurrentUser();
+  const isCustomerWorkspace = Boolean(
+    user && (user.role === 'CUSTOMER' || authService.getActiveWorkspace() === 'customer'),
+  );
+
+  if (isCustomerWorkspace) {
+    return <Navigate to="/customer/orders" replace />;
+  }
+
+  return (
+    <>
+      <PublicHeader />
+      <LeaderboardPage />
+    </>
+  );
+}
 
 function AppRoutes() {
   return (
     <Router>
-      <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] grid place-items-center text-[#7D715E]">Đang tải SCANMS...</div>}>
-      <Routes>
-        <Route path="/" element={<MarketplacePage />} />
-        <Route path="/marketplace" element={<MarketplacePage />} />
-        <Route path="/store" element={<MarketplacePage />} />
-        <Route path="/storefront" element={<MarketplacePage />} />
-        <Route path="/shop" element={<MarketplacePage />} />
+      <CartProvider>
+        <ScanmsChatProvider>
+          <ErrorBoundary>
+            <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5] grid place-items-center text-[#7D715E]">Đang tải SCANMS...</div>}>
+              <Routes>
+              <Route path="/" element={<MarketplacePage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route path="/shops/:shopId" element={<ShopPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/marketplace/search" element={<SearchPage />} />
+              <Route path="/payment/payos-return" element={<PayosReturnPage />} />
+              <Route path="/store" element={<MarketplacePage />} />
+              <Route path="/storefront" element={<MarketplacePage />} />
+              <Route path="/shop" element={<ShopStorefrontPage />} />
+              <Route path="/shop/:slug" element={<ShopStorefrontPage />} />
+              <Route path="/stores/:slug" element={<ShopStorefrontPage />} />
+              <Route path="/leaderboard" element={<PublicLeaderboardPage />} />
+              <Route path="/live/:slug" element={<LiveStreamRoomPage />} />
+              <Route path="/live/:id" element={<LiveStreamRoomPage />} />
+              <Route path="/live" element={<LiveStreamRoomPage />} />
 
         <Route path="/prototype" element={<UiReferencePage />} />
         <Route path="/ui-reference" element={<UiReferencePage />} />
@@ -66,8 +147,22 @@ function AppRoutes() {
 
         <Route path="/tracking" element={<OrderTrackingPage />} />
         <Route path="/order-tracking" element={<OrderTrackingPage />} />
-        <Route path="/my-orders" element={<OrderTrackingPage />} />
-        <Route path="/my-vouchers" element={<BuyerVouchersPage />} />
+
+        {/* Customer Portal & Buyer Center (SCANMS E-Commerce) */}
+        <Route path="/customer" element={<CustomerPortalPage />} />
+        <Route path="/customer/portal" element={<CustomerPortalPage />} />
+        <Route path="/customer/orders" element={<CustomerPortalPage />} />
+        <Route path="/customer/profile" element={<CustomerPortalPage />} />
+        <Route path="/customer/identity" element={<CustomerPortalPage />} />
+        <Route path="/customer/addresses" element={<CustomerPortalPage />} />
+        <Route path="/customer/wishlist" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
+        <Route path="/customer/upgrade/shop" element={<CustomerPortalPage />} />
+        <Route path="/customer/returns/:id" element={<ReturnDetailPage mode="customer" />} />
+        <Route path="/customer/vouchers" element={<CustomerPortalPage />} />
+        <Route path="/customer/notifications" element={<CustomerPortalPage />} />
+        <Route path="/customer/security" element={<CustomerPortalPage />} />
 
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -84,17 +179,23 @@ function AppRoutes() {
             <Route path="merchant/dashboard" element={<ShopDashboardPage />} />
             <Route path="merchant/products" element={<ProductManagementPage />} />
             <Route path="merchant/orders" element={<OrdersManagementPage />} />
+            <Route path="merchant/returns/:id" element={<ReturnDetailPage mode="shop" />} />
             <Route path="merchant/payouts" element={<PayoutApprovalPage />} />
+            <Route path="merchant/wallet" element={<WalletPage />} />
+            <Route path="shop/wallet" element={<WalletPage />} />
             <Route path="stores/:storeId/payouts" element={<PayoutApprovalPage />} />
             <Route path="merchant/settings" element={<ShopSettingsPage />} />
             <Route path="merchant/kyc-approval" element={<KycApprovalPage />} />
 
             {/* Merchant Consolidated Hubs */}
             <Route path="merchant/kol-hub" element={<ShopKolHubPage />} />
+            <Route path="merchant/customer-messages" element={<ChatBoxPage />} />
             <Route path="merchant/promotions" element={<ShopPromotionsHubPage />} />
             <Route path="merchant/fraud-sentinel" element={<AiFraudSentinelPage />} />
             <Route path="merchant/ai-fraud" element={<AiFraudSentinelPage />} />
             <Route path="merchant/audit-logs" element={<AuditLogsPage />} />
+            <Route path="merchant/returns" element={<ShopReturnRequestsPage />} />
+            <Route path="merchant/return-requests" element={<ShopReturnRequestsPage />} />
 
             {/* Merchant Backward Compatibility Redirects */}
             <Route path="merchant/commission-rules" element={<Navigate to="/merchant/promotions?tab=commission-rules" replace />} />
@@ -123,6 +224,7 @@ function AppRoutes() {
 
             {/* Collaborator Consolidated Hubs */}
             <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />
+            <Route path="collaborator/live-sessions" element={<CollaboratorLiveSessionsPage />} />
             <Route path="collaborator/collaboration" element={<ShopCollaborationPage />} />
             <Route path="collaborator/profile" element={<CreatorProfilePage />} />
 
@@ -148,8 +250,6 @@ function AppRoutes() {
           </Route>
 
           <Route element={<RouteContent />}>
-            <Route path="admin/system" element={<AdminSystemManagementPage />} />
-            <Route path="admin/services" element={<Navigate to="/admin/system" replace />} />
             <Route path="admin/analytics" element={<AdminAnalyticsHubPage />} />
             <Route path="admin/affiliate-oversight" element={<AdminOversightHubPage />} />
             <Route path="admin/users" element={<KycApprovalPage />} />
@@ -158,18 +258,29 @@ function AppRoutes() {
             <Route path="admin/fraud-sentinel" element={<AiFraudSentinelPage />} />
             <Route path="admin/leaderboard" element={<Navigate to="/admin/analytics?tab=leaderboard" replace />} />
             <Route path="admin/kol-recommendations" element={<Navigate to="/admin/analytics?tab=ai-matching" replace />} />
+            <Route path="admin/disputes" element={<DisputeResolutionPage />} />
+            <Route path="admin/return-disputes" element={<AdminReturnDisputesPage />} />
+            <Route path="admin/returns/:id" element={<ReturnDetailPage mode="admin" />} />
+            <Route path="admin/arbitration" element={<DisputeResolutionPage />} />
+            <Route path="admin/sample-requests" element={<AdminSampleRequestsPage />} />
+            <Route path="admin/product-moderation" element={<ProductModerationPage />} />
             <Route path="admin/referral-links" element={<Navigate to="/admin/affiliate-oversight?tab=links" replace />} />
             <Route path="admin/coupons" element={<Navigate to="/admin/affiliate-oversight?tab=coupons" replace />} />
           </Route>
 
           <Route path="analytics" element={<RealtimeAnalyticsPage />} />
-          <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="chat" element={<ChatBoxPage />} />
           <Route path="collaborator/messages" element={<Navigate to="/collaborator/collaboration?tab=messages" replace />} />
           <Route path="merchant/messages" element={<Navigate to="/merchant/kol-hub?tab=messages" replace />} />
         </Route>
-      </Routes>
-      </Suspense>
+            </Routes>
+          </Suspense>
+          </ErrorBoundary>
+          <CartDrawer />
+          <GlobalCheckoutModal />
+          <ScanmsFloatingChatWidget />
+        </ScanmsChatProvider>
+      </CartProvider>
     </Router>
   );
 }

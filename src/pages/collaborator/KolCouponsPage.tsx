@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Tag,
   Plus,
@@ -31,7 +31,7 @@ const STATUS_LABELS: Record<CouponStatus, { label: string; bg: string; text: str
     label: 'Đang hoạt động',
     bg: 'bg-[#FBF5EB]',
     text: 'text-[#B88E4F]',
-    border: 'border-[#EEDFC6]',
+    border: 'border-[#EAE4D7]',
   },
   PENDING_APPROVAL: {
     label: 'Chờ Shop duyệt',
@@ -389,18 +389,12 @@ export const KolCouponsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
                 <Sparkles className="w-3.5 h-3.5" />
                 Mạng lưới Tiếp thị Liên kết (FR-12)
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1A1612]">
-              Mã giảm giá cá nhân (Coupon Attribution)
-            </h1>
-            <p className="text-sm sm:text-base text-[#7D715E] mt-1">
-              Đề xuất mã riêng mang thương hiệu của bạn. Đơn hàng khách nhập mã
-              sẽ được giảm giá và tự động ghi nhận hoa hồng cho bạn.
-            </p>
+            
           </div>
 
           <button
@@ -409,7 +403,7 @@ export const KolCouponsPage: React.FC = () => {
               setModalError(null);
               setModalSuccess(null);
             }}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white font-medium shadow-sm transition-all duration-200 cursor-pointer text-sm"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white font-medium shadow-sm transition-all duration-200 cursor-pointer text-sm"
           >
             <Plus className="w-4 h-4" />
             Đề xuất mã mới
@@ -423,7 +417,7 @@ export const KolCouponsPage: React.FC = () => {
               <span className="text-xs font-medium text-[#7D715E]">
                 Doanh số qua Coupon
               </span>
-              <Sparkles className="w-4 h-4 text-[#C59B58]" />
+              <Sparkles className="w-4 h-4 text-[#B88E4F]" />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-[#1A1612]">
               {Number(summary.totalSales || 0).toLocaleString('vi-VN')} ₫
@@ -459,7 +453,7 @@ export const KolCouponsPage: React.FC = () => {
               <span className="text-xs font-medium text-[#7D715E]">
                 Mã đang hoạt động
               </span>
-              <Tag className="w-4 h-4 text-[#C59B58]" />
+              <Tag className="w-4 h-4 text-[#B88E4F]" />
             </div>
             <p className="text-xl sm:text-2xl font-bold text-[#1A1612]">
               {activeCount} / {totalCount} mã
@@ -497,8 +491,8 @@ export const KolCouponsPage: React.FC = () => {
                 onClick={() => setStatusFilter(tab.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   statusFilter === tab.key
-                    ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] font-bold shadow-xs'
-                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612]'
+                    ? 'bg-[#ECE1CD] text-[#1A1612] border border-[#DEBE85] font-bold shadow-xs'
+                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612]'
                 }`}
               >
                 {tab.label}
@@ -510,15 +504,15 @@ export const KolCouponsPage: React.FC = () => {
 
         {loading ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#C59B58] mx-auto mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F] mx-auto mb-3" />
             <p className="text-sm text-[#7D715E]">
               Đang tải danh sách mã giảm giá...
             </p>
           </div>
         ) : filteredCoupons.length === 0 ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
-            <div className="w-14 h-14 bg-[#FBF5EB] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#EEDFC6]">
-              <Tag className="w-6 h-6 text-[#C59B58]" />
+            <div className="w-14 h-14 bg-[#FBF5EB] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#EAE4D7]">
+              <Tag className="w-6 h-6 text-[#B88E4F]" />
             </div>
             <h3 className="text-lg font-semibold text-[#1A1612] mb-1">
               Chưa có mã giảm giá nào
@@ -529,7 +523,7 @@ export const KolCouponsPage: React.FC = () => {
             </p>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-white text-sm font-medium transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-sm font-medium transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Đề xuất mã đầu tiên
@@ -566,7 +560,7 @@ export const KolCouponsPage: React.FC = () => {
                     </div>
 
 
-                    <div className="bg-[#FAF8F5] border border-[#EEDFC6] rounded-xl p-3 flex items-center justify-between mb-4">
+                    <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 flex items-center justify-between mb-4">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-[#7D715E] tracking-wider block">
                           MÃ COUPON
@@ -677,7 +671,7 @@ export const KolCouponsPage: React.FC = () => {
 
 
                     {(coupon.status === 'ACTIVE' || coupon.status === 'PAUSED') && (
-                      <div className="mb-4 p-2.5 rounded-lg bg-[#FAF8F5] border border-[#EEDFC6] text-xs space-y-1.5">
+                      <div className="mb-4 p-2.5 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] text-xs space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="text-[#7D715E]">Doanh số tạo ra:</span>
                           <span className="font-bold text-[#1A1612]">
@@ -788,12 +782,12 @@ export const KolCouponsPage: React.FC = () => {
                     onClick={() => setIsStoreDropdownOpen((prev) => !prev)}
                     className={`w-full px-3.5 py-2.5 text-sm bg-[#FAF8F5] border rounded-xl flex items-center justify-between transition-all cursor-pointer ${
                       isStoreDropdownOpen
-                        ? 'border-[#C59B58] ring-2 ring-[#C59B58]/20 bg-white shadow-xs'
+                        ? 'border-[#C59B58] ring-2 ring-[#DEC07A]/30 bg-white shadow-xs'
                         : 'border-[#EAE4D7] hover:border-[#C59B58]/60 hover:bg-[#F3EFE6]/40'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center shrink-0 text-[#B88E4F]">
+                      <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center shrink-0 text-[#B88E4F]">
                         <Store className="w-3.5 h-3.5" />
                       </div>
                       <span className="font-medium text-[#1A1612] truncate text-left">
@@ -810,14 +804,14 @@ export const KolCouponsPage: React.FC = () => {
                     </div>
                     <ChevronDown
                       className={`w-4 h-4 text-[#7D715E] shrink-0 transition-transform duration-200 ${
-                        isStoreDropdownOpen ? 'rotate-180 text-[#C59B58]' : ''
+                        isStoreDropdownOpen ? 'rotate-180 text-[#B88E4F]' : ''
                       }`}
                     />
                   </button>
 
 
                   {isStoreDropdownOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-[#EEDFC6] rounded-xl shadow-xl overflow-hidden py-1.5 max-h-56 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-[#EAE4D7] rounded-xl shadow-xl overflow-hidden py-1.5 max-h-56 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
                       {approvedStores.length > 0 ? (
                         approvedStores.map((s) => {
                           const storeId = s.id || s.storeId;
@@ -843,7 +837,7 @@ export const KolCouponsPage: React.FC = () => {
                                 <span className="truncate">{storeName}</span>
                               </div>
                               {isSelected && (
-                                <Check className="w-4 h-4 text-[#C59B58] shrink-0" />
+                                <Check className="w-4 h-4 text-[#B88E4F] shrink-0" />
                               )}
                             </button>
                           );
@@ -942,7 +936,7 @@ export const KolCouponsPage: React.FC = () => {
 
 
               {trimmedCode && (
-                <div className="p-3 bg-[#FBF5EB] border border-[#EEDFC6] rounded-xl flex items-center justify-between">
+                <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-[#7D715E] block">
                       Xem trước hiển thị
@@ -969,7 +963,7 @@ export const KolCouponsPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!isCodeValid || modalLoading || approvedStores.length === 0 || !selectedStoreId}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   {modalLoading ? (
                     <>
@@ -1036,15 +1030,15 @@ export const KolCouponsPage: React.FC = () => {
         <div
           role="status"
           aria-live="polite"
-          className="fixed top-5 right-5 z-[99999] flex items-start gap-3.5 max-w-sm sm:max-w-md p-4 bg-white/95 backdrop-blur-md rounded-2xl border border-[#EEDFC6] shadow-2xl shadow-amber-900/15 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto"
+          className="fixed top-5 right-5 z-[99999] flex items-start gap-3.5 max-w-sm sm:max-w-md p-4 bg-white/95 backdrop-blur-md rounded-2xl border border-[#EAE4D7] shadow-2xl shadow-amber-900/15 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto"
         >
-          <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center shrink-0 mt-0.5 text-[#B88E4F]">
+          <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center shrink-0 mt-0.5 text-[#B88E4F]">
             {toast.type === 'success' ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             ) : toast.type === 'error' ? (
               <AlertCircle className="w-5 h-5 text-red-600" />
             ) : (
-              <Sparkles className="w-5 h-5 text-[#C59B58]" />
+              <Sparkles className="w-5 h-5 text-[#B88E4F]" />
             )}
           </div>
 

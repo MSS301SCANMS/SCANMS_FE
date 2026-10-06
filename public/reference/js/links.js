@@ -14,7 +14,7 @@ const products = [
     bonusRate: 3, // +3% thưởng hạng Vàng
     stock: 426,
     status: 'active',
-    image: './assets/serum-hero-optimized.jpg',
+    image: './assets/products/real/vitamin-c-15-serum.jpg',
     description: 'Serum dưỡng sáng mờ thâm, chống oxy hóa với vitamin C tinh khiết 15%.'
   },
   {
@@ -27,7 +27,7 @@ const products = [
     bonusRate: 3,
     stock: 238,
     status: 'active',
-    image: './assets/serum-hero-optimized.jpg',
+    image: './assets/products/real/spf50-oil-control.jpg',
     description: 'Màng lọc phổ rộng 5 tia, kiềm dầu 8 giờ, kháng nước mồ hôi.'
   },
   {
@@ -40,7 +40,7 @@ const products = [
     bonusRate: 3,
     stock: 154,
     status: 'active',
-    image: './assets/serum-hero-optimized.jpg',
+    image: './assets/products/real/bha-toner-2pct.png',
     description: 'Làm sạch sâu bã nhờn, se khít lỗ chân lông, cân bằng pH 3.8.'
   },
   {
@@ -53,7 +53,7 @@ const products = [
     bonusRate: 3,
     stock: 0,
     status: 'out_of_stock',
-    image: './assets/serum-hero-optimized.jpg',
+    image: './assets/products/real/amino-cleanser-ph55.jpg',
     description: 'Độ pH 5.5 chuẩn da liễu, chiết xuất rau má làm dịu kích ứng.'
   },
   {
@@ -66,7 +66,7 @@ const products = [
     bonusRate: 3,
     stock: 812,
     status: 'paused',
-    image: './assets/serum-hero-optimized.jpg',
+    image: './assets/products/real/centella-sheet-mask.jpg',
     description: 'Chiết xuất rau má đậm đặc, làm dịu da sau nặn mụn hoặc treatment.'
   }
 ];

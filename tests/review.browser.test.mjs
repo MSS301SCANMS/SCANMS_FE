@@ -78,7 +78,7 @@ test(
                       productId,
                       productTitle,
                       imageUrl:
-                        base + "/reference/assets/serum-hero-optimized.jpg",
+                        base + "/assets/products/real/vitamin-c-15-serum.jpg",
                     },
                   ],
                 },

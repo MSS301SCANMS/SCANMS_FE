@@ -7,9 +7,41 @@ export interface StoreSettings {
   description?: string;
   logoUrl?: string;
   websiteUrl?: string;
+  policyReturn?: string | null;
+  policyWarranty?: string | null;
+  policyShipping?: string | null;
   defaultCommissionRate: number;
   attributionWindowDays: number;
-  minPayoutAmount: number;
+  representativeName?: string;
+  businessType?: string;
+  taxCode?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  warehouseAddress?: string;
+  payoutBankName?: string | null;
+  payoutBankAccountNumber?: string | null;
+  payoutBankAccountName?: string | null;
+  onboardingStatus?: 'DRAFT' | 'PENDING_APPROVAL' | 'NEEDS_INFO' | 'VERIFIED' | 'REJECTED';
+  isVerified?: boolean;
+  onboardingData?: {
+    representativeName?: string | null;
+    businessType?: string | null;
+    taxCode?: string | null;
+    contactPhone?: string | null;
+    contactEmail?: string | null;
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
+    bankAccountName?: string | null;
+    warehouseAddress?: string | null;
+    payoutBankName?: string | null;
+    payoutBankAccountNumber?: string | null;
+    payoutBankAccountName?: string | null;
+  } | null;
+  owner?: {
+    fullName: string;
+    email: string;
+    phoneNumber?: string | null;
+  };
   _count?: {
     products: number;
     orders: number;

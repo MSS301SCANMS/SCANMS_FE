@@ -26,6 +26,7 @@ export interface ReferralLinkItem {
   storeId: string;
   productId: string;
   campaignId: string | null;
+  exclusiveDealId?: string | null;
   shortCode: string;
   shortUrl: string;
   label: string | null;
@@ -49,7 +50,8 @@ export interface ReferralLinkItem {
   uniqueClicks: number;
   totalOrders: number;
   createdAt: string;
-  commissionRate?: number;
+  commissionRate?: number | null;
+  commissionType?: 'OPEN_OFFER' | 'CAMPAIGN' | 'EXCLUSIVE_DEAL';
   product: {
     id: string;
     title: string;
@@ -88,6 +90,25 @@ export interface CreateReferralLinkPayload {
   expiresAt?: string;
 }
 
+export interface ExclusiveDealProposal {
+  id: string;
+  productId: string;
+  storeId: string;
+  conversationId: string;
+  proposedCommissionRate: number;
+  approvedCommissionRate?: number | null;
+  currentCommissionRate?: number | null;
+  isCurrentDeal?: boolean;
+  salesCommitment: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  shopResponse?: string | null;
+  shortUrl?: string | null;
+  product?: { id: string; title: string; imageUrl?: string | null; price?: string | number };
+  store?: { id: string; name: string; logoUrl?: string | null };
+  collaborator?: { id: string; fullName: string; email: string };
+  createdAt: string;
+}
+
 export interface QueryReferralLinksParams {
   page?: number;
   limit?: number;
@@ -102,7 +123,61 @@ export interface QueryReferralLinksParams {
 
 export const referralLinksService = {
 
-  async getEligibleProducts(params?: { search?: string; storeId?: string }): Promise<EligibleProduct[]> {
+  async getMyExclusiveDeals(): Promise<ExclusiveDealProposal[]> {
+    const res: any = await api.get('/affiliate-deals/mine');
+    const payload = res?.data ?? res;
+    return Array.isArray(payload) ? payload : payload?.data || [];
+  },
+
+  async createExclusiveDeal(payload: {
+    productId: string;
+    proposedCommissionRate: number;
+    salesCommitment: string;
+  }): Promise<ExclusiveDealProposal> {
+    const res: any = await api.post('/affiliate-deals/proposals', payload);
+    return res?.data?.data || res?.data || res;
+  },
+
+  async getShopExclusiveDeals(): Promise<ExclusiveDealProposal[]> {
+    const res: any = await api.get('/affiliate-deals/shop');
+    const payload = res?.data ?? res;
+    return Array.isArray(payload) ? payload : payload?.data || [];
+  },
+
+  async approveExclusiveDeal(id: string) {
+    const res: any = await api.patch(`/affiliate-deals/${id}/approve`, {});
+    return res?.data?.data || res?.data || res;
+  },
+
+  async rejectExclusiveDeal(id: string, reason?: string) {
+    const res: any = await api.patch(`/affiliate-deals/${id}/reject`, { reason });
+    return res?.data?.data || res?.data || res;
+  },
+
+  async terminateExclusiveDeal(id: string, payload: { reason: string; escalateDispute?: boolean }) {
+    const res: any = await api.post(`/affiliate-deals/${id}/terminate`, payload);
+    return res?.data?.data || res?.data || res;
+  },
+
+  async deleteExclusiveDeal(id: string): Promise<{ success: boolean; message: string; deletedId: string }> {
+    const res: any = await api.delete(`/affiliate-deals/${id}`);
+    return res?.data || res;
+  },
+
+  async getMyDealStatus(): Promise<{
+    isBlocked: boolean;
+    violationsCount: number;
+    cooldownUntil: string | null;
+    remainingDays: number;
+    reason: string | null;
+    sampleRequestsBlocked: boolean;
+    sampleRequestsBlockReason: string | null;
+  }> {
+    const res: any = await api.get('/affiliate-deals/my-status');
+    return res?.data?.data || res?.data || res;
+  },
+
+  async getEligibleProducts(params?: { search?: string; storeId?: string; page?: number; limit?: number }): Promise<EligibleProduct[]> {
     const res: any = await api.get('/collaborator/referral-links/products', { params });
     return res?.data || res || [];
   },

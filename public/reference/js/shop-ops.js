@@ -55,10 +55,10 @@ export const shopOpsState = {
   ],
 
   mediaAssets: [
-    { id: "MED-01", name: "Bộ Banner Khuyến Mãi Mùa Thu 1200x628", type: "image", linkedProduct: "Serum Vitamin C 15%", downloads: 480, status: "active", url: "./assets/serum-hero-optimized.jpg" },
+    { id: "MED-01", name: "Bộ Banner Khuyến Mãi Mùa Thu 1200x628", type: "image", linkedProduct: "Serum Vitamin C 15%", downloads: 480, status: "active", url: "./assets/products/real/vitamin-c-15-serum.jpg" },
     { id: "MED-02", name: "Video Hướng Dẫn Swatch Chất Serum 9:16", type: "video", linkedProduct: "Serum Vitamin C 15%", downloads: 890, status: "active", url: "./assets/sample-video.mp4" },
     { id: "MED-03", name: "Bảng Thành Phần & Giấy Công Bố Y Tế", type: "document", linkedProduct: "Serum Vitamin C 15%", downloads: 210, status: "active", url: "#" },
-    { id: "MED-04", name: "Banner Siêu Sale 9.9 (Đã Hết Hạn)", type: "image", linkedProduct: "Kem Chống Nắng", downloads: 1200, status: "inactive", url: "./assets/serum-hero-optimized.jpg" }
+    { id: "MED-04", name: "Banner Siêu Sale 9.9 (Đã Hết Hạn)", type: "image", linkedProduct: "Kem Chống Nắng", downloads: 1200, status: "inactive", url: "./assets/products/real/vitamin-c-15-serum.jpg" }
   ],
 
   campaigns: [
@@ -350,7 +350,7 @@ export function bindShopOps(root, { toast, go, renderCurrentPage }) {
         linkedProduct: "Serum Vitamin C 15%",
         downloads: 0,
         status: "active",
-        url: "./assets/serum-hero-optimized.jpg"
+        url: "./assets/products/real/vitamin-c-15-serum.jpg"
       });
       toast("Đã tải lên và gắn tài nguyên vào sản phẩm thành công!");
       renderCurrentPage();
