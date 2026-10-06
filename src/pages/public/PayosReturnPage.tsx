@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, AlertCircle } from 'lucide-react';
-import api from '../../services/api';
+import { checkoutService } from '../../services/checkout.service';
 import { authService } from '../../services/auth.service';
 
 export default function PayosReturnPage() {
@@ -15,9 +15,7 @@ export default function PayosReturnPage() {
     let active = true;
     const refresh = async () => {
       try {
-        const response: any = await api.get(`/orders/payos/${encodeURIComponent(orderCode)}/status`, {
-          headers: { 'x-skip-cache': 'true' },
-        });
+        const response: any = await checkoutService.legacyPaymentStatus(orderCode);
         const value = response?.data?.paymentStatus || response?.paymentStatus;
         if (active) setStatus(value === 'PAID' ? 'PAID' : 'WAITING_PAYMENT');
       } catch {

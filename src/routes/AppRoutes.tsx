@@ -33,6 +33,10 @@ const ShopPage = lazyRetry(() => import('../pages/public/ShopPage'));
 const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
 const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
 const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
+const FinanceWalletPage = lazyRetry(() => import('../pages/finance/FinanceWalletPage'));
+const SettlementPage = lazyRetry(() => import('../pages/finance/SettlementPage'));
+const AdminFinancePage = lazyRetry(() => import('../pages/finance/AdminFinancePage'));
+const FinanceLoginPage = lazyRetry(() => import('../pages/finance/FinanceLoginPage'));
 
 const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
@@ -163,8 +167,11 @@ function AppRoutes() {
         <Route path="/customer/vouchers" element={<CustomerPortalPage />} />
         <Route path="/customer/notifications" element={<CustomerPortalPage />} />
         <Route path="/customer/security" element={<CustomerPortalPage />} />
+        <Route path="/customer/wallet" element={<CustomerPortalPage />} />
 
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/finance/login" element={<FinanceLoginPage />} />
+        <Route path="/auth/keycloak/callback" element={<FinanceLoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
         <Route path="/r/:shortCode" element={<RedirectHandlerPage />} />
@@ -180,10 +187,12 @@ function AppRoutes() {
             <Route path="merchant/products" element={<ProductManagementPage />} />
             <Route path="merchant/orders" element={<OrdersManagementPage />} />
             <Route path="merchant/returns/:id" element={<ReturnDetailPage mode="shop" />} />
-            <Route path="merchant/payouts" element={<PayoutApprovalPage />} />
-            <Route path="merchant/wallet" element={<WalletPage />} />
-            <Route path="shop/wallet" element={<WalletPage />} />
-            <Route path="stores/:storeId/payouts" element={<PayoutApprovalPage />} />
+            <Route path="merchant/settlements" element={<SettlementPage />} />
+            <Route path="admin/finance" element={<AdminFinancePage />} />
+            <Route path="merchant/payouts" element={<FinanceWalletPage />} />
+            <Route path="merchant/wallet" element={<FinanceWalletPage />} />
+            <Route path="shop/wallet" element={<FinanceWalletPage />} />
+            <Route path="stores/:storeId/payouts" element={<FinanceWalletPage />} />
             <Route path="merchant/settings" element={<ShopSettingsPage />} />
             <Route path="merchant/kyc-approval" element={<KycApprovalPage />} />
 
@@ -220,7 +229,7 @@ function AppRoutes() {
 
           <Route element={<RouteContent />}>
             <Route path="collaborator/dashboard" element={<HomePage />} />
-            <Route path="collaborator/wallet" element={<WalletPage />} />
+            <Route path="collaborator/wallet" element={<FinanceWalletPage />} />
 
             {/* Collaborator Consolidated Hubs */}
             <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />

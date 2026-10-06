@@ -18,6 +18,7 @@ import {
   User,
   Package,
   Radio,
+  Scale,
   type LucideProps,
 } from 'lucide-react';
 
@@ -40,6 +41,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     title: 'TÀI KHOẢN KHÁCH HÀNG',
     subTitle: 'Khách Mua Sắm',
     items: [
+      { path: '/customer/wallet', label: 'Ví khách hàng', icon: Wallet },
       { path: '/customer/orders', label: 'Đơn mua của tôi', icon: ShoppingBag },
       { path: '/customer/profile', label: 'Hồ sơ & Bảo mật', icon: User },
       { path: '/customer/addresses', label: 'Sổ địa chỉ nhận hàng', icon: MapPin },
@@ -68,7 +70,8 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
       { path: '/merchant/kol-hub', label: 'Mạng lưới KOL & Hợp tác', icon: Sparkles },
       { path: '/merchant/customer-messages', label: 'Tin nhắn khách hàng', icon: MessageSquare },
       { path: '/merchant/promotions', label: 'Khuyến mãi & Hoa hồng', icon: Tag },
-      { path: '/merchant/payouts', label: 'Duyệt chi trả KOL', icon: Wallet },
+      { path: '/merchant/wallet', label: 'Ví shop & Rút tiền', icon: Wallet },
+      { path: '/merchant/settlements', label: 'Đối soát doanh thu', icon: ShoppingBag },
       { path: '/merchant/fraud-sentinel', label: 'AI Chống gian lận traffic', icon: ShieldAlert },
       { path: '/merchant/audit-logs', label: 'Nhật ký kiểm toán', icon: ShieldCheck },
       { path: '/merchant/settings', label: 'Cài đặt gian hàng', icon: Settings },
@@ -78,6 +81,9 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     title: 'QUẢN TRỊ TỐI CAO',
     subTitle: 'Ban Quản Trị Hệ Thống',
     items: [
+      { path: '/merchant/orders', label: 'Quản lý Đơn hàng Toàn sàn', icon: ShoppingBag },
+      { path: '/admin/finance', label: 'Quản lý tài chính', icon: Wallet },
+      { path: '/admin/disputes', label: 'Trọng tài & Khiếu nại Đổi trả', icon: Scale },
       { path: '/admin/analytics', label: 'Báo cáo Doanh số & Sàn', icon: TrendingUp },
       { path: '/admin/users', label: 'Tài khoản & Phân quyền', icon: Users },
       { path: '/admin/sample-requests', label: 'Quản trị hàng mẫu KOL', icon: Package },
@@ -97,6 +103,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
       { path: '/merchant/products', label: 'Kiểm duyệt Hàng hóa & Shop', icon: Box },
       { path: '/merchant/fraud-sentinel', label: 'AI Chống gian lận Traffic', icon: ShieldAlert },
       { path: '/admin/affiliate-oversight', label: 'Giám sát Link & Khuyến mãi', icon: Link2 },
+      { path: '/admin/finance', label: 'Quản lý tài chính', icon: Wallet },
       { path: '/admin/analytics', label: 'Báo cáo Vận hành', icon: TrendingUp },
       { path: '/admin/audit-logs', label: 'Tra cứu Nhật ký Hoạt động', icon: ShieldCheck },
     ],
