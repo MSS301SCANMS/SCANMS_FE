@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Play,
+  Store,
 } from "lucide-react";
 import { productService, type Product } from "../../services/product.service";
 import {
@@ -25,7 +26,7 @@ import {
   type StoreOrderRecord,
   type StoreReturnRequest,
 } from "../../services/order.service";
-import { storeService } from "../../services/store.service";
+import { storeService, type StoreSettings } from "../../services/store.service";
 import {
   loadShippingAddresses,
   type ShippingProvince,
@@ -88,6 +89,8 @@ export default function OrdersManagementPage({
     initialAction ?? null,
   );
   const [storeId, setStoreId] = useState<string>();
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>("ALL");
+  const [myStores, setMyStores] = useState<StoreSettings[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productError, setProductError] = useState("");
@@ -155,6 +158,19 @@ export default function OrdersManagementPage({
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    storeService
+      .getMyStores()
+      .then((list) => {
+        if (Array.isArray(list) && list.length > 0) {
+          setMyStores(list);
+        }
+      })
+      .catch((err) => {
+        console.warn("Không thể tải danh sách gian hàng:", err);
+      });
+  }, []);
+
+  useEffect(() => {
     let active = true;
     setOrdersLoading(true);
     orderService
@@ -163,7 +179,7 @@ export default function OrdersManagementPage({
         search: orderSearchQuery.trim() || undefined,
         page: ordersPage,
         limit: 12,
-        storeId,
+        storeId: selectedStoreFilter === "ALL" ? undefined : selectedStoreFilter,
       })
       .then((res) => {
         if (active && res) {
@@ -181,7 +197,7 @@ export default function OrdersManagementPage({
     return () => {
       active = false;
     };
-  }, [storeId, statusFilter, ordersPage, ordersRefreshCount, orderSearchQuery]);
+  }, [selectedStoreFilter, statusFilter, ordersPage, ordersRefreshCount, orderSearchQuery]);
 
   const handleOpenShippingModal = (order: StoreOrderRecord) => {
     setShippingModalOrder(order);
@@ -656,6 +672,28 @@ export default function OrdersManagementPage({
 
           {/* Filter & Search Bar */}
           <div className="p-4 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Store Filter Selector (if merchant owns multiple stores) */}
+            {myStores.length > 1 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5]">
+                <Store className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
+                <select
+                  value={selectedStoreFilter}
+                  onChange={(e) => {
+                    setSelectedStoreFilter(e.target.value);
+                    setOrdersPage(1);
+                  }}
+                  className="bg-transparent text-xs font-bold text-[#1A1612] outline-none cursor-pointer"
+                >
+                  <option value="ALL">Tất cả gian hàng ({myStores.length})</option>
+                  {myStores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Status Tabs */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
@@ -785,6 +823,12 @@ export default function OrdersManagementPage({
                                 minute: "2-digit",
                               })}
                             </span>
+                            {order.store?.name && (
+                              <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md bg-[#FAF8F5] border border-[#EAE4D7] text-[10px] font-semibold text-[#7D715E]">
+                                <Store className="w-3 h-3 text-[#B88E4F]" />
+                                <span>{order.store.name}</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Khách hàng */}

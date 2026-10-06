@@ -45,7 +45,7 @@ export default function HomePage() {
         walletService.getMyWallet().catch(() => null),
         walletService.getMyLedger(1).catch(() => null),
         analyticsService.getRealtimeOverview({ days }).catch(() => null),
-        analyticsService.getTimeSeries({ days, interval: 'day' }).catch(() => []),
+        analyticsService.getTimeSeries({ days, interval: 'daily' }).catch(() => []),
         tierService.getMyTierStatus().catch(() => null),
       ]);
 

@@ -102,14 +102,21 @@ export const analyticsService = {
     days?: number;
     startDate?: string;
     endDate?: string;
-    interval?: string;
+    interval?: 'hourly' | 'daily' | 'weekly' | 'monthly' | string;
     storeId?: string;
     channel?: string;
     campaignId?: string;
   }) => {
+    const normalizedParams = params ? { ...params } : undefined;
+    if (normalizedParams?.interval) {
+      if (normalizedParams.interval === 'day') normalizedParams.interval = 'daily';
+      else if (normalizedParams.interval === 'hour') normalizedParams.interval = 'hourly';
+      else if (normalizedParams.interval === 'week') normalizedParams.interval = 'weekly';
+      else if (normalizedParams.interval === 'month') normalizedParams.interval = 'monthly';
+    }
     const res = await api.get<{ data?: DashboardOverviewResponse } | DashboardOverviewResponse>(
       '/dashboard/realtime/overview',
-      { params },
+      { params: normalizedParams },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -119,12 +126,19 @@ export const analyticsService = {
     days?: number;
     startDate?: string;
     endDate?: string;
-    interval?: string;
+    interval?: 'hourly' | 'daily' | 'weekly' | 'monthly' | string;
     storeId?: string;
   }) => {
+    const normalizedParams = params ? { ...params } : undefined;
+    if (normalizedParams?.interval) {
+      if (normalizedParams.interval === 'day') normalizedParams.interval = 'daily';
+      else if (normalizedParams.interval === 'hour') normalizedParams.interval = 'hourly';
+      else if (normalizedParams.interval === 'week') normalizedParams.interval = 'weekly';
+      else if (normalizedParams.interval === 'month') normalizedParams.interval = 'monthly';
+    }
     const res = await api.get<{ data?: TimeSeriesPoint[] } | TimeSeriesPoint[]>(
       '/dashboard/realtime/timeseries',
-      { params },
+      { params: normalizedParams },
     );
     return (res.data as any)?.data || res.data;
   },

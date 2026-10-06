@@ -35,7 +35,7 @@ export default function ShopDashboardPage() {
 
       const [overviewData, seriesData, productsData, ordersData] = await Promise.all([
         analyticsService.getRealtimeOverview({ days: 30, storeId: currentStore?.id }).catch(() => null),
-        analyticsService.getTimeSeries({ days: 7, interval: 'day', storeId: currentStore?.id }).catch(() => []),
+        analyticsService.getTimeSeries({ days: 7, interval: 'daily', storeId: currentStore?.id }).catch(() => []),
         productService.getProducts({ storeId: currentStore?.id, page: 1, limit: 5 }).catch(() => ({ items: [] })),
         orderService.getMyStoreOrders({ storeId: currentStore?.id, page: 1, limit: 5 }).catch(() => ({ items: [] })),
       ]);

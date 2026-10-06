@@ -26,6 +26,11 @@ export const storeService = {
     return res?.data || res;
   },
 
+  async getMyStores(): Promise<StoreSettings[]> {
+    const res: any = await api.get('/stores/my-stores');
+    return res?.data || res || [];
+  },
+
   async updateMyStore(data: Partial<StoreSettings>) {
     const res: any = await api.put('/stores/my-store', data);
     return res?.data || res;

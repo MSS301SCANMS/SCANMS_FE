@@ -1276,8 +1276,12 @@ export default function SearchPage() {
           initialCouponCode={activeCheckoutProduct.couponCode}
           initialQuantity={activeCheckoutProduct.quantity}
           onOrderPlaced={(orderData: any) => {
-            setActiveCheckoutProduct(null);
-            toast.success(`Đặt hàng thành công! Mã đơn: ${orderData.orderCode || orderData.id}`);
+            const code = orderData.publicOrderCode;
+            if (orderData.paymentMethod === 'PAYOS' && orderData.paymentStatus !== 'PAID') {
+              toast.info(`Đơn ${code} đã tạo. Vui lòng thanh toán bằng QR PayOS.`);
+            } else {
+              toast.success(`Đặt hàng thành công! Mã đơn: ${code}`);
+            }
           }}
         />
       )}

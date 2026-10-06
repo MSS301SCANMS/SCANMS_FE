@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 
 import MainLayout from '../components/layout/MainLayout';
@@ -15,16 +15,20 @@ const UiReferencePage = lazy(() => import('../pages/UiReferencePage'));
 const MarketplacePage = lazy(() => import('../pages/public/MarketplacePage'));
 const ShopPage = lazy(() => import('../pages/public/ShopPage'));
 const SearchPage = lazy(() => import('../pages/public/SearchPage'));
-const PayosReturnPage = lazy(() => import('../pages/public/PayosReturnPage'));
+const PayosReturnPage = lazy(() => import('../pages/finance/PaymentStatusPage'));
+const FinanceWalletPage = lazy(() => import('../pages/finance/FinanceWalletPage'));
+const SettlementPage = lazy(() => import('../pages/finance/SettlementPage'));
+const AdminFinancePage = lazy(() => import('../pages/finance/AdminFinancePage'));
+const FinanceLoginPage = lazy(() => import('../pages/finance/FinanceLoginPage'));
 
 const ProductManagementPage = lazy(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazy(() => import('../pages/merchant/ShopDashboardPage'));
 const ShopSettingsPage = lazy(() => import('../pages/merchant/ShopSettingsPage'));
 const KycApprovalPage = lazy(() => import('../pages/merchant/KycApprovalPage'));
 const OrdersManagementPage = lazy(() => import('../pages/merchant/OrdersManagementPage'));
-const PayoutApprovalPage = lazy(() => import('../pages/merchant/PayoutApprovalPage'));
 
-const WalletPage = lazy(() => import('../pages/collaborator/WalletPage'));
+
+
 const OrderTrackingPage = lazy(() => import('../pages/public/OrderTrackingPage'));
 const CustomerPortalPage = lazy(() => import('../pages/customer/CustomerPortalPage'));
 const ChatBoxPage = lazy(() => import('../pages/chat/ChatBoxPage'));
@@ -100,8 +104,11 @@ function AppRoutes() {
         <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
         <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
         <Route path="/customer/upgrade/shop" element={<CustomerPortalPage />} />
+        <Route path="/customer/wallet" element={<CustomerPortalPage />} />
 
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/finance/login" element={<FinanceLoginPage />} />
+        <Route path="/auth/keycloak/callback" element={<FinanceLoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
         <Route path="/r/:shortCode" element={<RedirectHandlerPage />} />
@@ -116,8 +123,12 @@ function AppRoutes() {
             <Route path="merchant/dashboard" element={<ShopDashboardPage />} />
             <Route path="merchant/products" element={<ProductManagementPage />} />
             <Route path="merchant/orders" element={<OrdersManagementPage />} />
-            <Route path="merchant/payouts" element={<PayoutApprovalPage />} />
-            <Route path="stores/:storeId/payouts" element={<PayoutApprovalPage />} />
+            {/* Customer wallet is served by CustomerPortalPage */}
+            <Route path="merchant/wallet" element={<FinanceWalletPage />} />
+            <Route path="merchant/settlements" element={<SettlementPage />} />
+            <Route path="admin/finance" element={<AdminFinancePage />} />
+            <Route path="merchant/payouts" element={<FinanceWalletPage />} />
+            <Route path="stores/:storeId/payouts" element={<FinanceWalletPage />} />
             <Route path="merchant/settings" element={<ShopSettingsPage />} />
             <Route path="merchant/kyc-approval" element={<KycApprovalPage />} />
 
@@ -152,7 +163,7 @@ function AppRoutes() {
 
           <Route element={<RouteContent />}>
             <Route path="collaborator/dashboard" element={<HomePage />} />
-            <Route path="collaborator/wallet" element={<WalletPage />} />
+            <Route path="collaborator/wallet" element={<FinanceWalletPage />} />
 
             {/* Collaborator Consolidated Hubs */}
             <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />

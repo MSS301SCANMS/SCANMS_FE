@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   ShoppingBag,
@@ -25,6 +25,7 @@ import {
   Sparkles,
   Home,
   MessageSquare,
+  Wallet,
 } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import {
@@ -43,6 +44,7 @@ import { toast } from '../../utils/toast';
 import { GuestCheckoutModal, type CheckoutProductItem, type CheckoutStoreInfo } from '../../components/checkout/GuestCheckoutModal';
 import { PublicHeader } from '../../components/layout/PublicHeader';
 import { PartnerUpgradeTab } from './PartnerUpgradeTab';
+import { CustomerWalletTab } from '../../components/customer/CustomerWalletTab';
 import { ReturnRequestModal } from '../../components/customer/ReturnRequestModal';
 import { VerifiedReviewModal } from '../../components/customer/VerifiedReviewModal';
 import {
@@ -50,7 +52,7 @@ import {
   type AddressLocationResult,
 } from '../../components/customer/AddressLocationPicker';
 
-type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'upgrade';
+type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'upgrade' | 'wallet';
 type OrderFilterStatus = 'ALL' | 'PENDING' | 'SHIPPING' | 'DELIVERED' | 'COMPLETED' | 'RETURN_REQUESTED' | 'CANCELLED';
 
 const normalizeAdministrativeName = (value: string) => value
@@ -76,8 +78,10 @@ const administrativeNamesMatch = (left: string, right: string) => {
 export default function CustomerPortalPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const pathTab = location.pathname.includes('/customer/upgrade')
+  const [searchParams] = useSearchParams();
+  const pathTab = location.pathname.includes('/customer/wallet')
+    ? 'wallet'
+    : location.pathname.includes('/customer/upgrade')
     ? 'upgrade'
     : location.pathname.includes('/customer/addresses')
     ? 'addresses'
@@ -188,7 +192,11 @@ export default function CustomerPortalPage() {
   }, []);
 
   const setTab = (tab: CustomerTab) => {
-    setSearchParams({ tab });
+    if (tab === 'wallet') {
+      navigate('/customer/wallet');
+    } else {
+      navigate(`/customer/orders?tab=${tab}`);
+    }
   };
 
   const fetchProfile = async () => {
@@ -537,6 +545,16 @@ export default function CustomerPortalPage() {
 
             {/* Menu List */}
             <nav className="flex flex-col gap-1.5 pt-4 text-left">
+              <Link
+                to="/customer/wallet"
+                className="flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Wallet className="w-4 h-4" />
+                  <span>Ví của tôi · Nạp tiền & Thanh toán</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+              </Link>
               <button
                 type="button"
                 onClick={() => setTab('orders')}
@@ -653,6 +671,11 @@ export default function CustomerPortalPage() {
           {/* RIGHT MAIN PANEL - CONTENT ACCORDING TO ACTIVE TAB */}
           {/* ========================================================= */}
           <div className="lg:col-span-9 flex flex-col gap-6 text-left">
+            {/* ------------------------------------------------------------- */}
+            {/* TAB 0: VÍ KHÁCH HÀNG (CUSTOMER WALLET) */}
+            {/* ------------------------------------------------------------- */}
+            {currentTab === 'wallet' && <CustomerWalletTab />}
+
             {/* ------------------------------------------------------------- */}
             {/* TAB 1: ĐƠN MUA CỦA TÔI (SHOPEE STYLE) */}
             {/* ------------------------------------------------------------- */}
@@ -1829,9 +1852,12 @@ export default function CustomerPortalPage() {
           onClose={() => setActiveCheckoutProduct(null)}
           product={activeCheckoutProduct.product}
           store={activeCheckoutProduct.store}
-          onOrderPlaced={() => {
-            setActiveCheckoutProduct(null);
-            toast.success('Đặt hàng thành công!');
+          onOrderPlaced={(order) => {
+            if (order.paymentMethod === 'PAYOS' && order.paymentStatus !== 'PAID') {
+              toast.info('Đơn đã tạo. Vui lòng thanh toán bằng QR PayOS.');
+            } else {
+              toast.success('Đặt hàng thành công!');
+            }
             fetchOrders();
             fetchProfile();
           }}

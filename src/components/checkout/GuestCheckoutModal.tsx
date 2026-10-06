@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import QRCode from 'qrcode';
+import { CheckoutPaymentQr } from './CheckoutPaymentQr';
+import { PaymentBankDetails, type ReceivingAccount } from './PaymentBankDetails';
 import {
   X,
   ShoppingBag,
@@ -23,6 +24,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import api from '../../services/api';
+import { financeService } from '../../services/finance.service';
+import { checkoutService, usesLegacyCheckout } from '../../services/checkout.service';
 import { apiCache } from '../../utils/apiCache';
 import { authService } from '../../services/auth.service';
 import { customerService, type CustomerAddress } from '../../services/customer.service';
@@ -185,7 +188,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   const [policyError, setPolicyError] = useState<string | null>(null);
 
   // Payment Method: Default to COD (reliable & always available), with PayOS option
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYOS'>('COD');
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYOS'>('PAYOS');
 
   // Single-product fallback state
   const [singleQuantity] = useState(initialQuantity);
@@ -227,13 +230,19 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       finalAmount: number;
       trackingUrl?: string;
       items?: any[];
+      paymentStatus?: string;
+      payos?: ReceivingAccount & { checkoutUrl: string; qrCode: string };
+      paymentError?: string;
     }>;
+    paymentError?: string;
     payos?: {
+      paymentId?: string;
       qrCode: string;
       checkoutUrl: string;
-      bin: string;
-      accountNumber: string;
-      accountName: string;
+      bin?: string | null;
+      accountNumber?: string | null;
+      accountName?: string | null;
+      description?: string | null;
       amount: number;
     };
     cancellationToken?: string;
@@ -241,7 +250,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   } | null>(null);
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [payosQrImage, setPayosQrImage] = useState<string | null>(null);
   const [payosAvailable, setPayosAvailable] = useState<boolean | null>(null);
 
   // Normalize active items to order
@@ -339,11 +347,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     if (!isOpen || !isSignedIn) return;
     let active = true;
     setPayosAvailable(null);
-    api
-      .get('/orders/payos/availability')
-      .then((response: any) => {
-        const data = response?.data?.data || response?.data || response;
-        if (active) setPayosAvailable(data?.available === true);
+    checkoutService.paymentAvailable()
+      .then((available) => {
+        if (active) setPayosAvailable(available);
       })
       .catch(() => {
         if (active) setPayosAvailable(false);
@@ -353,36 +359,21 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     };
   }, [isOpen, isSignedIn]);
 
-  // Generate QR for PayOS if available
-  useEffect(() => {
-    const qrCode = orderSuccess?.payos?.qrCode;
-    if (!qrCode) {
-      setPayosQrImage(null);
-      return;
-    }
-    let active = true;
-    QRCode.toDataURL(qrCode, { width: 320, margin: 2 })
-      .then((image) => {
-        if (active) setPayosQrImage(image);
-      })
-      .catch(() => setPayosQrImage(null));
-    return () => {
-      active = false;
-    };
-  }, [orderSuccess?.payos?.qrCode]);
-
   // Status check for PayOS
   useEffect(() => {
-    if (!isOpen || !orderSuccess?.publicOrderCode || orderSuccess.paymentStatus === 'PAID') return;
+    if (!isOpen || !orderSuccess?.payos || orderSuccess.paymentStatus === 'PAID') return;
+    if (!usesLegacyCheckout && !orderSuccess.payos.paymentId) return;
     const check = async () => {
       try {
-        const response: any = await api.get(
-          `/orders/payos/${encodeURIComponent(orderSuccess.publicOrderCode)}/status`,
-          {
-            headers: { 'x-skip-cache': 'true' },
-          },
-        );
-        const status = response?.data?.paymentStatus || response?.paymentStatus;
+        if (usesLegacyCheckout && orderSuccess.isMultiStore) {
+          const statuses = await Promise.all(orderSuccess.orders.map(async order => ({ code: order.publicOrderCode, result: await checkoutService.legacyPaymentStatus(order.publicOrderCode) })));
+          setOrderSuccess(current => current ? { ...current, paymentStatus: statuses.every(row => row.result.paymentStatus === 'PAID') ? 'PAID' : 'UNPAID', orders: current.orders.map(order => ({ ...order, paymentStatus: statuses.find(row => row.code === order.publicOrderCode)?.result.paymentStatus || order.paymentStatus })) } : current);
+          return;
+        }
+        const response = usesLegacyCheckout
+          ? await checkoutService.legacyPaymentStatus(orderSuccess.publicOrderCode)
+          : await financeService.paymentStatus(orderSuccess.payos!.paymentId!);
+        const status = usesLegacyCheckout ? response.paymentStatus : response.status === 'SUCCESS' ? 'PAID' : response.status;
         if (status === 'PAID') {
           setOrderSuccess((current) => (current ? { ...current, paymentStatus: 'PAID' } : current));
         }
@@ -392,7 +383,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     };
     const timer = window.setInterval(check, 5000);
     return () => window.clearInterval(timer);
-  }, [isOpen, orderSuccess?.publicOrderCode, orderSuccess?.paymentStatus]);
+  }, [isOpen, orderSuccess?.payos, orderSuccess?.orders, orderSuccess?.isMultiStore, orderSuccess?.publicOrderCode, orderSuccess?.paymentStatus]);
 
   // Auth requirement check (Requirement 5)
   useEffect(() => {
@@ -537,22 +528,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     setCouponLoading(true);
     setCouponMessage(null);
     try {
-      const targetStoreId = activeItems[0]?.store.id || store?.id || '';
-      const res: any = await api.post('/coupons/validate', {
-        code: couponCode.trim(),
-        storeId: targetStoreId,
-        customerPhone: customerPhone.trim() || undefined,
-        items: activeItems.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.price,
-        })),
-        hasProductDiscount: false,
-        hasShopVoucher: false,
-        hasPlatformVoucher: false,
-      });
-
-      const data = res?.data || res;
+      const data = await checkoutService.quote({ couponCode: couponCode.trim(), storeId: activeItems[0]?.store.id || store?.id, customerPhone: customerPhone.trim() || undefined, items: activeItems.map(item => ({ productId: item.productId, variantId: item.variantId || undefined, quantity: item.quantity, unitPrice: item.price })) });
       setAppliedCoupon({
         code: data.code,
         discountAmount: Number(data.discountAmount) || 0,
@@ -599,7 +575,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
     if (paymentMethod === 'PAYOS' && payosAvailable !== true) {
       setErrorMessage(
-        'Cổng thanh toán PayOS hiện chưa sẵn sàng (chưa có webhook HTTPS công khai). Vui lòng chọn phương thức COD (Thanh toán khi nhận hàng) để hoàn tất đặt hàng an toàn ngay!',
+        'PayOS hiện chưa sẵn sàng. Vui lòng thử lại sau hoặc chọn thanh toán khi nhận hàng (COD).',
       );
       return;
     }
@@ -674,9 +650,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         })),
       };
 
-      const res = await api.post('/orders', payload);
+      const res = await checkoutService.create(payload);
       const rawResponse = res as any;
-      const resData = rawResponse?.data?.data || rawResponse?.data || rawResponse;
+      const resData = rawResponse?.result || rawResponse?.data?.data || rawResponse?.data || rawResponse;
 
       // Extract created orders list (Requirement 8 & 10)
       const isMultiStore = Boolean(resData.isMultiStore);
@@ -707,16 +683,35 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       // If PayOS was chosen and available, fetch link
       if (paymentMethod === 'PAYOS' && payosAvailable) {
         try {
-          const payosResponse: any = await api.post(`/orders/payos/${encodeURIComponent(primaryOrderCode)}/link`);
-          const payos = payosResponse?.data?.data || payosResponse?.data || payosResponse;
-          if (payos?.qrCode) {
-            orderResult.payos = payos;
+          if (usesLegacyCheckout) {
+            if (!primaryOrderCode) throw new Error('Backend chưa trả mã đơn để tạo thanh toán.');
+            if (isMultiStore) {
+              const links = await Promise.all(orderResult.orders.map(async order => {
+                try {
+                  const link = await checkoutService.legacyPaymentLink(order.publicOrderCode);
+                  if (!link.qrCode || !/^https:\/\/pay\.payos\.vn\//.test(link.checkoutUrl || '')) throw new Error('Liên kết PayOS trả về không hợp lệ.');
+                  return { ...order, payos: link, paymentStatus: link.paymentStatus || 'UNPAID' };
+                } catch (e) { return { ...order, paymentError: e instanceof Error ? e.message : 'Chưa tạo được link PayOS.' }; }
+              }));
+              orderResult.orders = links;
+              orderResult.payos = links.find(order => order.payos)?.payos as NonNullable<typeof orderResult.payos> | undefined;
+              orderResult.paymentStatus = links.every(order => order.paymentStatus === 'PAID') ? 'PAID' : 'UNPAID';
+            } else {
+              const payment = await checkoutService.legacyPaymentLink(primaryOrderCode);
+              if (!payment.qrCode || !/^https:\/\/pay\.payos\.vn\//.test(payment.checkoutUrl || '')) throw new Error('Liên kết PayOS trả về không hợp lệ.');
+              orderResult.payos = payment;
+              orderResult.paymentStatus = payment.paymentStatus || orderResult.paymentStatus;
+            }
+          } else {
+            const orderId = resData.orderId || resData.order?.orderId;
+            if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId)) throw new Error('Dịch vụ đơn hàng chưa trả mã Order UUID cho thanh toán. Đơn đã được tạo; liên hệ hỗ trợ để kiểm tra.');
+            const payment = await financeService.payment(orderId, `checkout:${idempotencyKey}`);
+            orderResult.payos = { paymentId: payment.paymentId, qrCode: payment.qrCode || '', checkoutUrl: `/payment/payos-return?payment=${payment.paymentId}`, bin: payment.bin, accountNumber: payment.accountNumber, accountName: payment.accountName, description: payment.description, amount: payment.amountVnd };
           }
-        } catch {
-          // PayOS link creation optional fallback
+        } catch (error) {
+          orderResult.paymentError = error instanceof Error ? error.message : 'Chưa tạo được thanh toán. Kiểm tra giao dịch trước khi thử lại.';
         }
       }
-
       // Requirement 10: Only remove placed items from cart!
       const placedCartItemIds = activeItems.map((i) => i.cartItemId);
       removeItems(placedCartItemIds);
@@ -786,14 +781,20 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
           /* Order Confirmation Screen (Requirement 10) */
           <div className="max-w-2xl mx-auto py-2 text-center">
             <div className="w-16 h-16 rounded-full bg-[#FBF5EB] border-2 border-[#C59B58] text-[#B88E4F] flex items-center justify-center mx-auto mb-3 shadow-xs">
-              <CheckCircle2 className="w-10 h-10" />
+              {orderSuccess.paymentMethod === 'PAYOS' && orderSuccess.paymentStatus !== 'PAID'
+                ? <QrCode className="w-10 h-10" />
+                : <CheckCircle2 className="w-10 h-10" />}
             </div>
 
             <h2 id="guest-checkout-title" className="text-2xl font-black text-[#1A1612] mb-1">
-              Đặt Hàng Thành Công!
+              {orderSuccess.paymentMethod === 'PAYOS'
+                ? orderSuccess.paymentStatus === 'PAID' ? 'PayOS đã xác nhận thanh toán' : 'Đơn đã tạo — chờ thanh toán PayOS'
+                : 'Đã tạo đơn thanh toán khi nhận hàng (COD)'}
             </h2>
             <p className="text-xs text-[#7D715E] mb-5 max-w-md mx-auto">
-              {orderSuccess.isMultiStore
+              {orderSuccess.paymentMethod === 'PAYOS' && orderSuccess.paymentStatus !== 'PAID'
+                ? 'Bạn chưa thanh toán. Quét mã QR bên dưới và xác nhận chuyển tiền trong ứng dụng ngân hàng. Hệ thống chỉ xác nhận sau khi kiểm tra đã nhận tiền.'
+                : orderSuccess.isMultiStore
                 ? `Hệ thống đã tự động tách thành ${orderSuccess.orders.length} đơn con tương ứng cho từng Gian hàng để xử lý và giao hàng tận nơi.`
                 : 'Đơn hàng của bạn đã được ghi nhận vào hệ thống SCANMS và gửi tới gian hàng để đóng gói.'}
             </p>
@@ -862,8 +863,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               ))}
             </div>
 
+            {orderSuccess.paymentError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-900">{orderSuccess.paymentError}</p>}
             {/* PayOS QR Box if PayOS payment method was selected */}
-            {orderSuccess.paymentMethod === 'PAYOS' && orderSuccess.payos && (
+            {orderSuccess.paymentMethod === 'PAYOS' && orderSuccess.payos && (!usesLegacyCheckout || !orderSuccess.isMultiStore) && (
               <div className="bg-[#FFFFFF] border-2 border-[#C59B58] rounded-2xl p-4 text-center mb-5 shadow-sm">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FBF5EB] rounded-full text-xs font-bold text-[#B88E4F] mb-3">
                   <QrCode className="w-3.5 h-3.5" />
@@ -874,31 +876,29 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                   </span>
                 </div>
 
-                {orderSuccess.paymentStatus !== 'PAID' && payosQrImage && (
-                  <div className="w-48 h-48 mx-auto bg-white p-2 rounded-xl border border-[#EAE4D7] shadow-inner mb-3 flex items-center justify-center">
-                    <img src={payosQrImage} alt="Mã QR thanh toán PayOS" className="w-full h-full object-contain" />
-                  </div>
-                )}
+                {orderSuccess.paymentStatus !== 'PAID' && <CheckoutPaymentQr
+                  qrCode={orderSuccess.payos.qrCode}
+                  recoveryUrl={orderSuccess.payos.paymentId
+                    ? `/payment/payos-return?payment=${encodeURIComponent(orderSuccess.payos.paymentId)}`
+                    : `/payment/payos-return?order=${encodeURIComponent(orderSuccess.publicOrderCode)}`}
+                />}
 
-                <div className="bg-[#FAF8F5] rounded-xl p-3 text-xs text-left space-y-1 font-mono text-[#1A1612]">
-                  <div><strong>Ngân hàng:</strong> {orderSuccess.payos.bin}</div>
-                  <div><strong>Số tài khoản:</strong> {orderSuccess.payos.accountNumber}</div>
-                  <div><strong>Chủ tài khoản:</strong> {orderSuccess.payos.accountName}</div>
-                  <div><strong>Số tiền:</strong> {formatMoney(orderSuccess.payos.amount)}</div>
-                </div>
+                <PaymentBankDetails payment={orderSuccess.payos} />
 
-                {orderSuccess.paymentStatus !== 'PAID' && (
-                  <a
-                    href={orderSuccess.payos.checkoutUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-[#EBD08C] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#DEC07A]"
-                  >
-                    Mở trang thanh toán PayOS ↗
-                  </a>
-                )}
               </div>
             )}
+
+            {usesLegacyCheckout && orderSuccess.isMultiStore && orderSuccess.paymentMethod === 'PAYOS' && <div className="mb-5 space-y-3 rounded-2xl border p-4">
+              <strong>Thanh toán PayOS riêng cho từng shop</strong>
+              {orderSuccess.orders.map(order => <article key={order.publicOrderCode} className="space-y-2 rounded-xl border p-3">
+                <p>{order.storeName} · {order.publicOrderCode}</p>
+                <p>{formatMoney(order.payos?.amount ?? order.finalAmount)} · {order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chờ thanh toán'}</p>
+                {order.paymentError && <p role="alert">{order.paymentError}</p>}
+                {order.payos && order.paymentStatus !== 'PAID' && <CheckoutPaymentQr qrCode={order.payos.qrCode} recoveryUrl={`/payment/payos-return?order=${encodeURIComponent(order.publicOrderCode)}`} />}
+                {order.payos && <PaymentBankDetails payment={order.payos} />}
+                {!order.payos && <Link className="block underline" to={`/payment/payos-return?order=${encodeURIComponent(order.publicOrderCode)}`}>Kiểm tra và tạo lại link thanh toán</Link>}
+              </article>)}
+            </div>}
 
             {/* COD Notice */}
             {orderSuccess.paymentMethod === 'COD' && (
@@ -1270,7 +1270,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                             <strong className="text-xs sm:text-sm text-[#1A1612]">Thanh toán khi nhận (COD)</strong>
                           </div>
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            Khuyên dùng
+                            Trả khi nhận
                           </span>
                         </div>
                         <p className="text-[11px] text-[#7D715E] mt-1.5 pl-6 leading-relaxed">
@@ -1310,7 +1310,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
 
                     {paymentMethod === 'PAYOS' && payosAvailable === false && (
                       <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                        ℹ️ Cổng PayOS đang ở chế độ thử nghiệm nội bộ (chưa cấu hình webhook HTTPS công khai). Quý khách nên chọn phương thức COD để đơn hàng được duyệt và giao ngay!
+                        PayOS hiện chưa sẵn sàng. Vui lòng thử lại sau hoặc chọn thanh toán khi nhận hàng (COD).
                       </p>
                     )}
 
@@ -1555,7 +1555,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                   {/* Submit Button (Requirement 10: debounce & disable) */}
                   <button
                     type="submit"
-                    disabled={isSubmitting || activeItems.length === 0 || !policyAccepted || policyLoading || !!policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id])}
+                    disabled={isSubmitting || activeItems.length === 0 || !policyAccepted || policyLoading || !!policyError || itemsGroupedByShop.some((group) => !shopPolicies[group.store.id]) || (paymentMethod === 'PAYOS' && payosAvailable !== true)}
                     className="w-full py-3.5 bg-gradient-to-r from-[#EBD08C] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#D4B26F] disabled:opacity-50 text-[#231D15] font-extrabold text-sm rounded-xl shadow-md hover:shadow-lg shadow-[#C59B58]/20 transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer border border-[#DEC07A]"
                   >
                     {isSubmitting ? (
@@ -1567,7 +1567,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
                       <>
                         <CheckCircle2 className="w-4 h-4" />
                         <span>
-                          XÁC NHẬN ĐẶT HÀNG • {formatMoney(finalTotal)}
+                          {paymentMethod === 'PAYOS'
+                            ? payosAvailable === null ? 'ĐANG KIỂM TRA PAYOS' : payosAvailable === false ? 'PAYOS CHƯA SẴN SÀNG' : 'TẠO ĐƠN & HIỆN QR PAYOS'
+                            : 'XÁC NHẬN ĐẶT HÀNG COD'} • {formatMoney(finalTotal)}
                         </span>
                       </>
                     )}
