@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useSearchParams, useParams } from 'react-router-dom';
-import { Wallet, RefreshCw, Landmark, ArrowDownToLine, Plus, CheckCircle2, AlertCircle, Sparkles, ShieldCheck } from 'lucide-react';
+import { Wallet, RefreshCw, Landmark, ArrowDownToLine, Plus, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 import {
   financeService,
   type MoneyPayment,
@@ -204,7 +204,7 @@ export default function FinanceWalletPage() {
       });
       completeCommand(scope);
       setAmount('');
-      setSuccess(`Đã tạo yêu cầu rút ${money(amountValue)} (Mã: ${result.withdrawalId}). Tiền đã được giữ an toàn và chờ xử lý chuyển khoản.`);
+      setSuccess(`Đã tạo yêu cầu rút ${money(amountValue)} (Mã: ${result.withdrawalId}). Yêu cầu đang chờ duyệt; tiền chỉ được giữ sau khi quản trị viên phê duyệt.`);
     });
   }
 
@@ -386,26 +386,6 @@ export default function FinanceWalletPage() {
               {wallet ? statusLabels[wallet.status] : loading ? 'Đang tải…' : 'Chưa có dữ liệu'}
             </p>
           </div>
-          {/* Quick test balance injection button for demo & testing */}
-          {wallet && ownerType !== 'CUSTOMER' && (
-            <div className="mt-4 pt-3 border-t border-[#EAE4D7] flex items-center justify-between">
-              <span className="text-[11px] text-[#A69986]">Dành cho kiểm thử chức năng rút tiền:</span>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await financeService.testCredit(wallet.walletId, 1000000);
-                    setSuccess('Đã cộng 1.000.000 đ số dư thử nghiệm thành công vào ví! Bạn có thể tạo lệnh rút tiền ngay.');
-                  })
-                }
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>+ Nạp 1.000.000 đ test</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {ownerType !== 'CUSTOMER' && (
@@ -415,7 +395,7 @@ export default function FinanceWalletPage() {
               {wallet ? money(wallet.heldBalanceVnd) : '—'}
             </p>
             <p className="mt-2 text-xs text-[#7D715E]">
-              Tiền tạm giữ khi lệnh rút đang duyệt. Tự động giải phóng khi lệnh bị từ chối hoặc chuyển khoản hoàn tất.
+              Tiền được giữ sau khi yêu cầu rút được phê duyệt. Hoàn lại số dư khả dụng khi bị từ chối hoặc chuyển khoản thất bại; ghi nhận đã rút khi chuyển khoản thành công.
             </p>
           </div>
         )}
@@ -743,11 +723,11 @@ export default function FinanceWalletPage() {
 
               {capabilities && !capabilities.payoutAvailable && (
                 <div role="status" className="rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] p-3 text-xs text-[#7D715E]">
-                  ℹ️ Dịch vụ chuyển tiền ngân hàng tự động chưa cấu hình khóa cổng PayOS. Bạn vẫn có thể gửi yêu cầu; Quản trị viên duyệt và thực hiện chuyển khoản cho bạn.
+                  Dịch vụ chuyển tiền ra ngân hàng chưa sẵn sàng. Bạn có thể gửi yêu cầu chờ xử lý; yêu cầu chỉ được duyệt và giữ tiền khi dịch vụ được cấu hình đầy đủ.
                 </div>
               )}
 
-              {/* Insufficient balance warning & Quick testing credit */}
+              {/* Insufficient balance warning */}
               {wallet && wallet.availableBalanceVnd < (capabilities?.minimumWithdrawalVnd || 200000) && (
                 <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-2">
                   <div className="flex items-center gap-2 font-bold">
@@ -755,22 +735,8 @@ export default function FinanceWalletPage() {
                     <span>Số dư khả dụng hiện tại: {money(wallet.availableBalanceVnd)}</span>
                   </div>
                   <p className="text-[11px] text-amber-700 leading-relaxed">
-                    Số tiền rút tối thiểu là {capabilities ? money(capabilities.minimumWithdrawalVnd) : '200.000 đ'}. Bạn cần tích lũy thêm số dư từ đơn hàng hoặc nạp số dư thử nghiệm bên dưới để kiểm thử tính năng này.
+                    Số tiền rút tối thiểu là {capabilities ? money(capabilities.minimumWithdrawalVnd) : '200.000 đ'}. Bạn cần tích lũy thêm số dư từ doanh thu đối soát hoặc hoa hồng đã được ghi có vào ví.
                   </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await financeService.testCredit(wallet.walletId, 1000000);
-                        setSuccess('Đã cộng 1.000.000 đ số dư thử nghiệm thành công vào ví! Bạn có thể thực hiện rút tiền ngay bây giờ.');
-                      })
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>+ Nạp 1.000.000 đ số dư thử nghiệm</span>
-                  </button>
                 </div>
               )}
 
@@ -843,11 +809,11 @@ export default function FinanceWalletPage() {
                   inputMode="numeric"
                   placeholder="Nhập số tiền..."
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => setAmount(e.target.value)}
                   required
                 />
                 <p className="text-[11px] text-[#A69986] mt-1">
-                  Tối thiểu {capabilities ? money(capabilities.minimumWithdrawalVnd) : '200.000 đ'}. Tiền sẽ được giữ trong ví sau khi tạo lệnh và giải phóng khi giao dịch hoàn tất.
+                  Tối thiểu {capabilities ? money(capabilities.minimumWithdrawalVnd) : '200.000 đ'}. Tiền chỉ được giữ sau khi yêu cầu được phê duyệt. Nếu chuyển khoản thất bại, tiền giữ được hoàn lại số dư khả dụng.
                 </p>
               </div>
             </div>

@@ -68,7 +68,6 @@ export const financeService = {
   refundSurplus: (id: string, reason: string) => request<MoneyPayment>('POST', `/payments/${id}/refund-surplus`, { reason }),
   topup: (walletId: string, amountVnd: number, idempotencyKey: string) => request<MoneyPayment>('POST', '/top-ups', { walletId, amountVnd, idempotencyKey }),
   payWallet: (orderId: string, walletId: string, idempotencyKey: string) => request<MoneyPayment>('POST', '/wallet-payments', { orderId, walletId, idempotencyKey }),
-  testCredit: (walletId: string, amountVnd = 1000000) => request<{ walletId: string; amountVnd: number; balanceAfterVnd: number; transactionId: string }>('POST', '/wallets/test-credit', { walletId, amountVnd }),
   paymentStatus: (id: string, refresh = true) => request<MoneyPayment>('GET', `/payments/${id}`, undefined, { refresh }),
   cancelPayment: (id: string) => request<MoneyPayment>('POST', `/payments/${id}/cancel`),
 };

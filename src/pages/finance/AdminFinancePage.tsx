@@ -31,9 +31,11 @@ import {
   type MoneyPayment,
   type OwnerType,
   type FinanceSourceOrder,
+  type Capabilities,
 } from '../../services/finance.service';
 import { money, when, statusLabels, amountVnd } from './money';
 import { SettlementDetail } from './SettlementPage';
+import { AdminPayments } from './AdminPayments';
 import { usesLegacyCheckout } from '../../services/checkout.service';
 import { CustomDateTimePicker } from '../../components/ui/CustomDateTimePicker';
 
@@ -62,6 +64,7 @@ export default function AdminFinancePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const inFlight = useRef(false);
 
   // Operations & Forms
@@ -93,6 +96,7 @@ export default function AdminFinancePage() {
   const load = useCallback(async () => {
     setError('');
     try {
+      setCapabilities(await financeService.capabilities());
       // Always load platform wallet for top banner
       financeService.wallet('PLATFORM').then(setPlatformWallet).catch(() => null);
 
@@ -538,10 +542,13 @@ export default function AdminFinancePage() {
                   )}
 
                   {/* Actions */}
+                  {capabilities?.payoutAvailable === false && ['REQUESTED', 'APPROVED', 'PROCESSING'].includes(row.status) && (
+                    <p role="status" className="text-xs text-amber-800">Dịch vụ chuyển tiền ra ngân hàng chưa được cấu hình đầy đủ. Chưa thể duyệt giữ tiền hoặc gửi chuyển khoản.</p>
+                  )}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-[#EAE4D7]">
                     {row.status === 'REQUESTED' && (
                       <button
-                        disabled={busy}
+                        disabled={busy || capabilities?.payoutAvailable !== true}
                         className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                         onClick={() =>
                           void run(
@@ -572,7 +579,7 @@ export default function AdminFinancePage() {
 
                     {row.status === 'APPROVED' && (
                       <button
-                        disabled={busy}
+                        disabled={busy || capabilities?.payoutAvailable !== true}
                         className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                         onClick={() =>
                           void run(
@@ -587,7 +594,7 @@ export default function AdminFinancePage() {
 
                     {row.status === 'PROCESSING' && (
                       <button
-                        disabled={busy}
+                        disabled={busy || capabilities?.payoutAvailable !== true}
                         className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                         onClick={() =>
                           void run(
@@ -795,6 +802,14 @@ export default function AdminFinancePage() {
           )}
         </div>
       )}
+
+      {tab === 'payments' && <AdminPayments
+        payments={payments}
+        busy={busy}
+        onVerify={id => void run(() => financeService.paymentStatus(id), 'Đã kiểm tra khoản tiền với nhà cung cấp')}
+        onRefundUnapplied={(id, reason) => void run(() => financeService.refundUnapplied(id, reason), 'Đã hoàn khoản chưa áp vào đơn về ví khách')}
+        onRefundSurplus={(id, reason) => void run(() => financeService.refundSurplus(id, reason), 'Đã hoàn tiền chuyển dư về ví khách')}
+      />}
 
       {/* TAB 4: CẤU HÌNH PHÍ (FEE RULES) */}
       {tab === 'fees' && (

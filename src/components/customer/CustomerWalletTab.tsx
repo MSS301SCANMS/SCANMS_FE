@@ -374,10 +374,11 @@ export const CustomerWalletTab: React.FC<CustomerWalletTabProps> = () => {
               Nhập mã đơn hàng chưa thanh toán để trừ trực tiếp từ số dư ví khách hàng hoặc thanh toán ngay qua cổng PayOS.
             </p>
 
-            <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+            <label htmlFor="customer-wallet-order-id" className="block text-xs font-bold text-[#1A1612] mb-1.5">
               Mã đơn hàng (Order ID / Code)
             </label>
             <input
+              id="customer-wallet-order-id"
               type="text"
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}

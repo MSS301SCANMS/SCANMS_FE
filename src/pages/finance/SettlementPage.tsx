@@ -14,9 +14,12 @@ export function SettlementDetail({ row }: { row: MoneySettlement }) {
   </article>;
 }
 export default function SettlementPage() {
-  const [params, setParams] = useSearchParams(); const [storeId, setStoreId] = useState(params.get('storeId') || localStorage.getItem('current_store_id') || '');
+  const [params, setParams] = useSearchParams();
+  const selectedStoreId = params.get('storeId') || localStorage.getItem('current_store_id') || '';
+  const [storeId, setStoreId] = useState(selectedStoreId);
   const [data, setData] = useState<MoneyPage<MoneySettlement> | null>(null); const [page, setPage] = useState(0); const [error, setError] = useState('');
-  useEffect(() => { let live = true; if (!params.get('storeId')) return; void financeService.settlements(params.get('storeId')!, page).then(result => { if (live) { setData(result); setError(''); } }).catch(e => { if (live) setError(e.message); }); return () => { live = false; }; }, [params, page]);
+  useEffect(() => { setStoreId(selectedStoreId); setPage(0); }, [selectedStoreId]);
+  useEffect(() => { let live = true; setData(null); if (!selectedStoreId) return; void financeService.settlements(selectedStoreId, page).then(result => { if (live) { setData(result); setError(''); } }).catch(e => { if (live) setError(e.message); }); return () => { live = false; }; }, [selectedStoreId, page]);
   return <section className="mx-auto max-w-5xl space-y-5 p-6"><h1 className="text-2xl font-bold">Đối soát doanh thu shop</h1>
     <p className="text-gray-600">Đơn đã hoàn tất và hết thời hạn trả hàng mới được đối soát. PAID nghĩa là đã ghi có vào ví shop. Rút về ngân hàng là một giao dịch riêng.</p>
     <form onSubmit={e => { e.preventDefault(); setPage(0); setParams({ storeId }); }} className="flex gap-3"><input aria-label="Mã shop" required value={storeId} onChange={e => setStoreId(e.target.value)} placeholder="Mã shop" className="min-w-0 flex-1 rounded-xl border p-3" /><button className="rounded-xl bg-[#C59B58] px-5 text-white">Xem đối soát</button></form>

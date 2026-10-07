@@ -31,7 +31,7 @@ const UiReferencePage = lazyRetry(() => import('../pages/UiReferencePage'));
 const MarketplacePage = lazyRetry(() => import('../pages/public/MarketplacePage'));
 const ShopPage = lazyRetry(() => import('../pages/public/ShopPage'));
 const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
-const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
+const PayosReturnPage = lazyRetry(() => import('../pages/finance/PaymentStatusPage'));
 const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
 const FinanceWalletPage = lazyRetry(() => import('../pages/finance/FinanceWalletPage'));
 const SettlementPage = lazyRetry(() => import('../pages/finance/SettlementPage'));

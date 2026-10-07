@@ -10,6 +10,10 @@ legacyFinance.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+legacyFinance.interceptors.response.use(response => response, error => {
+  const message = error.response?.data?.message || error.message || 'Không kết nối được dịch vụ thanh toán PayOS.';
+  return Promise.reject(new Error(message));
+});
 
 const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || 'http://localhost:8080/api/v1', timeout: 60000 });
 checkout.interceptors.request.use(config => {
