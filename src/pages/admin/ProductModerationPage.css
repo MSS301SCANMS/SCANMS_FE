@@ -1,0 +1,10 @@
+.product-moderation { container-type: inline-size; }
+.moderation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.moderation-card { display: flex; flex-direction: column; }
+.moderation-actions { margin-top: auto; }
+.moderation-actions > button { min-height: 32px; border-radius: 8px; font-size: 12px; font-weight: 600; padding: 6px 10px; }
+.moderation-actions > button:first-child { margin-right: auto; }
+.moderation-actions > .moderation-reject { color: #DC2626; border-color: #EAE4D7; box-shadow: none; background: #FFFFFF; }
+.moderation-actions > .moderation-reject:hover { background: #FFF7F7; border-color: #F3CACA; }
+.product-moderation header > button { border-radius: 8px; font-size: 12px; font-weight: 500; }
+@container (max-width: 740px) { .moderation-grid { grid-template-columns: minmax(0, 1fr); } }

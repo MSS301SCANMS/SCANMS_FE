@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
-  Sparkles,
   Gift,
   Calendar,
   CheckCircle2,
@@ -113,42 +112,28 @@ export default function KolCampaignsPage() {
   const rejectedCount = invitations.filter(i => i.status === 'REJECTED').length;
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-campaigns-page">
+    <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-campaigns-page">
 
       {toast && (
         <div
           className={`fixed bottom-6 right-6 px-4 py-3 rounded-2xl text-xs font-bold shadow-2xl z-50 border flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-200 ${
             toast.type === 'success'
-              ? 'bg-emerald-600 text-white border-emerald-500'
-              : 'bg-rose-600 text-white border-rose-500'
+              ? 'bg-white text-[#1A1612] border-[#EEDFC6]'
+              : 'bg-white text-rose-700 border-rose-200'
           }`}
           role="alert"
         >
           {toast.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-200 flex-shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-[#059669] flex-shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-rose-200 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
           )}
           <span>{toast.msg}</span>
         </div>
       )}
 
 
-      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="relative z-10 space-y-2 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-black/20 backdrop-blur-xs border border-white/20 uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-            <span>FR-27 • Đặc Quyền Dành Cho Top KOL</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Lời Mời Chiến Dịch VIP
-          </h1>
-          <p className="text-sm text-amber-100 font-medium leading-relaxed">
-            Nhận lời mời hợp tác trực tiếp từ các nhãn hàng hàng đầu, hưởng mức hoa hồng thưởng thêm vượt trội và bùng nổ doanh thu tiếp thị.
-          </p>
-        </div>
-      </div>
+      
 
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -371,7 +356,7 @@ export default function KolCampaignsPage() {
                       <button
                         type="button"
                         onClick={() => navigate('/collaborator/links')}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <TrendingUp className="w-4 h-4" />
                         <span>Tạo Link Tiếp Thị Chiến Dịch</span>
@@ -399,3 +384,4 @@ export default function KolCampaignsPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../lib/api";
 import axios from "axios";
 
 
@@ -83,8 +83,8 @@ export const reviewService = {
       throw new Error(
         "Mã đơn hoặc số điện thoại không khớp. Vui lòng kiểm tra lại.",
       );
-    if (!["DELIVERED", "COMPLETED"].includes(order.status))
-      throw new Error("Chỉ có thể đánh giá sau khi đã nhận hàng.");
+    if (order.status !== "COMPLETED")
+      throw new Error("Vui lòng xác nhận đã nhận hàng trước khi đánh giá.");
     return order;
   },
   async uploadMedia(
@@ -137,3 +137,4 @@ export const reviewService = {
     return response.data.review;
   },
 };
+

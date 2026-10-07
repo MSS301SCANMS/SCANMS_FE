@@ -1,7 +1,23 @@
-import api from "./api";
+import api from "../lib/api";
 
 export type ManagedOrderStatus =
-  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURNED";
+  "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURN_REQUESTED" | "DISPUTED" | "RETURNED";
+
+export interface StoreReturnRequest {
+  id: string;
+  reason: string;
+  details: string | null;
+  imageUrls: string[];
+  unboxingVideoUrl: string;
+  status: import('./return.service').ReturnStatus;
+  deadlineAt: string;
+  shipByAt?: string | null;
+  returnAddress?: string | null;
+  returnInstructions?: string | null;
+  submittedAt: string;
+  shopResponse: string | null;
+  shopRespondedAt: string | null;
+}
 
 export interface ManualOrderItemInput {
   productId?: string;
@@ -71,7 +87,96 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+export interface StoreOrderItem {
+  productId: string;
+  title: string;
+  sku: string;
+  imageUrl?: string;
+  quantity: number;
+  unitPrice: number;
+  appliedCommissionRate: number;
+  calculatedCommissionAmount: number;
+}
+
+export interface StoreOrderRecord {
+  id: string;
+  externalOrderSn: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  deliveredAt: string | null;
+  status: ManagedOrderStatus;
+  returnRequest?: StoreReturnRequest | null;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  shippingAddress: string;
+  subtotalAmount: number;
+  discountAmount: number;
+  shippingFee: number;
+  finalAmount: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  trackingNumber: string | null;
+  carrierName: string | null;
+  store?: { id: string; name: string; slug: string; logoUrl?: string };
+  attributedCollaborator?: { id: string; fullName: string; email: string } | null;
+  couponCode: string | null;
+  totalCommission: number;
+  items: StoreOrderItem[];
+}
+
+export interface StoreOrdersResponse {
+  items: StoreOrderRecord[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export const orderService = {
+  async getMyStoreOrders(params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    storeId?: string;
+  }): Promise<StoreOrdersResponse> {
+    const response = (await api.get("/orders/my-store", {
+      params,
+    })) as unknown as ApiEnvelope<StoreOrdersResponse>;
+    return response.data;
+  },
+
+  async updateOrderFulfillment(
+    orderId: string,
+    data: {
+      status: ManagedOrderStatus;
+      trackingNumber?: string;
+      carrierName?: string;
+      note?: string;
+    },
+  ) {
+    const response = (await api.patch(
+      `/orders/${orderId}/fulfillment`,
+      data,
+    )) as unknown as ApiEnvelope<{
+      message: string;
+      order: any;
+    }>;
+    return response.data;
+  },
+
+  async respondReturnRequest(orderId: string, data: { decision: 'APPROVE' | 'REJECT'; response: string }) {
+    const response = (await api.patch(`/orders/${orderId}/return-request/respond`, data)) as unknown as ApiEnvelope<{
+      message: string;
+      returnRequest: StoreReturnRequest;
+    }>;
+    return response.data;
+  },
+
   async quoteDiscount(data: {
     storeId?: string;
     customerPhone: string;
@@ -125,4 +230,20 @@ export const orderService = {
     })) as unknown as ApiEnvelope<ExcelImportResult>;
     return response.data;
   },
+
+  /**
+   * Shop chủ động hủy đơn hàng (chỉ PENDING) — gọi POST /orders/:id/cancel
+   * Backend tự động: hoàn kho, thu hồi coupon, clawback hoa hồng KOL.
+   */
+  async shopCancelOrder(
+    orderId: string,
+    reason: string,
+  ): Promise<{ message: string; order: any }> {
+    const response = (await api.post(
+      `/orders/${orderId}/cancel`,
+      { reason },
+    )) as unknown as ApiEnvelope<{ message: string; order: any }>;
+    return response.data;
+  },
 };
+

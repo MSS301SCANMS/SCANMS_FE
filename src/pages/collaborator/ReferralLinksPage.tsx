@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import {
   Link2,
@@ -12,7 +13,6 @@ import {
   PlayCircle,
   Trash2,
   Search,
-  Filter,
   AlertCircle,
   CheckCircle2,
   TrendingUp,
@@ -26,6 +26,7 @@ import {
   Download,
   ShieldAlert,
   ChevronDown,
+  ChevronUp,
   Clock,
   Flame,
   RotateCcw,
@@ -48,6 +49,8 @@ import type {
   EligibleProduct,
 } from '../../services/referral-links.service';
 import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Select } from '../../components/ui/Select';
 import { toast } from '../../utils/toast';
 
 import QRCode from 'qrcode';
@@ -99,15 +102,16 @@ function useQrDataUrl(value?: string | null) {
         }
       });
 
-  return () => {
-    active = false;
-  };
+    return () => {
+      active = false;
+    };
   }, [value, retryCount]);
 
   return { dataUrl, qrLoading, qrError, retry };
 }
 
 export default function ReferralLinksPage() {
+  const navigate = useNavigate();
   const [links, setLinks] = useState<ReferralLinkItem[]>([]);
   const [totalLinks, setTotalLinks] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -145,12 +149,62 @@ export default function ReferralLinksPage() {
 
   const [eligibleProducts, setEligibleProducts] = useState<EligibleProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [eligibleProductsPage, setEligibleProductsPage] = useState(1);
+  const [hasMoreEligibleProducts, setHasMoreEligibleProducts] = useState(false);
   const [loadProductsError, setLoadProductsError] = useState<string | null>(null);
   const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
   const [modalProductSearch, setModalProductSearch] = useState('');
   const [modalShopFilter, setModalShopFilter] = useState('ALL');
   const [modalCategoryFilter, setModalCategoryFilter] = useState('ALL');
   const [selectedProduct, setSelectedProduct] = useState<EligibleProduct | null>(null);
+  const [dealProposals, setDealProposals] = useState<any[]>([]);
+  const [dealProposalProduct, setDealProposalProduct] = useState<EligibleProduct | null>(null);
+  const [dealProposalRate, setDealProposalRate] = useState('0');
+  const [dealSalesCommitment, setDealSalesCommitment] = useState('');
+  const [loadingDealProposals, setLoadingDealProposals] = useState(false);
+  const [submittingDealProposal, setSubmittingDealProposal] = useState(false);
+  const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
+  const [dealToDelete, setDealToDelete] = useState<any | null>(null);
+  const [dealVideoCount, setDealVideoCount] = useState(4);
+  const [dealLiveCount, setDealLiveCount] = useState(2);
+  const [dealTargetOrders, setDealTargetOrders] = useState(80);
+  const [dealTimeframeDays, setDealTimeframeDays] = useState(30);
+  const [dealAgreedSanctions, setDealAgreedSanctions] = useState(false);
+  const [dealSanctionsPolicyOpen, setDealSanctionsPolicyOpen] = useState(false);
+  const [kolDealStatus, setKolDealStatus] = useState<{
+    isBlocked: boolean;
+    violationsCount: number;
+    cooldownUntil: string | null;
+    remainingDays: number;
+    reason: string | null;
+    sampleRequestsBlocked: boolean;
+  } | null>(null);
+  const [isExclusiveDealsCollapsed, setIsExclusiveDealsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('scanms_deals_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleExclusiveDealsCollapse = () => {
+    setIsExclusiveDealsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('scanms_deals_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const dealStats = useMemo(() => {
+    const total = dealProposals.length;
+    const approved = dealProposals.filter((d) => d.status === 'APPROVED').length;
+    const pending = dealProposals.filter((d) => d.status === 'PENDING').length;
+    const rejected = dealProposals.filter((d) => d.status === 'REJECTED').length;
+    return { total, approved, pending, rejected };
+  }, [dealProposals]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [customExpiresAt, setCustomExpiresAt] = useState<string>('');
   const [formChannel, setFormChannel] = useState<string>('TIKTOK');
@@ -526,9 +580,11 @@ export default function ReferralLinksPage() {
   }, [hasOpenModal]);
 
 
-  const fetchLinks = useCallback(async () => {
-    setLoading(true);
-    setErrorMsg(null);
+  const fetchLinks = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setErrorMsg(null);
+    }
     try {
       const res = await referralLinksService.getMyLinks({
         page,
@@ -540,15 +596,44 @@ export default function ReferralLinksPage() {
       setLinks(res.data);
       setTotalLinks(res.meta.total);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Không thể tải danh sách liên kết tiếp thị');
+      if (!silent) setErrorMsg(err.message || 'Không thể tải danh sách liên kết tiếp thị');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, limit, selectedStatus, selectedChannel, searchQuery]);
 
   useEffect(() => {
     fetchLinks();
   }, [fetchLinks]);
+
+  useEffect(() => {
+    const refreshVisibleLinks = () => {
+      if (document.visibilityState === 'visible') void fetchLinks(true);
+    };
+    const timer = window.setInterval(refreshVisibleLinks, 10000);
+    document.addEventListener('visibilitychange', refreshVisibleLinks);
+    window.addEventListener('focus', refreshVisibleLinks);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshVisibleLinks);
+      window.removeEventListener('focus', refreshVisibleLinks);
+    };
+  }, [fetchLinks]);
+
+  const fetchDealProposals = useCallback(async () => {
+    setLoadingDealProposals(true);
+    try {
+      setDealProposals(await referralLinksService.getMyExclusiveDeals());
+    } catch (err) {
+      console.error('Không thể tải trạng thái Exclusive Deal:', err);
+    } finally {
+      setLoadingDealProposals(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDealProposals();
+  }, [fetchDealProposals]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,15 +644,19 @@ export default function ReferralLinksPage() {
 
   const loadEligibleProductsAndCampaigns = async () => {
     setLoadingProducts(true);
+    setLoadingMoreProducts(false);
+    setEligibleProductsPage(1);
+    setHasMoreEligibleProducts(false);
     setLoadProductsError(null);
     try {
       const [prodsRes, campaignsRes] = await Promise.allSettled([
-        referralLinksService.getEligibleProducts(),
+        referralLinksService.getEligibleProducts({ page: 1, limit: 100 }),
         api.get('/campaigns/my-invitations'),
       ]);
 
       if (prodsRes.status === 'fulfilled') {
         setEligibleProducts(prodsRes.value || []);
+        setHasMoreEligibleProducts(prodsRes.value.length === 100);
       } else {
         const err = prodsRes.reason;
         setLoadProductsError(
@@ -605,6 +694,24 @@ export default function ReferralLinksPage() {
     await loadEligibleProductsAndCampaigns();
   };
 
+  useEffect(() => {
+    const handleOpenCreateLinkEvent = () => {
+      handleOpenCreateModal();
+    };
+    const handleOpenSubmitVideoEvent = () => {
+      setSelectedProductForVideo(null);
+      setIsSubmitVideoModalOpen(true);
+    };
+
+    window.addEventListener('scanms_open_create_link', handleOpenCreateLinkEvent);
+    window.addEventListener('scanms_open_submit_video', handleOpenSubmitVideoEvent);
+
+    return () => {
+      window.removeEventListener('scanms_open_create_link', handleOpenCreateLinkEvent);
+      window.removeEventListener('scanms_open_submit_video', handleOpenSubmitVideoEvent);
+    };
+  }, []);
+
 
   const handleSelectProduct = (prod: EligibleProduct) => {
     setSelectedProduct(prod);
@@ -615,6 +722,169 @@ export default function ReferralLinksPage() {
     setFormTouched((prev) => ({ ...prev, product: true }));
     if (!formLabel.trim()) {
       setFormLabel(`Chia sẻ: ${prod.title.slice(0, 45)}`);
+    }
+  };
+
+  const loadMoreEligibleProducts = async () => {
+    if (loadingMoreProducts || !hasMoreEligibleProducts) return;
+    const nextPage = eligibleProductsPage + 1;
+    setLoadingMoreProducts(true);
+    setLoadProductsError(null);
+    try {
+      const nextProducts = await referralLinksService.getEligibleProducts({ page: nextPage, limit: 100 });
+      setEligibleProducts((current) => {
+        const seen = new Set(current.map((product) => product.id));
+        return [...current, ...nextProducts.filter((product) => !seen.has(product.id))];
+      });
+      setEligibleProductsPage(nextPage);
+      setHasMoreEligibleProducts(nextProducts.length === 100);
+    } catch (err: any) {
+      setLoadProductsError(
+        err?.response?.data?.message || err?.message || 'Không thể tải thêm sản phẩm',
+      );
+    } finally {
+      setLoadingMoreProducts(false);
+    }
+  };
+
+  const updateCommitmentFromKpis = (video: number, live: number, orders: number, days: number) => {
+    setDealVideoCount(video);
+    setDealLiveCount(live);
+    setDealTargetOrders(orders);
+    setDealTimeframeDays(days);
+    setDealSalesCommitment(
+      `Cam kết trong chu kỳ ${days} ngày: Đăng tối thiểu ${video} video review unboxing chất lượng cao gắn link affiliate, thực hiện ${live} phiên livestream ghim giỏ hàng tối thiểu 45 phút, và hướng đến đạt tối thiểu ${orders} đơn hàng giao thành công. Cam kết tuân thủ quy chế chế tài 4 cấp độ của SCANMS nếu không đạt chỉ tiêu.`,
+    );
+  };
+
+  const openExclusiveDealDialog = (product: EligibleProduct) => {
+    setDealProposalProduct(product);
+    const currentDeal = dealProposals.find(
+      (deal) => deal.productId === product.id && deal.isCurrentDeal,
+    );
+    const minimumRate = Math.max(
+      Number(product.estimatedCommissionRate),
+      Number(currentDeal?.approvedCommissionRate ?? 0),
+    );
+    setDealProposalRate(String(Math.min(100, minimumRate + 5)));
+    setDealVideoCount(4);
+    setDealLiveCount(2);
+    setDealTargetOrders(80);
+    setDealTimeframeDays(30);
+    setDealAgreedSanctions(false);
+    setDealSanctionsPolicyOpen(false);
+    setDealSalesCommitment(
+      'Cam kết trong chu kỳ 30 ngày: Đăng tối thiểu 4 video review unboxing chất lượng cao gắn link affiliate, thực hiện 2 phiên livestream ghim giỏ hàng tối thiểu 45 phút, và hướng đến đạt tối thiểu 80 đơn hàng giao thành công. Cam kết tuân thủ quy chế chế tài 4 cấp độ của SCANMS nếu không đạt chỉ tiêu.',
+    );
+    referralLinksService.getMyDealStatus()
+      .then((status) => setKolDealStatus(status))
+      .catch(() => setKolDealStatus(null));
+  };
+
+  const openDealRevision = (deal: any) => {
+    const existingProduct = eligibleProducts.find((product) => product.id === deal.productId);
+    const product: EligibleProduct = existingProduct ?? {
+      id: deal.productId,
+      title: deal.product?.title || 'Sản phẩm',
+      sku: '',
+      categoryName: null,
+      imageUrl: deal.product?.imageUrl || null,
+      originalPrice: null,
+      price: deal.product?.price ?? 0,
+      customCommissionRate: deal.publicCommissionRate ?? null,
+      stockQuantity: 0,
+      store: {
+        id: deal.storeId,
+        name: deal.store?.name || 'Shop',
+        slug: '',
+        defaultCommissionRate: deal.publicCommissionRate ?? 0,
+      },
+      estimatedCommissionRate: Number(deal.publicCommissionRate ?? 0),
+      estimatedCommissionAmount: 0,
+    };
+    openExclusiveDealDialog(product);
+  };
+
+  const handleDeleteDeal = (deal: any) => {
+    setDealToDelete(deal);
+  };
+
+  const handleConfirmDeleteDeal = async () => {
+    if (!dealToDelete) return;
+    setDeletingDealId(dealToDelete.id);
+    try {
+      await referralLinksService.deleteExclusiveDeal(dealToDelete.id);
+      setDealProposals((prev) => prev.filter((d) => d.id !== dealToDelete.id));
+      toast.success(
+        dealToDelete.status === 'PENDING'
+          ? 'Đã hủy và thu hồi đề xuất deal thành công!'
+          : 'Đã gỡ bỏ deal thành công!'
+      );
+      setDealToDelete(null);
+      void fetchLinks(true);
+    } catch (err: any) {
+      console.error('Lỗi khi xóa đề xuất deal:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể xóa đề xuất deal lúc này.');
+    } finally {
+      setDeletingDealId(null);
+    }
+  };
+
+  const normalizeDealProposalRate = (value: string) => {
+    const normalized = value.replace(/,/g, '.').replace(/[^\d.]/g, '');
+    const decimalIndex = normalized.indexOf('.');
+    const integerPart = (decimalIndex === -1 ? normalized : normalized.slice(0, decimalIndex))
+      .replace(/^0+(?=\d)/, '');
+
+    if (decimalIndex === -1) return integerPart;
+
+    const decimalPart = normalized.slice(decimalIndex + 1).replace(/\./g, '').slice(0, 2);
+    return `${integerPart || '0'}.${decimalPart}`;
+  };
+
+  const handleSubmitExclusiveDeal = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!dealProposalProduct || submittingDealProposal) return;
+    if (kolDealStatus?.isBlocked) {
+      toast.error(
+        `Tài khoản đang trong thời gian chế tài (Lần ${kolDealStatus.violationsCount} - Khóa quyền xin deal còn ${kolDealStatus.remainingDays} ngày).`,
+      );
+      return;
+    }
+    if (!dealAgreedSanctions) {
+      toast.error('Vui lòng tích xác nhận cam kết tuân thủ Quy chế Chế tài 4 Cấp độ của SCANMS.');
+      return;
+    }
+    const openRate = Number(dealProposalProduct.estimatedCommissionRate);
+    const currentDeal = dealProposals.find(
+      (deal) => deal.productId === dealProposalProduct.id && deal.isCurrentDeal,
+    );
+    const minimumRate = Math.max(openRate, Number(currentDeal?.approvedCommissionRate ?? 0));
+    const proposedRate = Number(dealProposalRate);
+    if (!dealProposalRate.trim() || !Number.isFinite(proposedRate) || proposedRate <= minimumRate || proposedRate > 100) {
+      toast.error(`Mức đề xuất phải cao hơn mức đang áp dụng (${minimumRate}%) và không quá 100%.`);
+      return;
+    }
+    if (dealSalesCommitment.trim().length < 5) {
+      toast.error('Hãy nhập cam kết doanh số cụ thể để Shop xem xét.');
+      return;
+    }
+
+    setSubmittingDealProposal(true);
+    try {
+      const proposal = await referralLinksService.createExclusiveDeal({
+        productId: dealProposalProduct.id,
+        proposedCommissionRate: proposedRate,
+        salesCommitment: dealSalesCommitment.trim(),
+      });
+      setDealProposals((current) => [proposal, ...current.filter((item) => item.id !== proposal.id)]);
+      toast.success('Đã gửi đề xuất qua Chat cho Shop.');
+      setDealProposalProduct(null);
+      navigate('/chat');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể gửi đề xuất deal.');
+    } finally {
+      setSubmittingDealProposal(false);
     }
   };
 
@@ -763,11 +1033,11 @@ export default function ReferralLinksPage() {
               <span>Đã bị khóa</span>
             </span>
             {link.disabledReason && (
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 w-64 p-2.5 bg-gray-900 text-white text-xs rounded-xl shadow-xl text-left">
-                <div className="font-semibold text-rose-300 mb-0.5">Lý do khóa:</div>
-                <div className="text-gray-200">{link.disabledReason}</div>
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-20 w-64 p-2.5 bg-white text-[#1A1612] border border-[#EEDFC6] text-xs rounded-xl shadow-xl text-left">
+                <div className="font-semibold text-[#DC2626] mb-0.5">Lý do khóa:</div>
+                <div className="text-[#7D715E]">{link.disabledReason}</div>
                 {link.disabledBy && (
-                  <div className="text-[10px] text-gray-400 mt-1">
+                  <div className="text-[10px] text-[#7D715E] mt-1">
                     Người thực hiện khóa: {link.disabledBy}
                   </div>
                 )}
@@ -811,164 +1081,439 @@ export default function ReferralLinksPage() {
     }
   };
 
+  const dealProposalCurrentDeal = dealProposalProduct
+    ? dealProposals.find((deal) => deal.productId === dealProposalProduct.id && deal.isCurrentDeal)
+    : undefined;
+  const dealProposalMinimumRate = Math.max(
+    Number(dealProposalProduct?.estimatedCommissionRate ?? 0),
+    Number(dealProposalCurrentDeal?.approvedCommissionRate ?? 0),
+  );
+
   return (
-    <div className="space-y-6 text-[#1A1612] font-sans pb-12">
+    <div className="space-y-2.5 text-[#1A1612] font-sans pb-6">
 
-      <div className="bg-white rounded-2xl border border-[#E8DAC4] p-6 sm:p-8 shadow-sm relative overflow-hidden">
-
-        <div className="absolute top-0 right-0 w-80 h-80 bg-[#C59B58]/5 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 relative z-10">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2.5">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#F5E7CC] text-[#9E7933] border border-[#DEBE85]">
-                <Sparkles className="w-3.5 h-3.5 text-[#C59B58]" />
-                DÀNH CHO KOL / CTV (FR-10)
-              </span>
-              <span className="text-xs bg-[#FAF6F0] text-[#7D6D55] border border-[#E8DAC4] px-3 py-1 rounded-full font-medium flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#B88E4F]" />
-                Chính sách Last Click 30 ngày
-              </span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1A1612] flex items-center gap-3">
-              Liên Kết Tiếp Thị Của Bạn
-            </h1>
-            <p className="mt-1.5 text-sm text-[#7D6D55] max-w-2xl leading-relaxed">
-              Tạo mã rút gọn độc quyền, gắn nhãn kênh (TikTok, YouTube, Facebook...) để đo lường chính xác hiệu quả từng chiến dịch và tối ưu doanh số.
-            </p>
+      {/* Dải thống kê 4 chỉ số gọn gàng, sạch sẽ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+            <Layers className="w-4 h-4 text-[#B88E4F]" />
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setSelectedProductForVideo(null);
-                setIsSubmitVideoModalOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#F3EFE6] hover:bg-[#EAE4D7] text-[#1A1612] font-bold border border-[#E8DAC4] active:scale-95 transition-all cursor-pointer"
-            >
-              <Video className="w-4.5 h-4.5 text-[#B88E4F]" />
-              Nộp video review (FR-15)
-            </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white font-bold shadow-md shadow-[#9E7933]/20 border border-[#DEBE85] active:scale-95 transition-all cursor-pointer"
-            >
-              <Plus className="w-5 h-5" />
-              Tạo link tiếp thị mới
-            </button>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Tổng link đang dùng</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalLinks} <span className="text-[10px] font-normal text-[#7D715E]">/ 500 tối đa</span>
+            </div>
           </div>
         </div>
 
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#E8DAC4]/60">
-          <div className="bg-[#FAF8F5] border border-[#E8DAC4] hover:border-[#DEBE85] rounded-xl p-4 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D6D55] text-xs font-semibold mb-1">
-              <span>Tổng link đang dùng</span>
-              <div className="w-7 h-7 rounded-lg bg-[#F5E7CC] flex items-center justify-center">
-                <Layers className="w-4 h-4 text-[#9E7933]" />
-              </div>
-            </div>
-            <div className="text-2xl font-extrabold text-[#1A1612]">
-              {totalLinks} <span className="text-xs font-normal text-[#A49B8B]">/ 500 tối đa</span>
-            </div>
-            <div className="text-[11px] text-[#7D6D55] mt-1">Đảm bảo quota không vượt hạn mức</div>
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center shrink-0">
+            <MousePointerClick className="w-4 h-4 text-emerald-600" />
           </div>
-
-          <div className="bg-[#FAF8F5] border border-[#E8DAC4] hover:border-[#DEBE85] rounded-xl p-4 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D6D55] text-xs font-semibold mb-1">
-              <span>Tổng lượt nhấp (Clicks)</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <MousePointerClick className="w-4 h-4 text-emerald-600" />
-              </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Tổng lượt nhấp (Clicks)</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalClicks.toLocaleString('vi-VN')}
             </div>
-            <div className="text-2xl font-extrabold text-[#1A1612]">{totalClicks.toLocaleString('vi-VN')}</div>
-            <div className="text-[11px] text-emerald-600 font-medium mt-1">Bao gồm tất cả các nguồn truy cập</div>
           </div>
+        </div>
 
-          <div className="bg-[#FAF8F5] border border-[#E8DAC4] hover:border-[#DEBE85] rounded-xl p-4 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D6D55] text-xs font-semibold mb-1">
-              <span>Lượt nhấp duy nhất (Unique)</span>
-              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-amber-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-extrabold text-[#1A1612]">{totalUniqueClicks.toLocaleString('vi-VN')}</div>
-            <div className="text-[11px] text-amber-600 font-medium mt-1">Chống click ảo trong 30 giây</div>
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200/60 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-amber-600" />
           </div>
-
-          <div className="bg-[#FAF8F5] border border-[#E8DAC4] hover:border-[#DEBE85] rounded-xl p-4 transition-all hover:shadow-sm">
-            <div className="flex items-center justify-between text-[#7D6D55] text-xs font-semibold mb-1">
-              <span>Đơn hàng chuyển đổi</span>
-              <div className="w-7 h-7 rounded-lg bg-[#F5E7CC] flex items-center justify-center">
-                <ShoppingBag className="w-4 h-4 text-[#9E7933]" />
-              </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Lượt nhấp duy nhất</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalUniqueClicks.toLocaleString('vi-VN')}
             </div>
-            <div className="text-2xl font-extrabold text-[#1A1612]">{totalOrders.toLocaleString('vi-VN')}</div>
-            <div className="text-[11px] text-[#9E7933] font-medium mt-1">Ghi nhận hoa hồng theo Last Click</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-[#EAE4D7] shadow-2xs hover:border-[#DEBE85] transition-all">
+          <div className="w-8 h-8 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center shrink-0">
+            <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-[#7D715E] truncate">Đơn hàng chuyển đổi</div>
+            <div className="text-sm font-extrabold text-[#1A1612] leading-tight">
+              {totalOrders.toLocaleString('vi-VN')}
+            </div>
           </div>
         </div>
       </div>
 
-
-      <div className="bg-white rounded-2xl border border-[#E8DAC4] p-5 sm:p-6 shadow-sm">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3 sm:gap-4">
-          <div className="relative flex-1">
-            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#A49B8B]" />
-            <input
-              type="text"
-              placeholder="Tìm theo mã rút gọn, tên sản phẩm hoặc nhãn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#E8DAC4] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 text-sm sm:text-[15px] text-[#1A1612] outline-none transition-all"
-            />
+      <section
+        className={`rounded-2xl border border-[#EAE4D7] bg-white transition-all duration-300 shadow-xs overflow-hidden ${
+          isExclusiveDealsCollapsed ? 'p-2.5 sm:p-3' : 'p-3.5 sm:p-4'
+        }`}
+        aria-labelledby="exclusive-deals-heading"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center shrink-0 shadow-2xs">
+              <Sparkles className="w-4.5 h-4.5 text-[#B88E4F]" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 id="exclusive-deals-heading" className="text-base font-extrabold text-[#1A1612]">
+                  Đề xuất Exclusive Deal
+                </h2>
+                {dealStats.total > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]">
+                    {dealStats.total} đề xuất
+                  </span>
+                )}
+                {dealStats.approved > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3EFE6] text-[#1A1612] border border-[#EAE4D7]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                    <span>{dealStats.approved} đang áp dụng</span>
+                  </span>
+                )}
+                {dealStats.pending > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FFF9E6] text-[#D97706] border border-[#FFE082]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                    <span>{dealStats.pending} chờ duyệt</span>
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-[#7D715E] line-clamp-1">
+                Đề xuất mức hoa hồng độc quyền và cam kết doanh số cho Shop; link tiếp thị độc quyền sẽ được kích hoạt sau khi Shop duyệt.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4.5 h-4.5 text-[#A49B8B]" />
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#E8DAC4] bg-[#FAF8F5] text-sm sm:text-[15px] text-[#1A1612] focus:border-[#C59B58] focus:bg-white outline-none cursor-pointer transition-all"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hoạt động</option>
-                <option value="PAUSED">Tạm ngừng</option>
-                <option value="EXPIRED">Đã hết hạn</option>
-                <option value="BLOCKED">Đã bị khóa</option>
-              </select>
-            </div>
-
-            <select
-              value={selectedChannel}
-              onChange={(e) => setSelectedChannel(e.target.value)}
-              className="px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#E8DAC4] bg-[#FAF8F5] text-sm sm:text-[15px] text-[#1A1612] focus:border-[#C59B58] focus:bg-white outline-none cursor-pointer transition-all"
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={toggleExclusiveDealsCollapse}
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#B88E4F] hover:text-[#A47B3E] transition cursor-pointer select-none active:scale-95"
+              title={isExclusiveDealsCollapsed ? 'Mở rộng danh sách đề xuất Exclusive Deal' : 'Thu gọn danh sách đề xuất'}
+              aria-expanded={!isExclusiveDealsCollapsed}
             >
-              <option value="">Tất cả kênh</option>
-              <option value="TIKTOK">TikTok</option>
-              <option value="YOUTUBE">YouTube</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="ZALO">Zalo</option>
-              <option value="OTHER">Kênh khác</option>
-            </select>
+              <span>{isExclusiveDealsCollapsed ? 'Mở rộng' : 'Thu gọn'}</span>
+              {isExclusiveDealsCollapsed ? (
+                <ChevronDown className="w-3.5 h-3.5 text-[#B88E4F]" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5 text-[#7D715E]" />
+              )}
+            </button>
 
             <button
-              type="submit"
-              className="px-6 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white font-bold text-sm sm:text-[15px] shadow-sm shadow-[#9E7933]/20 transition-all active:scale-95"
+              type="button"
+              onClick={() => navigate('/chat')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer select-none"
+              title="Mở hộp chat trao đổi với Shop"
             >
-              Áp dụng
+              <ExternalLink className="h-3.5 w-3.5 text-[#B88E4F]" />
+              <span>Mở Chat</span>
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+
+        {/* Nội dung danh sách deal (Có thể thu gọn / mở rộng) */}
+        {!isExclusiveDealsCollapsed && (
+          <div className="mt-4 pt-3.5 border-t border-[#EAE4D7]/70">
+            {loadingDealProposals ? (
+              <div className="py-4 flex items-center justify-center gap-2 text-sm text-[#7D715E]">
+                <Loader2 className="h-4 w-4 animate-spin text-[#B88E4F]" />
+                <span>Đang tải danh sách đề xuất Exclusive Deal...</span>
+              </div>
+            ) : dealProposals.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[#EAE4D7] bg-[#FAF8F5] p-4 text-center text-xs text-[#7D715E]">
+                Bạn chưa gửi đề xuất nào. Chọn sản phẩm trong kho hàng rồi bấm “Đề xuất deal độc quyền”.
+              </p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 max-h-[460px] overflow-y-auto pr-1">
+                {dealProposals.map((deal) => (
+                  <div
+                    key={deal.id}
+                    className="rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] hover:border-[#C59B58]/60 hover:bg-white p-3.5 transition-all shadow-2xs flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Tiêu đề & Trạng thái */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs sm:text-[13px] font-bold text-[#1A1612] truncate" title={deal.product?.title || 'Sản phẩm'}>
+                            {deal.product?.title || 'Sản phẩm'}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[#7D715E]">
+                            {deal.store?.name || 'Shop'} · {new Date(deal.createdAt).toLocaleDateString('vi-VN')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold border ${
+                              deal.status === 'APPROVED'
+                                ? 'bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]'
+                                : deal.status === 'REJECTED'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-[#FFF9E6] text-[#D97706] border-[#FFE082]'
+                            }`}
+                          >
+                            {deal.status === 'APPROVED'
+                              ? (deal.isCurrentDeal ? 'Đang áp dụng' : 'Deal đã thay thế')
+                              : deal.status === 'REJECTED'
+                              ? 'Bị từ chối'
+                              : 'Chờ Shop duyệt'}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[#7D715E] hover:text-[#DC2626] hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                            title={
+                              deal.status === 'PENDING'
+                                ? 'Hủy và thu hồi đề xuất này'
+                                : deal.status === 'REJECTED'
+                                ? 'Xóa đề xuất đã bị từ chối'
+                                : 'Gỡ bỏ deal độc quyền này'
+                            }
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#DC2626]" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Các chỉ số hoa hồng */}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-[#7D715E]">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-[#EAE4D7] text-[11px]">
+                          Sàn: <strong className="ml-1 text-[#1A1612]">{deal.publicCommissionRate ?? '—'}%</strong>
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FBF5EB] border border-[#EEDFC6] text-[11px] text-[#B88E4F]">
+                          Độc quyền: <strong className="ml-1 text-[#B88E4F]">{deal.approvedCommissionRate ?? deal.proposedCommissionRate}%</strong>
+                        </span>
+                        {deal.status === 'PENDING' && deal.currentCommissionRate != null && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#F3EFE6] border border-[#EAE4D7] text-[11px] text-[#1A1612]">
+                            Đang áp dụng: <strong className="ml-1 text-[#B88E4F]">{deal.currentCommissionRate}%</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      {deal.status === 'PENDING' && deal.currentCommissionRate != null && (
+                        <p className="mt-2 text-[11px] leading-relaxed text-[#7D715E] bg-white/70 p-2 rounded-lg border border-[#EAE4D7]/80">
+                          Mức hoa hồng độc quyền hiện tại tiếp tục áp dụng trong lúc Shop xem xét. Đơn đã tạo giữ nguyên mức hoa hồng lúc đặt.
+                        </p>
+                      )}
+
+                      {deal.status === 'REJECTED' && deal.shopResponse && (
+                        <p className="mt-2 text-[11px] text-rose-700 bg-rose-50/80 p-2 rounded-lg border border-rose-200">
+                          Phản hồi Shop: {deal.shopResponse}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Dòng link tiếp thị độc quyền và nút điều chỉnh / hủy / gỡ deal */}
+                    <div className="mt-3 pt-2.5 border-t border-[#EAE4D7]/60">
+                      {deal.status === 'APPROVED' && deal.shortUrl ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex-1 min-w-[200px] flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-[#EEDFC6] text-xs">
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="text-[11px] font-bold text-[#7D715E] shrink-0 font-sans">Link:</span>
+                              <a
+                                href={deal.shortUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono font-bold text-[#B88E4F] hover:underline truncate text-xs"
+                                title={deal.shortUrl}
+                              >
+                                {deal.shortUrl}
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyLink(deal.shortUrl!, deal.shortCode || deal.id)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
+                                copiedCode === (deal.shortCode || deal.id)
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-[#FAF8F5] text-[#1A1612] hover:bg-[#F3EFE6] border border-[#EAE4D7]'
+                              }`}
+                              title="Sao chép link tiếp thị độc quyền"
+                            >
+                              {copiedCode === (deal.shortCode || deal.id) ? (
+                                <>
+                                  <Check className="h-3 w-3 text-emerald-600" />
+                                  <span>Đã chép</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 text-[#B88E4F]" />
+                                  <span>Sao chép</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {deal.isCurrentDeal && !dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') && (
+                            <button
+                              type="button"
+                              onClick={() => openDealRevision(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EEDFC6] bg-white text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] shadow-2xs transition shrink-0 cursor-pointer"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-[#B88E4F]" />
+                              <span>Điều chỉnh</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-white text-xs font-semibold text-[#7D715E] hover:text-[#DC2626] hover:border-rose-200 hover:bg-rose-50 shadow-2xs transition shrink-0 cursor-pointer"
+                            title="Gỡ bỏ deal độc quyền (sản phẩm hết hạn, hết hàng hoặc không muốn chạy deal nữa)"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Gỡ deal</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'APPROVED' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          {deal.isCurrentDeal && !dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') ? (
+                            <button
+                              type="button"
+                              onClick={() => openDealRevision(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EEDFC6] bg-white text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] shadow-2xs transition cursor-pointer"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-[#B88E4F]" />
+                              <span>Đề xuất điều chỉnh hoa hồng</span>
+                            </button>
+                          ) : deal.isCurrentDeal && dealProposals.some((item) => item.productId === deal.productId && item.status === 'PENDING') ? (
+                            <p className="text-[11px] font-semibold text-[#B88E4F] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#B88E4F]" />
+                              <span>Đang có đề xuất thay đổi chờ Shop phản hồi.</span>
+                            </p>
+                          ) : (
+                            <span className="text-[11px] text-[#7D715E] italic">Deal đã hoàn tất hoặc được thay thế.</span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Gỡ bỏ deal này"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Gỡ deal</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'PENDING' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#D97706] font-medium flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> Chờ Shop xem xét duyệt
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Hủy và rút lại đề xuất gửi đến Shop"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Hủy đề xuất</span>
+                          </button>
+                        </div>
+                      ) : deal.status === 'REJECTED' ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] text-[#7D715E] italic">
+                            Shop không chấp thuận đề xuất này.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeal(deal)}
+                            disabled={deletingDealId === deal.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-xs font-semibold text-rose-600 hover:bg-rose-50 shadow-2xs transition cursor-pointer"
+                            title="Xóa đề xuất này khỏi danh sách"
+                          >
+                            {deletingDealId === deal.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            )}
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Thanh tìm kiếm & bộ lọc trực tiếp, không khung bọc to cồng kềnh */}
+      <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7D715E]" />
+          <input
+            type="text"
+            placeholder="Tìm theo mã rút gọn, tên sản phẩm hoặc nhãn..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 rounded-xl border border-[#EAE4D7] bg-white focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 text-xs sm:text-sm text-[#1A1612] outline-none transition-all shadow-2xs"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="w-44 text-xs sm:text-sm font-medium"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="PAUSED">Tạm ngừng</option>
+            <option value="EXPIRED">Đã hết hạn</option>
+            <option value="BLOCKED">Đã bị khóa</option>
+          </Select>
+
+          <Select
+            value={selectedChannel}
+            onChange={(e) => setSelectedChannel(e.target.value)}
+            className="w-40 text-xs sm:text-sm font-medium"
+          >
+            <option value="">Tất cả kênh</option>
+            <option value="TIKTOK">TikTok</option>
+            <option value="YOUTUBE">YouTube</option>
+            <option value="FACEBOOK">Facebook</option>
+            <option value="INSTAGRAM">Instagram</option>
+            <option value="ZALO">Zalo</option>
+            <option value="OTHER">Kênh khác</option>
+          </Select>
+
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] border border-[#C59B58] text-xs sm:text-sm text-white font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+          >
+            Áp dụng
+          </button>
+        </div>
+      </form>
 
 
-      <div className="bg-white rounded-2xl border border-[#E8DAC4] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#EAE4D7] shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-16 text-center text-[#7D6D55]">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#C59B58]" />
+          <div className="p-16 text-center text-[#7D715E]">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-[#B88E4F]" />
             <p className="text-sm font-medium">Đang tải danh sách liên kết tiếp thị...</p>
           </div>
         ) : errorMsg ? (
@@ -976,24 +1521,24 @@ export default function ReferralLinksPage() {
             <AlertCircle className="w-8 h-8 mx-auto mb-2 text-rose-500" />
             <p className="text-sm font-semibold">{errorMsg}</p>
             <button
-              onClick={fetchLinks}
-              className="mt-4 px-4 py-2 bg-[#FAF8F5] hover:bg-[#F5E7CC] text-[#7D6D55] text-xs font-semibold rounded-lg border border-[#E8DAC4]"
+              onClick={() => void fetchLinks()}
+              className="mt-4 px-4 py-2 bg-[#FAF8F5] hover:bg-[#ECE1CD] text-[#7D715E] text-xs font-semibold rounded-lg border border-[#EAE4D7]"
             >
               Thử lại
             </button>
           </div>
         ) : links.length === 0 ? (
           <div className="p-16 text-center">
-            <div className="w-16 h-16 bg-[#F5E7CC] rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#9E7933]">
+            <div className="w-16 h-16 bg-[#ECE1CD] rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#B88E4F]">
               <Link2 className="w-8 h-8" />
             </div>
             <h3 className="text-base font-bold text-[#1A1612] mb-1">Bạn chưa tạo liên kết tiếp thị nào</h3>
-            <p className="text-sm text-[#7D6D55] max-w-md mx-auto mb-6">
+            <p className="text-sm text-[#7D715E] max-w-md mx-auto mb-6">
               Hãy chọn sản phẩm từ các Cửa hàng uy tín trên sàn để bắt đầu tạo link rút gọn và chia sẻ tới người theo dõi của bạn.
             </p>
             <button
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white font-bold text-sm shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-white font-bold text-sm shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Tạo link đầu tiên ngay
@@ -1001,46 +1546,46 @@ export default function ReferralLinksPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[1120px] table-fixed text-left border-collapse">
               <thead>
-                <tr className="bg-[#FAF8F5] border-b border-[#E8DAC4] text-xs font-bold text-[#7D6D55] uppercase tracking-wider">
-                  <th className="py-4 px-5 sm:px-6 min-w-[240px]">Sản phẩm &amp; Cửa hàng</th>
-                  <th className="py-4 px-5 min-w-[180px]">Mã rút gọn &amp; Kênh</th>
-                  <th className="py-4 px-5 text-center whitespace-nowrap min-w-[140px]">Trạng thái</th>
-                  <th className="py-4 px-5 text-center whitespace-nowrap min-w-[130px]">Lượt nhấp (Clicks)</th>
-                  <th className="py-4 px-5 text-center whitespace-nowrap min-w-[110px]">Đơn hàng</th>
-                  <th className="py-4 px-5 whitespace-nowrap min-w-[100px]">Ngày tạo</th>
-                  <th className="py-4 px-5 sm:px-6 text-right whitespace-nowrap min-w-[130px]">Thao tác</th>
+                <tr className="bg-[#FAF8F5] border-b border-[#EAE4D7] text-xs font-bold text-[#7D715E] uppercase tracking-wider">
+                  <th className="w-[26%] py-3 px-3">Sản phẩm &amp; Cửa hàng</th>
+                  <th className="w-[20%] py-3 px-3">Mã rút gọn &amp; Kênh</th>
+                  <th className="w-[12%] py-3 px-2 text-center whitespace-nowrap">Trạng thái</th>
+                  <th className="w-[13%] py-3 px-2 text-center whitespace-nowrap">Lượt nhấp (Clicks)</th>
+                  <th className="w-[8%] py-3 px-2 text-center whitespace-nowrap">Đơn hàng</th>
+                  <th className="w-[7%] py-3 px-2 whitespace-nowrap">Ngày tạo</th>
+                  <th className="w-[14%] py-3 px-3 text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8DAC4]/60 text-sm">
+              <tbody className="divide-y divide-[#EAE4D7]/60 text-sm">
                 {links.map((link) => {
                   const isCopied = copiedCode === link.shortCode;
                   return (
                     <tr key={link.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
 
-                      <td className="py-5 px-5 sm:px-6">
-                        <div className="flex items-center gap-3.5 max-w-sm">
+                      <td className="py-2.5 px-3 overflow-hidden">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <img
                             src={
                               link.product?.imageUrl ||
-                              'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
+                              '/assets/product-placeholder.svg'
                             }
                             alt={link.product?.title}
-                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl object-cover border border-[#E8DAC4] flex-shrink-0 bg-[#FAF8F5] shadow-xs"
+                            className="w-11 h-11 rounded-lg object-cover border border-[#EAE4D7] flex-shrink-0 bg-[#FAF8F5]"
                           />
                           <div className="min-w-0">
-                            <div className="font-bold text-[#1A1612] text-sm sm:text-[15px] truncate" title={link.product?.title}>
+                            <div className="font-bold text-[#1A1612] text-xs sm:text-[13px] truncate" title={link.product?.title}>
                               {link.product?.title}
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-[#7D6D55] mt-1">
-                              <Store className="w-3.5 h-3.5 text-[#A49B8B]" />
+                            <div className="flex items-center gap-1 text-[11px] text-[#7D715E] mt-0.5 min-w-0">
+                              <Store className="w-3 h-3 text-[#7D715E] flex-shrink-0" />
                               <span className="truncate">{link.store?.name}</span>
                             </div>
-                            <div className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-2">
+                            <div className="text-xs font-bold text-emerald-600 mt-0.5 flex items-center gap-1.5">
                               <span>{Number(link.product?.price || 0).toLocaleString('vi-VN')} đ</span>
                               {link.commissionRate && (
-                                <span className="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2 py-0.5 rounded-md font-bold">
+                                <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-1.5 py-0.5 rounded-md font-bold">
                                   HH: {link.commissionRate}%
                                 </span>
                               )}
@@ -1050,19 +1595,18 @@ export default function ReferralLinksPage() {
                       </td>
 
 
-                      <td className="py-5 px-5">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-[#9E7933] bg-[#FDF8EE] border border-[#DEBE85] px-3 py-1 rounded-xl text-xs sm:text-sm shadow-2xs">
+                      <td className="py-2.5 px-3 overflow-hidden">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono font-bold text-[#B88E4F] bg-[#FAF8F5] border border-[#DEBE85] px-2 py-0.5 rounded-lg text-xs shadow-2xs shrink-0">
                               {link.shortCode}
                             </span>
                             <button
                               onClick={() => handleCopyLink(link.shortUrl, link.shortCode)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                                isCopied
+                              className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 shrink-0 ${isCopied
                                   ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-[#FAF8F5] hover:bg-[#F5E7CC] text-[#7D6D55] hover:text-[#9E7933] border border-[#E8DAC4]'
-                              }`}
+                                  : 'bg-[#FAF8F5] hover:bg-[#ECE1CD] text-[#7D715E] hover:text-[#B88E4F] border border-[#EAE4D7]'
+                                }`}
                               title="Sao chép link"
                             >
                               {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1070,12 +1614,12 @@ export default function ReferralLinksPage() {
                             </button>
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-xs sm:text-sm text-[#7D6D55]">
+                          <div className="flex items-center gap-1 text-[11px] text-[#7D715E] min-w-0">
                             <span className="font-semibold text-[#1A1612]">{getChannelLabel(link.channel)}</span>
                             {link.label && (
                               <>
-                                <span className="text-[#DEBE85]">•</span>
-                                <span className="text-[#A49B8B] italic truncate max-w-[160px]" title={link.label}>
+                                <span className="text-[#B88E4F]">•</span>
+                                <span className="text-[#7D715E] italic truncate max-w-[110px]" title={link.label}>
                                   "{link.label}"
                                 </span>
                               </>
@@ -1085,21 +1629,21 @@ export default function ReferralLinksPage() {
                       </td>
 
 
-                      <td className="py-5 px-5 text-center whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
                         {renderStatusBadge(link)}
                       </td>
 
 
-                      <td className="py-5 px-5 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#FAF8F5] border border-[#E8DAC4] rounded-xl shadow-2xs text-left">
-                          <div className="w-6 h-6 rounded-lg bg-white border border-[#E8DAC4]/60 flex items-center justify-center text-[#9E7933] flex-shrink-0">
-                            <MousePointerClick className="w-3.5 h-3.5" />
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#FAF8F5] border border-[#EAE4D7] rounded-lg text-left">
+                          <div className="w-5 h-5 rounded-md bg-white border border-[#EAE4D7]/60 flex items-center justify-center text-[#B88E4F] flex-shrink-0">
+                            <MousePointerClick className="w-3 h-3" />
                           </div>
                           <div>
-                            <div className="text-xs sm:text-sm font-extrabold text-[#1A1612] leading-none">
+                            <div className="text-xs font-extrabold text-[#1A1612] leading-none">
                               {link.totalClicks}
                             </div>
-                            <div className="text-[10px] font-medium text-[#A49B8B] leading-none mt-0.5">
+                            <div className="text-[10px] font-medium text-[#7D715E] leading-none mt-0.5">
                               {link.uniqueClicks} unique
                             </div>
                           </div>
@@ -1107,30 +1651,30 @@ export default function ReferralLinksPage() {
                       </td>
 
 
-                      <td className="py-5 px-5 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FDF8EE] border border-[#DEBE85] text-[#9E7933] rounded-xl shadow-2xs font-bold text-xs">
-                          <ShoppingBag className="w-3.5 h-3.5 text-[#C59B58] flex-shrink-0" />
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1 px-2 py-1 bg-[#FAF8F5] border border-[#DEBE85] text-[#B88E4F] rounded-lg font-bold text-[11px]">
+                          <ShoppingBag className="w-3 h-3 text-[#B88E4F] flex-shrink-0" />
                           <span>{link.totalOrders} đơn</span>
                         </div>
                       </td>
 
 
-                      <td className="py-5 px-5 text-xs sm:text-sm text-[#7D6D55] whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-[11px] text-[#7D715E] whitespace-nowrap">
                         {new Date(link.createdAt).toLocaleDateString('vi-VN')}
                       </td>
 
 
-                      <td className="py-5 px-5 sm:px-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-0.5">
 
                           <a
                             href={`/r/${link.shortCode}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="p-2 text-[#7D6D55] hover:text-[#C59B58] hover:bg-[#FAF8F5] rounded-xl transition-colors"
+                            className="p-1.5 text-[#7D715E] hover:text-[#B88E4F] hover:bg-[#FAF8F5] rounded-lg transition-colors"
                             title="Mở thử link"
                           >
-                            <ExternalLink className="w-4.5 h-4.5" />
+                            <ExternalLink className="w-4 h-4" />
                           </a>
 
 
@@ -1139,10 +1683,10 @@ export default function ReferralLinksPage() {
                               setSelectedLinkForQr(link);
                               setIsQrModalOpen(true);
                             }}
-                            className="p-2 text-[#7D6D55] hover:text-[#C59B58] hover:bg-[#FAF8F5] rounded-xl transition-colors cursor-pointer"
+                            className="p-1.5 text-[#7D715E] hover:text-[#B88E4F] hover:bg-[#FAF8F5] rounded-lg transition-colors cursor-pointer"
                             title="Mã QR Code"
                           >
-                            <QrCode className="w-4.5 h-4.5" />
+                            <QrCode className="w-4 h-4" />
                           </button>
 
 
@@ -1154,36 +1698,35 @@ export default function ReferralLinksPage() {
                               });
                               setIsSubmitVideoModalOpen(true);
                             }}
-                            className="p-2 text-[#7D6D55] hover:text-[#C59B58] hover:bg-[#FAF8F5] rounded-xl transition-colors cursor-pointer"
+                            className="p-1.5 text-[#7D715E] hover:text-[#B88E4F] hover:bg-[#FAF8F5] rounded-lg transition-colors cursor-pointer"
                             title="Nộp video review sản phẩm này (FR-15)"
                           >
-                            <Video className="w-4.5 h-4.5 text-[#B88E4F]" />
+                            <Video className="w-4 h-4 text-[#B88E4F]" />
                           </button>
 
 
                           <button
                             onClick={() => handleOpenAnalytics(link)}
-                            className="p-2 text-[#7D6D55] hover:text-[#C59B58] hover:bg-[#FAF8F5] rounded-xl transition-colors cursor-pointer"
+                            className="p-1.5 text-[#7D715E] hover:text-[#B88E4F] hover:bg-[#FAF8F5] rounded-lg transition-colors cursor-pointer"
                             title="Thống kê chi tiết & Phân tích chuyển đổi (FR-13)"
                           >
-                            <TrendingUp className="w-4.5 h-4.5" />
+                            <TrendingUp className="w-4 h-4" />
                           </button>
 
 
                           <button
                             onClick={() => handleToggleStatus(link)}
                             disabled={link.status === 'BLOCKED'}
-                            className={`p-2 rounded-xl transition-colors ${
-                              link.status === 'ACTIVE'
+                            className={`p-1.5 rounded-lg transition-colors ${link.status === 'ACTIVE'
                                 ? 'text-amber-600 hover:bg-amber-50'
                                 : 'text-emerald-600 hover:bg-emerald-50'
-                            } ${link.status === 'BLOCKED' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              } ${link.status === 'BLOCKED' ? 'opacity-40 cursor-not-allowed' : ''}`}
                             title={link.status === 'ACTIVE' ? 'Tạm ngừng link' : 'Tiếp tục kích hoạt link'}
                           >
                             {link.status === 'ACTIVE' ? (
-                              <PauseCircle className="w-4.5 h-4.5" />
+                              <PauseCircle className="w-4 h-4" />
                             ) : (
-                              <PlayCircle className="w-4.5 h-4.5" />
+                              <PlayCircle className="w-4 h-4" />
                             )}
                           </button>
 
@@ -1193,10 +1736,10 @@ export default function ReferralLinksPage() {
                               setSelectedLinkForDelete(link);
                               setIsDeleteModalOpen(true);
                             }}
-                            className="p-2 text-[#A49B8B] hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                            className="p-1.5 text-[#7D715E] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                             title="Xóa mềm link"
                           >
-                            <Trash2 className="w-4.5 h-4.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -1215,25 +1758,25 @@ export default function ReferralLinksPage() {
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-[#E8DAC4] w-full max-w-[590px] max-h-[92vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#EAE4D7] w-full max-w-[590px] max-h-[92vh] flex flex-col overflow-hidden">
 
-            <div className="px-4 sm:px-5 py-2.5 border-b border-[#E8DAC4] flex items-center justify-between bg-gradient-to-r from-white via-[#FAF8F5]/80 to-white flex-shrink-0">
+            <div className="px-4 sm:px-5 py-2.5 border-b border-[#EAE4D7] flex items-center justify-between bg-gradient-to-r from-white via-[#FAF8F5]/80 to-white flex-shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-[#FAF3E8] border border-[#DEBE85]/50 flex items-center justify-center text-[#9E7933] shadow-2xs flex-shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-[#C59B58]" />
+                <div className="w-7 h-7 rounded-lg bg-[#F6EFE3] border border-[#DEBE85]/50 flex items-center justify-center text-[#B88E4F] shadow-2xs flex-shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-[#1A1612] leading-tight flex items-center gap-1.5">
                     Tạo Link Tiếp Thị Rút Gọn (FR-10)
                   </h3>
-                  <p className="text-[11px] text-[#7D6D55] mt-0.5">
+                  <p className="text-[11px] text-[#7D715E] mt-0.5">
                     Chọn sản phẩm, kênh truyền thông và tùy chỉnh liên kết rút gọn.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1.5 text-[#A49B8B] hover:text-[#1A1612] rounded-lg hover:bg-[#FAF8F5] transition-colors"
+                className="p-1.5 text-[#7D715E] hover:text-[#1A1612] rounded-lg hover:bg-[#FAF8F5] transition-colors"
                 title="Đóng modal"
               >
                 <X className="w-4 h-4" />
@@ -1247,22 +1790,22 @@ export default function ReferralLinksPage() {
                   <CheckCircle2 className="w-7 h-7" />
                 </div>
                 <h4 className="text-base font-bold text-[#1A1612] mb-1">Tạo Link Tiếp Thị Thành Công!</h4>
-                <p className="text-xs text-[#7D6D55] mb-4">
+                <p className="text-xs text-[#7D715E] mb-4">
                   Đường dẫn rút gọn của bạn đã sẵn sàng hoạt động với thời hạn ghi nhận cookie 30 ngày (Last Click Attribution).
                 </p>
 
 
-                <div className="bg-[#FAF8F5] border border-[#E8DAC4] rounded-xl p-3 mb-4 text-left">
-                  <div className="text-[10px] font-semibold text-[#7D6D55] uppercase tracking-wider mb-1">
+                <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 mb-4 text-left">
+                  <div className="text-[10px] font-semibold text-[#7D715E] uppercase tracking-wider mb-1">
                     Đường dẫn tiếp thị rút gọn:
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-[#9E7933] text-xs sm:text-sm break-all">
+                    <span className="font-mono font-bold text-[#B88E4F] text-xs sm:text-sm break-all">
                       {createdSuccessLink.shortUrl}
                     </span>
                     <button
                       onClick={() => handleCopyLink(createdSuccessLink.shortUrl, createdSuccessLink.shortCode)}
-                      className="px-2.5 py-1 bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 shadow-sm transition-all cursor-pointer"
+                      className="px-2.5 py-1 bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 shadow-sm transition-all cursor-pointer"
                     >
                       {copiedCode === createdSuccessLink.shortCode ? (
                         <>
@@ -1279,9 +1822,9 @@ export default function ReferralLinksPage() {
 
 
                 <div className="flex flex-col items-center justify-center mb-4">
-                  <div className="w-28 h-28 border border-[#E8DAC4] rounded-xl p-1 bg-white shadow-xs flex items-center justify-center mb-1.5">
+                  <div className="w-28 h-28 border border-[#EAE4D7] rounded-xl p-1 bg-white shadow-xs flex items-center justify-center mb-1.5">
                     {createdQrLoading ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-[#9E7933]" />
+                      <Loader2 className="w-5 h-5 animate-spin text-[#B88E4F]" />
                     ) : createdQrError ? (
                       <div className="flex flex-col items-center p-1 text-center">
                         <AlertCircle className="w-4 h-4 text-rose-500 mb-0.5" />
@@ -1289,7 +1832,7 @@ export default function ReferralLinksPage() {
                         <button
                           type="button"
                           onClick={retryCreatedQr}
-                          className="text-[9px] text-[#9E7933] underline mt-0.5 font-semibold cursor-pointer"
+                          className="text-[9px] text-[#B88E4F] underline mt-0.5 font-semibold cursor-pointer"
                         >
                           Thử lại
                         </button>
@@ -1306,7 +1849,7 @@ export default function ReferralLinksPage() {
                     type="button"
                     disabled={isDownloadingSuccessQr}
                     onClick={() => handleDownloadSuccessQr(createdSuccessLink)}
-                    className="text-[11px] text-[#9E7933] hover:text-[#7D6D55] hover:underline flex items-center gap-1 font-semibold cursor-pointer disabled:opacity-50"
+                    className="text-[11px] text-[#B88E4F] hover:text-[#7D715E] hover:underline flex items-center gap-1 font-semibold cursor-pointer disabled:opacity-50"
                   >
                     {isDownloadingSuccessQr ? (
                       <>
@@ -1336,13 +1879,13 @@ export default function ReferralLinksPage() {
                       setFormCoupon('');
                       setFormTouched({});
                     }}
-                    className="px-3.5 py-1.5 border border-[#E8DAC4] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold text-[#7D6D55] transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 border border-[#EAE4D7] hover:bg-[#FAF8F5] rounded-xl text-xs font-semibold text-[#7D715E] transition-colors cursor-pointer"
                   >
                     Tạo thêm link khác
                   </button>
                   <button
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-1.5 bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white rounded-xl text-xs font-semibold shadow transition-all cursor-pointer"
+                    className="px-4 py-1.5 bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-white rounded-xl text-xs font-semibold shadow transition-all cursor-pointer"
                   >
                     Xem danh sách link
                   </button>
@@ -1360,47 +1903,47 @@ export default function ReferralLinksPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-bold text-[#7D6D55] uppercase tracking-wider flex items-center gap-1.5">
-                        <ShoppingBag className="w-3.5 h-3.5 text-[#C59B58]" />
+                      <label className="text-xs font-bold text-[#7D715E] uppercase tracking-wider flex items-center gap-1.5">
+                        <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
                         <span>1. Sản phẩm tiếp thị *</span>
                       </label>
                       {selectedProduct && !isChangingProduct ? (
                         <button
                           type="button"
                           onClick={() => setIsChangingProduct(true)}
-                          className="text-[11px] font-semibold text-[#9E7933] hover:text-[#7D6D55] hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                          className="text-[11px] font-semibold text-[#B88E4F] hover:text-[#7D715E] hover:underline flex items-center gap-1 transition-colors cursor-pointer"
                         >
                           <RotateCcw className="w-3 h-3" />
                           <span>Đổi sản phẩm khác</span>
                         </button>
                       ) : (
-                        <span className="text-[11px] text-[#A49B8B]">
-                          Khả dụng: {filteredEligibleProducts.length}/{eligibleProducts.length} sản phẩm
-                        </span>
+                          <span className="text-[11px] text-[#7D715E]">
+                            Đang hiển thị {filteredEligibleProducts.length}/{eligibleProducts.length}{hasMoreEligibleProducts ? '+' : ''} sản phẩm
+                          </span>
                       )}
                     </div>
 
                     {selectedProduct && !isChangingProduct ? (
 
-                      <div className="p-2 bg-[#FDF8EE] border border-[#DEBE85] rounded-xl flex items-center justify-between gap-2.5 shadow-2xs animate-fadeIn">
+                      <div className="p-2 bg-[#FAF8F5] border border-[#DEBE85] rounded-xl flex items-center justify-between gap-2.5 shadow-2xs animate-fadeIn">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
-                            src={selectedProduct.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'}
+                            src={selectedProduct.imageUrl || '/assets/product-placeholder.svg'}
                             alt={selectedProduct.title}
-                            className="w-9 h-9 rounded-lg object-cover border border-[#E8DAC4] flex-shrink-0 bg-white"
+                            className="w-9 h-9 rounded-lg object-cover border border-[#EAE4D7] flex-shrink-0 bg-white"
                           />
                           <div className="min-w-0">
                             <div className="font-bold text-xs text-[#1A1612] truncate" title={selectedProduct.title}>
                               {selectedProduct.title}
                             </div>
-                            <div className="text-[11px] text-[#7D6D55] flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <div className="text-[11px] text-[#7D715E] flex items-center gap-1.5 mt-0.5 flex-wrap">
                               <span className="font-medium text-[#1A1612]">{selectedProduct.store?.name}</span>
                               <span>•</span>
                               <span className="font-semibold text-emerald-600">
                                 {Number(selectedProduct.price).toLocaleString('vi-VN')} đ
                               </span>
-                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded border border-emerald-200">
-                                HH: {selectedProduct.estimatedCommissionRate}%
+                              <span className="text-[10px] bg-[#FBF5EB] text-[#B88E4F] font-bold px-1.5 py-0.2 rounded border border-[#EEDFC6]">
+                                Open Offer: {selectedProduct.estimatedCommissionRate}%
                               </span>
                             </div>
                           </div>
@@ -1408,11 +1951,10 @@ export default function ReferralLinksPage() {
 
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              productRemainingQuota > 0
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${productRemainingQuota > 0
                                 ? 'bg-amber-50 text-amber-900 border-amber-300'
                                 : 'bg-rose-50 text-rose-800 border-rose-300'
-                            }`}
+                              }`}
                           >
                             Còn {productRemainingQuota}/20 link
                           </span>
@@ -1423,47 +1965,47 @@ export default function ReferralLinksPage() {
                       <div className="space-y-1.5 animate-fadeIn">
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-1.5">
                           <div className="sm:col-span-6 relative">
-                            <Search className="w-3.5 h-3.5 text-[#A49B8B] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Search className="w-3.5 h-3.5 text-[#7D715E] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                             <input
                               type="text"
                               value={modalProductSearch}
                               onChange={(e) => setModalProductSearch(e.target.value)}
                               placeholder="Tìm sản phẩm, SKU..."
-                              className="w-full pl-7 pr-6 py-1.5 rounded-lg border border-[#E8DAC4] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none transition-all"
+                              className="w-full pl-7 pr-6 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none transition-all"
                             />
                             {modalProductSearch && (
                               <button
                                 type="button"
                                 onClick={() => setModalProductSearch('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#A49B8B] hover:text-[#1A1612] p-0.5"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-0.5"
                               >
                                 <X className="w-3 h-3" />
                               </button>
                             )}
                           </div>
                           <div className="sm:col-span-3">
-                            <select
+                            <Select
                               value={modalShopFilter}
                               onChange={(e) => setModalShopFilter(e.target.value)}
-                              className="w-full px-2 py-1.5 rounded-lg border border-[#E8DAC4] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
+                              className="w-full px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
                             >
                               <option value="ALL">Tất cả Shop ({availableShops.length})</option>
                               {availableShops.map((s) => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                           <div className="sm:col-span-3">
-                            <select
+                            <Select
                               value={modalCategoryFilter}
                               onChange={(e) => setModalCategoryFilter(e.target.value)}
-                              className="w-full px-2 py-1.5 rounded-lg border border-[#E8DAC4] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
+                              className="w-full px-2 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none truncate cursor-pointer"
                             >
                               <option value="ALL">Ngành ({availableCategories.length})</option>
                               {availableCategories.map((cat) => (
                                 <option key={cat} value={cat}>{cat}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                         </div>
 
@@ -1486,37 +2028,36 @@ export default function ReferralLinksPage() {
 
 
                         {loadingProducts ? (
-                          <div className="p-3 text-center text-[#7D6D55] bg-[#FAF8F5] rounded-lg border border-[#E8DAC4]">
-                            <Loader2 className="w-4 h-4 animate-spin mx-auto mb-1 text-[#C59B58]" />
+                          <div className="p-3 text-center text-[#7D715E] bg-[#FAF8F5] rounded-lg border border-[#EAE4D7]">
+                            <Loader2 className="w-4 h-4 animate-spin mx-auto mb-1 text-[#B88E4F]" />
                             <p className="text-xs">Đang tải danh mục sản phẩm...</p>
                           </div>
                         ) : filteredEligibleProducts.length === 0 ? (
-                          <div className="p-3 text-center text-[#7D6D55] bg-[#FAF8F5] rounded-lg border border-dashed border-[#E8DAC4]">
-                            <PackageSearch className="w-6 h-6 text-[#C59B58]/60 mx-auto mb-1" />
+                          <div className="p-3 text-center text-[#7D715E] bg-[#FAF8F5] rounded-lg border border-dashed border-[#EAE4D7]">
+                            <PackageSearch className="w-6 h-6 text-[#B88E4F]/60 mx-auto mb-1" />
                             <p className="text-xs font-bold text-[#1A1612]">Không tìm thấy sản phẩm phù hợp</p>
-                            <p className="text-[10px] text-[#A49B8B] mt-0.5">Hãy thử tìm từ khóa khác hoặc liên hệ Shop để được duyệt tiếp thị.</p>
+                            <p className="text-[10px] text-[#7D715E] mt-0.5">Hãy thử tìm từ khóa khác hoặc liên hệ Shop để được duyệt tiếp thị.</p>
                           </div>
                         ) : (
-                          <div className="max-h-32 overflow-y-auto divide-y divide-[#E8DAC4]/60 border border-[#E8DAC4] rounded-lg bg-white custom-scrollbar">
+                          <div className="max-h-32 overflow-y-auto divide-y divide-[#EAE4D7]/60 border border-[#EAE4D7] rounded-lg bg-white custom-scrollbar">
                             {filteredEligibleProducts.map((p) => {
                               const isSelected = selectedProduct?.id === p.id;
                               return (
                                 <div
                                   key={p.id}
                                   onClick={() => handleSelectProduct(p)}
-                                  className={`p-1.5 px-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-                                    isSelected ? 'bg-[#FDF8EE] border-l-4 border-[#C59B58]' : 'hover:bg-[#FAF8F5]'
-                                  }`}
+                                  className={`p-1.5 px-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${isSelected ? 'bg-[#FAF8F5] border-l-4 border-[#C59B58]' : 'hover:bg-[#FAF8F5]'
+                                    }`}
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <img
-                                      src={p.imageUrl || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'}
+                                      src={p.imageUrl || '/assets/product-placeholder.svg'}
                                       alt={p.title}
-                                      className="w-7 h-7 rounded object-cover border border-[#E8DAC4] flex-shrink-0 bg-[#FAF8F5]"
+                                      className="w-7 h-7 rounded object-cover border border-[#EAE4D7] flex-shrink-0 bg-[#FAF8F5]"
                                     />
                                     <div className="min-w-0">
                                       <div className="font-semibold text-[#1A1612] text-xs truncate">{p.title}</div>
-                                      <div className="text-[10px] text-[#7D6D55] flex items-center gap-1 mt-0.5">
+                                      <div className="text-[10px] text-[#7D715E] flex items-center gap-1 mt-0.5">
                                         <span className="font-medium text-[#1A1612]">{p.store.name}</span>
                                         <span>•</span>
                                         <span className="font-semibold text-emerald-600">
@@ -1525,15 +2066,35 @@ export default function ReferralLinksPage() {
                                       </div>
                                     </div>
                                   </div>
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex-shrink-0">
-                                    HH: {p.estimatedCommissionRate}%
+                                  <span className="text-[10px] font-bold text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] px-1.5 py-0.2 rounded flex-shrink-0">
+                                    Open Offer: {p.estimatedCommissionRate}%
                                   </span>
                                 </div>
                               );
                             })}
                           </div>
                         )}
+                        {hasMoreEligibleProducts && !loadingProducts && (
+                          <button
+                            type="button"
+                            onClick={loadMoreEligibleProducts}
+                            disabled={loadingMoreProducts}
+                            className="w-full rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-xs font-semibold text-[#B88E4F] hover:bg-[#F3EFE6] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {loadingMoreProducts ? 'Đang tải thêm…' : 'Tải thêm sản phẩm'}
+                          </button>
+                        )}
                       </div>
+                    )}
+
+                    {selectedProduct && (
+                      <button
+                        type="button"
+                        onClick={() => openExclusiveDealDialog(selectedProduct)}
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-xs font-bold text-[#B88E4F] hover:bg-[#F3EFE6]"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Đề xuất deal độc quyền với Shop
+                      </button>
                     )}
 
                     {formValidationErrors.product && (
@@ -1548,20 +2109,20 @@ export default function ReferralLinksPage() {
 
 
                   {selectedProduct && eligibleCampaignsForProduct.length > 0 && (
-                    <div className="p-2 bg-[#FAF8F5] rounded-xl border border-[#E8DAC4] space-y-1 animate-fadeIn">
+                    <div className="p-2 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7] space-y-1 animate-fadeIn">
                       <div className="flex items-center justify-between text-[11px]">
-                        <label className="font-bold text-[#7D6D55] uppercase tracking-wider flex items-center gap-1">
-                          <Flame className="w-3.5 h-3.5 text-[#C59B58]" />
+                        <label className="font-bold text-[#7D715E] uppercase tracking-wider flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 text-[#B88E4F]" />
                           <span>Chiến dịch thưởng thêm</span>
                         </label>
                         <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-200">
                           {eligibleCampaignsForProduct.length} khả dụng
                         </span>
                       </div>
-                      <select
+                      <Select
                         value={selectedCampaignId}
                         onChange={(e) => handleSelectCampaign(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8DAC4] bg-white text-xs font-medium text-[#1A1612] focus:border-[#C59B58] outline-none transition-all cursor-pointer"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EAE4D7] bg-white text-xs font-medium text-[#1A1612] focus:border-[#C59B58] outline-none transition-all cursor-pointer"
                       >
                         <option value="">
                           Không gắn chiến dịch (Hoa hồng Shop chuẩn {selectedProduct.estimatedCommissionRate}%)
@@ -1577,7 +2138,7 @@ export default function ReferralLinksPage() {
                             </option>
                           );
                         })}
-                      </select>
+                      </Select>
                     </div>
                   )}
 
@@ -1586,16 +2147,16 @@ export default function ReferralLinksPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-xs font-bold text-[#7D6D55] uppercase tracking-wider mb-1">
+                      <label className="block text-xs font-bold text-[#7D715E] uppercase tracking-wider mb-1">
                         2. Kênh quảng bá *
                       </label>
-                      <select
+                      <Select
                         value={formChannel}
                         onChange={(e) => {
                           setFormChannel(e.target.value);
                           setUtmSource(e.target.value.toLowerCase());
                         }}
-                        className="w-full px-3 py-1.5 rounded-lg border border-[#E8DAC4] bg-[#FAF8F5] text-xs font-medium text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none transition-all cursor-pointer"
+                        className="w-full px-3 py-1.5 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-medium text-[#1A1612] focus:bg-white focus:border-[#C59B58] outline-none transition-all cursor-pointer"
                       >
                         <option value="TIKTOK">TikTok (Bio / Video / Livestream)</option>
                         <option value="YOUTUBE">YouTube (Mô tả / Shorts)</option>
@@ -1604,15 +2165,15 @@ export default function ReferralLinksPage() {
                         <option value="THREADS">Threads</option>
                         <option value="ZALO">Zalo</option>
                         <option value="OTHER">Kênh khác / Livestream</option>
-                      </select>
+                      </Select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[#7D6D55] uppercase tracking-wider mb-1">
+                      <label className="block text-xs font-bold text-[#7D715E] uppercase tracking-wider mb-1">
                         Mã coupon riêng (Tùy chọn)
                       </label>
                       <div className="relative flex items-center group">
-                        <Tag className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                        <Tag className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                         <input
                           type="text"
                           placeholder="VD: KOLTHANG10"
@@ -1620,11 +2181,10 @@ export default function ReferralLinksPage() {
                           onBlur={() => setFormTouched((prev) => ({ ...prev, coupon: true }))}
                           onChange={(e) => setFormCoupon(e.target.value.toUpperCase())}
                           maxLength={50}
-                          className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none uppercase font-mono transition-all ${
-                            formValidationErrors.coupon
+                          className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none uppercase font-mono transition-all ${formValidationErrors.coupon
                               ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
-                              : 'border-[#E8DAC4] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
-                          }`}
+                              : 'border-[#EAE4D7] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
+                            }`}
                         />
                       </div>
                       {formValidationErrors.coupon && (
@@ -1640,11 +2200,11 @@ export default function ReferralLinksPage() {
 
 
                   <div>
-                    <label className="block text-xs font-bold text-[#7D6D55] uppercase tracking-wider mb-1">
+                    <label className="block text-xs font-bold text-[#7D715E] uppercase tracking-wider mb-1">
                       3. Nhãn gợi nhớ (Label) *
                     </label>
                     <div className="relative flex items-center group">
-                      <Sparkles className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                      <Sparkles className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                       <input
                         type="text"
                         placeholder="VD: Video review 9.9, Bio cá nhân, Livestream tối..."
@@ -1652,11 +2212,10 @@ export default function ReferralLinksPage() {
                         onBlur={() => setFormTouched((prev) => ({ ...prev, label: true }))}
                         onChange={(e) => setFormLabel(e.target.value)}
                         maxLength={150}
-                        className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none transition-all ${
-                          formValidationErrors.label
+                        className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs text-[#1A1612] outline-none transition-all ${formValidationErrors.label
                             ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
-                            : 'border-[#E8DAC4] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
-                        }`}
+                            : 'border-[#EAE4D7] bg-[#FAF8F5] focus:bg-white focus:border-[#C59B58]'
+                          }`}
                       />
                     </div>
                     {formValidationErrors.label && (
@@ -1670,24 +2229,23 @@ export default function ReferralLinksPage() {
 
 
 
-                  <div className="pt-1.5 border-t border-[#E8DAC4]/60">
+                  <div className="pt-1.5 border-t border-[#EAE4D7]/60">
 
                     <div className="flex items-center justify-between py-0.5">
                       <button
                         type="button"
                         onClick={() => setShowAdvancedUtm(!showAdvancedUtm)}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D6D55] hover:text-[#9E7933] transition-colors group select-none cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#B88E4F] transition-colors group select-none cursor-pointer"
                       >
                         <div
-                          className={`w-4 h-4 rounded flex items-center justify-center transition-transform duration-200 ${
-                            showAdvancedUtm
-                              ? 'rotate-180 text-[#9E7933] bg-[#F5E7CC]'
-                              : 'text-[#A49B8B] bg-[#FAF8F5]'
-                          }`}
+                          className={`w-4 h-4 rounded flex items-center justify-center transition-transform duration-200 ${showAdvancedUtm
+                              ? 'rotate-180 text-[#B88E4F] bg-[#ECE1CD]'
+                              : 'text-[#7D715E] bg-[#FAF8F5]'
+                            }`}
                         >
                           <ChevronDown className="w-3 h-3" />
                         </div>
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-[#C59B58]" />
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-[#B88E4F]" />
                         <span>Tham số UTM theo dõi nâng cao</span>
                         {hasCustomUtm ? (
                           <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full flex items-center gap-1">
@@ -1695,7 +2253,7 @@ export default function ReferralLinksPage() {
                             Đang tùy chỉnh
                           </span>
                         ) : (
-                          <span className="text-[10px] text-[#A49B8B] font-normal">
+                          <span className="text-[10px] text-[#7D715E] font-normal">
                             (Tùy chọn)
                           </span>
                         )}
@@ -1705,9 +2263,9 @@ export default function ReferralLinksPage() {
                         <button
                           type="button"
                           onClick={() => setShowUtmGuide(!showUtmGuide)}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#9E7933] hover:text-[#7D6D55] font-medium transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-[11px] text-[#B88E4F] hover:text-[#7D715E] font-medium transition-colors cursor-pointer"
                         >
-                          <HelpCircle className="w-3.5 h-3.5 text-[#C59B58]" />
+                          <HelpCircle className="w-3.5 h-3.5 text-[#B88E4F]" />
                           <span>{showUtmGuide ? 'Ẩn HD' : 'Hướng dẫn sử dụng'}</span>
                         </button>
                       )}
@@ -1715,15 +2273,15 @@ export default function ReferralLinksPage() {
 
 
                     {showAdvancedUtm && (
-                      <div className="mt-1 space-y-2 p-2.5 bg-gradient-to-b from-[#FAF8F5] to-white rounded-xl border border-[#E8DAC4] shadow-2xs animate-fadeIn text-xs">
+                      <div className="mt-1 space-y-2 p-2.5 bg-gradient-to-b from-[#FAF8F5] to-white rounded-xl border border-[#EAE4D7] shadow-2xs animate-fadeIn text-xs">
 
                         {showUtmGuide && (
-                          <div className="p-2.5 bg-white rounded-lg border border-[#DEBE85]/60 text-[10px] text-[#7D6D55] space-y-1 animate-fadeIn leading-relaxed shadow-2xs">
+                          <div className="p-2.5 bg-white rounded-lg border border-[#DEBE85]/60 text-[10px] text-[#7D715E] space-y-1 animate-fadeIn leading-relaxed shadow-2xs">
                             <p className="flex items-center gap-1 font-medium text-[#1A1612]">
                               <Lightbulb className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                               <span>UTM là gì? Thẻ định danh gắn vào link giúp theo dõi nguồn đơn hàng chính xác.</span>
                             </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-[#E8DAC4]/50 text-[9px]">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-[#EAE4D7]/50 text-[9px]">
                               <div><strong className="text-[#1A1612]">🌐 source:</strong> Nền tảng (tiktok, fb...)</div>
                               <div><strong className="text-[#1A1612]">📡 medium:</strong> Định dạng (bio, video...)</div>
                               <div><strong className="text-[#1A1612]">🎯 campaign:</strong> Tên sự kiện/sale</div>
@@ -1738,7 +2296,7 @@ export default function ReferralLinksPage() {
                           <div>
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="font-bold text-[#1A1612] text-[10px] flex items-center gap-1">
-                                <Globe className="w-3 h-3 text-[#C59B58]" />
+                                <Globe className="w-3 h-3 text-[#B88E4F]" />
                                 <span>Nguồn (source)</span>
                               </label>
                               <div className="flex items-center gap-1">
@@ -1751,11 +2309,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmSource(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmSource.toLowerCase() === item.val
-                                        ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
-                                        : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmSource.toLowerCase() === item.val
+                                        ? 'bg-[#EBD08C] text-white font-bold shadow-2xs'
+                                        : 'bg-white text-[#7D715E] hover:bg-[#F6EFE3] hover:text-[#B88E4F] border border-[#EAE4D7]'
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -1763,19 +2320,19 @@ export default function ReferralLinksPage() {
                               </div>
                             </div>
                             <div className="relative flex items-center group">
-                              <Globe className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                              <Globe className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                               <input
                                 type="text"
                                 value={utmSource}
                                 onChange={(e) => setUtmSource(e.target.value)}
                                 placeholder="tiktok, facebook, youtube..."
-                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#E8DAC4] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
+                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#EAE4D7] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
                               />
                               {utmSource && (
                                 <button
                                   type="button"
                                   onClick={() => setUtmSource('')}
-                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#A49B8B] hover:text-[#1A1612] p-0.5 cursor-pointer"
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-0.5 cursor-pointer"
                                   title="Xóa"
                                 >
                                   <X className="w-2.5 h-2.5" />
@@ -1788,7 +2345,7 @@ export default function ReferralLinksPage() {
                           <div>
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="font-bold text-[#1A1612] text-[10px] flex items-center gap-1">
-                                <Share2 className="w-3 h-3 text-[#C59B58]" />
+                                <Share2 className="w-3 h-3 text-[#B88E4F]" />
                                 <span>Kênh (medium)</span>
                               </label>
                               <div className="flex items-center gap-1">
@@ -1801,11 +2358,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmMedium(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmMedium.toLowerCase() === item.val
-                                        ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
-                                        : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmMedium.toLowerCase() === item.val
+                                        ? 'bg-[#EBD08C] text-white font-bold shadow-2xs'
+                                        : 'bg-white text-[#7D715E] hover:bg-[#F6EFE3] hover:text-[#B88E4F] border border-[#EAE4D7]'
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -1813,19 +2369,19 @@ export default function ReferralLinksPage() {
                               </div>
                             </div>
                             <div className="relative flex items-center group">
-                              <Share2 className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                              <Share2 className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                               <input
                                 type="text"
                                 value={utmMedium}
                                 onChange={(e) => setUtmMedium(e.target.value)}
                                 placeholder="creator, bio_link, video..."
-                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#E8DAC4] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
+                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#EAE4D7] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
                               />
                               {utmMedium && (
                                 <button
                                   type="button"
                                   onClick={() => setUtmMedium('')}
-                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#A49B8B] hover:text-[#1A1612] p-0.5 cursor-pointer"
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-0.5 cursor-pointer"
                                   title="Xóa"
                                 >
                                   <X className="w-2.5 h-2.5" />
@@ -1838,7 +2394,7 @@ export default function ReferralLinksPage() {
                           <div>
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="font-bold text-[#1A1612] text-[10px] flex items-center gap-1">
-                                <Target className="w-3 h-3 text-[#C59B58]" />
+                                <Target className="w-3 h-3 text-[#B88E4F]" />
                                 <span>Chiến dịch</span>
                               </label>
                               <div className="flex items-center gap-1">
@@ -1864,11 +2420,10 @@ export default function ReferralLinksPage() {
                                       key={cmp}
                                       type="button"
                                       onClick={() => setUtmCampaign(cmp)}
-                                      className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                        utmCampaign.toLowerCase() === cmp
-                                          ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
-                                          : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                      }`}
+                                      className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmCampaign.toLowerCase() === cmp
+                                          ? 'bg-[#EBD08C] text-white font-bold shadow-2xs'
+                                          : 'bg-white text-[#7D715E] hover:bg-[#F6EFE3] hover:text-[#B88E4F] border border-[#EAE4D7]'
+                                        }`}
                                     >
                                       {cmp}
                                     </button>
@@ -1877,19 +2432,19 @@ export default function ReferralLinksPage() {
                               </div>
                             </div>
                             <div className="relative flex items-center group">
-                              <Target className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                              <Target className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                               <input
                                 type="text"
                                 placeholder="VD: autumn_sale_2026"
                                 value={utmCampaign}
                                 onChange={(e) => setUtmCampaign(e.target.value)}
-                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#E8DAC4] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
+                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#EAE4D7] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
                               />
                               {utmCampaign && (
                                 <button
                                   type="button"
                                   onClick={() => setUtmCampaign('')}
-                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#A49B8B] hover:text-[#1A1612] p-0.5 cursor-pointer"
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-0.5 cursor-pointer"
                                   title="Xóa"
                                 >
                                   <X className="w-2.5 h-2.5" />
@@ -1902,7 +2457,7 @@ export default function ReferralLinksPage() {
                           <div>
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="font-bold text-[#1A1612] text-[10px] flex items-center gap-1">
-                                <FileText className="w-3 h-3 text-[#C59B58]" />
+                                <FileText className="w-3 h-3 text-[#B88E4F]" />
                                 <span>Nội dung</span>
                               </label>
                               <div className="flex items-center gap-1">
@@ -1915,11 +2470,10 @@ export default function ReferralLinksPage() {
                                     key={item.val}
                                     type="button"
                                     onClick={() => setUtmContent(item.val)}
-                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${
-                                      utmContent.toLowerCase() === item.val
-                                        ? 'bg-[#9E7933] text-white font-bold shadow-2xs'
-                                        : 'bg-white text-[#7D6D55] hover:bg-[#FAF3E8] hover:text-[#9E7933] border border-[#E8DAC4]'
-                                    }`}
+                                    className={`text-[8px] px-1.5 py-0.2 rounded transition-all cursor-pointer ${utmContent.toLowerCase() === item.val
+                                        ? 'bg-[#EBD08C] text-white font-bold shadow-2xs'
+                                        : 'bg-white text-[#7D715E] hover:bg-[#F6EFE3] hover:text-[#B88E4F] border border-[#EAE4D7]'
+                                      }`}
                                   >
                                     {item.label}
                                   </button>
@@ -1927,19 +2481,19 @@ export default function ReferralLinksPage() {
                               </div>
                             </div>
                             <div className="relative flex items-center group">
-                              <FileText className="w-3.5 h-3.5 text-[#A49B8B] group-focus-within:text-[#9E7933] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+                              <FileText className="w-3.5 h-3.5 text-[#7D715E] group-focus-within:text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
                               <input
                                 type="text"
                                 placeholder="VD: review_banner_01"
                                 value={utmContent}
                                 onChange={(e) => setUtmContent(e.target.value)}
-                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#E8DAC4] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
+                                className="w-full pl-7.5 pr-6 py-1 rounded-md border border-[#EAE4D7] bg-white text-[#1A1612] text-xs focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/30 outline-none transition-all shadow-2xs"
                               />
                               {utmContent && (
                                 <button
                                   type="button"
                                   onClick={() => setUtmContent('')}
-                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#A49B8B] hover:text-[#1A1612] p-0.5 cursor-pointer"
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612] p-0.5 cursor-pointer"
                                   title="Xóa"
                                 >
                                   <X className="w-2.5 h-2.5" />
@@ -1950,14 +2504,14 @@ export default function ReferralLinksPage() {
                         </div>
 
 
-                        <div className="pt-1.5 border-t border-[#E8DAC4]/60 flex items-center justify-between gap-2 text-[10px]">
+                        <div className="pt-1.5 border-t border-[#EAE4D7]/60 flex items-center justify-between gap-2 text-[10px]">
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <span className="text-[#7D6D55] font-semibold flex items-center gap-1 flex-shrink-0">
-                              <Link2 className="w-3 h-3 text-[#C59B58]" />
+                            <span className="text-[#7D715E] font-semibold flex items-center gap-1 flex-shrink-0">
+                              <Link2 className="w-3 h-3 text-[#B88E4F]" />
                               <span>Xem trước:</span>
                             </span>
-                            <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-[#E8DAC4] min-w-0 flex-1 shadow-2xs">
-                              <span className="font-mono text-[9px] text-[#9E7933] truncate flex-1 select-all font-medium">
+                            <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-[#EAE4D7] min-w-0 flex-1 shadow-2xs">
+                              <span className="font-mono text-[9px] text-[#B88E4F] truncate flex-1 select-all font-medium">
                                 {livePreviewUrl}
                               </span>
                             </div>
@@ -1971,7 +2525,7 @@ export default function ReferralLinksPage() {
                                 setUtmCampaign('');
                                 setUtmContent('');
                               }}
-                              className="text-[9px] font-semibold text-[#7D6D55] hover:text-[#9E7933] bg-white hover:bg-[#FAF8F5] px-2 py-1 rounded-lg border border-[#E8DAC4] flex items-center gap-1 flex-shrink-0 transition-colors shadow-2xs cursor-pointer"
+                              className="text-[9px] font-semibold text-[#7D715E] hover:text-[#B88E4F] bg-white hover:bg-[#FAF8F5] px-2 py-1 rounded-lg border border-[#EAE4D7] flex items-center gap-1 flex-shrink-0 transition-colors shadow-2xs cursor-pointer"
                               title="Khôi phục UTM về mặc định"
                             >
                               <RotateCcw className="w-2.5 h-2.5" />
@@ -1985,10 +2539,10 @@ export default function ReferralLinksPage() {
                 </div>
 
 
-                <div className="px-4 sm:px-5 py-2.5 border-t border-[#E8DAC4] bg-[#FAF8F5] flex items-center justify-between gap-3 flex-shrink-0">
-                  <div className="text-xs text-[#7D6D55] truncate max-w-[180px] sm:max-w-xs">
+                <div className="px-4 sm:px-5 py-2.5 border-t border-[#EAE4D7] bg-[#FAF8F5] flex items-center justify-between gap-3 flex-shrink-0">
+                  <div className="text-xs text-[#7D715E] truncate max-w-[180px] sm:max-w-xs">
                     {!selectedProduct ? (
-                      <span className="text-[#A49B8B] italic">Chưa chọn sản phẩm</span>
+                      <span className="text-[#7D715E] italic">Chưa chọn sản phẩm</span>
                     ) : !formLabel.trim() ? (
                       <span className="text-amber-700 font-medium">Cần nhập nhãn gợi nhớ</span>
                     ) : productRemainingQuota <= 0 ? (
@@ -2006,18 +2560,17 @@ export default function ReferralLinksPage() {
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => setIsCreateModalOpen(false)}
-                      className="px-3 py-1.5 rounded-lg border border-[#E8DAC4] text-xs font-semibold text-[#7D6D55] hover:bg-white transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg border border-[#EAE4D7] text-xs font-semibold text-[#7D715E] hover:bg-white transition-colors cursor-pointer"
                     >
                       Hủy bỏ
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitDisabled}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all ${
-                        isSubmitDisabled
-                          ? 'bg-[#DEBE85] cursor-not-allowed opacity-60'
-                          : 'bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] cursor-pointer active:scale-95'
-                      }`}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all ${isSubmitDisabled
+                          ? 'bg-[#EBD08C] text-[#231D15] cursor-not-allowed opacity-60'
+                          : 'bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] cursor-pointer active:scale-95'
+                        }`}
                     >
                       {isSubmitting ? (
                         <>
@@ -2054,19 +2607,19 @@ export default function ReferralLinksPage() {
         >
           <div
             ref={qrModalRef}
-            className="bg-white rounded-2xl shadow-2xl border border-[#E8DAC4] w-full max-w-md p-5 sm:p-6 text-center animate-in zoom-in-95 duration-150 relative"
+            className="bg-white rounded-2xl shadow-2xl border border-[#EAE4D7] w-full max-w-md p-5 sm:p-6 text-center animate-in zoom-in-95 duration-150 relative"
           >
 
 
-            <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#E8DAC4]/60">
+            <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#EAE4D7]/60">
               <div className="flex items-center gap-2.5 text-left">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#FDFBF7] via-[#FAF8F5] to-[#F5EFE6] border border-[#E8DAC4] shadow-2xs flex items-center justify-center text-[#9E7933] ring-2 ring-[#9E7933]/10 flex-shrink-0">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#FAF8F5] via-[#FAF8F5] to-[#F3EFE6] border border-[#EAE4D7] shadow-2xs flex items-center justify-center text-[#B88E4F] ring-2 ring-[#B88E4F]/10 flex-shrink-0">
                   <QrCode className="w-4.5 h-4.5" />
                 </div>
                 <div>
                   <h3 id="qr-modal-title" className="text-sm sm:text-base font-black text-[#1A1612] tracking-tight m-0 flex items-center gap-1.5">
                     Mã QR Tiếp Thị
-                    <span className="px-1.5 py-0.5 text-[10px] font-bold bg-[#9E7933]/10 text-[#9E7933] border border-[#9E7933]/20 rounded-md">
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold bg-[#EBD08C]/10 text-[#B88E4F] border border-[#B88E4F]/20 rounded-md">
                       FR-11
                     </span>
                   </h3>
@@ -2079,7 +2632,7 @@ export default function ReferralLinksPage() {
                 ref={qrCloseBtnRef}
                 type="button"
                 onClick={() => setIsQrModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center text-[#A49B8B] hover:text-[#1A1612] hover:bg-[#FAF8F5] rounded-xl border border-transparent hover:border-[#E8DAC4] transition-all cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center text-[#7D715E] hover:text-[#1A1612] hover:bg-[#FAF8F5] rounded-xl border border-transparent hover:border-[#EAE4D7] transition-all cursor-pointer"
                 aria-label="Đóng cửa sổ"
               >
                 <X className="w-4 h-4" />
@@ -2087,10 +2640,10 @@ export default function ReferralLinksPage() {
             </div>
 
 
-            <div className="relative p-4 bg-gradient-to-b from-white via-white to-[#FDFBF7] rounded-3xl border-2 border-[#E8DAC4] shadow-lg shadow-[#9E7933]/5 inline-block mb-3.5 transition-all hover:border-[#C59B58]">
+            <div className="relative p-4 bg-gradient-to-b from-white via-white to-[#FAF8F5] rounded-3xl border-2 border-[#EAE4D7] shadow-lg shadow-[#B88E4F]/5 inline-block mb-3.5 transition-all hover:border-[#C59B58]">
               {selectedQrLoading ? (
                 <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-[#7D715E]">
-                  <Loader2 className="w-7 h-7 animate-spin text-[#9E7933]" />
+                  <Loader2 className="w-7 h-7 animate-spin text-[#B88E4F]" />
                   <span className="text-xs font-semibold">Đang dựng ảnh QR…</span>
                 </div>
               ) : selectedQrError ? (
@@ -2102,7 +2655,7 @@ export default function ReferralLinksPage() {
                   <button
                     type="button"
                     onClick={retrySelectedQr}
-                    className="mt-1 px-3 py-1.5 bg-gradient-to-r from-[#FAF3E8] to-[#F5E7CC] hover:from-[#F5E7CC] hover:to-[#ECD9B8] text-[#9E7933] border border-[#DEBE85] rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                    className="mt-1 px-3 py-1.5 bg-gradient-to-r from-[#F6EFE3] to-[#ECE1CD] hover:from-[#ECE1CD] hover:to-[#EAD2A3] text-[#B88E4F] border border-[#DEBE85] rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
                   >
                     Vui lòng thử lại
                   </button>
@@ -2115,7 +2668,7 @@ export default function ReferralLinksPage() {
                 />
               ) : (
                 <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-[#7D715E]">
-                  <Loader2 className="w-7 h-7 animate-spin text-[#9E7933]" />
+                  <Loader2 className="w-7 h-7 animate-spin text-[#B88E4F]" />
                   <span className="text-xs">Đang dựng ảnh QR…</span>
                 </div>
               )}
@@ -2129,8 +2682,8 @@ export default function ReferralLinksPage() {
 
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs mb-3.5">
               {selectedLinkForQr.product?.store?.name && (
-                <div className="inline-flex items-center gap-1.5 bg-gradient-to-b from-[#FAF8F5] via-[#FFFFFF] to-[#F5EFE6] px-2.5 py-1 rounded-xl border border-[#E8DAC4]/90 shadow-2xs">
-                  <span className="w-5 h-5 rounded-lg bg-[#9E7933]/12 border border-[#9E7933]/20 flex items-center justify-center text-[#9E7933] shadow-2xs flex-shrink-0">
+                <div className="inline-flex items-center gap-1.5 bg-gradient-to-b from-[#FAF8F5] via-[#FFFFFF] to-[#F3EFE6] px-2.5 py-1 rounded-xl border border-[#EAE4D7]/90 shadow-2xs">
+                  <span className="w-5 h-5 rounded-lg bg-[#EBD08C]/12 border border-[#B88E4F]/20 flex items-center justify-center text-[#B88E4F] shadow-2xs flex-shrink-0">
                     <Store className="w-3 h-3" />
                   </span>
                   <span className="font-semibold text-[#5E5141] text-[11px] max-w-[130px] truncate">
@@ -2138,11 +2691,11 @@ export default function ReferralLinksPage() {
                   </span>
                 </div>
               )}
-              <div className="inline-flex items-center gap-1.5 bg-gradient-to-b from-[#FAF8F5] via-[#FFFFFF] to-[#F5EFE6] px-2.5 py-1 rounded-xl border border-[#E8DAC4]/90 shadow-2xs">
-                <span className="w-5 h-5 rounded-lg bg-[#9E7933]/12 border border-[#9E7933]/20 flex items-center justify-center text-[#9E7933] shadow-2xs flex-shrink-0 font-black text-[11px]">
+              <div className="inline-flex items-center gap-1.5 bg-gradient-to-b from-[#FAF8F5] via-[#FFFFFF] to-[#F3EFE6] px-2.5 py-1 rounded-xl border border-[#EAE4D7]/90 shadow-2xs">
+                <span className="w-5 h-5 rounded-lg bg-[#EBD08C]/12 border border-[#B88E4F]/20 flex items-center justify-center text-[#B88E4F] shadow-2xs flex-shrink-0 font-black text-[11px]">
                   #
                 </span>
-                <span className="font-mono font-black text-[#9E7933] text-[11px]">
+                <span className="font-mono font-black text-[#B88E4F] text-[11px]">
                   {selectedLinkForQr.shortCode}
                 </span>
               </div>
@@ -2160,8 +2713,8 @@ export default function ReferralLinksPage() {
             </div>
 
 
-            <div className="mb-3.5 group flex items-center gap-2 bg-gradient-to-r from-[#FAF8F5] via-[#FFFFFF] to-[#FAF8F5] p-1.5 pl-2.5 rounded-2xl border border-[#E8DAC4] shadow-xs focus-within:border-[#B88E4F] focus-within:ring-2 focus-within:ring-[#B88E4F]/20 transition-all">
-              <span className="w-6 h-6 rounded-lg bg-[#9E7933]/10 border border-[#9E7933]/20 flex items-center justify-center text-[#9E7933] flex-shrink-0">
+            <div className="mb-3.5 group flex items-center gap-2 bg-gradient-to-r from-[#FAF8F5] via-[#FFFFFF] to-[#FAF8F5] p-1.5 pl-2.5 rounded-2xl border border-[#EAE4D7] shadow-xs focus-within:border-[#B88E4F] focus-within:ring-2 focus-within:ring-[#B88E4F]/20 transition-all">
+              <span className="w-6 h-6 rounded-lg bg-[#EBD08C]/10 border border-[#B88E4F]/20 flex items-center justify-center text-[#B88E4F] flex-shrink-0">
                 <Globe className="w-3.5 h-3.5" />
               </span>
               <input
@@ -2174,11 +2727,10 @@ export default function ReferralLinksPage() {
               <button
                 type="button"
                 onClick={() => handleCopyLink(selectedQrTargetUrl, selectedLinkForQr.shortCode)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer flex-shrink-0 active:scale-95 border ${
-                  copiedCode === selectedLinkForQr.shortCode
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer flex-shrink-0 active:scale-95 border ${copiedCode === selectedLinkForQr.shortCode
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                    : 'bg-gradient-to-b from-white to-[#F7F2EB] hover:from-[#F7F2EB] hover:to-[#EFE6D8] text-[#7D6D55] hover:text-[#9E7933] border-[#E8DAC4]'
-                }`}
+                    : 'bg-gradient-to-b from-white to-[#F7F2EB] hover:from-[#F7F2EB] hover:to-[#EFE6D8] text-[#7D715E] hover:text-[#B88E4F] border-[#EAE4D7]'
+                  }`}
               >
                 {copiedCode === selectedLinkForQr.shortCode ? (
                   <>
@@ -2189,7 +2741,7 @@ export default function ReferralLinksPage() {
                   </>
                 ) : (
                   <>
-                    <span className="w-4 h-4 rounded-md bg-[#9E7933]/10 flex items-center justify-center text-[#9E7933]">
+                    <span className="w-4 h-4 rounded-md bg-[#EBD08C]/10 flex items-center justify-center text-[#B88E4F]">
                       <Copy className="w-2.5 h-2.5" />
                     </span>
                     Chép link
@@ -2200,7 +2752,7 @@ export default function ReferralLinksPage() {
 
 
             <div className="flex items-center justify-between gap-2 mb-3 text-xs">
-              <span className="text-[11px] font-bold text-[#7D6D55] whitespace-nowrap">
+              <span className="text-[11px] font-bold text-[#7D715E] whitespace-nowrap">
                 Kích thước PNG:
               </span>
               <div className="flex items-center gap-1.5">
@@ -2209,11 +2761,10 @@ export default function ReferralLinksPage() {
                     key={sz}
                     type="button"
                     onClick={() => setQrPngSize(sz)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all cursor-pointer ${
-                      qrPngSize === sz
-                        ? 'bg-[#9E7933] text-white border-[#9E7933] shadow-2xs'
-                        : 'bg-[#FAF8F5] text-[#7D6D55] border-[#E8DAC4] hover:bg-[#F5EFE6] hover:text-[#1A1612]'
-                    }`}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all cursor-pointer ${qrPngSize === sz
+                        ? 'bg-[#EBD08C] text-white border-[#B88E4F] shadow-2xs'
+                        : 'bg-[#FAF8F5] text-[#7D715E] border-[#EAE4D7] hover:bg-[#F3EFE6] hover:text-[#1A1612]'
+                      }`}
                   >
                     {sz === 1024 ? '1024 (Chuẩn)' : sz === 512 ? '512' : '2048 (In)'}
                   </button>
@@ -2244,7 +2795,7 @@ export default function ReferralLinksPage() {
                 type="button"
                 onClick={() => handleDownloadQr('png')}
                 disabled={isDownloadingQr}
-                className="py-2.5 px-2 bg-gradient-to-r from-[#D4AF37] via-[#B88E4F] to-[#8C682A] hover:from-[#B88E4F] hover:to-[#73531F] text-white rounded-2xl text-xs font-black tracking-wide flex items-center justify-center gap-1.5 shadow-md shadow-[#9E7933]/20 hover:shadow-lg hover:shadow-[#9E7933]/30 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 border border-[#E2C792]/40"
+                className="py-2.5 px-2 bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#D4B26F] text-white rounded-2xl text-xs font-black tracking-wide flex items-center justify-center gap-1.5 shadow-md shadow-[#B88E4F]/20 hover:shadow-lg hover:shadow-[#B88E4F]/30 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 border border-[#E2C792]/40"
               >
                 <span className="w-5 h-5 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0 backdrop-blur-xs">
                   {isDownloadingQr ? (
@@ -2260,9 +2811,9 @@ export default function ReferralLinksPage() {
                 type="button"
                 onClick={() => handleDownloadQr('svg')}
                 disabled={isDownloadingQr}
-                className="py-2.5 px-2 bg-gradient-to-b from-white via-white to-[#FAF8F5] hover:from-[#FAF8F5] hover:to-[#F3ECE0] text-[#7D6D55] hover:text-[#9E7933] border border-[#E8DAC4] rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                className="py-2.5 px-2 bg-gradient-to-b from-white via-white to-[#FAF8F5] hover:from-[#FAF8F5] hover:to-[#F3ECE0] text-[#7D715E] hover:text-[#B88E4F] border border-[#EAE4D7] rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
               >
-                <span className="w-5 h-5 rounded-lg bg-[#9E7933]/10 border border-[#9E7933]/20 flex items-center justify-center text-[#9E7933] flex-shrink-0">
+                <span className="w-5 h-5 rounded-lg bg-[#EBD08C]/10 border border-[#B88E4F]/20 flex items-center justify-center text-[#B88E4F] flex-shrink-0">
                   <Download className="w-3 h-3" />
                 </span>
                 Tải SVG
@@ -2272,9 +2823,9 @@ export default function ReferralLinksPage() {
                 href={`/r/${selectedLinkForQr.shortCode}?via=qr`}
                 target="_blank"
                 rel="noreferrer"
-                className="py-2.5 px-2 bg-gradient-to-b from-[#FAF8F5] via-white to-[#F5EFE6] hover:from-[#F5E7CC] hover:to-[#ECD9B8] text-[#7D6D55] hover:text-[#8C682A] border border-[#E8DAC4] rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                className="py-2.5 px-2 bg-gradient-to-b from-[#FAF8F5] via-white to-[#F3EFE6] hover:from-[#ECE1CD] hover:to-[#EAD2A3] text-[#7D715E] hover:text-[#B88E4F] border border-[#EAE4D7] rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               >
-                <span className="w-5 h-5 rounded-lg bg-[#9E7933]/12 border border-[#9E7933]/25 flex items-center justify-center text-[#9E7933] flex-shrink-0">
+                <span className="w-5 h-5 rounded-lg bg-[#EBD08C]/12 border border-[#B88E4F]/25 flex items-center justify-center text-[#B88E4F] flex-shrink-0">
                   <ExternalLink className="w-3 h-3" />
                 </span>
                 Quét thử
@@ -2282,7 +2833,7 @@ export default function ReferralLinksPage() {
             </div>
 
 
-            <div className="p-3 bg-gradient-to-r from-[#FAF8F5] via-[#FFFDF9] to-[#FAF8F5] rounded-2xl border border-[#E8DAC4]/90 text-xs text-[#7D6D55] flex items-center gap-3 text-left shadow-2xs leading-relaxed">
+            <div className="p-3 bg-gradient-to-r from-[#FAF8F5] via-[#FAF8F5] to-[#FAF8F5] rounded-2xl border border-[#EAE4D7]/90 text-xs text-[#7D715E] flex items-center gap-3 text-left shadow-2xs leading-relaxed">
               <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-100 to-amber-200/70 border border-amber-300/80 flex items-center justify-center text-amber-800 flex-shrink-0 shadow-2xs ring-2 ring-amber-50">
                 <Lightbulb className="w-4 h-4" />
               </span>
@@ -2306,11 +2857,11 @@ export default function ReferralLinksPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-3xl shadow-2xl border border-[#E8DAC4] w-full max-w-xl p-5 sm:p-6 text-left animate-in zoom-in-95 duration-150 relative max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-3xl shadow-2xl border border-[#EAE4D7] w-full max-w-xl p-5 sm:p-6 text-left animate-in zoom-in-95 duration-150 relative max-h-[90vh] flex flex-col">
 
-            <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#E8DAC4]/70 flex-shrink-0">
+            <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-[#EAE4D7]/70 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FAF8F5] to-[#F3EFE6] border border-[#E8DAC4] flex items-center justify-center text-[#B88E4F] shadow-2xs">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FAF8F5] to-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shadow-2xs">
                   <BarChart3 className="w-5 h-5" />
                 </div>
                 <div>
@@ -2318,7 +2869,7 @@ export default function ReferralLinksPage() {
                     <h3 className="text-base font-black text-[#1A1612] tracking-tight">
                       Thống Kê Tiếp Thị &amp; Chuyển Đổi
                     </h3>
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-[#FAF5EB] text-[#B88E4F] border border-[#EEDFC6] rounded-md">
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7] rounded-md">
                       FR-13
                     </span>
                   </div>
@@ -2330,7 +2881,7 @@ export default function ReferralLinksPage() {
               <button
                 type="button"
                 onClick={() => setIsAnalyticsModalOpen(false)}
-                className="w-8 h-8 flex items-center justify-center text-[#7D715E] hover:text-[#1A1612] hover:bg-[#FAF8F5] rounded-xl border border-transparent hover:border-[#E8DAC4] transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center text-[#7D715E] hover:text-[#1A1612] hover:bg-[#FAF8F5] rounded-xl border border-transparent hover:border-[#EAE4D7] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2339,7 +2890,7 @@ export default function ReferralLinksPage() {
 
             <div className="overflow-y-auto pr-1 space-y-4 flex-1">
 
-              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#E8DAC4] flex items-center justify-between gap-3">
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#EAE4D7] flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-[#1A1612] truncate">
                     {selectedLinkForAnalytics.product?.title || 'Sản phẩm tiếp thị'}
@@ -2361,7 +2912,7 @@ export default function ReferralLinksPage() {
 
               {loadingAnalytics ? (
                 <div className="py-12 text-center text-[#7D715E]">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#C59B58]" />
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#B88E4F]" />
                   <p className="text-xs font-medium">Đang trích xuất dữ liệu đối soát...</p>
                 </div>
               ) : analyticsError ? (
@@ -2373,7 +2924,7 @@ export default function ReferralLinksPage() {
                 <>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    <div className="p-3 bg-white border border-[#E8DAC4] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#7D715E]">Tổng Clicks (Raw)</div>
                       <div className="text-xl font-black text-[#1A1612] mt-1">
                         {(analyticsData.rawClicks ?? selectedLinkForAnalytics.totalClicks ?? 0).toLocaleString('vi-VN')}
@@ -2381,7 +2932,7 @@ export default function ReferralLinksPage() {
                       <div className="text-[10px] text-[#7D715E] mt-0.5">Mọi lượt mở link</div>
                     </div>
 
-                    <div className="p-3 bg-white border border-[#E8DAC4] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#7D715E]">Clicks Hợp Lệ</div>
                       <div className="text-xl font-black text-emerald-700 mt-1">
                         {(analyticsData.validClicks ?? selectedLinkForAnalytics.totalClicks ?? 0).toLocaleString('vi-VN')}
@@ -2389,7 +2940,7 @@ export default function ReferralLinksPage() {
                       <div className="text-[10px] text-emerald-600 mt-0.5">Đã qua kiểm tra &amp; rate limit</div>
                     </div>
 
-                    <div className="p-3 bg-white border border-[#E8DAC4] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#7D715E]">Khách Duy Nhất (Unique)</div>
                       <div className="text-xl font-black text-[#B88E4F] mt-1">
                         {(analyticsData.uniqueClicks ?? selectedLinkForAnalytics.uniqueClicks ?? 0).toLocaleString('vi-VN')}
@@ -2397,7 +2948,7 @@ export default function ReferralLinksPage() {
                       <div className="text-[10px] text-[#B88E4F] mt-0.5">Dedup 30 phút/visitor</div>
                     </div>
 
-                    <div className="p-3 bg-white border border-[#E8DAC4] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#7D715E]">Click Nghi Ngờ / Bị Chặn</div>
                       <div className="text-xl font-black text-amber-700 mt-1">
                         {(analyticsData.suspiciousClicks ?? 0).toLocaleString('vi-VN')}
@@ -2405,7 +2956,7 @@ export default function ReferralLinksPage() {
                       <div className="text-[10px] text-amber-600 mt-0.5">Vượt 10 req/s hoặc Bot</div>
                     </div>
 
-                    <div className="p-3 bg-white border border-[#E8DAC4] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#7D715E]">Đơn Hàng Ghi Nhận</div>
                       <div className="text-xl font-black text-[#1A1612] mt-1">
                         {(analyticsData.conversions ?? selectedLinkForAnalytics.totalOrders ?? 0).toLocaleString('vi-VN')}
@@ -2413,7 +2964,7 @@ export default function ReferralLinksPage() {
                       <div className="text-[10px] text-[#7D715E] mt-0.5">Gán theo Last-Click</div>
                     </div>
 
-                    <div className="p-3 bg-[#FAF5EB] border border-[#EEDFC6] rounded-2xl shadow-2xs">
+                    <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-2xl shadow-2xs">
                       <div className="text-[11px] font-semibold text-[#B88E4F]">Tỷ Lệ Chuyển Đổi (CR)</div>
                       <div className="text-xl font-black text-[#B88E4F] mt-1">
                         {analyticsData.conversionRate ?? 0}%
@@ -2423,7 +2974,7 @@ export default function ReferralLinksPage() {
                   </div>
 
 
-                  <div className="p-3.5 bg-[#FAF8F5] border border-[#E8DAC4] rounded-2xl space-y-2">
+                  <div className="p-3.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl space-y-2">
                     <div className="text-xs font-bold text-[#1A1612] flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <Share2 className="w-3.5 h-3.5 text-[#B88E4F]" />
@@ -2433,7 +2984,7 @@ export default function ReferralLinksPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 bg-white rounded-xl border border-[#E8DAC4]/80 flex items-center justify-between">
+                      <div className="p-2.5 bg-white rounded-xl border border-[#EAE4D7]/80 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Globe className="w-3.5 h-3.5 text-[#B88E4F]" />
                           <span className="font-medium text-[#1A1612]">Link Trực Tiếp</span>
@@ -2443,7 +2994,7 @@ export default function ReferralLinksPage() {
                         </span>
                       </div>
 
-                      <div className="p-2.5 bg-white rounded-xl border border-[#E8DAC4]/80 flex items-center justify-between">
+                      <div className="p-2.5 bg-white rounded-xl border border-[#EAE4D7]/80 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <QrCode className="w-3.5 h-3.5 text-[#B88E4F]" />
                           <span className="font-medium text-[#1A1612]">Quét Mã QR</span>
@@ -2456,7 +3007,7 @@ export default function ReferralLinksPage() {
                   </div>
 
 
-                  <div className="p-3.5 bg-[#FAF5EB] border border-[#EEDFC6] rounded-2xl space-y-2.5">
+                  <div className="p-3.5 bg-[#FBF5EB] border border-[#EAE4D7] rounded-2xl space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[#B88E4F]" />
@@ -2464,7 +3015,7 @@ export default function ReferralLinksPage() {
                           Kiểm Thử Nghiệp Vụ FR-14: Chống Click Spam (Redis Rate Limit)
                         </span>
                       </div>
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-[#F3EFE6] text-[#B88E4F] rounded-full border border-[#EEDFC6]">
+                      <span className="px-2 py-0.5 text-[10px] font-bold bg-[#F3EFE6] text-[#B88E4F] rounded-full border border-[#EAE4D7]">
                         Hạn mức: 10 clicks / giây / IP
                       </span>
                     </div>
@@ -2478,7 +3029,7 @@ export default function ReferralLinksPage() {
                         type="button"
                         disabled={isSpamTesting}
                         onClick={() => handleRunSpamTest(selectedLinkForAnalytics.shortCode, selectedLinkForAnalytics.id)}
-                        className="px-4 py-2 bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                        className="px-4 py-2 bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                       >
                         {isSpamTesting ? (
                           <>
@@ -2507,7 +3058,7 @@ export default function ReferralLinksPage() {
                     </div>
 
                     {spamTestResult && (
-                      <div className="p-3 bg-white border border-[#EEDFC6] rounded-xl text-xs space-y-1.5 transition-all">
+                      <div className="p-3 bg-white border border-[#EAE4D7] rounded-xl text-xs space-y-1.5 transition-all">
                         <div className="font-bold text-[#1A1612] flex items-center gap-1.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           Kết quả thử nghiệm FR-14 ({spamTestResult.timestamp}):
@@ -2528,7 +3079,7 @@ export default function ReferralLinksPage() {
                   </div>
 
 
-                  <div className="p-3 bg-[#FAF5EB] border border-[#EEDFC6] rounded-2xl text-xs text-[#7D715E] flex items-start gap-2.5">
+                  <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-2xl text-xs text-[#7D715E] flex items-start gap-2.5">
                     <ShieldCheck className="w-4 h-4 text-[#B88E4F] flex-shrink-0 mt-0.5" />
                     <div className="text-[11px] leading-relaxed">
                       <strong className="text-[#1A1612] font-bold">Bảo vệ quyền riêng tư người mua (FR-13):</strong> Hệ thống SCANMS băm bảo mật IP và User-Agent ở phía máy chủ. KOL chỉ xem số liệu thống kê tổng hợp để tối ưu nội dung; không có quyền truy cập địa chỉ IP, dấu vân tay thiết bị hay dữ liệu cá nhân của người mua hàng.
@@ -2539,11 +3090,11 @@ export default function ReferralLinksPage() {
             </div>
 
 
-            <div className="pt-3.5 mt-2 border-t border-[#E8DAC4]/70 flex items-center justify-end flex-shrink-0">
+            <div className="pt-3.5 mt-2 border-t border-[#EAE4D7]/70 flex items-center justify-end flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setIsAnalyticsModalOpen(false)}
-                className="px-4 py-2 bg-gradient-to-r from-[#C59B58] via-[#B88E4F] to-[#9E7933] hover:from-[#B88E4F] hover:to-[#8C682A] text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                className="px-4 py-2 bg-gradient-to-r from-[#EBD08C] via-[#E5C783] to-[#DEC07A] hover:from-[#DEC07A] hover:to-[#DEC07A] text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
               >
                 Đóng
               </button>
@@ -2557,7 +3108,7 @@ export default function ReferralLinksPage() {
 
       {isDeleteModalOpen && selectedLinkForDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 backdrop-blur-[1.5px] animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-xl border border-[#E8DAC4] w-full max-w-sm p-5 sm:p-6 text-left animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-[#EAE4D7] w-full max-w-sm p-5 sm:p-6 text-left animate-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-rose-600 mb-3.5">
               <div className="w-10 h-10 bg-rose-50 border border-rose-200/60 rounded-xl flex items-center justify-center flex-shrink-0 text-rose-600">
                 <AlertCircle className="w-5 h-5" />
@@ -2568,10 +3119,10 @@ export default function ReferralLinksPage() {
               </div>
             </div>
 
-            <div className="bg-[#FAF8F5] p-3 rounded-xl border border-[#E8DAC4] text-xs text-[#7D6D55] space-y-1.5 mb-5">
+            <div className="bg-[#FAF8F5] p-3 rounded-xl border border-[#EAE4D7] text-xs text-[#7D715E] space-y-1.5 mb-5">
               <div className="truncate">• <strong>Sản phẩm:</strong> {selectedLinkForDelete.product?.title}</div>
               <div>• <strong>Mã link:</strong> <span className="font-mono font-bold text-[#B88E4F]">{selectedLinkForDelete.shortCode}</span></div>
-              <div className="text-[11px] text-[#A49B8B] pt-1 border-t border-[#E8DAC4]/50 leading-relaxed">
+              <div className="text-[11px] text-[#7D715E] pt-1 border-t border-[#EAE4D7]/50 leading-relaxed">
                 * Lưu ý: Lịch sử lượt click và các đơn hàng phát sinh trước đây vẫn được lưu trữ toàn vẹn để đối soát hoa hồng.
               </div>
             </div>
@@ -2597,6 +3148,310 @@ export default function ReferralLinksPage() {
       )}
 
 
+      {dealProposalProduct && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[#231D15]/50 p-4 backdrop-blur-xs" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !submittingDealProposal) setDealProposalProduct(null);
+        }}>
+          <form onSubmit={handleSubmitExclusiveDeal} className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl border border-[#EAE4D7] bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#EAE4D7] px-6 py-4 bg-[#FAF8F5]">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-0.5 text-[11px] font-extrabold text-[#B88E4F]">
+                  <Sparkles className="h-3.5 w-3.5" /> EXCLUSIVE DEAL
+                </span>
+                <h2 className="mt-1 text-lg font-black text-[#1A1612]">Đề xuất deal riêng với Shop</h2>
+                <p className="text-xs text-[#7D715E] mt-0.5">Cam kết sản lượng nội dung & chỉ tiêu đơn hàng để nhận hoa hồng độc quyền</p>
+              </div>
+              <button type="button" onClick={() => setDealProposalProduct(null)} disabled={submittingDealProposal} className="rounded-lg p-2 text-[#7D715E] hover:bg-[#F3EFE6] cursor-pointer" aria-label="Đóng">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto space-y-4 p-6 text-left">
+              {/* Penalty Alert if under Cooldown */}
+              {kolDealStatus?.isBlocked && (
+                <div className="rounded-xl border border-[#DC2626]/30 bg-[#DC2626]/10 p-3.5 text-xs text-[#DC2626]">
+                  <div className="flex items-center gap-2 font-black text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Tài khoản đang bị chế tài vi phạm cam kết (Lần {kolDealStatus.violationsCount})
+                  </div>
+                  <p className="mt-1.5 leading-relaxed text-[#DC2626]/90">
+                    Bạn đang bị tạm khóa tính năng đề xuất Deal riêng trong <strong>{kolDealStatus.remainingDays} ngày</strong> (đến ngày {new Date(kolDealStatus.cooldownUntil!).toLocaleDateString('vi-VN')}) do chưa đáp ứng cam kết trước đó.
+                    {kolDealStatus.sampleRequestsBlocked && ' Hạn ngạch nhận mẫu thử hiện tại = 0.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Product Info Card */}
+              <div className="flex items-center gap-3.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
+                <img src={dealProposalProduct.imageUrl || ''} alt="" className="h-14 w-14 rounded-lg border border-[#EAE4D7] bg-white object-cover shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-bold text-[#1A1612]">{dealProposalProduct.title}</div>
+                  <div className="mt-1 text-xs text-[#7D715E]">
+                    Gian hàng: <strong className="text-[#1A1612]">{dealProposalProduct.store.name}</strong> · Hoa hồng sàn: <span className="text-[#1A1612] font-semibold">{dealProposalProduct.estimatedCommissionRate}%</span>
+                  </div>
+                  {dealProposalCurrentDeal && (
+                    <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-[#B88E4F]">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Deal độc quyền đang áp dụng: {dealProposalCurrentDeal.approvedCommissionRate}%
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Proposed Commission Rate */}
+              <div>
+                <label className="block text-xs font-bold text-[#1A1612] mb-1">
+                  Mức hoa hồng độc quyền đề xuất (%) <span className="text-[#DC2626]">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={dealProposalRate}
+                    onChange={(event) => setDealProposalRate(normalizeDealProposalRate(event.target.value))}
+                    onFocus={(event) => event.currentTarget.select()}
+                    aria-label="Mức hoa hồng độc quyền đề xuất theo phần trăm"
+                    className="w-full rounded-xl border border-[#EAE4D7] bg-white px-3.5 py-2.5 text-sm font-bold text-[#1A1612] outline-none focus:border-[#C59B58] focus:ring-3 focus:ring-[#C59B58]/12"
+                    required
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7D715E]">%</span>
+                </div>
+                <span className={`mt-1.5 block text-xs font-medium ${
+                  dealProposalMinimumRate >= 100 ||
+                  Number(dealProposalRate) > 100 ||
+                  (dealProposalRate.trim() && Number(dealProposalRate) <= dealProposalMinimumRate)
+                    ? 'text-[#DC2626]'
+                    : 'text-[#7D715E]'
+                }`}>
+                  {dealProposalMinimumRate >= 100
+                    ? 'Mức deal hiện tại đã là 100%, không thể đề xuất cao hơn trong giới hạn cho phép.'
+                    : Number(dealProposalRate) > 100
+                      ? 'Mức đề xuất không được vượt quá 100%.'
+                      : dealProposalRate.trim() && Number(dealProposalRate) <= dealProposalMinimumRate
+                        ? `Mức đề xuất phải cao hơn ${dealProposalMinimumRate}%. Ví dụ: ${Math.min(100, dealProposalMinimumRate + 1)}%.`
+                        : `Mức cao nhất hiện tại là ${dealProposalMinimumRate}%; hãy nhập mức cao hơn.`}
+                </span>
+              </div>
+
+              {/* SMART Commitment Builder Section */}
+              <div className="rounded-xl border border-[#EAE4D7] bg-white p-4 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-[#1A1612] flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-[#C59B58]" /> Chỉ tiêu cam kết đo lường (SMART KPIs)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, dealTargetOrders, dealTimeframeDays)}
+                    className="text-[11px] font-bold text-[#B88E4F] hover:underline cursor-pointer"
+                  >
+                    ⚡ Khôi phục mẫu cam kết
+                  </button>
+                </div>
+
+                {/* 1. Chu kỳ cam kết */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1.5">
+                    Chu kỳ đánh giá cam kết (Timeframe):
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[14, 30, 45].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, dealTargetOrders, days)}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                          dealTimeframeDays === days
+                            ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F] shadow-2xs'
+                            : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
+                        {days} ngày {days === 30 ? '(Khuyến nghị)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Sản lượng nội dung */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                      <Video className="h-3.5 w-3.5 text-[#C59B58]" /> Số video review ngắn:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {[2, 4, 6].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => updateCommitmentFromKpis(num, dealLiveCount, dealTargetOrders, dealTimeframeDays)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            dealVideoCount === num
+                              ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                              : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                          }`}
+                        >
+                          {num} video
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-[#C59B58]" /> Phiên Livestream ghim giỏ:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {[0, 1, 2, 4].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => updateCommitmentFromKpis(dealVideoCount, num, dealTargetOrders, dealTimeframeDays)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            dealLiveCount === num
+                              ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                              : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                          }`}
+                        >
+                          {num === 0 ? 'Không live' : `${num} live`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Mục tiêu đơn hàng */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1.5 flex items-center gap-1">
+                    <ShoppingBag className="h-3.5 w-3.5 text-[#C59B58]" /> Mục tiêu số đơn hàng giao thành công:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[30, 50, 80, 150].map((orders) => (
+                      <button
+                        key={orders}
+                        type="button"
+                        onClick={() => updateCommitmentFromKpis(dealVideoCount, dealLiveCount, orders, dealTimeframeDays)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                          dealTargetOrders === orders
+                            ? 'bg-[#FBF5EB] border-[#C59B58] text-[#B88E4F]'
+                            : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50'
+                        }`}
+                      >
+                        {orders} đơn
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Textarea */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7D715E] mb-1">
+                    Mô tả cam kết chi tiết gửi đến Shop <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <textarea
+                    value={dealSalesCommitment}
+                    onChange={(event) => setDealSalesCommitment(event.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    minLength={5}
+                    placeholder="Mô tả kế hoạch truyền thông và cam kết doanh số..."
+                    className="w-full resize-y rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-3.5 py-2.5 text-xs font-normal text-[#1A1612] outline-none focus:border-[#C59B58] focus:bg-white"
+                    required
+                  />
+                  <div className="mt-1 flex justify-between items-center text-[11px] text-[#7D715E]">
+                    <span>Có thể bổ sung thời gian đăng bài dự kiến hoặc chiến lược cụ thể</span>
+                    <span>{dealSalesCommitment.length}/1000</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4-LEVEL SANCTIONS POLICY CARD */}
+              <div className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-xs leading-relaxed">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-black text-[#1A1612] text-xs uppercase tracking-wide">
+                    <ShieldAlert className="h-4 w-4 text-[#C59B58]" />
+                    Quy chế chế tài 4 cấp độ của sàn SCANMS
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDealSanctionsPolicyOpen(!dealSanctionsPolicyOpen)}
+                    className="text-[11px] font-bold text-[#B88E4F] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {dealSanctionsPolicyOpen ? 'Thu gọn' : 'Xem chi tiết 4 cấp độ'}
+                    {dealSanctionsPolicyOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                <div className={`mt-2.5 space-y-2 text-[#7D715E] ${dealSanctionsPolicyOpen ? 'block' : 'line-clamp-2'}`}>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 1 (Tự động hạ hoa hồng):</strong> Hết chu kỳ cam kết ({dealTimeframeDays} ngày), nếu không đạt chỉ tiêu, Shop có quyền hoàn nguyên hoa hồng về mức Open Offer tiêu chuẩn (đơn hàng cũ đã phát sinh giữ nguyên hoa hồng).
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 2 (Trừ điểm tín nhiệm):</strong> Hồ sơ ghi nhận vi phạm, giảm Tỷ lệ hoàn thành cam kết và hạ bậc ưu tiên trên Bảng xếp hạng Leaderboard & AI Matching.
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 3 (Đóng băng quyền xin Deal & Mẫu thử theo 4 nấc vi phạm):</strong>
+                    <ul className="list-disc list-inside mt-1 space-y-0.5 pl-1 text-[11px]">
+                      <li>Vi phạm lần 1: Tạm khóa xin deal <strong>1 tuần</strong>.</li>
+                      <li>Vi phạm lần 2: Tạm khóa xin deal <strong>2 tuần</strong>.</li>
+                      <li>Vi phạm lần 3: Tạm khóa xin deal <strong>3 tuần</strong>.</li>
+                      <li>Vi phạm lần 4+: Tạm khóa xin deal <strong>4 tuần</strong> và <strong>Khóa hạn ngạch nhận mẫu thử (Sample Quota = 0)</strong>.</li>
+                    </ul>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 border border-[#EEDFC6]/60">
+                    <strong className="text-[#1A1612]">🔹 Cấp 4 (Trọng tài sàn & Bồi thường):</strong> Trường hợp nhận hàng mẫu/tài trợ mà không thực hiện cam kết (bùng hàng/ghosting), Shop được quyền khiếu nại lên Trọng tài SCANMS để truy thu bồi thường hoặc khóa tài khoản vĩnh viễn.
+                  </div>
+                </div>
+
+                {/* Mandatory Agreement Checkbox */}
+                <label className="mt-3.5 flex items-start gap-2.5 pt-3 border-t border-[#EEDFC6] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={dealAgreedSanctions}
+                    onChange={(e) => setDealAgreedSanctions(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded-md border-[#C59B58] text-[#C59B58] focus:ring-[#C59B58] cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-[#1A1612]">
+                    Tôi đã đọc, hiểu rõ và cam kết tuân thủ <span className="text-[#B88E4F]">Quy chế chế tài 4 cấp độ</span> của sàn SCANMS khi nhận mức hoa hồng độc quyền.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#EAE4D7] px-6 py-4 bg-[#FAF8F5]">
+              <span className="text-xs text-[#7D715E]">
+                {dealProposalCurrentDeal ? 'Đơn hàng cũ giữ nguyên hoa hồng hiện tại.' : 'Đề xuất sẽ được chuyển tới hộp Chat của Shop.'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDealProposalProduct(null)}
+                  disabled={submittingDealProposal}
+                  className="rounded-xl border border-[#EAE4D7] px-4 py-2.5 text-xs font-bold text-[#7D715E] hover:bg-white cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    submittingDealProposal ||
+                    kolDealStatus?.isBlocked ||
+                    !dealAgreedSanctions ||
+                    !dealProposalRate.trim() ||
+                    Number(dealProposalRate) <= dealProposalMinimumRate ||
+                    Number(dealProposalRate) > 100 ||
+                    dealSalesCommitment.trim().length < 5
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#C59B58] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#B88E4F] disabled:cursor-not-allowed disabled:opacity-50 shadow-md shadow-[#C59B58]/20 cursor-pointer transition"
+                >
+                  {submittingDealProposal ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Gửi đề xuất qua Chat
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
       <SubmitKolVideoModal
         isOpen={isSubmitVideoModalOpen}
         initialProductId={selectedProductForVideo?.id}
@@ -2609,6 +3464,36 @@ export default function ReferralLinksPage() {
           setIsSubmitVideoModalOpen(false);
           setSelectedProductForVideo(null);
         }}
+      />
+
+      {/* Modal xác nhận xóa / hủy / gỡ deal độc quyền chuẩn thương hiệu */}
+      <ConfirmModal
+        isOpen={Boolean(dealToDelete)}
+        onClose={() => !deletingDealId && setDealToDelete(null)}
+        onConfirm={handleConfirmDeleteDeal}
+        isLoading={Boolean(deletingDealId)}
+        title={
+          dealToDelete?.status === 'PENDING'
+            ? 'Xác nhận hủy đề xuất Exclusive Deal'
+            : dealToDelete?.status === 'APPROVED'
+            ? 'Xác nhận gỡ bỏ deal độc quyền'
+            : 'Xác nhận xóa đề xuất deal'
+        }
+        message={
+          dealToDelete?.status === 'PENDING'
+            ? `Bạn có chắc chắn muốn hủy và thu hồi đề xuất Exclusive Deal cho sản phẩm "${dealToDelete?.product?.title || 'này'}"? Shop sẽ không còn nhận được yêu cầu này nữa.`
+            : dealToDelete?.status === 'APPROVED'
+            ? `Bạn có chắc chắn muốn gỡ bỏ deal độc quyền cho sản phẩm "${dealToDelete?.product?.title || 'này'}"? Link tiếp thị sẽ quay về mức hoa hồng sàn cơ bản nếu bạn tiếp tục sử dụng.`
+            : `Xóa vĩnh viễn đề xuất deal cho sản phẩm "${dealToDelete?.product?.title || 'này'}" khỏi danh sách của bạn?`
+        }
+        confirmText={
+          dealToDelete?.status === 'PENDING'
+            ? 'Hủy đề xuất'
+            : dealToDelete?.status === 'APPROVED'
+            ? 'Gỡ deal'
+            : 'Xóa'
+        }
+        variant="danger"
       />
     </div>
   );

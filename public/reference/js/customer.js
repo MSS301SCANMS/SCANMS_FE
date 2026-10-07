@@ -38,7 +38,7 @@ export const customerState = {
       kolRef: "NHATXINH10 (Trần Văn Nhật)",
       status: "shipping", // 'pending_pay' | 'shipping' | 'delivered' | 'cancelled' | 'returned'
       items: [
-        { id: "P01", name: "Serum Vitamin C 15% Dưỡng Sáng Sora Skin", variant: "Dung tích 30ml", qty: 1, price: 459000, img: "./assets/serum-hero-optimized.jpg" }
+        { id: "P01", name: "Serum Vitamin C 15% Dưỡng Sáng Sora Skin", variant: "Dung tích 30ml", qty: 1, price: 459000, img: "./assets/products/real/vitamin-c-15-serum.jpg" }
       ],
       shippingFee: 0,
       discount: 45900,
@@ -60,7 +60,7 @@ export const customerState = {
       kolRef: "NHATXINH10 (Trần Văn Nhật)",
       status: "delivered",
       items: [
-        { id: "P01", name: "Serum Vitamin C 15% Dưỡng Sáng Sora Skin", variant: "Dung tích 50ml", qty: 1, price: 689000, img: "./assets/serum-hero-optimized.jpg" }
+        { id: "P01", name: "Serum Vitamin C 15% Dưỡng Sáng Sora Skin", variant: "Dung tích 50ml", qty: 1, price: 689000, img: "./assets/products/real/vitamin-c-15-serum.jpg" }
       ],
       shippingFee: 0,
       discount: 50000,
@@ -84,7 +84,7 @@ export const customerState = {
       kolRef: "TUANREVIEW (Tuấn Lifestyle)",
       status: "delivered",
       items: [
-        { id: "P05", name: "Bình giữ nhiệt phong cách Bắc Âu 500ml", variant: "Màu Trắng Kem", qty: 2, price: 280000, img: "./assets/serum-hero-optimized.jpg" }
+        { id: "P05", name: "Bình giữ nhiệt phong cách Bắc Âu 500ml", variant: "Màu Trắng Kem", qty: 2, price: 280000, img: "./assets/products/real/thermos-500ml.jpg" }
       ],
       shippingFee: 25000,
       discount: 30000,
@@ -107,7 +107,7 @@ export const customerState = {
       kolRef: "AURA10",
       status: "cancelled",
       items: [
-        { id: "P09", name: "Váy Linen Dáng Xòe Cổ V Cao Cấp", variant: "Size M / Be", qty: 1, price: 520000, img: "./assets/serum-hero-optimized.jpg" }
+        { id: "P09", name: "Váy Linen Dáng Xòe Cổ V Cao Cấp", variant: "Size M / Be", qty: 1, price: 520000, img: "./assets/products/real/linen-dress.jpg" }
       ],
       shippingFee: 0,
       discount: 52000,
@@ -155,7 +155,7 @@ export const customerState = {
       brand: "Sora Skin Official",
       price: 459000,
       origPrice: 520000,
-      img: "./assets/serum-hero-optimized.jpg",
+      img: "./assets/products/real/vitamin-c-15-serum.jpg",
       inStock: true,
       kolDeal: "Giảm 10% qua mã NHATXINH10"
     },
@@ -165,7 +165,7 @@ export const customerState = {
       brand: "Sora Skin Official",
       price: 380000,
       origPrice: 420000,
-      img: "./assets/toner-bha-product.jpg",
+      img: "./assets/products/real/spf50-oil-control.jpg",
       inStock: true,
       kolDeal: "Tặng kèm mẫu thử Serum 5ml"
     },
@@ -175,7 +175,7 @@ export const customerState = {
       brand: "ZenHome",
       price: 1450000,
       origPrice: 1890000,
-      img: "./assets/cleanser-product.jpg",
+      img: "./assets/products/real/air-fryer-65l.jpg",
       inStock: false, // Hết hàng
       kolDeal: "Tạm hết hàng - Bật thông báo khi có hàng"
     }
@@ -188,7 +188,7 @@ export const customerState = {
       rating: 5,
       date: "31/08/2026",
       comment: "Mua qua link giới thiệu của bạn Nhật được giảm 10% hời dã man! Serum thấm nhanh không bị vàng da, da sáng hơn sau 2 tuần dùng.",
-      images: ["./assets/serum-hero-optimized.jpg"],
+      images: ["./assets/products/real/vitamin-c-15-serum.jpg"],
       shopReply: "Cảm ơn bạn Hải Yến đã tin tưởng lựa chọn Sora Skin và ủng hộ đối tác KOL của shop ạ!"
     }
   ],

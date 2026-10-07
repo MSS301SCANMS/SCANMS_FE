@@ -1,26 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck,
-  Clock,
-  CreditCard,
-  QrCode,
-  Building2,
-  User,
-  FileText,
+  Sparkles,
+  Link as LinkIcon,
+  UserCheck,
+  Building,
   Send,
+  ShieldCheck,
+  ShieldAlert,
+  Clock,
   CheckCircle2,
-  ChevronDown,
+  Loader2,
+  ExternalLink,
+  Trash2,
+  Plus,
+  Star,
 } from 'lucide-react';
 import { kycService, type KycProfile } from '../../services/kyc.service';
+import { socialService, type SocialChannel } from '../../services/social.service';
 import { authService } from '../../services/auth.service';
-import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { CustomSelect } from '../../components/ui/CustomSelect';
+import { Select } from '../../components/ui/Select';
+import { ImageUploadDropzone } from '../../components/ui/ImageUploadDropzone';
+import { BankSelectTrigger } from '../../components/bank/BankSelectTrigger';
+import { toast } from '../../utils/toast';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
 export default function KycSubmissionPage() {
   const currentUser = authService.getCurrentUser();
   const [profile, setProfile] = useState<KycProfile | null>(null);
+  const [socialChannels, setSocialChannels] = useState<SocialChannel[]>([]);
+  const [_loading, setLoading] = useState(true); void _loading;
   const [saving, setSaving] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Social Channels & Primary Channel (Matching PartnerUpgradeTab - Image 2)
+  const [platform, setPlatform] = useState<'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM' | 'LEMON8' | 'OTHER'>('TIKTOK');
+  const [channelName, setChannelName] = useState('');
+  const [channelUrl, setChannelUrl] = useState('');
+  const [followerCount, setFollowerCount] = useState<number | ''>('');
+  const [channelProofUrl, setChannelProofUrl] = useState<string>('');
+
+  // Additional connected channels management
+  const [showAddOtherChannel, setShowAddOtherChannel] = useState(false);
+  const [otherPlatform, setOtherPlatform] = useState('YOUTUBE');
+  const [otherChannelName, setOtherChannelName] = useState('');
+  const [otherChannelUrl, setOtherChannelUrl] = useState('');
+  const [otherFollowers, setOtherFollowers] = useState<number | ''>('');
+  const [addingOtherChannel, setAddingOtherChannel] = useState(false);
 
   const defaultName = currentUser?.fullName
     ? currentUser.fullName
@@ -28,17 +54,23 @@ export default function KycSubmissionPage() {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/Đ/g, 'D')
-    : 'NGUYEN THANH THANG';
+    : '';
 
-  const [idCardNumber, setIdCardNumber] = useState('079201008899');
-  const [taxCode, setTaxCode] = useState('8594028193');
-  const [bankName, setBankName] = useState('MBBank (Quân Đội)');
-  const [bankAccountNumber, setBankAccountNumber] = useState('999988887777');
+  // KYC CCCD & Legal
+  const [idCardNumber, setIdCardNumber] = useState('');
+  const [taxCode, setTaxCode] = useState('');
+  const [frontCardUrl, setFrontCardUrl] = useState<string>('');
+  const [backCardUrl, setBackCardUrl] = useState<string>('');
+
+  // Bank Info & Bio
+  const [bankName, setBankName] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankAccountName, setBankAccountName] = useState(defaultName);
-  const [bio, setBio] = useState('KOL chuyên review Skincare & Mỹ phẩm chính hãng');
+  const [bio, setBio] = useState('');
 
   useEffect(() => {
     loadKyc();
+    loadSocialChannels();
   }, []);
 
   const loadKyc = async () => {
@@ -51,255 +83,624 @@ export default function KycSubmissionPage() {
       if (p.bankAccountNumber) setBankAccountNumber(p.bankAccountNumber);
       if (p.bankAccountName) setBankAccountName(p.bankAccountName);
       if (p.bio) setBio(p.bio);
+      if (p.socialLinksJson?.frontCardUrl) setFrontCardUrl(p.socialLinksJson.frontCardUrl);
+      if (p.socialLinksJson?.backCardUrl) setBackCardUrl(p.socialLinksJson.backCardUrl);
+      if (p.socialLinksJson?.channelProofUrl) setChannelProofUrl(p.socialLinksJson.channelProofUrl);
+      if (p.socialLinksJson?.platform) setPlatform(p.socialLinksJson.platform as any);
+      if (p.socialLinksJson?.channelName) setChannelName(p.socialLinksJson.channelName);
+      if (p.socialLinksJson?.channelUrl) setChannelUrl(p.socialLinksJson.channelUrl);
+      if (p.socialLinksJson?.followerCount) setFollowerCount(p.socialLinksJson.followerCount);
     } catch (err) {
       console.error('Lỗi tải KYC:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
+  const loadSocialChannels = async () => {
+    try {
+      const channels = await socialService.getMyChannels();
+      setSocialChannels(channels || []);
+      const primary = channels?.find((c) => c.isPrimary) || channels?.[0];
+      if (primary) {
+        setPlatform((prev) => (prev ? prev : (primary.platformName as any) || 'TIKTOK'));
+        setChannelName((prev) => (prev ? prev : primary.channelName || ''));
+        setChannelUrl((prev) => (prev ? prev : primary.channelUrl || ''));
+        setFollowerCount((prev) => (prev !== '' ? prev : primary.followerCount || ''));
+      }
+    } catch (err) {
+      console.error('Lỗi tải kênh mạng xã hội:', err);
+    }
+  };
+
+  // Nạp dữ liệu mẫu nhanh chuẩn Image 2 để kiểm thử
+  const fillSampleKolData = () => {
+    setPlatform('TIKTOK');
+    setChannelName('Thành Thắng Reviews');
+    setFollowerCount(15000);
+    setChannelUrl('https://tiktok.com/@thangtechreview');
+    setChannelProofUrl('https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&auto=format&fit=crop&q=80');
+    setIdCardNumber('001201012345');
+    setTaxCode('8012345678');
+    setFrontCardUrl('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80');
+    setBackCardUrl('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80');
+    setBankName('Techcombank');
+    setBankAccountNumber('19034567890012');
+    setBankAccountName('NGUYEN THANH THANG');
+    setBio('Review chuyên sâu mỹ phẩm dưỡng ẩm, đồ công nghệ gia dụng, thời trang tối giản và phong cách sống.');
+    toast.info('Đã nạp đầy đủ thông tin mẫu chuẩn KOL để kiểm thử');
+  };
+
+  const handleAddOtherChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otherChannelUrl.trim()) {
+      toast.error('Vui lòng nhập đường dẫn liên kết kênh');
+      return;
+    }
+
+    setAddingOtherChannel(true);
+    try {
+      await socialService.addChannel({
+        platformName: otherPlatform,
+        channelName: otherChannelName.trim() || `${otherPlatform} Creator`,
+        channelUrl: otherChannelUrl.trim(),
+        followerCount: Number(otherFollowers) || 0,
+        isPrimary: socialChannels.length === 0,
+      });
+      toast.success('Đã thêm kênh phụ thành công');
+      setShowAddOtherChannel(false);
+      setOtherChannelName('');
+      setOtherChannelUrl('');
+      setOtherFollowers('');
+      loadSocialChannels();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi thêm kênh');
+    } finally {
+      setAddingOtherChannel(false);
+    }
+  };
+
+  const [channelToDelete, setChannelToDelete] = useState<SocialChannel | null>(null);
+  const [isDeletingChannel, setIsDeletingChannel] = useState(false);
+
+  const handleConfirmDeleteChannel = async () => {
+    if (!channelToDelete?.id) return;
+    setIsDeletingChannel(true);
+    try {
+      await socialService.deleteChannel(channelToDelete.id);
+      toast.success('Đã xóa kênh mạng xã hội khỏi danh sách');
+      setChannelToDelete(null);
+      loadSocialChannels();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xóa kênh');
+    } finally {
+      setIsDeletingChannel(false);
+    }
+  };
+
+  const handleSetPrimary = async (id: string) => {
+    try {
+      await socialService.setPrimary(id);
+      toast.success('Đã chọn làm kênh chính');
+      loadSocialChannels();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi cập nhật');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!platform) {
+      toast.error('Vui lòng chọn nền tảng mạng xã hội chính');
+      return;
+    }
+    if (!channelUrl.trim()) {
+      toast.error('Vui lòng nhập đường link kênh mạng xã hội');
+      return;
+    }
+    if (!idCardNumber.trim() || idCardNumber.length < 9) {
+      toast.error('Vui lòng nhập số CCCD/CMND hợp lệ (từ 9 đến 12 số)');
+      return;
+    }
+    if (!bankName?.trim()) {
+      toast.error('Vui lòng chọn ngân hàng thụ hưởng nhận hoa hồng');
+      return;
+    }
+    if (!bankAccountNumber.trim() || !bankAccountName.trim()) {
+      toast.error('Vui lòng điền đầy đủ số tài khoản và tên chủ tài khoản ngân hàng');
+      return;
+    }
+    if (!frontCardUrl || !backCardUrl) {
+      toast.error('Vui lòng tải lên đầy đủ 2 mặt ảnh CCCD/Hộ chiếu');
+      return;
+    }
+
     setSaving(true);
     try {
       await kycService.submitKyc({
-        idCardNumber,
-        taxCode,
+        idCardNumber: idCardNumber.trim(),
+        taxCode: taxCode.trim() || '8012345678',
         bankName,
-        bankAccountNumber,
-        bankAccountName,
-        bio,
+        bankAccountNumber: bankAccountNumber.trim(),
+        bankAccountName: bankAccountName.trim().toUpperCase(),
+        bio: bio.trim(),
+        frontCardUrl,
+        backCardUrl,
+        channelProofUrl,
+        platform,
+        channelName: channelName.trim() || `${platform} Creator`,
+        channelUrl: channelUrl.trim(),
+        followerCount: followerCount ? Number(followerCount) : 0,
       });
-      showToast('Nộp hồ sơ định danh KYC thành công! Vui lòng chờ phê duyệt.');
-      loadKyc();
+
+      toast.success('Lưu & Cập nhật hồ sơ định danh KYC thành công!');
+      await loadKyc();
+      await loadSocialChannels();
+      await authService.getMe();
     } catch (err: any) {
-      showToast(err.message || 'Lỗi nộp hồ sơ');
+      toast.error(err?.response?.data?.message || err.message || 'Không thể lưu hồ sơ, vui lòng thử lại');
     } finally {
       setSaving(false);
     }
   };
 
-  const status = profile?.kycStatus || (profile as any)?.status || 'VERIFIED';
-  const isVerified = status === 'VERIFIED';
-  const isPending = status === 'PENDING';
+  const rawStatus = profile?.kycStatus || (profile as any)?.status || 'UNVERIFIED';
+  const hasSubmitted = Boolean(profile?.idCardNumber);
+  const isVerified = rawStatus === 'VERIFIED';
+  const isRejected = rawStatus === 'REJECTED';
+  const isPending = (rawStatus === 'UNVERIFIED' && hasSubmitted) || rawStatus === 'PENDING';
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl mx-auto text-left">
-      {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#231D15] text-white px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-[#B88E4F]" />
-          <span>{toastMsg}</span>
-        </div>
-      )}
-
-      <header>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1A1612] tracking-tight m-0">
-          Xác Minh Định Danh Tài Chính (KYC)
-        </h1>
-        <p className="text-xs sm:text-sm text-[#7D715E] mt-1 m-0">
-          Theo quy định thuế TNCN và chính sách chống gian lận, bạn cần định danh tài khoản trước khi yêu cầu rút hoa hồng.
-        </p>
-      </header>
-
+    <div className="flex flex-col gap-6 w-full text-left">
+      {/* 1. KHỐI TRẠNG THÁI XÁC MINH CỦA HỆ THỐNG */}
       <Card
-        className={`p-5 sm:p-6 border transition ${
+        className={`p-4 sm:p-5 border transition rounded-2xl w-full ${
           isVerified
             ? 'bg-[#FBF5EB] border-[#EEDFC6]'
+            : isRejected
+            ? 'bg-rose-50 border-rose-200'
+            : isPending
+            ? 'bg-amber-50/70 border-amber-200'
             : 'bg-white border-[#EAE4D7]'
         }`}
       >
-        <div className="flex items-start sm:items-center gap-4">
-          <div
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-              isVerified
-                ? 'bg-[#EEDFC6] text-[#B88E4F]'
-                : 'bg-amber-100 text-amber-700'
-            }`}
-          >
-            {isVerified ? (
-              <ShieldCheck className="w-6 h-6" />
-            ) : (
-              <Clock className="w-6 h-6" />
-            )}
-          </div>
-
-          <div className="flex-1">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <strong className="text-sm sm:text-base font-extrabold text-[#1A1612]">
-                {isVerified
-                  ? 'Hồ sơ đã được xác minh thành công (Cấp độ 2)'
-                  : isPending
-                  ? 'Hồ sơ đang chờ phê duyệt từ Ban Quản Trị'
-                  : 'Chưa hoàn tất định danh tài chính'}
-              </strong>
-              <span
-                className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                  isVerified
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                {isVerified ? 'ĐÃ DUYỆT' : 'CHỜ DUYỆT'}
-              </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                isVerified
+                  ? 'bg-[#EBD08C] text-[#231D15]'
+                  : isRejected
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}
+            >
+              {isVerified ? (
+                <ShieldCheck className="w-5 h-5" />
+              ) : isRejected ? (
+                <ShieldAlert className="w-5 h-5" />
+              ) : (
+                <Clock className="w-5 h-5" />
+              )}
             </div>
-            <p className="text-xs text-[#7D715E] leading-relaxed m-0">
-              {isVerified
-                ? 'Tài khoản của bạn đã đủ điều kiện rút tiền tự động qua VietQR 24/7 và hưởng hạn mức rút tối đa không giới hạn.'
-                : 'Hồ sơ đã được tiếp nhận. Đội ngũ kiểm soát gian lận sẽ thẩm định thông tin trong vòng 2-4 giờ làm việc.'}
-            </p>
+
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                <strong className="text-sm sm:text-base font-extrabold text-[#1A1612]">
+                  {isVerified
+                    ? 'Hồ sơ đã được Ban Quản Trị SCANMS phê duyệt chính thức'
+                    : isRejected
+                    ? 'Hồ sơ bị từ chối phê duyệt'
+                    : isPending
+                    ? 'Hồ sơ đang được Ban Quản Trị thẩm định đối soát'
+                    : 'Chưa hoàn tất nộp hồ sơ định danh'}
+                </strong>
+                <span
+                  className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                    isVerified
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : isRejected
+                      ? 'bg-rose-100 text-rose-800'
+                      : isPending
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  {isVerified ? 'ĐÃ DUYỆT' : isRejected ? 'TỪ CHỐI' : isPending ? 'CHỜ DUYỆT' : 'CHƯA NỘP'}
+                </span>
+                {isVerified && (
+                  <span className="inline-flex items-center gap-1 bg-white border border-[#EEDFC6] text-[#B88E4F] text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs">
+                    <CheckCircle2 className="w-3 h-3 text-[#B88E4F]" /> TÍCH XANH CHÍNH THỨC
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[#7D715E] leading-relaxed m-0">
+                {isVerified
+                  ? 'Tài khoản của bạn đã đạt chuẩn đối tác uy tín. Bạn có thể cập nhật lại tài khoản ngân hàng, mã số thuế hoặc ảnh CCCD mới bất cứ lúc nào bên dưới.'
+                  : isRejected
+                  ? 'Thông tin định danh chưa hợp lệ hoặc hình ảnh CCCD không rõ. Vui lòng kiểm tra lại số liệu và gửi lại hồ sơ.'
+                  : isPending
+                  ? 'Đội ngũ kiểm soát gian lận và Admin sàn đang kiểm tra ảnh CCCD và các kênh sáng tạo nội dung của bạn.'
+                  : 'Vui lòng điền thông tin chính xác, tải ảnh 2 mặt CCCD và liên kết kênh mạng xã hội bên dưới.'}
+              </p>
+            </div>
           </div>
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="p-4 bg-white border border-[#EAE4D7]">
-          <div className="flex justify-between items-center mb-2.5">
-            <span className="text-xs font-bold text-[#1A1612]">Ảnh CCCD Mặt Trước</span>
-            <span className="text-[11px] text-emerald-600 font-bold">✓ Hợp lệ</span>
-          </div>
-          <div className="h-32 bg-[#FAF8F5] rounded-xl border border-dashed border-[#EAE4D7] flex flex-col items-center justify-center p-3 text-center">
-            <CreditCard className="w-7 h-7 text-[#B88E4F] mb-1" />
-            <strong className="text-xs text-[#1A1612]">CCCD_MatTruoc_{idCardNumber}.jpg</strong>
-            <span className="text-[10px] text-[#7D715E] mt-0.5">Đã quét OCR: 079201008899</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-white border border-[#EAE4D7]">
-          <div className="flex justify-between items-center mb-2.5">
-            <span className="text-xs font-bold text-[#1A1612]">Ảnh CCCD Mặt Sau</span>
-            <span className="text-[11px] text-emerald-600 font-bold">✓ Hợp lệ</span>
-          </div>
-          <div className="h-32 bg-[#FAF8F5] rounded-xl border border-dashed border-[#EAE4D7] flex flex-col items-center justify-center p-3 text-center">
-            <QrCode className="w-7 h-7 text-[#B88E4F] mb-1" />
-            <strong className="text-xs text-[#1A1612]">CCCD_MatSau_VanTay.jpg</strong>
-            <span className="text-[10px] text-[#7D715E] mt-0.5">Chip &amp; Mã QR bảo mật</span>
-          </div>
-        </Card>
-      </div>
-
-      <Card className="p-6 sm:p-7 bg-white border border-[#EAE4D7]">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* 2. FORM ĐỊNH DANH TOÀN DIỆN (CHÍNH XÁC THEO GIAO DIỆN ẢNH 2 BÊN USER) */}
+      <form onSubmit={handleSubmit} className="bg-white border border-[#EAE4D7] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 w-full">
+        {/* BANNER TIÊU ĐỀ + NẠP DỮ LIỆU MẪU (CHUẨN IMAGE 2) */}
+        <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center shrink-0 text-[#B88E4F] shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
             <div>
-              <label className="text-xs font-bold text-[#1A1612] mb-1.5 block">
-                Số CMND / CCCD (12 số)
-              </label>
-              <input
-                type="text"
-                disabled={isVerified}
-                value={idCardNumber}
-                onChange={(e) => setIdCardNumber(e.target.value)}
-                placeholder="VD: 079201008899"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-[#1A1612] outline-none disabled:opacity-80"
+              <h3 className="text-xs sm:text-sm font-black text-[#1A1612] tracking-tight m-0">
+                Hồ sơ Chứng Minh Kênh Sáng Tạo &amp; Thông Tin Định Danh KOL
+              </h3>
+              <p className="text-[11px] text-[#7D715E] mt-0.5 m-0">
+                Cung cấp link mạng xã hội và ảnh chụp màn hình studio để chứng minh quyền sở hữu kênh.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fillSampleKolData}
+            className="px-2.5 py-1 rounded-lg bg-white hover:bg-[#FBF5EB] border border-[#EAE4D7] hover:border-[#C59B58] text-[11px] font-bold text-[#B88E4F] transition cursor-pointer shadow-2xs shrink-0"
+          >
+            ⚡ Nạp dữ liệu mẫu thử nghiệm
+          </button>
+        </div>
+
+        {/* 1. BẰNG CHỨNG SỞ HỮU KÊNH TRUYỀN THÔNG (CHUẨN IMAGE 2) */}
+        <div className="space-y-4">
+          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
+            <LinkIcon className="w-3.5 h-3.5" />
+            1. Bằng chứng sở hữu kênh truyền thông
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Nền tảng chính *</label>
+              <CustomSelect
+                value={platform}
+                onChange={(val) => setPlatform(val as any)}
+                options={[
+                  { value: 'TIKTOK', label: '🎵 TikTok Video / Live' },
+                  { value: 'FACEBOOK', label: '📘 Facebook Fanpage / Profile' },
+                  { value: 'YOUTUBE', label: '▶️ YouTube Channel' },
+                  { value: 'INSTAGRAM', label: '📷 Instagram Creator' },
+                  { value: 'LEMON8', label: '🍋 Lemon8 Beauty' },
+                  { value: 'OTHER', label: '🌐 Nền tảng khác' },
+                ]}
+                placeholder="-- Chọn Nền tảng --"
                 required
               />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] mb-1.5 block">
-                Mã số thuế cá nhân (MST)
-              </label>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên kênh hiển thị *</label>
               <input
                 type="text"
-                disabled={isVerified}
-                value={taxCode}
-                onChange={(e) => setTaxCode(e.target.value)}
-                placeholder="VD: 8594028193"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-[#1A1612] outline-none disabled:opacity-80"
+                placeholder="VD: Thành Thắng Reviews"
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
                 required
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] outline-none focus:border-[#C59B58] transition"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-[#1A1612] mb-1.5 block flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#B88E4F]" />
-                Ngân hàng thụ hưởng
-              </label>
-              <div className="relative">
-                <select
-                  disabled={isVerified}
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl pl-3.5 pr-8 py-2 text-xs font-semibold text-[#1A1612] appearance-none outline-none disabled:opacity-80"
-                >
-                  <option value="MBBank (Quân Đội)">MBBank (Quân Đội)</option>
-                  <option value="Vietcombank">Vietcombank</option>
-                  <option value="Techcombank">Techcombank</option>
-                  <option value="ACB">ACB</option>
-                  <option value="VPBank">VPBank</option>
-                  <option value="BIDV">BIDV</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-[#7D715E] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] mb-1.5 block">
-                Số tài khoản ngân hàng
-              </label>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số lượng Followers (Người theo dõi) *</label>
               <input
-                type="text"
-                disabled={isVerified}
-                value={bankAccountNumber}
-                onChange={(e) => setBankAccountNumber(e.target.value)}
-                placeholder="VD: 999988887777"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-[#1A1612] outline-none disabled:opacity-80"
+                type="number"
+                min="0"
+                placeholder="VD: 15000"
+                value={followerCount}
+                onChange={(e) => setFollowerCount(e.target.value === '' ? '' : Number(e.target.value))}
                 required
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] outline-none focus:border-[#C59B58] transition"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-bold text-[#1A1612] mb-1.5 block flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-[#B88E4F]" />
-              Tên chủ tài khoản (In hoa không dấu)
+            <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
+              Đường dẫn liên kết kênh (URL Profile / Kênh) *
             </label>
             <input
-              type="text"
-              disabled={isVerified}
-              value={bankAccountName}
-              onChange={(e) => setBankAccountName(e.target.value.toUpperCase())}
-              placeholder="VD: NGUYEN THANH THANG"
-              className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs font-bold text-[#1A1612] outline-none disabled:opacity-80 uppercase"
+              type="url"
+              placeholder="https://tiktok.com/@your_channel hoặc https://facebook.com/yourpage"
+              value={channelUrl}
+              onChange={(e) => setChannelUrl(e.target.value)}
+              required
+              className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono outline-none focus:border-[#C59B58] transition"
+            />
+          </div>
+
+          <ImageUploadDropzone
+            label="Ảnh chụp màn hình trang quản trị kênh (TikTok Studio / Meta Business Suite)"
+            helperText="💡 Admin sẽ đối chiếu ảnh chụp màn hình quyền quản trị với URL kênh để đảm bảo tính chính chủ, tránh mạo danh KOL."
+            value={channelProofUrl}
+            onChange={(url) => setChannelProofUrl(url)}
+            iconType="camera"
+            folder="scanms/kyc/proofs"
+          />
+
+          {/* DANH SÁCH CÁC KÊNH PHỤ ĐÃ KẾT NỐI (NẾU CÓ) */}
+          {socialChannels.length > 0 && (
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-[#7D715E]">
+                  Mạng lưới kênh đã kết nối ({socialChannels.length} kênh):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddOtherChannel(!showAddOtherChannel)}
+                  className="text-[11px] text-[#B88E4F] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  {showAddOtherChannel ? 'Đóng' : '+ Thêm kênh phụ khác'}
+                </button>
+              </div>
+
+              {/* Form thêm kênh phụ nhanh */}
+              {showAddOtherChannel && (
+                <div className="mb-3 p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Select
+                      value={otherPlatform}
+                      onChange={(e) => setOtherPlatform(e.target.value)}
+                      className="w-full"
+                    >
+                      <option value="TIKTOK">🎵 TikTok</option>
+                      <option value="YOUTUBE">▶️ YouTube</option>
+                      <option value="FACEBOOK">📘 Facebook</option>
+                      <option value="INSTAGRAM">📷 Instagram</option>
+                      <option value="LEMON8">🍋 Lemon8</option>
+                      <option value="OTHER">🌐 Khác</option>
+                    </Select>
+                    <input
+                      type="text"
+                      placeholder="Tên kênh / Handle"
+                      value={otherChannelName}
+                      onChange={(e) => setOtherChannelName(e.target.value)}
+                      className="bg-white border border-[#EAE4D7] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1612] outline-none"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Số Followers"
+                      value={otherFollowers}
+                      onChange={(e) => setOtherFollowers(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="bg-white border border-[#EAE4D7] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1612] outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="URL kênh (https://...)"
+                      value={otherChannelUrl}
+                      onChange={(e) => setOtherChannelUrl(e.target.value)}
+                      className="flex-1 bg-white border border-[#EAE4D7] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1612] outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddOtherChannel}
+                      disabled={addingOtherChannel}
+                      className="px-3 py-1.5 bg-[#C59B58] text-white rounded-lg text-xs font-bold hover:bg-[#B88E4F] transition shrink-0 cursor-pointer"
+                    >
+                      {addingOtherChannel ? 'Lưu...' : 'Lưu kênh'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {socialChannels.map((c) => (
+                  <div
+                    key={c.id}
+                    className="p-2.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base shrink-0">
+                        {c.platformName === 'TIKTOK' ? '🎵' : c.platformName === 'YOUTUBE' ? '▶️' : c.platformName === 'FACEBOOK' ? '📘' : '📷'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-xs text-[#1A1612] truncate">{c.channelName}</strong>
+                          {c.isPrimary && (
+                            <span className="text-[9px] font-bold bg-[#EBD08C] text-[#231D15] px-1 py-0.2 rounded shrink-0">
+                              Chính
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-[#7D715E] block truncate">
+                          {Number(c.followerCount).toLocaleString('vi-VN')} followers
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <a
+                        href={c.channelUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 text-[#B88E4F] hover:bg-white rounded"
+                        title="Mở link"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      {!c.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimary(c.id)}
+                          className="p-1 text-stone-400 hover:text-[#B88E4F] hover:bg-white rounded cursor-pointer"
+                          title="Đặt làm kênh chính"
+                        >
+                          <Star className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setChannelToDelete(c)}
+                        className="p-1 text-stone-400 hover:text-rose-600 hover:bg-white rounded cursor-pointer"
+                        title="Xóa kênh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 2. ĐỊNH DANH CÁ NHÂN & KÊ KHAI THUẾ TNCN (CHUẨN IMAGE 2) */}
+        <div className="space-y-4 pt-4 border-t border-[#EAE4D7]">
+          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
+            <UserCheck className="w-3.5 h-3.5" />
+            2. Định danh cá nhân &amp; Kê khai thuế TNCN
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số CCCD / CMND (12 số) *</label>
+              <input
+                type="text"
+                placeholder="VD: 001201012345"
+                value={idCardNumber}
+                onChange={(e) => setIdCardNumber(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                required
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono outline-none focus:border-[#C59B58] transition"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Mã số thuế cá nhân (MST)</label>
+              <input
+                type="text"
+                placeholder="VD: 8012345678 (Tùy chọn)"
+                value={taxCode}
+                onChange={(e) => setTaxCode(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono outline-none focus:border-[#C59B58] transition"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ImageUploadDropzone
+              label="Ảnh mặt trước CCCD"
+              helperText="Chụp rõ nét, đủ 4 góc, tối đa 5MB"
+              value={frontCardUrl}
+              onChange={(url) => setFrontCardUrl(url)}
+              iconType="idcard"
+              folder="scanms/kyc/idcards"
+              required
+            />
+            <ImageUploadDropzone
+              label="Ảnh mặt sau CCCD"
+              helperText="Chụp rõ nét mã QR và nơi cấp"
+              value={backCardUrl}
+              onChange={(url) => setBackCardUrl(url)}
+              iconType="idcard"
+              folder="scanms/kyc/idcards"
               required
             />
           </div>
+        </div>
 
-          <div>
-            <label className="text-xs font-bold text-[#1A1612] mb-1.5 block flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-[#B88E4F]" />
-              Giới thiệu bản thân / Lĩnh vực sáng tạo nội dung
-            </label>
-            <textarea
-              disabled={isVerified}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Chia sẻ về thế mạnh kênh và lĩnh vực review của bạn..."
-              rows={3}
-              className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 text-xs text-[#1A1612] outline-none disabled:opacity-80 resize-none font-sans"
-            />
+        {/* 3. TÀI KHOẢN NGÂN HÀNG NHẬN HOA HỒNG ĐỐI SOÁT (CHUẨN IMAGE 2) */}
+        <div className="space-y-4 pt-4 border-t border-[#EAE4D7]">
+          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
+            <Building className="w-3.5 h-3.5" />
+            3. Tài khoản ngân hàng nhận hoa hồng đối soát
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên ngân hàng *</label>
+              <BankSelectTrigger
+                value={bankName}
+                onChange={(val) => setBankName(val)}
+                placeholder="-- Chọn ngân hàng thụ hưởng --"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số tài khoản ngân hàng *</label>
+              <input
+                type="text"
+                placeholder="VD: 0123456789"
+                value={bankAccountNumber}
+                onChange={(e) => setBankAccountNumber(e.target.value.trim())}
+                required
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono outline-none focus:border-[#C59B58] transition"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên chủ tài khoản (In hoa) *</label>
+              <input
+                type="text"
+                placeholder="VD: NGUYEN VAN A"
+                value={bankAccountName}
+                onChange={(e) => setBankAccountName(e.target.value.toUpperCase())}
+                required
+                className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono font-bold outline-none focus:border-[#C59B58] transition"
+              />
+            </div>
           </div>
 
-          {!isVerified && (
-            <div className="pt-2">
-              <Button
-                type="submit"
-                variant="gold"
-                size="md"
-                icon={<Send className="w-3.5 h-3.5" />}
-                loading={saving}
-              >
-                {saving ? 'Đang gửi...' : 'Nộp hồ sơ thẩm định KYC'}
-              </Button>
-            </div>
-          )}
-        </form>
-      </Card>
+          <div>
+            <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Định hướng phong cách &amp; Ngành hàng thế mạnh</label>
+            <textarea
+              rows={2}
+              placeholder="VD: Review chuyên sâu mỹ phẩm dưỡng ẩm, đồ công nghệ gia dụng, thời trang tối giản..."
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 text-xs text-[#1A1612] outline-none focus:border-[#C59B58] transition"
+            />
+          </div>
+        </div>
+
+        {/* NÚT LƯU & CẬP NHẬT HỒ SƠ KYC */}
+        <div className="pt-2 flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-6 py-3 bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-[#1A1612] font-black text-xs rounded-xl transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#1A1612]" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            <span>
+              {saving
+                ? 'Đang lưu hồ sơ...'
+                : isVerified
+                ? 'Lưu & Cập Nhật Hồ Sơ Định Danh'
+                : 'Nộp Hồ Sơ Thẩm Định KYC'}
+            </span>
+          </button>
+        </div>
+      </form>
+
+      {/* Modal Xác nhận Xóa kênh mạng xã hội chuẩn SCANMS */}
+      <ConfirmModal
+        isOpen={Boolean(channelToDelete)}
+        onClose={() => !isDeletingChannel && setChannelToDelete(null)}
+        onConfirm={handleConfirmDeleteChannel}
+        isLoading={isDeletingChannel}
+        title="Xóa kênh khỏi hồ sơ KYC"
+        message={`Bạn có chắc chắn muốn xóa kênh "${channelToDelete?.channelName || 'này'}" khỏi hồ sơ định danh KYC?`}
+        confirmText="Xác nhận xóa"
+        variant="danger"
+      />
     </div>
   );
 }

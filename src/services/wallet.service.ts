@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../lib/api";
 
 export type PayoutStatus = "PENDING" | "PROCESSING" | "APPROVED" | "REJECTED";
 
@@ -112,4 +112,14 @@ export const walletService = {
       >("/wallets/withdrawals", { amount, storeId })
     ).data;
   },
+
+  async disconnectBankAccount() {
+    return (
+      await api.delete<
+        never,
+        ApiEnvelope<{ success: boolean; message: string }>
+      >("/wallets/me/bank-account")
+    ).data;
+  },
 };
+

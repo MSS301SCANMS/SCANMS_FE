@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CheckCircle2, LoaderCircle, ShoppingBag, X } from "lucide-react";
 import { RatingStars } from "./RatingStars";
 import { ReviewMediaUpload, type ReviewAttachment } from "./ReviewMediaUpload";
+import { Select } from "../ui/Select";
 import { MAX_REVIEW_LENGTH, validateReviewComment } from "./reviewValidation";
 import {
   reviewService,
@@ -337,28 +338,30 @@ export function ProductReviewModal({
           {verified && (
             <label className="block text-sm">
               Sản phẩm trong đơn
-              <select
-                aria-label="Sản phẩm cần đánh giá"
-                value={productId}
-                onChange={(event) => {
-                  setProductId(event.target.value);
-                  changeAttachments(
-                    attachmentsRef.current.map((item) => ({
-                      ...item,
-                      uploadedUrl: undefined,
-                      progress: 0,
-                    })),
-                  );
-                }}
-                className="mt-1 w-full rounded-xl border border-line bg-white p-2.5"
-              >
-                <option value="">Chọn sản phẩm đã nhận</option>
-                {verified.items.map((item) => (
-                  <option key={item.productId} value={item.productId}>
-                    {item.productTitle}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1">
+                <Select
+                  aria-label="Sản phẩm cần đánh giá"
+                  value={productId}
+                  onChange={(event) => {
+                    setProductId(event.target.value);
+                    changeAttachments(
+                      attachmentsRef.current.map((item) => ({
+                        ...item,
+                        uploadedUrl: undefined,
+                        progress: 0,
+                      })),
+                    );
+                  }}
+                  className="w-full text-sm"
+                >
+                  <option value="">Chọn sản phẩm đã nhận</option>
+                  {verified.items.map((item) => (
+                    <option key={item.productId} value={item.productId}>
+                      {item.productTitle}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </label>
           )}
         </fieldset>

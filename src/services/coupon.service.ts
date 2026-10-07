@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type CouponStatus =
   | 'PENDING_APPROVAL'
@@ -12,6 +12,21 @@ export type CouponStatus =
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
 export type CouponScope = 'STORE_WIDE' | 'PRODUCTS' | 'CATEGORIES' | 'CAMPAIGN';
 export type CouponFundingSource = 'SHOP_FUNDED' | 'CO_FUNDED' | 'PLATFORM_FUNDED';
+
+export interface PublicStoreCoupon {
+  id: string;
+  code: string;
+  discountType: DiscountType;
+  discountValue: number;
+  minimumOrderAmount: number | null;
+  maximumDiscountAmount: number | null;
+  remainingUses: number | null;
+  expiresAt: string | null;
+  scopeType: CouponScope;
+  products: Array<{ id: string; title: string }>;
+  categories: string[];
+  storeName: string;
+}
 
 export interface CouponItem {
   id: string;
@@ -110,6 +125,25 @@ export interface CreateCouponPayload {
   campaignId?: string;
 }
 
+export interface CreateStoreCouponPayload {
+  code: string;
+  discountType: DiscountType;
+  discountValue: number;
+  minimumOrderAmount?: number;
+  maximumDiscountAmount?: number;
+  usageLimitTotal?: number;
+  usageLimitPerCustomer?: number;
+  budgetTotal?: number;
+  startsAt?: string;
+  expiresAt?: string;
+  scopeType?: CouponScope;
+  productIds?: string[];
+  categoryNames?: string[];
+  stackableWithProductDiscount?: boolean;
+  stackableWithShopVoucher?: boolean;
+  stackableWithPlatformVoucher?: boolean;
+}
+
 export interface ApproveCouponPayload {
   discountType: DiscountType;
   discountValue: number;
@@ -140,6 +174,13 @@ export interface CouponFilterParams {
 }
 
 export const couponService = {
+
+  getPublicStoreCoupons: async (storeId: string): Promise<PublicStoreCoupon[]> => {
+    const res: any = await api.get(`/coupons/stores/${storeId}/available`);
+    const payload = res?.data?.data ?? res?.data ?? res;
+    if (Array.isArray(payload)) return payload;
+    return Array.isArray(payload?.items) ? payload.items : [];
+  },
 
 
 
@@ -182,6 +223,14 @@ export const couponService = {
 
 
 
+
+  createStoreCoupon: async (
+    storeId: string,
+    payload: CreateStoreCouponPayload,
+  ) => {
+    const res = await api.post(`/stores/${storeId}/coupons`, payload);
+    return res.data;
+  },
 
   getStoreCoupons: async (storeId: string, params?: CouponFilterParams) => {
     const res = await api.get(`/stores/${storeId}/coupons`, { params });
@@ -245,3 +294,4 @@ export const couponService = {
     return res.data;
   },
 };
+

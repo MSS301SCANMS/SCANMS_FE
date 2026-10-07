@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type LeaderboardMetric = 'REVENUE' | 'ORDERS' | 'CONVERSION_RATE' | 'COMMISSION';
 export type LeaderboardTimeRange = 'this_month' | 'last_month' | 'this_quarter' | 'all_time' | 'custom';
@@ -34,6 +34,8 @@ export interface MyRankStatus {
   rankDelta: number;
   myRevenue: number;
   myOrders: number;
+  myConversionRate: number;
+  myCommission: number;
   gapToTop10Revenue: number;
   gapToNextRankRevenue: number;
   currentPeriodLabel: string;
@@ -127,3 +129,4 @@ export const leaderboardService = {
     return (res.data as any)?.data || res.data;
   },
 };
+

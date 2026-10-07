@@ -31,7 +31,7 @@ const isProvince = (value: unknown): value is ShippingProvince =>
   value.districts.every(isDistrict);
 
 export async function loadShippingAddresses(
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<ShippingProvince[]> {
   const baseUrl =
     import.meta.env.VITE_MANUAL_ORDER_ADDRESS_API_URL ||
@@ -40,8 +40,12 @@ export async function loadShippingAddresses(
   url.searchParams.set("depth", "3");
   let response: Response;
   try {
+    const signals = [AbortSignal.timeout(15000)];
+    if (signal) {
+      signals.push(signal);
+    }
     response = await fetch(url, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+      signal: AbortSignal.any(signals),
     });
   } catch {
     throw new Error(

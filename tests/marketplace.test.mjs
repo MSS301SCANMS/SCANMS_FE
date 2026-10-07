@@ -68,3 +68,51 @@ test('FR16 reference UI submits checkout to backend and never fabricates success
   assert.doesNotMatch(checkout, /trackingNum/);
   assert.doesNotMatch(checkout, /localStorage\.setItem/);
 });
+
+test('tracking accepts orderSn and tracking links with valid fallback', () => {
+  const tracking = readFileSync(new URL('../src/pages/public/OrderTrackingPage.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /searchParams\.get\("orderSn"\)/);
+  assert.match(tracking, /getRecentOrderCode\(\)/);
+  assert.match(tracking, /normalized\.toLowerCase\(\) === "undefined"/);
+});
+
+test('api service attaches JWT Bearer authorization token and handles 401 expiration', () => {
+  const source = readFileSync(new URL('../src/services/api.ts', import.meta.url), 'utf8');
+  assert.match(source, /Bearer \$\{token\}/);
+  assert.match(source, /localStorage\.getItem\('token'\)/);
+  assert.match(source, /status === 401/);
+});
+
+test('Marketplace preserves the backend store relationship when opening checkout', () => {
+  const source = readFileSync(new URL('../src/pages/public/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /storeId:\s*dbP\.store\?\.id/);
+  assert.match(source, /stockQuantity:\s*Number\(dbP\.stockQuantity\s*\|\|\s*0\)/);
+  assert.doesNotMatch(source, /id: 'store-1'/);
+});
+
+test('Marketplace uses real stock and cart integration', () => {
+  const source = readFileSync(new URL('../src/pages/public/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /stockQuantity:\s*Number\(dbP\.stockQuantity\s*\|\|\s*0\)/);
+  assert.match(source, /openCart/);
+});
+
+test('global sidebar uses production role-switching component instead of Demo wording', () => {
+  const sidebar = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(sidebar, /<WorkspaceSwitcher variant="sidebar" \/>/);
+  assert.doesNotMatch(sidebar, /Đổi vai trò Demo/i);
+  const switcher = readFileSync(new URL('../src/components/common/WorkspaceSwitcher.tsx', import.meta.url), 'utf8');
+  assert.match(switcher, /Chuyển đổi không gian làm việc/);
+  assert.match(switcher, /Không gian hiện tại/);
+});
+
+test('every sidebar navigation function renders its link with warm gold styling', () => {
+  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(source, /group flex items-center gap-3 px-3 py-2\.5 rounded-xl/);
+  assert.match(source, /bg-\[#FAF5EB\] text-\[#B88E4F\]/);
+});
+
+test('sidebar navigation rows use clean layout and active indicators', () => {
+  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
+  assert.match(source, /group flex items-center gap-3 px-3 py-2\.5 rounded-xl/);
+  assert.match(source, /text-\[#1A1612\] hover:bg-white hover:text-\[#B88E4F\]/);
+});

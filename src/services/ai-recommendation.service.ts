@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface ScoreBreakdown {
   categoryScore: number;
@@ -16,6 +16,8 @@ export interface KolSocialChannelSummary {
 }
 
 export interface KolLifetimeStatsSummary {
+  totalClicks?: number;
+  dataConfidence?: string;
   totalOrders: number;
   grossRevenue: number;
   conversionRate: number;
@@ -69,7 +71,7 @@ export const aiRecommendationService = {
     productId: string,
     params?: RecommendKolsParams,
   ): Promise<AiRecommendationResponse> => {
-    const res = await api.get(`/ai/recommend-kols/${productId}`, { params });
+    const res = await api.get(`/ai/recommend-kols/${productId}`, { params, headers: { 'x-skip-cache': 'true' } });
     return res.data?.data || res.data || res;
   },
 
@@ -87,3 +89,4 @@ export const aiRecommendationService = {
     return res.data?.data || res.data || res;
   },
 };
+
