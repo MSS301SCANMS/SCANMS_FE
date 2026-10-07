@@ -36,6 +36,7 @@ import {
   Mail,
   KeyRound,
   Lock,
+  Wallet,
 } from 'lucide-react';
 import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
 import { authService, type UserProfile } from '../../services/auth.service';
@@ -94,7 +95,9 @@ export default function CustomerPortalPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const pathTab = location.pathname.includes('/customer/upgrade')
+  const pathTab = location.pathname.includes('/customer/wallet')
+    ? 'wallet'
+    : location.pathname.includes('/customer/upgrade')
     ? 'upgrade'
     : location.pathname.includes('/customer/identity')
     ? 'identity'
@@ -898,6 +901,22 @@ export default function CustomerPortalPage() {
                 )}
               </div>
 
+              {/* Ví Tiền & Nạp Rút */}
+              <button
+                type="button"
+                onClick={() => setTab('wallet')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors cursor-pointer text-left group ${
+                  currentTab === 'wallet'
+                    ? 'text-[#B88E4F] font-bold bg-[#FAF8F5]'
+                    : 'text-[#1A1612] hover:text-[#B88E4F] hover:bg-[#FAF8F5]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Wallet className={`w-4 h-4 shrink-0 ${currentTab === 'wallet' ? 'text-[#B88E4F]' : 'text-[#7D715E] group-hover:text-[#B88E4F]'}`} />
+                  <span>Ví Tiền & Nạp Rút</span>
+                </div>
+              </button>
+
               {/* 2. Đơn Mua (Active SCANMS Standard) */}
               <button
                 type="button"
@@ -1008,7 +1027,12 @@ export default function CustomerPortalPage() {
           {/* ========================================================= */}
           <div className="flex-1 min-w-0 flex flex-col gap-4 text-left">
             {/* ------------------------------------------------------------- */}
-            {/* TAB 1: ĐƠN MUA CỦA TÔI (SCANMS Standard - IMAGE 1) */}
+            {/* TAB 0: VÍ KHÁCH HÀNG (CUSTOMER WALLET) */}
+            {/* ------------------------------------------------------------- */}
+            {currentTab === 'wallet' && <CustomerWalletTab />}
+
+            {/* ------------------------------------------------------------- */}
+            {/* TAB 1: ĐƠN MUA CỦA TÔI (SCANMS Standard) */}
             {/* ------------------------------------------------------------- */}
             {currentTab === 'orders' && (
               <div className="flex flex-col gap-3">
@@ -3245,9 +3269,12 @@ export default function CustomerPortalPage() {
           onClose={() => setActiveCheckoutProduct(null)}
           product={activeCheckoutProduct.product}
           store={activeCheckoutProduct.store}
-          onOrderPlaced={() => {
-            setActiveCheckoutProduct(null);
-            toast.success('Đặt hàng thành công!');
+          onOrderPlaced={(order) => {
+            if (order.paymentMethod === 'PAYOS' && order.paymentStatus !== 'PAID') {
+              toast.info('Đơn đã tạo. Vui lòng thanh toán bằng QR PayOS.');
+            } else {
+              toast.success('Đặt hàng thành công!');
+            }
             fetchOrders();
             fetchProfile();
           }}

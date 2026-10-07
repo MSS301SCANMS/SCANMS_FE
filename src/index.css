@@ -357,6 +357,9 @@ img {
 :root,
 html,
 body,
+*,
+*::before,
+*::after,
 #root,
 select,
 option,
@@ -374,12 +377,17 @@ select {
   accent-color: #C59B58 !important;
   background-color: #FFFFFF !important;
   color: #1A1612 !important;
+}
+
+select {
+  background-color: #FAF8F5 !important;
   border-color: #EAE4D7 !important;
 }
 
 select:focus,
 select:focus-visible {
   border-color: #C59B58 !important;
+  background-color: #ffffff !important;
   outline: none !important;
   box-shadow: 0 0 0 2px rgba(197, 155, 88, 0.2) !important;
 }
@@ -399,7 +407,12 @@ select option[selected] {
   font-weight: 600 !important;
 }
 
-select option:hover,
+select option {
+  background-color: #ffffff !important;
+  color: #1A1612 !important;
+  padding: 8px 12px !important;
+}
+
 select option:focus {
   background-color: #F3EFE6 !important;
   color: #1A1612 !important;

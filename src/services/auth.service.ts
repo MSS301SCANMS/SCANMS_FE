@@ -112,6 +112,7 @@ export const authService = {
   },
 
   async getMe(): Promise<UserProfile> {
+    if (localStorage.getItem('scanms-auth-provider') === 'keycloak') return keycloakProfile(localStorage.getItem('token') || '');
     const res: any = await api.get('/auth/me');
     const user = res?.data || res;
     if (user && user.id) {
@@ -137,6 +138,7 @@ export const authService = {
   logout() {
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     localStorage.removeItem('token');
+    localStorage.removeItem('scanms-auth-provider');
     localStorage.removeItem('user');
     localStorage.removeItem('scanms-current-role');
     localStorage.removeItem('scanms-active-workspace');
