@@ -16,8 +16,15 @@ import {
   Sparkles,
   MapPin,
   BadgeCheck,
+  Users,
 } from 'lucide-react';
 import { kycService } from '../../services/kyc.service';
+import {
+  useAllCollaboratorProfiles,
+  useApproveCollaborator,
+  useRejectCollaborator,
+  type CollaboratorProfile,
+} from '../../hooks/useCollaborators';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
@@ -46,9 +53,13 @@ function formatKycDate(value?: string | Date | null): string {
 
 export default function KycApprovalPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'kol' | 'shop'>('kol');
+  const [activeTab, setActiveTab] = useState<'kol' | 'shop' | 'collaborators'>('kol');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+
+  // Collaborator profile reject state
+  const [rejectingCollab, setRejectingCollab] = useState<CollaboratorProfile | null>(null);
+  const [collabRejectReason, setCollabRejectReason] = useState('');
 
   // Inspect modals
   const [inspectProfile, setInspectProfile] = useState<any | null>(null);
@@ -73,6 +84,39 @@ export default function KycApprovalPage() {
     },
     staleTime: 1000 * 60 * 3,
   });
+
+  // Collaborator profiles (promotion-affiliate-service)
+  const {
+    data: collaboratorProfiles,
+    isLoading: loadingCollaborators,
+    refetch: refetchCollaborators,
+  } = useAllCollaboratorProfiles();
+
+  const approveCollabMutation = useApproveCollaborator();
+  const rejectCollabMutation = useRejectCollaborator();
+
+  const handleApproveCollab = (id: string) => {
+    approveCollabMutation.mutate(id, {
+      onSuccess: () => showToast('Đã duyệt hồ sơ cộng tác viên thành công!'),
+      onError: (e: any) => showToast(e.message || 'Không thể duyệt hồ sơ CTV', 'error'),
+    });
+  };
+
+  const handleRejectCollab = () => {
+    if (!rejectingCollab) return;
+    if (!collabRejectReason.trim()) { showToast('Vui lòng nhập lý do từ chối', 'error'); return; }
+    rejectCollabMutation.mutate(
+      { id: rejectingCollab.id, reason: collabRejectReason.trim() },
+      {
+        onSuccess: () => {
+          showToast('Đã từ chối hồ sơ cộng tác viên.');
+          setRejectingCollab(null);
+          setCollabRejectReason('');
+        },
+        onError: (e: any) => showToast(e.message || 'Không thể từ chối hồ sơ CTV', 'error'),
+      },
+    );
+  };
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
@@ -295,6 +339,17 @@ export default function KycApprovalPage() {
   const pendingShopCount = displayShops.filter((s: any) => ['PENDING_APPROVAL', 'NEEDS_INFO'].includes(s.onboardingStatus)).length;
   const verifiedShopCount = displayShops.filter((s: any) => s.isVerified).length;
 
+  // Collaborator profiles computed
+  const allCollabProfiles = collaboratorProfiles || [];
+  const pendingCollabCount = allCollabProfiles.filter((p) => p.approvalStatus === 'PENDING').length;
+  const filteredCollabProfiles = allCollabProfiles.filter((p) => {
+    const name = p.user?.fullName?.toLowerCase() || '';
+    const email = p.user?.email?.toLowerCase() || '';
+    const matchSearch = !search || name.includes(search.toLowerCase()) || email.includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'ALL' || p.approvalStatus === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
   return (
     <div className="flex flex-col gap-4 pt-3 text-left sm:pt-4">
       {toastMsg && (
@@ -361,6 +416,9 @@ export default function KycApprovalPage() {
           <button type="button" onClick={() => { setActiveTab('shop'); setFilterStatus('ALL'); }} className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${activeTab === 'shop' ? 'border-[#EEDFC6] bg-white text-[#231D15] shadow-sm' : 'border-transparent text-[#7D715E] hover:bg-white/70'}`}>
             <Store className="h-4 w-4 text-[#8F7B5E]" /><span>Gian hàng</span><span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-[#7D715E]">{pendingShopCount} chờ duyệt</span>
           </button>
+          <button type="button" onClick={() => { setActiveTab('collaborators'); setFilterStatus('ALL'); }} className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${activeTab === 'collaborators' ? 'border-[#EEDFC6] bg-white text-[#231D15] shadow-sm' : 'border-transparent text-[#7D715E] hover:bg-white/70'}`}>
+            <Users className="h-4 w-4 text-[#8F7B5E]" /><span>Hồ sơ CTV</span>{pendingCollabCount > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-800">{pendingCollabCount} chờ duyệt</span>}
+          </button>
         </div>
       </div>
 
@@ -401,6 +459,14 @@ export default function KycApprovalPage() {
                 { value: 'VERIFIED', label: 'Đã xác minh' },
                 { value: 'REJECTED', label: 'Đã từ chối' },
               ]
+            : activeTab === 'collaborators'
+            ? [
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'PENDING', label: 'Chờ duyệt' },
+                { value: 'APPROVED', label: 'Đã duyệt' },
+                { value: 'ACTIVE', label: 'Đang hoạt động' },
+                { value: 'REJECTED', label: 'Đã từ chối' },
+              ]
             : [
                 { value: 'ALL', label: 'Tất cả trạng thái' },
                 { value: 'VERIFIED', label: 'Đã xác minh (Tích Xanh)' },
@@ -408,7 +474,9 @@ export default function KycApprovalPage() {
                 { value: 'REJECTED', label: 'Bị từ chối' },
               ]}
         />
-        <span className="ml-auto whitespace-nowrap text-[11px] text-[#7D715E]">{activeTab === 'kol' ? filteredKols.length : filteredShops.length} kết quả</span>
+        <span className="ml-auto whitespace-nowrap text-[11px] text-[#7D715E]">
+          {activeTab === 'kol' ? filteredKols.length : activeTab === 'collaborators' ? filteredCollabProfiles.length : filteredShops.length} kết quả
+        </span>
       </Card>
 
       {/* TAB 1: BẢNG DUYỆT KOL */}
@@ -610,6 +678,151 @@ export default function KycApprovalPage() {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* TAB 3: HỒ SƠ CỘNG TÁC VIÊN */}
+      {activeTab === 'collaborators' && (
+        <Card className="overflow-hidden rounded-2xl border-[#EAE4D7] bg-white p-0 shadow-[0_4px_18px_rgba(35,29,21,0.035)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EAE4D7] bg-white px-4 py-3.5 sm:px-5">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-[#8F7B5E]">
+                <Users className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="m-0 text-sm font-bold text-[#1A1612]">Hồ sơ Cộng tác viên</h2>
+                <p className="mb-0 mt-0.5 text-[11px] text-[#7D715E]">Duyệt để KOL có thể tạo link tiếp thị và nhận hoa hồng</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#EAE4D7] bg-[#FAF8F5] px-3 py-1 text-[11px] font-semibold text-[#7D715E]">{filteredCollabProfiles.length} / {allCollabProfiles.length} hồ sơ</span>
+              <button type="button" onClick={() => refetchCollaborators()} disabled={loadingCollaborators} className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 text-[11px] font-semibold text-[#8F682E] transition hover:bg-[#F3EFE6] disabled:opacity-50">
+                <RefreshCw className={'h-3.5 w-3.5 ' + (loadingCollaborators ? 'animate-spin' : '')} /> Làm mới
+              </button>
+            </div>
+          </div>
+
+          {loadingCollaborators ? (
+            <div className="py-16 text-center text-[#7D715E]">Đang tải hồ sơ cộng tác viên…</div>
+          ) : filteredCollabProfiles.length === 0 ? (
+            <div className="py-16 text-center">
+              <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-2xl bg-[#FAF8F5] text-[#B88E4F]"><Users className="h-5 w-5" /></div>
+              <div className="font-bold text-[#1A1612]">Không có hồ sơ phù hợp</div>
+              <div className="mt-1 text-[11px] text-[#7D715E]">Thử điều chỉnh bộ lọc hoặc tìm kiếm.</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] table-fixed border-collapse text-left text-xs">
+                <colgroup><col className="w-[28%]" /><col className="w-[22%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[22%]" /></colgroup>
+                <thead>
+                  <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5]">
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#7D715E]">CTV</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#7D715E]">Email</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#7D715E]">Người theo dõi</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#7D715E]">Trạng thái</th>
+                    <th className="px-3 py-3 text-right text-[10px] font-bold uppercase tracking-[0.12em] text-[#7D715E]">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1ECE3]">
+                  {filteredCollabProfiles.map((p) => {
+                    const name = p.user?.fullName || 'Cộng tác viên';
+                    const email = p.user?.email || '—';
+                    const initials = name.trim().split(/\s+/).slice(-2).map((w) => w[0]).join('').toUpperCase();
+                    const statusMap: Record<string, { label: string; cls: string }> = {
+                      PENDING: { label: 'Chờ duyệt', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+                      APPROVED: { label: 'Đã duyệt', cls: 'bg-green-100 text-green-700 border-green-200' },
+                      ACTIVE: { label: 'Đang hoạt động', cls: 'bg-[#FBF5EB] text-[#8F682E] border-[#EEDFC6]' },
+                      REJECTED: { label: 'Từ chối', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                    };
+                    const status = statusMap[p.approvalStatus] || { label: p.approvalStatus, cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+                    const isPending = p.approvalStatus === 'PENDING';
+                    return (
+                      <tr key={p.id} className="transition-colors hover:bg-[#FAF8F5]/70">
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex items-center gap-2.5">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#EAE4D7] bg-[#FBF5EB] text-[10px] font-bold text-[#8F682E]">
+                              {p.user?.avatarUrl
+                                ? <img src={p.user.avatarUrl} alt={name} className="h-full w-full rounded-xl object-cover" />
+                                : initials}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="truncate font-bold text-[#1A1612]">{name}</div>
+                              <div className="text-[10px] text-[#7D715E]">ID: {p.id.slice(0, 8)}…</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-middle text-[#7D715E]">{email}</td>
+                        <td className="px-4 py-3 align-middle font-mono">{(p.totalFollowers ?? 0).toLocaleString('vi-VN')}</td>
+                        <td className="px-4 py-3 align-middle">
+                          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
+                        </td>
+                        <td className="px-3 py-3 align-middle text-right">
+                          {isPending ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={rejectCollabMutation.isPending}
+                                onClick={() => { setRejectingCollab(p); setCollabRejectReason(''); }}
+                                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                              >
+                                Từ chối
+                              </button>
+                              <button
+                                type="button"
+                                disabled={approveCollabMutation.isPending}
+                                onClick={() => handleApproveCollab(p.id)}
+                                className="rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-1.5 text-[11px] font-semibold text-[#8F682E] transition hover:bg-[#F3EFE6] disabled:opacity-50"
+                              >
+                                {approveCollabMutation.isPending ? 'Đang duyệt…' : 'Duyệt'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[#7D715E]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* MODAL TỪ CHỐI CTV */}
+      {rejectingCollab && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-extrabold text-[#1A1612]">Từ chối hồ sơ CTV</h2>
+            <p className="mt-1 text-sm text-[#7D715E]">
+              Nhập lý do từ chối hồ sơ của <strong>{rejectingCollab.user?.fullName || 'Cộng tác viên'}</strong>.
+            </p>
+            <textarea
+              rows={3}
+              value={collabRejectReason}
+              onChange={(e) => setCollabRejectReason(e.target.value)}
+              placeholder="Ghi rõ lý do từ chối…"
+              className="mt-4 w-full rounded-xl border border-[#dcc8a7] p-3 text-sm outline-none focus:border-[#b88e4f]"
+            />
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setRejectingCollab(null); setCollabRejectReason(''); }}
+                className="rounded-xl px-4 py-2 text-sm text-[#7D715E]"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={rejectCollabMutation.isPending || !collabRejectReason.trim()}
+                onClick={handleRejectCollab}
+                className="rounded-xl bg-rose-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {rejectCollabMutation.isPending ? 'Đang xử lý…' : 'Xác nhận từ chối'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL THẨM ĐỊNH CHI TIẾT KOL */}

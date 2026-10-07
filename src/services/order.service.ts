@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../lib/api";
 
 export type ManagedOrderStatus =
   "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURN_REQUESTED" | "DISPUTED" | "RETURNED";
@@ -246,3 +246,4 @@ export const orderService = {
     return response.data;
   },
 };
+

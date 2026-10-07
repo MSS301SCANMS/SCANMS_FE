@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface MediaAsset {
   id: string;
@@ -63,4 +63,5 @@ export const mediaService = {
     return res.data;
   },
 };
+
 

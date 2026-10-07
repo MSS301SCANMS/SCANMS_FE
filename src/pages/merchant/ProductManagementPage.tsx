@@ -31,9 +31,13 @@ import {
   ArrowLeftRight,
   Sparkles,
   RefreshCw,
+  Wand2,
+  Loader2 as Loader2Icon,
+  CheckCircle2 as CheckCircle2Icon,
 } from 'lucide-react';
 import api from '../../services/api';
 import { productService, type Product } from '../../services/product.service';
+import { useAiAnalyzeProduct, type AiAnalyzeProductResult } from '../../hooks/useProducts';
 import { authService } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
@@ -580,6 +584,11 @@ export default function ProductManagementPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
 
+  // AI Image Analyze state
+  const [aiResult, setAiResult] = useState<AiAnalyzeProductResult | null>(null);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const aiAnalyzeMutation = useAiAnalyzeProduct();
+
   const loadProductsRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
@@ -925,6 +934,8 @@ export default function ProductManagementPage() {
     setFormSubImages([]);
     setFormVariants([]);
     setVariantOptionLists({});
+    setAiResult(null);
+    setIsAiAnalyzing(false);
     setShowModal(true);
   };
 
@@ -1028,6 +1039,14 @@ export default function ProductManagementPage() {
       if (isMain) {
         setFormImage(imageUrl);
         showToast('Đã tải ảnh chính (ảnh bìa) thành công!');
+        // Tự động gọi AI phân tích ảnh bìa
+        setAiResult(null);
+        setIsAiAnalyzing(true);
+        aiAnalyzeMutation.mutate(file, {
+          onSuccess: (result) => setAiResult(result),
+          onError: () => { /* Lỗi AI không chặn upload */ },
+          onSettled: () => setIsAiAnalyzing(false),
+        });
       } else if (subIndex !== undefined && subIndex < formSubImages.length) {
         const nextSubs = [...formSubImages];
         nextSubs[subIndex] = imageUrl;
@@ -2166,6 +2185,8 @@ export default function ProductManagementPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setFormImage('');
+                            setAiResult(null);
+                            setIsAiAnalyzing(false);
                           }}
                           className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-[10px] font-bold text-white shadow-xs cursor-pointer"
                         >
@@ -2287,6 +2308,97 @@ export default function ProductManagementPage() {
                 );
               })}
             </div>
+
+            {/* ── AI ANALYZE RESULT CARD ─────────────────────────────────────── */}
+            {(isAiAnalyzing || aiResult) && (
+              <div className={`mt-2 rounded-2xl border p-3.5 transition-all ${
+                isAiAnalyzing
+                  ? 'border-[#EEDFC6] bg-[#FFFBF4]'
+                  : aiResult?.detectionFallback
+                  ? 'border-slate-200 bg-slate-50'
+                  : 'border-[#EEDFC6] bg-[#FFFBF4]'
+              }`}>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Wand2 className="w-4 h-4 text-[#B88E4F] shrink-0" />
+                  <span className="text-xs font-bold text-[#8F682E] uppercase tracking-wider">AI Nhận Diện Sản Phẩm</span>
+                  {isAiAnalyzing && (
+                    <Loader2Icon className="w-3.5 h-3.5 text-[#B88E4F] animate-spin ml-auto shrink-0" />
+                  )}
+                </div>
+
+                {isAiAnalyzing && (
+                  <p className="text-[11px] text-[#7D715E]">Đang phân tích ảnh bìa…</p>
+                )}
+
+                {!isAiAnalyzing && aiResult && (
+                  <div className="space-y-2">
+                    {/* Top prediction */}
+                    {aiResult.topPrediction && !aiResult.detectionFallback ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CheckCircle2Icon className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                        <span className="text-[11px] text-[#1A1612] font-semibold">
+                          Phát hiện: <strong className="text-[#8F682E]">{aiResult.topPrediction.className}</strong>
+                          {' '}({Math.round(aiResult.topPrediction.confidence * 100)}% tin cậy)
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[#7D715E]">Không nhận diện được danh mục cụ thể (ảnh không rõ nét hoặc không phải thời trang).</p>
+                    )}
+
+                    {/* Dominant colors */}
+                    {aiResult.dominantColors.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-[#7D715E]">Màu chủ đạo:</span>
+                        {aiResult.dominantColors.slice(0, 3).map((c) => (
+                          <span key={c.name} className="rounded-full bg-white border border-[#EAE4D7] px-2 py-0.5 text-[10px] font-semibold text-[#1A1612]">
+                            {c.name} ({Math.round(c.ratio * 100)}%)
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Style */}
+                    {aiResult.stylePrediction && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-[#7D715E]">Phong cách:</span>
+                        <span className="rounded-full bg-[#FBF5EB] border border-[#EEDFC6] px-2 py-0.5 text-[10px] font-semibold text-[#8F682E]">
+                          {aiResult.stylePrediction.style}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Apply category suggestion button */}
+                    {!aiResult.detectionFallback && aiResult.topPrediction && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Map AI class → SCANMS category
+                          const cls = aiResult.topPrediction!.className.toLowerCase();
+                          const fashionKeywords = ['dress','shirt','trouser','coat','jacket','shoe','top','skirt','pullover','sandal','bag','boot','sneaker','hat','fashion','clothing','apparel','wear'];
+                          const electronicsKeywords = ['phone','laptop','tablet','camera','headphone','speaker','computer','electronic'];
+                          const beautyKeywords = ['lipstick','makeup','cosmetic','cream','serum','lotion','beauty','skincare'];
+                          const foodKeywords = ['food','drink','bottle','cup','cake','bread','fruit','vegetable'];
+
+                          if (fashionKeywords.some((k) => cls.includes(k))) {
+                            handleCategoryChange('Thời trang & Phụ kiện');
+                          } else if (electronicsKeywords.some((k) => cls.includes(k))) {
+                            handleCategoryChange('Điện tử & Phụ kiện');
+                          } else if (beautyKeywords.some((k) => cls.includes(k))) {
+                            handleCategoryChange('Mỹ phẩm & Làm đẹp');
+                          } else if (foodKeywords.some((k) => cls.includes(k))) {
+                            handleCategoryChange('Thực phẩm & Đồ uống');
+                          }
+                        }}
+                        className="mt-1 inline-flex items-center gap-1.5 rounded-xl border border-[#EEDFC6] bg-white px-3 py-1.5 text-[11px] font-bold text-[#8F682E] transition hover:bg-[#FBF5EB] cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
+                        Áp dụng gợi ý danh mục
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-5 rounded-[22px] border border-[#EAE4D7] bg-[#FAF8F5] p-4 shadow-[0_2px_12px_rgba(35,29,21,0.03)] sm:p-5">

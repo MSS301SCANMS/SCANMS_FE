@@ -44,7 +44,6 @@ import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
 import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
 import { LiveCommerceHubModal } from '../../components/marketplace/LiveCommerceHubModal';
-import { NotificationDropdown } from '../../components/layout/NotificationDropdown';
 
 const MARKETPLACE_BANNERS = [
   {
@@ -548,9 +547,6 @@ export default function MarketplacePage() {
                   </span>
                 )}
               </button>
-
-              {/* Icon Chuông Thông Báo & Live Stream Broadcast Cho Tất Cả Các Tài Khoản */}
-              <NotificationDropdown />
 
               {currentUser?.role === 'CUSTOMER' && <ChatBell userId={currentUser.id} />}
 

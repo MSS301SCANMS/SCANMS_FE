@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface UploadResult {
   publicId: string;
@@ -81,3 +81,4 @@ export const uploadService = {
     }
   },
 };
+

@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface TierStatus {
   currentTier: {
@@ -35,3 +35,4 @@ export const tierService = {
     return res.data;
   },
 };
+

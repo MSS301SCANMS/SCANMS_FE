@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface StoreSettings {
   id: string;
@@ -65,3 +65,4 @@ export const storeService = {
     return res?.data || res;
   },
 };
+

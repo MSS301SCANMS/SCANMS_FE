@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type ReturnStatus =
   | 'REQUESTED' | 'SHOP_APPROVED' | 'PICKUP_BOOKED' | 'SHOP_REJECTED' | 'EXPIRED'
@@ -147,3 +147,4 @@ export const returnService = {
     ruling: 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP'; notes: string;
   }) => unwrap<ReturnDetail>(await api.patch(`/admin/return-disputes/${id}/resolve`, data)),
 };
+

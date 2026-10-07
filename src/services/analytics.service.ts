@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface DashboardOverviewResponse {
   period: {
@@ -161,3 +161,4 @@ export const analyticsService = {
     return (res.data as any)?.data || res.data;
   },
 };
+

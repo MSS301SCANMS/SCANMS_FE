@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type FraudRiskLevel = 'CLEAN' | 'LOW_RISK' | 'SUSPICIOUS' | 'FRAUD_CRITICAL';
 
@@ -120,3 +120,4 @@ export const aiFraudService = {
     return res.data?.data || res.data || res;
   },
 };
+

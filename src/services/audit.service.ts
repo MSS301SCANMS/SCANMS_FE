@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type AuditSeverity = 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -137,3 +137,4 @@ export const auditService = {
     return res.data;
   },
 };
+

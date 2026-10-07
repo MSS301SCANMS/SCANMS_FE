@@ -4,7 +4,6 @@ import { Sun, Moon, ChevronDown, Store, LogOut, Settings, Camera, Loader2 } from
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
-import { NotificationDropdown } from './NotificationDropdown';
 import { ChatBell } from '../chat/ChatBell';
 
 export interface TopbarProps {
@@ -216,7 +215,6 @@ export function Topbar({
           {theme === 'dark' ? <Sun className="w-4 h-4 text-[#B88E4F]" /> : <Moon className="w-4 h-4 text-[#7D715E]" />}
         </button>
 
-        <NotificationDropdown />
         {(isCustomer || isShop || currentUser?.role === 'CUSTOMER' || currentUser?.role === 'SHOP_MANAGER') && currentUser?.id && <ChatBell userId={currentUser.id} isShop={isShop} />}
 
         <div className="relative" ref={menuRef}>
