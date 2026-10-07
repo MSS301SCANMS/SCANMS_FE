@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface KycProfile {
   id: string;
@@ -203,3 +203,4 @@ export const kycService = {
     return res.data;
   },
 };
+

@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface CreateGhnOrderPayload {
   note?: string;
@@ -84,3 +84,4 @@ export const shippingService = {
     return res.data;
   },
 };
+

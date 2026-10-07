@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface ScoreBreakdown {
   categoryScore: number;
@@ -89,3 +89,4 @@ export const aiRecommendationService = {
     return res.data?.data || res.data || res;
   },
 };
+

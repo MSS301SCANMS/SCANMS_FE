@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export type CouponStatus =
   | 'PENDING_APPROVAL'
@@ -294,3 +294,4 @@ export const couponService = {
     return res.data;
   },
 };
+

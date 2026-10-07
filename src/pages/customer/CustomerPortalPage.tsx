@@ -24,7 +24,6 @@ import {
   X,
   XCircle,
   Camera,
-  Bell,
   Ticket,
   MessageCircle,
   User,
@@ -62,12 +61,6 @@ import { PublicHeader } from '../../components/layout/PublicHeader';
 import { PartnerUpgradeTab } from './PartnerUpgradeTab';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { useScanmsChat, type ChatProductInfo } from '../../context/ScanmsChatContext';
-import {
-  notificationsService,
-  type AppNotification,
-  type NotificationCategory,
-} from '../../services/notifications.service';
-import { CustomerWalletTab } from '../../components/customer/CustomerWalletTab';
 import { ReturnRequestModal } from '../../components/customer/ReturnRequestModal';
 import { VerifiedReviewModal } from '../../components/customer/VerifiedReviewModal';
 import {
@@ -75,7 +68,7 @@ import {
   type AddressLocationResult,
 } from '../../components/customer/AddressLocationPicker';
 
-type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'identity' | 'upgrade' | 'vouchers' | 'notifications' | 'security' | 'wallet';
+type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'identity' | 'upgrade' | 'vouchers' | 'security';
 type OrderFilterStatus = 'ALL' | 'UNPAID' | 'PENDING' | 'SHIPPING' | 'DELIVERED' | 'RECEIVING' | 'COMPLETED' | 'RETURN_REQUESTED' | 'CANCELLED' | 'RETURNED';
 
 const normalizeAdministrativeName = (value: string) => value
@@ -118,8 +111,6 @@ export default function CustomerPortalPage() {
     ? 'security'
     : location.pathname.includes('/customer/vouchers')
     ? 'vouchers'
-    : location.pathname.includes('/customer/notifications')
-    ? 'notifications'
     : location.pathname.includes('/customer/orders')
     ? 'orders'
     : null;
@@ -129,28 +120,14 @@ export default function CustomerPortalPage() {
   const [profileData, setProfileData] = useState<CustomerProfileResponse | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Active notification category from URL query (?cat=ALL | ORDER | PROMOTION | WALLET | SYSTEM)
-  const activeNotifCategory: NotificationCategory =
-    (searchParams.get('cat') as NotificationCategory) || 'ALL';
-
   // Submenu open states (SCANMS Accordion)
   const [isAccountSubmenuOpen, setIsAccountSubmenuOpen] = useState(
     currentTab === 'profile' || currentTab === 'identity' || currentTab === 'addresses' || currentTab === 'security'
   );
-  const [isNotificationSubmenuOpen, setIsNotificationSubmenuOpen] = useState(true);
 
   // Floating Chat hook
   const { openChat } = useScanmsChat();
 
-  // Notifications State
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [categoryUnread, setCategoryUnread] = useState<{
-    ORDER: number;
-    PROMOTION: number;
-    SYSTEM: number;
-  }>({ ORDER: 0, PROMOTION: 0, SYSTEM: 0 });
 
   // Tab 1: Orders State
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
@@ -325,14 +302,6 @@ export default function CustomerPortalPage() {
     if (currentTab === 'identity') fetchIdentity();
   }, [currentTab, orderStatusFilter]);
 
-  // Handle Notifications load & tab changes
-  useEffect(() => {
-    if (currentTab === 'notifications') {
-      fetchNotifications(activeNotifCategory);
-      setIsNotificationSubmenuOpen(true);
-    }
-    refreshUnreadCounts();
-  }, [currentTab, activeNotifCategory]);
 
   // Keep submenu open if active tab is in account
   useEffect(() => {
@@ -389,108 +358,7 @@ export default function CustomerPortalPage() {
     );
   };
 
-  const refreshUnreadCounts = async () => {
-    try {
-      const details = await notificationsService.getUnreadDetails();
-      setUnreadNotifCount(details.unreadCount);
-      if (details.categoryUnreadCounts) {
-        setCategoryUnread(details.categoryUnreadCounts);
-      }
-    } catch {}
-  };
 
-  const fetchNotifications = async (cat?: NotificationCategory) => {
-    setNotificationsLoading(true);
-    try {
-      const targetCat = cat || activeNotifCategory;
-      const res = await notificationsService.getNotifications(targetCat, 1, 40);
-      setNotifications(res.items || []);
-      setUnreadNotifCount(res.unreadCount || 0);
-      if (res.categoryUnreadCounts) {
-        setCategoryUnread(res.categoryUnreadCounts);
-      }
-    } catch (err) {
-      console.error('Lỗi khi tải thông báo:', err);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
-  const handleSelectNotifCategory = (cat: NotificationCategory) => {
-    if (cat === 'ALL') {
-      navigate('/customer/notifications');
-    } else {
-      navigate(`/customer/notifications?cat=${cat}`);
-    }
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    try {
-      await notificationsService.markAllAsRead();
-      setUnreadNotifCount(0);
-      setCategoryUnread({ ORDER: 0, PROMOTION: 0, SYSTEM: 0 });
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      toast.success('Đã đánh dấu tất cả thông báo là đã đọc');
-    } catch {
-      toast.error('Lỗi khi cập nhật thông báo');
-    }
-  };
-
-  const getCategoryFromType = (type: string): 'ORDER' | 'PROMOTION' | 'SYSTEM' => {
-    if (type.startsWith('ORDER_') || type.startsWith('DISPUTE_')) return 'ORDER';
-    if (type.startsWith('PROMOTION_') || type.startsWith('VOUCHER_') || type.includes('PROMO') || type.includes('SALE') || type.includes('CAMPAIGN')) return 'PROMOTION';
-    return 'SYSTEM';
-  };
-
-  const handleNotificationAction = async (notif: AppNotification) => {
-    if (!notif.isRead) {
-      await notificationsService.markAsRead(notif.id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-      );
-      setUnreadNotifCount((prev) => Math.max(0, prev - 1));
-      const catKey = getCategoryFromType(notif.type);
-      setCategoryUnread((prev) => ({
-        ...prev,
-        [catKey]: Math.max(0, (prev[catKey] || 1) - 1),
-      }));
-    }
-
-    if (notif.data?.actionUrl) {
-      navigate(notif.data.actionUrl);
-    } else {
-      const type = notif.type;
-      if (type.startsWith('ORDER_') || type.startsWith('DISPUTE_')) {
-        navigate('/customer/orders');
-      } else if (type.startsWith('PROMOTION_') || type.startsWith('VOUCHER_')) {
-        navigate('/customer/vouchers');
-      } else if (type.startsWith('WALLET_') || type.startsWith('COMMISSION_') || type.startsWith('PAYOUT_')) {
-        navigate('/customer/orders');
-      } else {
-        navigate('/customer/upgrade');
-      }
-    }
-  };
-
-  const handleMarkSingleAsRead = async (e: React.MouseEvent, notif: AppNotification) => {
-    e.stopPropagation();
-    if (notif.isRead) return;
-    try {
-      await notificationsService.markAsRead(notif.id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-      );
-      setUnreadNotifCount((prev) => Math.max(0, prev - 1));
-      const catKey = getCategoryFromType(notif.type);
-      setCategoryUnread((prev) => ({
-        ...prev,
-        [catKey]: Math.max(0, (prev[catKey] || 1) - 1),
-      }));
-      toast.success('Đã đánh dấu đã đọc');
-    } catch {
-      toast.error('Lỗi khi cập nhật trạng thái');
-    }
-  };
 
   const fetchProfile = async () => {
     setProfileLoading(true);
@@ -1070,98 +938,7 @@ export default function CustomerPortalPage() {
                 )}
               </button>
 
-              {/* 3. Thông Báo (SCANMS UI Reference Style with Sub-items) */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsNotificationSubmenuOpen(!isNotificationSubmenuOpen);
-                    if (currentTab !== 'notifications') {
-                      navigate('/customer/notifications');
-                    }
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors cursor-pointer text-left group ${
-                    currentTab === 'notifications'
-                      ? 'text-[#C59B58] font-bold'
-                      : 'text-[#1A1612] hover:text-[#C59B58] hover:bg-[#FAF8F5]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Bell className={`w-4 h-4 shrink-0 ${currentTab === 'notifications' ? 'text-[#C59B58]' : 'text-[#7D715E] group-hover:text-[#C59B58]'}`} />
-                    <span>Thông Báo</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {unreadNotifCount > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full bg-[#DC2626] text-white text-[10px] font-bold shrink-0">
-                        {unreadNotifCount}
-                      </span>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[#7D715E] transition-transform duration-200 ${
-                        isNotificationSubmenuOpen ? 'rotate-180 text-[#C59B58]' : ''
-                      }`}
-                    />
-                  </div>
-                </button>
-
-                {/* Sub-menu items: Cập Nhật Đơn Hàng, Khuyến Mãi, Cập Nhật SCANMS */}
-                {isNotificationSubmenuOpen && (
-                  <div className="pl-10 pr-2 py-1 flex flex-col space-y-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectNotifCategory('ORDER')}
-                      className={`w-full flex items-center justify-between text-left py-1 text-xs transition-colors cursor-pointer ${
-                        currentTab === 'notifications' && activeNotifCategory === 'ORDER'
-                          ? 'text-[#C59B58] font-bold'
-                          : 'text-[#574C3D] hover:text-[#C59B58]'
-                      }`}
-                    >
-                      <span>Cập Nhật Đơn Hàng</span>
-                      {categoryUnread.ORDER > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226] text-[10px] font-bold shrink-0">
-                          {categoryUnread.ORDER}
-                        </span>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectNotifCategory('PROMOTION')}
-                      className={`w-full flex items-center justify-between text-left py-1 text-xs transition-colors cursor-pointer ${
-                        currentTab === 'notifications' && activeNotifCategory === 'PROMOTION'
-                          ? 'text-[#C59B58] font-bold'
-                          : 'text-[#574C3D] hover:text-[#C59B58]'
-                      }`}
-                    >
-                      <span>Khuyến Mãi</span>
-                      {categoryUnread.PROMOTION > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226] text-[10px] font-bold shrink-0">
-                          {categoryUnread.PROMOTION}
-                        </span>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectNotifCategory('SYSTEM')}
-                      className={`w-full flex items-center justify-between text-left py-1 text-xs transition-colors cursor-pointer ${
-                        currentTab === 'notifications' && activeNotifCategory === 'SYSTEM'
-                          ? 'text-[#C59B58] font-bold'
-                          : 'text-[#574C3D] hover:text-[#C59B58]'
-                      }`}
-                    >
-                      <span>Cập Nhật SCANMS</span>
-                      {categoryUnread.SYSTEM > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226] text-[10px] font-bold shrink-0">
-                          {categoryUnread.SYSTEM}
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 4. Kho Voucher */}
+              {/* 3. Kho Voucher */}
               <button
                 type="button"
                 onClick={() => setTab('vouchers')}
@@ -2472,280 +2249,6 @@ export default function CustomerPortalPage() {
               </div>
             )}
 
-            {/* ------------------------------------------------------------- */}
-            {/* TAB: THÔNG BÁO (SCANMS Standard NOTIFICATION CENTER) */}
-            {/* ------------------------------------------------------------- */}
-            {currentTab === 'notifications' && (
-              <div className="bg-white border border-[#EAE4D7] rounded-2xl p-4 sm:p-6 shadow-2xs flex flex-col gap-5 text-left">
-                {/* 1. Header with Category Title & Mark All As Read */}
-                <div className="pb-4 border-b border-[#EAE4D7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h1 className="text-xl sm:text-2xl font-black text-[#1A1612] m-0 font-display flex items-center gap-2">
-                      {activeNotifCategory === 'ORDER' ? (
-                        <Package className="w-6 h-6 text-[#C59B58]" />
-                      ) : activeNotifCategory === 'PROMOTION' ? (
-                        <Ticket className="w-6 h-6 text-[#C59B58]" />
-                      ) : (
-                        <Bell className="w-6 h-6 text-[#C59B58]" />
-                      )}
-                      <span>
-                        {activeNotifCategory === 'ORDER'
-                          ? 'Cập Nhật Đơn Hàng'
-                          : activeNotifCategory === 'PROMOTION'
-                          ? 'Khuyến Mãi & Ưu Đãi'
-                          : activeNotifCategory === 'SYSTEM'
-                          ? 'Cập Nhật SCANMS'
-                          : 'Tất Cả Thông Báo'}
-                      </span>
-                    </h1>
-                    <p className="text-xs text-[#7D715E] mt-1 m-0">
-                      {activeNotifCategory === 'ORDER'
-                        ? 'Cập nhật tiến trình đóng gói, vận chuyển và biên nhận đơn hàng của bạn'
-                        : activeNotifCategory === 'PROMOTION'
-                        ? 'Các sự kiện giảm giá, mã freeship và voucher độc quyền từ đối tác'
-                        : activeNotifCategory === 'SYSTEM'
-                        ? 'Thông báo xác thực KYC, nâng cấp đối tác và tin tức từ sàn SCANMS'
-                        : 'Xem toàn bộ các thông báo quan trọng về đơn mua, ưu đãi và tài khoản'}
-                    </p>
-                  </div>
-                  {notifications.some((n) => !n.isRead) && (
-                    <button
-                      type="button"
-                      onClick={handleMarkAllNotificationsRead}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#EAE4D7] hover:border-[#C59B58] bg-[#FAF8F5] hover:bg-white text-xs font-semibold text-[#1A1612] hover:text-[#B88E4F] transition cursor-pointer self-start sm:self-auto shadow-2xs"
-                    >
-                      <CheckCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                      <span>Đánh dấu đã đọc tất cả</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* 2. Horizontal Category Filter Tabs Bar (SCANMS Standard) */}
-                <div className="flex items-center overflow-x-auto scrollbar-none border-b border-[#EAE4D7] -mt-2">
-                  {[
-                    { key: 'ALL', label: 'Tất Cả', unread: unreadNotifCount },
-                    { key: 'ORDER', label: 'Cập Nhật Đơn Hàng', unread: categoryUnread.ORDER },
-                    { key: 'PROMOTION', label: 'Khuyến Mãi', unread: categoryUnread.PROMOTION },
-                    { key: 'SYSTEM', label: 'Cập Nhật SCANMS', unread: categoryUnread.SYSTEM },
-                  ].map((tab) => {
-                    const isActive = activeNotifCategory === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => handleSelectNotifCategory(tab.key as NotificationCategory)}
-                        className={`relative py-3 px-3 sm:px-4 text-xs sm:text-[13px] transition-colors cursor-pointer text-center whitespace-nowrap flex items-center gap-1.5 ${
-                          isActive
-                            ? 'text-[#C59B58] font-bold'
-                            : 'text-[#574C3D] hover:text-[#C59B58] font-medium'
-                        }`}
-                      >
-                        <span>{tab.label}</span>
-                        {tab.unread > 0 && (
-                          <span
-                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 ${
-                              isActive
-                                ? 'bg-[#C59B58] text-white'
-                                : 'bg-[#FAF0DD] border border-[#E8D4B0] text-[#8C6226]'
-                            }`}
-                          >
-                            {tab.unread}
-                          </span>
-                        )}
-                        {isActive && (
-                          <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#C59B58] rounded-t-full shadow-xs" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* 3. Notifications List */}
-                {notificationsLoading ? (
-                  <div className="py-16 flex flex-col items-center justify-center gap-3 text-[#7D715E]">
-                    <Loader2 className="w-8 h-8 text-[#B88E4F] animate-spin" />
-                    <span className="text-xs font-semibold">Đang tải thông báo...</span>
-                  </div>
-                ) : notifications.length === 0 ? (
-                  <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
-                    <div className="w-16 h-16 rounded-full bg-[#FAF5EB] border border-[#EAE4D7] text-[#B88E4F] flex items-center justify-center">
-                      {activeNotifCategory === 'ORDER' ? (
-                        <Package className="w-8 h-8" />
-                      ) : activeNotifCategory === 'PROMOTION' ? (
-                        <Ticket className="w-8 h-8" />
-                      ) : (
-                        <Bell className="w-8 h-8" />
-                      )}
-                    </div>
-                    <div>
-                      <strong className="text-sm font-bold text-[#1A1612] block">
-                        Chưa có thông báo nào trong mục này
-                      </strong>
-                      <p className="text-xs text-[#7D715E] mt-1 m-0">
-                        {activeNotifCategory === 'ORDER'
-                          ? 'Khi bạn đặt hàng, tiến độ vận chuyển kiện hàng sẽ xuất hiện tại đây.'
-                          : activeNotifCategory === 'PROMOTION'
-                          ? 'Các sự kiện sale và voucher mới sẽ được thông báo ngay khi bắt đầu.'
-                          : 'Mọi tin tức và thông báo bảo mật sẽ được cập nhật ở đây.'}
-                      </p>
-                    </div>
-                    {activeNotifCategory === 'ORDER' ? (
-                      <Link
-                        to="/marketplace"
-                        className="mt-2 px-4 py-2 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition shadow-xs"
-                      >
-                        Khám phá sản phẩm ngay
-                      </Link>
-                    ) : activeNotifCategory === 'PROMOTION' ? (
-                      <button
-                        type="button"
-                        onClick={() => setTab('vouchers')}
-                        className="mt-2 px-4 py-2 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                      >
-                        Xem Kho Voucher của tôi
-                      </button>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {notifications.map((notif) => {
-                      const cat = getCategoryFromType(notif.type);
-                      const isUnread = !notif.isRead;
-                      return (
-                        <div
-                          key={notif.id}
-                          onClick={() => handleNotificationAction(notif)}
-                          className={`border rounded-xl p-4 transition-all flex flex-col sm:flex-row items-start justify-between gap-3.5 cursor-pointer group ${
-                            isUnread
-                              ? 'bg-[#FAF6EE] border-[#EEDFC6] border-l-4 border-l-[#C59B58] shadow-2xs'
-                              : 'bg-white border-[#EAE4D7] hover:border-[#D6CEBE] hover:bg-[#FAF8F5]'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                            {/* Category Icon Circle */}
-                            <div
-                              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
-                                cat === 'ORDER'
-                                  ? 'bg-[#FBF5EB] border-[#EEDFC6] text-[#B88E4F]'
-                                  : cat === 'PROMOTION'
-                                  ? 'bg-[#FFF8E6] border-[#FDE68A] text-[#D97706]'
-                                  : 'bg-[#F3EFE6] border-[#EAE4D7] text-[#231D15]'
-                              }`}
-                            >
-                              {cat === 'ORDER' ? (
-                                <Package className="w-5 h-5" />
-                              ) : cat === 'PROMOTION' ? (
-                                <Ticket className="w-5 h-5" />
-                              ) : (
-                                <Bell className="w-5 h-5" />
-                              )}
-                            </div>
-
-                            {/* Notification Texts */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span
-                                  className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider ${
-                                    cat === 'ORDER'
-                                      ? 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]'
-                                      : cat === 'PROMOTION'
-                                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                                      : 'bg-stone-100 text-stone-800 border border-stone-200'
-                                  }`}
-                                >
-                                  {cat === 'ORDER'
-                                    ? 'Đơn Hàng'
-                                    : cat === 'PROMOTION'
-                                    ? 'Khuyến Mãi'
-                                    : 'SCANMS'}
-                                </span>
-                                <span className="text-[11px] text-[#7D715E]">
-                                  {new Date(notif.createdAt).toLocaleString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    year: 'numeric',
-                                  })}
-                                </span>
-                                {isUnread && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#C59B58] bg-[#FAF5EB] px-1.5 py-0.2 rounded-full border border-[#EEDFC6]">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#C59B58] animate-pulse" />
-                                    Mới
-                                  </span>
-                                )}
-                              </div>
-
-                              <strong
-                                className={`block text-xs sm:text-sm text-[#1A1612] ${
-                                  isUnread ? 'font-bold' : 'font-semibold'
-                                }`}
-                              >
-                                {notif.title}
-                              </strong>
-
-                              <p className="text-xs text-[#574C3D] mt-1 m-0 leading-relaxed">
-                                {notif.message}
-                              </p>
-
-                              {/* Metadata Chips if available */}
-                              {notif.data && (
-                                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                                  {notif.data.orderSn && (
-                                    <span className="px-2 py-0.5 rounded bg-white border border-[#EAE4D7] text-[11px] text-[#574C3D] font-mono">
-                                      Mã đơn: #{notif.data.orderSn}
-                                    </span>
-                                  )}
-                                  {notif.data.trackingNumber && (
-                                    <span className="px-2 py-0.5 rounded bg-white border border-[#EAE4D7] text-[11px] text-[#574C3D]">
-                                      Vận đơn: {notif.data.trackingNumber}
-                                    </span>
-                                  )}
-                                  {notif.data.voucherCode && (
-                                    <span className="px-2 py-0.5 rounded bg-[#FAF5EB] border border-[#EEDFC6] text-[11px] font-bold text-[#8C6226]">
-                                      Mã: {notif.data.voucherCode}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Right Action Buttons */}
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            {isUnread && (
-                              <button
-                                type="button"
-                                title="Đánh dấu đã đọc"
-                                onClick={(e) => handleMarkSingleAsRead(e, notif)}
-                                className="p-2 rounded-lg border border-[#EAE4D7] hover:border-[#C59B58] bg-white hover:bg-[#FAF8F5] text-[#7D715E] hover:text-[#C59B58] transition cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => handleNotificationAction(notif)}
-                              className="px-3 py-1.5 rounded-lg bg-[#FAF5EB] hover:bg-[#C59B58] border border-[#EEDFC6] hover:border-[#C59B58] text-[#8C6226] hover:text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
-                            >
-                              <span>
-                                {cat === 'ORDER'
-                                  ? 'Xem Đơn Mua'
-                                  : cat === 'PROMOTION'
-                                  ? 'Dùng Voucher'
-                                  : 'Xem Chi Tiết'}
-                              </span>
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* ------------------------------------------------------------- */}
             {/* TAB: ĐỔI MẬT KHẨU & BẢO MẬT */}

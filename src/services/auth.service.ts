@@ -1,5 +1,4 @@
-import api from './api';
-import { keycloakProfile } from './keycloak.service';
+import api from '../lib/api';
 
 export interface UserProfile {
   id: string;
@@ -269,3 +268,4 @@ export const authService = {
     }
   },
 };
+

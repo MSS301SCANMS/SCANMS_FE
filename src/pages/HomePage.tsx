@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusCircle,
@@ -14,13 +14,10 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
-import { tierService, type TierStatus } from '../services/tier.service';
-import { walletService, type WalletSummary, type LedgerHistory } from '../services/wallet.service';
-import {
-  analyticsService,
-  type DashboardOverviewResponse,
-  type TimeSeriesPoint,
-} from '../services/analytics.service';
+import type { TimeSeriesPoint } from '../services/analytics.service';
+import { useWalletSummary, useWalletLedger } from '../hooks/useWallet';
+import { useRealtimeOverview, useAnalyticsTimeSeries } from '../hooks/useAnalytics';
+import { useMyTierStatus } from '../hooks/useTier';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
@@ -29,41 +26,30 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState('7');
   const [metric, setMetric] = useState<'clicks' | 'orders' | 'revenue' | 'commission'>('clicks');
-  const [loading, setLoading] = useState(true);
 
-  const [wallet, setWallet] = useState<WalletSummary | null>(null);
-  const [ledger, setLedger] = useState<LedgerHistory | null>(null);
-  const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
-  const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
-  const [tierStatus, setTierStatus] = useState<TierStatus | null>(null);
+  const days = Number(period) || 7;
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const days = Number(period) || 7;
-      const [walletData, ledgerData, overviewData, seriesData, tierData] = await Promise.all([
-        walletService.getMyWallet().catch(() => null),
-        walletService.getMyLedger(1).catch(() => null),
-        analyticsService.getRealtimeOverview({ days }).catch(() => null),
-        analyticsService.getTimeSeries({ days, interval: 'daily' }).catch(() => []),
-        tierService.getMyTierStatus().catch(() => null),
-      ]);
+  // ─── Hooks thay thế useState + useEffect + Promise.all ───────────────────
+  const walletQuery      = useWalletSummary();
+  const ledgerQuery      = useWalletLedger(1);
+  const overviewQuery    = useRealtimeOverview({ days });
+  const timeSeriesQuery  = useAnalyticsTimeSeries({ days, interval: 'daily' });
+  const tierQuery        = useMyTierStatus();
 
-      if (walletData) setWallet(walletData);
-      if (ledgerData) setLedger(ledgerData);
-      if (overviewData) setOverview(overviewData);
-      if (seriesData) setTimeSeries(seriesData);
-      if (tierData) setTierStatus(tierData);
-    } catch (err) {
-      console.error('Lỗi tải dữ liệu Dashboard KOL:', err);
-    } finally {
-      setLoading(false);
-    }
+  const loading   = walletQuery.isLoading || overviewQuery.isLoading || timeSeriesQuery.isLoading;
+  const wallet    = walletQuery.data ?? null;
+  const ledger    = ledgerQuery.data ?? null;
+  const overview  = overviewQuery.data ?? null;
+  const timeSeries: TimeSeriesPoint[] = (timeSeriesQuery.data as TimeSeriesPoint[]) ?? [];
+  const tierStatus = tierQuery.data ?? null;
+
+  const refetch = () => {
+    walletQuery.refetch();
+    ledgerQuery.refetch();
+    overviewQuery.refetch();
+    timeSeriesQuery.refetch();
+    tierQuery.refetch();
   };
-
-  useEffect(() => {
-    loadData();
-  }, [period]);
 
   const metrics = overview?.metrics;
   const availBal = Number(wallet?.availableBalance || 0);
@@ -115,7 +101,7 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={loadData}
+              onClick={refetch}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer select-none"
               title="Làm mới dữ liệu"
             >

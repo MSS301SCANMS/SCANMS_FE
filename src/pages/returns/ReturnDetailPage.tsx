@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { authService } from '../../services/auth.service';
 import { returnService, type ReturnAddress, type ReturnDetail } from '../../services/return.service';
-import { useReturnAction, useReturnDetail } from '../../hooks/useReturnDetail';
+import { useReturnAction, useReturnDetail } from '../hooks/useReturn';
 import { ReturnTimeline } from '../../components/returns/ReturnTimeline';
 import { PickupBookingForm } from '../../components/returns/PickupBookingForm';
 import { DisputeModal } from '../../components/returns/DisputeModal';
@@ -306,3 +306,4 @@ export default function ReturnDetailPage({ mode }: { mode: 'customer' | 'shop' |
     </main>
   </>;
 }
+

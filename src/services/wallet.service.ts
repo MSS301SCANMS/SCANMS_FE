@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../lib/api";
 
 export type PayoutStatus = "PENDING" | "PROCESSING" | "APPROVED" | "REJECTED";
 
@@ -122,3 +122,4 @@ export const walletService = {
     ).data;
   },
 };
+

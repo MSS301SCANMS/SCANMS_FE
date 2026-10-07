@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useId } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus,
@@ -17,7 +17,6 @@ import {
   ToggleRight,
   Layers,
 } from 'lucide-react';
-import api from '../../services/api';
 import {
   commissionRulesService,
 } from '../../services/commission-rules.service';
@@ -26,16 +25,37 @@ import type {
   BonusPreviewResult,
   SettlementHistoryItem,
 } from '../../services/commission-rules.service';
+import { useMe } from '../../hooks/useAuth';
+import { useCommissionRules, useSettlementHistory } from '../../hooks/useCommissionRules';
 import { getVietnamCurrentMonthYear } from '../../utils/dateTimeUtils';
 import { Select } from '../../components/ui/Select';
 
 export const CommissionRulesPage: React.FC = () => {
   const { year: currentVnYear, month: currentVnMonth } = getVietnamCurrentMonthYear();
+
+  // ─── Auth hook — lấy storeId từ server, không cần api.get('/auth/me') thủ công ───
+  const meQuery = useMe();
   const [storeId, setStoreId] = useState<string>(
     () => localStorage.getItem('current_store_id') || '',
   );
-  const [rules, setRules] = useState<CommissionRule[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+
+  // Khi meQuery trả về, cập nhật storeId
+  useEffect(() => {
+    const authUser = meQuery.data;
+    if (!authUser) return;
+    const myStore = authUser.stores?.find((s: any) => s.id === storeId) || authUser.stores?.[0];
+    const effectiveStoreId = myStore?.id || storeId;
+    if (effectiveStoreId && effectiveStoreId !== storeId) {
+      setStoreId(effectiveStoreId);
+      localStorage.setItem('current_store_id', effectiveStoreId);
+    }
+  }, [meQuery.data]);
+
+  const currentUserRole = meQuery.data?.role ?? (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}')?.role || ''; } catch { return ''; }
+  })();
+
+  // ─── Data từ hooks (thay thế loadRules / loadHistory) ────────────────────
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -66,8 +86,18 @@ export const CommissionRulesPage: React.FC = () => {
   const [settleKolId, setSettleKolId] = useState<string>('');
   const [settleResult, setSettleResult] = useState<any | null>(null);
   const [settleLoading, setSettleLoading] = useState<boolean>(false);
-  const [historyList, setHistoryList] = useState<SettlementHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+
+  // ─── Hooks thay thế loadRules / loadHistory ───────────────────────────────
+  const rulesQuery    = useCommissionRules(storeId);
+  const historyQuery  = useSettlementHistory(storeId, settleYearMonth);
+
+  const rules        = rulesQuery.data  ?? [];
+  const loading      = rulesQuery.isLoading;
+  const historyList: SettlementHistoryItem[] = (historyQuery.data as SettlementHistoryItem[]) ?? [];
+  const historyLoading = historyQuery.isLoading;
+
+  const loadRules  = () => rulesQuery.refetch();
+  const loadHistory = () => historyQuery.refetch();
 
 
   const ruleNameInputId = useId();
@@ -79,123 +109,7 @@ export const CommissionRulesPage: React.FC = () => {
   const settleMonthInputId = useId();
   const settleKolInputId = useId();
 
-  const [currentUserRole, setCurrentUserRole] = useState<string>(() => {
-    try {
-      const u = localStorage.getItem('user');
-      if (u) return JSON.parse(u)?.role || '';
-    } catch {}
-    return '';
-  });
-
   const isReadOnlyAdmin = currentUserRole === 'SYSTEM_ADMIN';
-
-
-  const loadRules = useCallback(async (targetStoreId?: string) => {
-    const sId = targetStoreId || storeId;
-    if (!sId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      setErrorMsg(null);
-      const data = await commissionRulesService.getRules(sId);
-      setRules(data);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Không thể tải danh sách mốc thưởng');
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId]);
-
-
-  const loadHistory = useCallback(async (targetMonth?: string, targetStoreId?: string) => {
-    const sId = targetStoreId || storeId;
-    if (!sId) {
-      setHistoryLoading(false);
-      return;
-    }
-    try {
-      setHistoryLoading(true);
-      const queryMonth = targetMonth || settleYearMonth;
-      const history = await commissionRulesService.getSettlementHistory(
-        sId,
-        queryMonth,
-      );
-      setHistoryList(history);
-    } catch (err: any) {
-      console.error('Không thể tải lịch sử chốt thưởng', err);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [settleYearMonth, storeId]);
-
-
-  useEffect(() => {
-    let isCurrent = true;
-    async function verifyAuthAndLoadStore() {
-      try {
-        let token = localStorage.getItem('token');
-        let user: any = null;
-        try {
-          const userStr = localStorage.getItem('user');
-          if (userStr) user = JSON.parse(userStr);
-        } catch {}
-
-
-        if (!token) {
-          const fallbackStoreId = 'a7e7bd20-bebc-44c9-a98b-004de44cf773';
-          setStoreId(fallbackStoreId);
-          loadRules(fallbackStoreId);
-          loadHistory(settleYearMonth, fallbackStoreId);
-          setLoading(false);
-          return;
-        }
-        const res: any = await api.get('/auth/me');
-        const authUser = res?.data || res || user;
-        if (isCurrent && authUser) {
-          if (authUser.role) {
-            setCurrentUserRole(authUser.role);
-            localStorage.setItem('user', JSON.stringify(authUser));
-          }
-
-          const myStore =
-            authUser.stores?.find((s: any) => s.id === storeId) ||
-            authUser.stores?.[0] ||
-            authUser.stores?.find((s: any) => s.id === 'a7e7bd20-bebc-44c9-a98b-004de44cf773');
-          const effectiveStoreId =
-            myStore?.id ||
-            authUser.storeId ||
-            'a7e7bd20-bebc-44c9-a98b-004de44cf773';
-
-          if (effectiveStoreId) {
-            setStoreId(effectiveStoreId);
-            localStorage.setItem('current_store_id', effectiveStoreId);
-            loadRules(effectiveStoreId);
-            loadHistory(settleYearMonth, effectiveStoreId);
-          } else {
-            setRules([]);
-            setHistoryList([]);
-            setErrorMsg('Tài khoản này chưa có cửa hàng để quản lý mốc thưởng.');
-            setLoading(false);
-          }
-        }
-      } catch (err: any) {
-        console.warn('Xác thực auth/me thất bại:', err?.message);
-        if (isCurrent) {
-          const fallbackStoreId = 'a7e7bd20-bebc-44c9-a98b-004de44cf773';
-          setStoreId(fallbackStoreId);
-          loadRules(fallbackStoreId);
-          loadHistory(settleYearMonth, fallbackStoreId);
-          setLoading(false);
-        }
-      }
-    }
-    verifyAuthAndLoadStore();
-    return () => {
-      isCurrent = false;
-    };
-  }, [loadHistory, loadRules, settleYearMonth, storeId]);
 
   const isAnyModalOpen = Boolean(isCreateOpen || editingRule || deletingRule);
 

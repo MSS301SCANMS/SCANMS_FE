@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useReturnAction } from '../../hooks/useReturnDetail';
+import { useReturnAction } from '../hooks/useReturn';
 import { returnService } from '../../services/return.service';
 
 export function DisputeModal({ returnId, onClose }: { returnId: string; onClose: () => void }) {
@@ -53,3 +53,4 @@ export function DisputeModal({ returnId, onClose }: { returnId: string; onClose:
     </div>
   );
 }
+

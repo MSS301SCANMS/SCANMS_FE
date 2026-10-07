@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface CustomerStats {
   totalOrders: number;
@@ -322,3 +322,4 @@ export const customerService = {
     return res?.data?.data || res?.data || res;
   },
 };
+

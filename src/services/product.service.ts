@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface Product {
   id: string;
@@ -127,3 +127,4 @@ export const productService = {
     return res.data;
   },
 };
+

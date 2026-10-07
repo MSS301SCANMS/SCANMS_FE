@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface SocialChannel {
   id: string;
@@ -37,3 +37,4 @@ export const socialService = {
     return res.data;
   },
 };
+

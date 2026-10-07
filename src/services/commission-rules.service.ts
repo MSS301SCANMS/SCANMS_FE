@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../lib/api';
 
 export interface CommissionRule {
   id: string;
@@ -270,3 +270,4 @@ export const commissionRulesService = {
 };
 
 export default commissionRulesService;
+

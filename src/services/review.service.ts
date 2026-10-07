@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../lib/api";
 import axios from "axios";
 
 
@@ -137,3 +137,4 @@ export const reviewService = {
     return response.data.review;
   },
 };
+
