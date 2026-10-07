@@ -29,6 +29,7 @@ import {
   Camera,
   Loader2,
   Zap,
+  Wallet,
 } from 'lucide-react';
 import api from '../../services/api';
 import { authService, type UserProfile } from '../../services/auth.service';
@@ -671,6 +672,14 @@ export default function MarketplacePage() {
                             >
                               <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
                               <span>Đơn mua của tôi</span>
+                            </Link>
+                            <Link
+                              to="/customer/wallet"
+                              onClick={() => setIsRoleDropdownOpen(false)}
+                              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                            >
+                              <Wallet className="w-4 h-4 text-[#B88E4F]" />
+                              <span>Ví của tôi · Nạp tiền & Thanh toán</span>
                             </Link>
                             <Link
                               to="/customer/addresses"
@@ -1506,8 +1515,12 @@ export default function MarketplacePage() {
           initialCouponCode={activeCheckoutProduct.couponCode}
           initialQuantity={activeCheckoutProduct.quantity}
           onOrderPlaced={(orderData: any) => {
-            setActiveCheckoutProduct(null);
-            toast.success(`Đặt hàng thành công! Mã đơn: ${orderData.orderCode || orderData.id}`);
+            const code = orderData.publicOrderCode;
+            if (orderData.paymentMethod === 'PAYOS' && orderData.paymentStatus !== 'PAID') {
+              toast.info(`Đơn ${code} đã tạo. Vui lòng thanh toán bằng QR PayOS.`);
+            } else {
+              toast.success(`Đặt hàng thành công! Mã đơn: ${code}`);
+            }
             if (orderData.phone) {
               setTrackQuery(orderData.phone);
               setTimeout(() => {

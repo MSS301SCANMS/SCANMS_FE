@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { Categories as EmojiCategory, PickerProps } from 'emoji-picker-react';
+import type { Categories as EmojiCategory, PickerProps, EmojiClickData } from 'emoji-picker-react';
 import {
   X,
   Maximize2,
@@ -1624,7 +1624,7 @@ export function ScanmsFloatingChatWidget() {
                   >
                     <Suspense fallback={<div className="h-[350px]" aria-label="Đang tải biểu tượng cảm xúc" />}>
                       <EmojiPicker
-                        onEmojiClick={({ emoji }) => insertEmoji(emoji)}
+                        onEmojiClick={(data: EmojiClickData) => insertEmoji(data.emoji)}
                         theme={'light' as NonNullable<PickerProps['theme']>}
                         emojiStyle={'native' as NonNullable<PickerProps['emojiStyle']>}
                         suggestedEmojisMode={'recent' as NonNullable<PickerProps['suggestedEmojisMode']>}

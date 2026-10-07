@@ -84,7 +84,7 @@ const screens = [
   { id: "commission-rules", label: "Mốc thưởng Doanh số", icon: "ph-trophy", role: "shop" },
   { id: "shop-collaborators", label: "Đội ngũ CTV", icon: "ph-users-three", role: "shop" },
   { id: "orders", label: "Đối soát đơn", icon: "ph-receipt", role: "shop" },
-  { id: "payouts", label: "Duyệt chi trả", icon: "ph-bank", role: "shop" },
+  { id: "payouts", label: "Ví shop & Rút tiền", icon: "ph-bank", role: "shop" },
   { id: "shop-samples", label: "Duyệt hàng mẫu", icon: "ph-package", role: "shop" },
   { id: "shop-media", label: "Kho tài nguyên", icon: "ph-images-square", role: "shop" },
   { id: "shop-customer-requests", label: "Yêu cầu khách mua", icon: "ph-hand-waving", role: "shop" },
@@ -2410,7 +2410,7 @@ window.addEventListener('message', (event) => {
 
 function payoutsScreen() {
   // Real shop-scoped payouts replace actionable demo records.
-  return `<iframe id="payout-approval-iframe" src="/merchant/payouts" style="width:100%;height:calc(100vh - 100px);min-height:650px;border:0;background:transparent;display:block" title="Duyệt payout và xuất Excel VietQR"></iframe>`;
+  return `<iframe id="payout-approval-iframe" src="/merchant/wallet" style="width:100%;height:calc(100vh - 100px);min-height:650px;border:0;background:transparent;display:block" title="Ví shop và rút tiền"></iframe>`;
 }
 
 function chatScreen() {
@@ -3374,7 +3374,7 @@ const renderers = {
   "manager-dashboard": managerDashboardScreen,
   "manager-stores": managerStoresScreen,
   "manager-store-detail": managerStoreDetailScreen,
-  "manager-banks": managerBanksScreen,
+  "manager-banks": () => `<iframe src="/admin/finance" style="width:100%;height:calc(100vh - 100px);min-height:750px;border:0" title="Quản lý tài chính"></iframe>`,
   "manager-fraud": managerFraudScreen,
   "manager-audit": managerAuditScreen,
   "manager-profile": managerProfileScreen,
@@ -3386,7 +3386,7 @@ const renderers = {
   "admin-users": adminUsersScreen,
   "admin-coupons": adminCouponsScreen,
   "admin-audit": adminAuditScreen,
-  "admin-config": adminSystemConfigScreen,
+  "admin-config": () => `<iframe src="/admin/finance" style="width:100%;height:calc(100vh - 100px);min-height:750px;border:0" title="Cấu hình phí và tài chính"></iframe>`,
   "admin-profile": adminProfileScreen,
 
   "customer-profile": customerProfileScreen,

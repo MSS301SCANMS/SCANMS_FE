@@ -397,6 +397,14 @@ export function PublicHeader({
                             <span>Đơn mua của tôi</span>
                           </Link>
                           <Link
+                            to="/customer/wallet"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                          >
+                            <Wallet className="w-4 h-4 text-[#B88E4F]" />
+                            <span>Ví của tôi · Nạp tiền & Thanh toán</span>
+                          </Link>
+                          <Link
                             to="/customer/addresses"
                             onClick={() => setIsUserMenuOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"

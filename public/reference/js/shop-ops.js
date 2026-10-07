@@ -682,68 +682,7 @@ export function shopProfileScreen() {
       ` : ''}
 
       <!-- Tab 4: Ngân hàng đối soát -->
-      ${tab === 'bank' ? `
-        <div class="split" style="grid-template-columns:1.2fr 0.8fr;gap:20px">
-          <div class="card" style="padding:26px">
-            <h3 style="margin-top:0;font-size:17px;font-weight:800;border-bottom:1px solid var(--line);padding-bottom:12px;color:var(--text)">
-              <i class="ph ph-bank" style="color:var(--brand)"></i> Tài khoản Ngân hàng nhận đối soát doanh số
-            </h3>
-
-            <form id="shop-bank-form" class="form-stack" style="margin-top:16px">
-              <div class="field">
-                <label>Ngân hàng doanh nghiệp *</label>
-                <input class="input" id="shop-bank-name" value="${p.bank.bankName}" required />
-              </div>
-
-              <div class="field">
-                <label>Số tài khoản ngân hàng nhận tiền *</label>
-                <input class="input" id="shop-bank-acc" value="${p.bank.accountNumber}" required />
-              </div>
-
-              <div class="field">
-                <label>Tên chủ tài khoản thụ hưởng (In hoa) *</label>
-                <input class="input" id="shop-bank-holder" value="${p.bank.accountName}" required />
-              </div>
-
-              <div class="field">
-                <label>Chi nhánh mở tài khoản</label>
-                <input class="input" id="shop-bank-branch" value="${p.bank.branch}" />
-              </div>
-
-              <div class="field">
-                <label>Chu kỳ quyết toán tự động</label>
-                <input class="input" value="${p.bank.payoutCycle}" disabled />
-              </div>
-
-              <div style="display:flex;justify-content:flex-end;margin-top:14px">
-                <button type="submit" class="btn" style="padding:10px 24px;font-weight:750">
-                  <i class="ph ph-check"></i> Lưu tài khoản ngân hàng đối soát
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div class="card" style="padding:22px;background:linear-gradient(135deg, #7A561B 0%, #3f280b 100%);color:#fff;border-radius:18px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
-              <span style="font-size:13px;font-weight:700;letter-spacing:1px;opacity:0.85">SCANMS MERCHANT SETTLEMENT</span>
-              <i class="ph ph-storefront" style="font-size:28px"></i>
-            </div>
-            <div style="font-size:20px;font-weight:800;letter-spacing:2px;font-family:monospace;margin-bottom:18px">
-              •••• •••• •••• ${p.bank.accountNumber.slice(-4)}
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:flex-end">
-              <div>
-                <small style="font-size:10px;opacity:0.75;display:block">TÊN THỤ HƯỞNG</small>
-                <strong style="font-size:13.5px">${p.bank.accountName}</strong>
-              </div>
-              <div style="text-align:right">
-                <small style="font-size:10px;opacity:0.75;display:block">TỰ ĐỘNG ĐỐI SOÁT</small>
-                <span class="badge success" style="font-size:10.5px">Đang kích hoạt</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ` : ''}
+      ${tab === 'bank' ? `<iframe src="/merchant/wallet" style="width:100%;height:800px;border:0" title="Tài khoản nhận tiền và ví shop"></iframe>` : ''}
 
       <!-- Tab 5: Mật khẩu & API Key -->
       ${tab === 'security' ? `
