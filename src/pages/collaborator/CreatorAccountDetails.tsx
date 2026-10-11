@@ -15,39 +15,13 @@ export default function CreatorAccountDetails() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // KOL profile metadata (Gender & Date of birth)
-  const metaKey = `scanms_kol_meta_${currentUser?.id || 'kol'}`;
-  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).gender || 'MALE';
-    } catch {}
-    return 'MALE';
-  });
-
-  const [birthDay, setBirthDay] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthDay || '02';
-    } catch {}
-    return '02';
-  });
-
-  const [birthMonth, setBirthMonth] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthMonth || '01';
-    } catch {}
-    return '01';
-  });
-
-  const [birthYear, setBirthYear] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthYear || '2000';
-    } catch {}
-    return '2000';
-  });
+  // Profile metadata
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
+  const [birthDay, setBirthDay] = useState('02');
+  const [birthMonth, setBirthMonth] = useState('01');
+  const [birthYear, setBirthYear] = useState('2000');
+  const [addressInput, setAddressInput] = useState('');
+  const [bioInput, setBioInput] = useState('');
 
   // Sync latest user profile on mount
   useEffect(() => {
@@ -58,6 +32,17 @@ export default function CreatorAccountDetails() {
         if (isMounted && profile?.user) {
           if (profile.user.fullName) setNameInput(profile.user.fullName);
           if (profile.user.phoneNumber) setPhoneInput(profile.user.phoneNumber);
+          if (profile.user.gender) setGender(profile.user.gender);
+          if (profile.user.dateOfBirth) {
+            const parts = profile.user.dateOfBirth.split('-');
+            if (parts.length === 3) {
+              setBirthYear(parts[0]);
+              setBirthMonth(parts[1]);
+              setBirthDay(parts[2]);
+            }
+          }
+          setAddressInput(profile.user.address || '');
+          setBioInput(profile.user.bio || '');
         }
       } catch {
         // Fallback to authService user
@@ -103,6 +88,7 @@ export default function CreatorAccountDetails() {
   };
 
   const username =
+    (currentUser as any)?.username ||
     currentUser?.email?.split('@')[0] ||
     'kol_creator';
 
@@ -110,16 +96,22 @@ export default function CreatorAccountDetails() {
     e.preventDefault();
     setUpdatingProfile(true);
     try {
-      await customerService.updateProfile({
-        fullName: nameInput.trim(),
-        phoneNumber: phoneInput.trim(),
-      });
+      const dateOfBirth =
+        birthYear && birthMonth && birthDay
+          ? `${birthYear}-${birthMonth}-${birthDay}`
+          : undefined;
 
-      // Persist gender and birth date in localStorage
-      localStorage.setItem(
-        metaKey,
-        JSON.stringify({ gender, birthDay, birthMonth, birthYear })
-      );
+      const payload: Record<string, any> = {
+        fullName: nameInput.trim(),
+        phoneNumber: phoneInput.trim() || undefined,
+        gender: gender || undefined,
+        dateOfBirth,
+        address: addressInput.trim() || undefined,
+        bio: bioInput.trim() || undefined,
+      };
+
+      console.log('[SCANMS] updateProfile payload:', JSON.stringify(payload));
+      await customerService.updateProfile(payload);
 
       // Refresh auth session
       await authService.getMe();
@@ -150,7 +142,6 @@ export default function CreatorAccountDetails() {
     try {
       setUploadingAvatar(true);
       const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
-      await authService.updateAvatar(secureUrl);
       await customerService.updateProfile({ avatarUrl: secureUrl });
       await authService.getMe();
       window.dispatchEvent(new Event('auth-user-updated'));
@@ -355,7 +346,42 @@ export default function CreatorAccountDetails() {
             </div>
           </div>
 
-          {/* 7. Nút Lưu (SCANMS Style) */}
+          {/* 7. Địa chỉ */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 pt-2">
+              Địa chỉ
+            </label>
+            <div className="flex-1 max-w-md">
+              <input
+                type="text"
+                value={addressInput}
+                onChange={(e) => setAddressInput(e.target.value)}
+                maxLength={500}
+                placeholder="Nhập địa chỉ của bạn"
+                className="w-full bg-white border border-[#EAE4D7] focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58] rounded-md px-3.5 py-2 text-xs sm:text-sm text-[#1A1612] outline-none transition"
+              />
+            </div>
+          </div>
+
+          {/* 8. Giới thiệu bản thân */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 pt-2">
+              Giới thiệu
+            </label>
+            <div className="flex-1 max-w-md">
+              <textarea
+                value={bioInput}
+                onChange={(e) => setBioInput(e.target.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="Giới thiệu ngắn về bản thân"
+                className="w-full bg-white border border-[#EAE4D7] focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58] rounded-md px-3.5 py-2 text-xs sm:text-sm text-[#1A1612] outline-none transition resize-none"
+              />
+              <span className="text-[10px] text-[#A89D8E] mt-0.5 block text-right">{bioInput.length}/500</span>
+            </div>
+          </div>
+
+          {/* 9. Nút Lưu (SCANMS Style) */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 pt-3">
             <div className="sm:w-32 shrink-0" />
             <button

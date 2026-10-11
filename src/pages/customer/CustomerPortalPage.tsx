@@ -179,6 +179,8 @@ export default function CustomerPortalPage() {
   const [birthDay, setBirthDay] = useState('02');
   const [birthMonth, setBirthMonth] = useState('01');
   const [birthYear, setBirthYear] = useState('2000');
+  const [addressInput, setAddressInput] = useState('');
+  const [bioInput, setBioInput] = useState('');
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
@@ -231,9 +233,11 @@ export default function CustomerPortalPage() {
   };
 
   const username =
+    profileData?.user?.username ||
+    (currentUser as any)?.username ||
     profileData?.user?.email?.split('@')[0] ||
     currentUser?.email?.split('@')[0] ||
-    'tuan15252004';
+    '';
 
   // Avatar Upload State & Handler
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -246,7 +250,7 @@ export default function CustomerPortalPage() {
     try {
       setUploadingAvatar(true);
       const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
-      await authService.updateAvatar(secureUrl);
+      await customerService.updateProfile({ avatarUrl: secureUrl });
 
       // Cập nhật state nội bộ
       if (profileData) {
@@ -367,6 +371,17 @@ export default function CustomerPortalPage() {
       setProfileData(data);
       setNameInput(data.user.fullName || '');
       setPhoneInput(data.user.phoneNumber || '');
+      if (data.user.gender) setGender(data.user.gender);
+      if (data.user.dateOfBirth) {
+        const parts = data.user.dateOfBirth.split('-');
+        if (parts.length === 3) {
+          setBirthYear(parts[0]);
+          setBirthMonth(parts[1]);
+          setBirthDay(parts[2]);
+        }
+      }
+      setAddressInput(data.user.address || '');
+      setBioInput(data.user.bio || '');
     } catch (err: any) {
       console.error('Fetch profile error:', err);
     } finally {
@@ -641,10 +656,22 @@ export default function CustomerPortalPage() {
     e.preventDefault();
     setUpdatingProfile(true);
     try {
-      await customerService.updateProfile({
+      const dateOfBirth =
+        birthYear && birthMonth && birthDay
+          ? `${birthYear}-${birthMonth}-${birthDay}`
+          : undefined;
+
+      const payload: Record<string, any> = {
         fullName: nameInput,
-        phoneNumber: phoneInput,
-      });
+        phoneNumber: phoneInput || undefined,
+        gender: gender || undefined,
+        dateOfBirth,
+        address: addressInput || undefined,
+        bio: bioInput || undefined,
+      };
+
+      console.log('[SCANMS] updateProfile payload:', JSON.stringify(payload));
+      await customerService.updateProfile(payload);
       toast.success('Cập nhật thông tin tài khoản thành công');
       fetchProfile();
       authService.getMe();
@@ -1955,6 +1982,35 @@ export default function CustomerPortalPage() {
                             </option>
                           ))}
                         </Select>
+                      </div>
+                    </div>
+
+                    {/* 6b. Địa chỉ */}
+                    <div className="flex flex-col sm:flex-row gap-1 sm:gap-6">
+                      <label className="text-xs text-[#8B7355] font-semibold sm:w-32 shrink-0 pt-2">Địa chỉ</label>
+                      <input
+                        type="text"
+                        value={addressInput}
+                        onChange={(e) => setAddressInput(e.target.value)}
+                        maxLength={500}
+                        placeholder="Nhập địa chỉ của bạn"
+                        className="flex-1 px-3 py-2 rounded-md bg-[#FAF8F5] border border-[#EAE4D7] text-xs text-[#1A1612] focus:ring-2 focus:ring-[#C59B58]/30 focus:border-[#C59B58] transition"
+                      />
+                    </div>
+
+                    {/* 6c. Giới thiệu bản thân */}
+                    <div className="flex flex-col sm:flex-row gap-1 sm:gap-6">
+                      <label className="text-xs text-[#8B7355] font-semibold sm:w-32 shrink-0 pt-2">Giới thiệu</label>
+                      <div className="flex-1">
+                        <textarea
+                          value={bioInput}
+                          onChange={(e) => setBioInput(e.target.value)}
+                          maxLength={500}
+                          rows={3}
+                          placeholder="Giới thiệu ngắn về bản thân"
+                          className="w-full px-3 py-2 rounded-md bg-[#FAF8F5] border border-[#EAE4D7] text-xs text-[#1A1612] focus:ring-2 focus:ring-[#C59B58]/30 focus:border-[#C59B58] transition resize-none"
+                        />
+                        <span className="text-[10px] text-[#8B7355] mt-0.5 block text-right">{bioInput.length}/500</span>
                       </div>
                     </div>
 
