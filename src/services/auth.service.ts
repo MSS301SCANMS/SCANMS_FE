@@ -69,15 +69,12 @@ export const authService = {
   },
 
   async register(data: {
+    username: string;
     email: string;
     password: string;
-    fullName: string;
-    otp: string;
-    role?: string;
-    storeName?: string;
-    phoneNumber?: string;
-    avatarUrl?: string;
-    logoUrl?: string;
+    firstName: string;
+    lastName: string;
+    roleNames?: string[];
   }) {
     return api.post('/auth/register', data);
   },
