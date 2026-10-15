@@ -12,8 +12,13 @@ export interface CustomerProfileResponse {
     id: string;
     email: string;
     fullName: string;
+    username?: string | null;
     phoneNumber?: string | null;
+    dateOfBirth?: string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+    address?: string | null;
     avatarUrl?: string | null;
+    bio?: string | null;
     role: string;
     createdAt: string;
   };
@@ -173,13 +178,40 @@ export interface CustomerWishlistItem {
 export const customerService = {
   // 1. Profile & Settings
   async getProfile(): Promise<CustomerProfileResponse> {
-    const res: any = await api.get('/customer/profile');
-    return res?.data?.data || res?.data || res;
+    const res: any = await api.get('/users/me');
+    const u = res?.result || res?.data || res;
+    const roleMap: Record<string, string> = { ADMIN: 'SYSTEM_ADMIN', MANAGER: 'SYSTEM_MANAGER' };
+    const beRole = Array.isArray(u.roles) ? (u.roles[0] || 'USER') : (u.role || 'USER');
+    return {
+      user: {
+        id: u.userId || u.id,
+        email: u.email,
+        fullName: u.fullName || '',
+        username: u.username || null,
+        phoneNumber: u.phoneNumber || null,
+        dateOfBirth: u.dateOfBirth || null,
+        gender: u.gender || null,
+        address: u.address || null,
+        avatarUrl: u.avatarUrl || null,
+        bio: u.bio || null,
+        role: roleMap[beRole] || beRole,
+        createdAt: u.createdAt,
+      },
+      stats: { totalOrders: 0, pendingOrders: 0, totalSpending: 0, wishlistCount: 0 },
+    };
   },
 
-  async updateProfile(data: { fullName?: string; phoneNumber?: string; avatarUrl?: string }): Promise<any> {
-    const res: any = await api.put('/customer/profile', data);
-    return res?.data?.data || res?.data || res;
+  async updateProfile(data: {
+    fullName?: string;
+    phoneNumber?: string;
+    avatarUrl?: string;
+    dateOfBirth?: string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+    address?: string | null;
+    bio?: string | null;
+  }): Promise<any> {
+    const res: any = await api.patch('/users/me', data);
+    return res?.result || res?.data || res;
   },
 
   async changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
