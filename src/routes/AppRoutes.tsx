@@ -42,6 +42,7 @@ const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductM
 const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/merchant/KycApprovalPage'));
+const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
 
 const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
@@ -259,7 +260,7 @@ function AppRoutes() {
           <Route element={<RouteContent />}>
             <Route path="admin/analytics" element={<AdminAnalyticsHubPage />} />
             <Route path="admin/affiliate-oversight" element={<AdminOversightHubPage />} />
-            <Route path="admin/users" element={<KycApprovalPage />} />
+            <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="admin/audit-logs" element={<AuditLogsPage />} />
             <Route path="admin/audit" element={<AuditLogsPage />} />
             <Route path="admin/fraud-sentinel" element={<AiFraudSentinelPage />} />
