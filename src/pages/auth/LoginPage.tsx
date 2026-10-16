@@ -27,15 +27,18 @@ interface RoleOption {
   label: string;
   icon: any;
   email: string;
+  password: string;
   badge: string;
 }
 
+// Email/mật khẩu khớp đúng với 4 tài khoản đã seed trong realm-export.json (Keycloak).
+// Vai trò "Khách" chưa có tài khoản mẫu được seed sẵn -> để trống, dùng để chọn vai trò khi đăng ký qua Google.
 const ROLES: RoleOption[] = [
-  { id: 'customer', label: 'Khách', icon: ShoppingBag, email: 'customer@scanms.vn', badge: 'Khách mua hàng' },
-  { id: 'kol', label: 'KOL/CTV', icon: Sparkles, email: 'kol1@scanms.vn', badge: 'KOL / CTV Tiếp thị' },
-  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shop@scanms.vn', badge: 'Chủ Gian Hàng' },
-  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager@scanms.vn', badge: 'Vận hành (System Manager)' },
-  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@scanms.vn', badge: 'Quản trị viên (Admin)' },
+  { id: 'customer', label: 'Khách', icon: ShoppingBag, email: '', password: '', badge: 'Khách mua hàng (chưa có tài khoản mẫu, vui lòng đăng ký)' },
+  { id: 'kol', label: 'KOL/CTV', icon: Sparkles, email: 'kolctv01@scanms.com', password: '123456', badge: 'KOL / CTV Tiếp thị' },
+  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shopowner01@scanms.com', password: '123456', badge: 'Chủ Gian Hàng' },
+  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager01@scanms.com', password: '123456', badge: 'Vận hành (System Manager)' },
+  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@scanms.com', password: '123456', badge: 'Quản trị viên (Admin)' },
 ];
 
 export default function LoginPage() {
@@ -54,8 +57,8 @@ export default function LoginPage() {
 
   const [role, setRole] = useState<RoleType>('customer');
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
-  const [email, setEmail] = useState(registeredEmail || 'customer@scanms.vn');
-  const [password, setPassword] = useState(registeredEmail ? '' : 'Password@123');
+  const [email, setEmail] = useState(registeredEmail || '');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -77,8 +80,9 @@ export default function LoginPage() {
     setRole(selectedRole);
     const r = ROLES.find((x) => x.id === selectedRole);
     if (r) {
+      // Vai trò "Khách" chưa có tài khoản mẫu -> chỉ chọn vai trò (dùng cho đăng ký Google), không điền sẵn email/mật khẩu sai
       setEmail(r.email);
-      setPassword('Password@123');
+      setPassword(r.password);
     }
     setError(null);
     setIsRoleDropdownOpen(false);

@@ -29,6 +29,20 @@ export interface AvailableWorkspace {
 /**
  * Chuyen doi response BE (userId, roles[]) sang format FE (id, role)
  */
+// Thu tu uu tien role khi user co nhieu role cung luc (cao -> thap)
+const ROLE_PRIORITY = ['ADMIN', 'MANAGER', 'SHOP_MANAGER', 'SHOP_OWNER', 'KOL_CTV', 'COLLABORATOR', 'CUSTOMER', 'USER'];
+
+const ROLE_MAP: Record<string, string> = {
+  'ADMIN': 'SYSTEM_ADMIN',
+  'MANAGER': 'SYSTEM_MANAGER',
+  'SHOP_MANAGER': 'SHOP_MANAGER',
+  'SHOP_OWNER': 'SHOP_MANAGER',
+  'KOL_CTV': 'COLLABORATOR',
+  'COLLABORATOR': 'COLLABORATOR',
+  'CUSTOMER': 'CUSTOMER',
+  'USER': 'CUSTOMER',
+};
+
 function normalizeUser(raw: any): any {
   if (!raw) return raw;
   const user = { ...raw };
@@ -36,17 +50,14 @@ function normalizeUser(raw: any): any {
   if (!user.id && user.userId) {
     user.id = user.userId;
   }
-  // BE tra "roles" (array), FE can "role" (string)
+  // BE tra "roles" (array - thuc chat la Set nen KHONG co thu tu co dinh),
+  // FE can 1 "role" (string) duy nhat de dieu huong -> phai chon theo
+  // UU TIEN role cao nhat, khong duoc lay bua phan tu dau mang (roles[0]).
   if (!user.role && Array.isArray(user.roles) && user.roles.length > 0) {
-    const beRole = user.roles[0];
-    const roleMap: Record<string, string> = {
-      'ADMIN': 'SYSTEM_ADMIN',
-      'MANAGER': 'SYSTEM_MANAGER',
-      'SHOP_MANAGER': 'SHOP_MANAGER',
-      'COLLABORATOR': 'COLLABORATOR',
-      'CUSTOMER': 'CUSTOMER',
-    };
-    user.role = roleMap[beRole] || beRole;
+    const beRoles: string[] = user.roles;
+    const highestRole =
+      ROLE_PRIORITY.find((r) => beRoles.includes(r)) || beRoles[0];
+    user.role = ROLE_MAP[highestRole] || highestRole;
   }
   return user;
 }
