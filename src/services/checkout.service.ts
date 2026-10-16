@@ -1,6 +1,7 @@
 import axios from 'axios';
 import api from './api';
 import { financeService } from './finance.service';
+import type { StoreResponse } from '../types/backend.generated';
 
 export const usesLegacyCheckout = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 const unwrap = (response: any) => response?.result ?? response?.data?.data ?? response?.data ?? response;
@@ -15,9 +16,9 @@ legacyFinance.interceptors.response.use(response => response, error => {
   return Promise.reject(new Error(message));
 });
 
-const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || 'http://localhost:8080/api/v1', timeout: 60000 });
+const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || '/api/v1', timeout: 60000 });
 checkout.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('scanms-access-token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -27,9 +28,9 @@ export const checkoutService = {
     const response = await checkout.post('/checkout', input);
     return response.data.result;
   },
-  async quote(input: { couponCode: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
+  async quote(input: { couponCode?: string; items: { productId: string; variantId?: string; quantity: number }[] }) {
     if (usesLegacyCheckout) return unwrap(await api.post('/coupons/validate', {
-      code: input.couponCode, storeId: input.storeId, customerPhone: input.customerPhone,
+      code: input.couponCode,
       items: input.items, hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: false,
     }));
     const response = await checkout.post('/checkout/quote', input);
@@ -47,7 +48,10 @@ export const checkoutService = {
     return unwrap((await legacyFinance.get(`/orders/payos/${encodeURIComponent(publicCode)}/status`, { headers: { 'x-skip-cache': 'true' } })).data);
   },
   async stores(): Promise<{ storeId: string; name: string }[]> {
-    const response = await checkout.get('/stores/mine');
-    return response.data.result;
+    const current = JSON.parse(sessionStorage.getItem('scanms-user') || 'null') as { userId?: string } | null;
+    if (!current?.userId) throw new Error('Vui lòng đăng nhập để xem gian hàng.');
+    const stores = (await api.get('/stores')).data as StoreResponse[];
+    return stores.filter(store => store.ownerUserId === current.userId && !!store.storeId)
+      .map(store => ({ storeId: store.storeId!, name: store.name || 'Gian hàng' }));
   },
 };

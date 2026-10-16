@@ -1,11 +1,17 @@
 import api from '../lib/api';
+import { endKeycloakSession } from './keycloak';
+import type { RoleName, UserStatus } from '../types/backend.generated';
 
 export interface UserProfile {
   id: string;
+  userId?: string;
+  identitySubject?: string | null;
   username?: string;
   email: string;
   fullName: string;
   role: 'SYSTEM_ADMIN' | 'SYSTEM_MANAGER' | 'SHOP_MANAGER' | 'COLLABORATOR' | 'CUSTOMER';
+  roles: RoleName[];
+  status?: UserStatus | null;
   phoneNumber?: string;
   dateOfBirth?: string | null;
   gender?: string | null;
@@ -37,17 +43,19 @@ function normalizeUser(raw: any): any {
     user.id = user.userId;
   }
   // BE tra "roles" (array), FE can "role" (string)
-  if (!user.role && Array.isArray(user.roles) && user.roles.length > 0) {
-    const beRole = user.roles[0];
-    const roleMap: Record<string, string> = {
-      'ADMIN': 'SYSTEM_ADMIN',
-      'MANAGER': 'SYSTEM_MANAGER',
-      'SHOP_MANAGER': 'SHOP_MANAGER',
-      'COLLABORATOR': 'COLLABORATOR',
-      'CUSTOMER': 'CUSTOMER',
-    };
-    user.role = roleMap[beRole] || beRole;
-  }
+  const roleMap: Record<string, UserProfile['role']> = {
+    ADMIN: 'SYSTEM_ADMIN', SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+    MANAGER: 'SYSTEM_MANAGER', SYSTEM_MANAGER: 'SYSTEM_MANAGER',
+    SHOP_OWNER: 'SHOP_MANAGER', SHOP_MANAGER: 'SHOP_MANAGER',
+    KOL_CTV: 'COLLABORATOR', COLLABORATOR: 'COLLABORATOR',
+    USER: 'CUSTOMER', CUSTOMER: 'CUSTOMER',
+  };
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  user.roles = roles.length ? roles : [user.role || 'USER'];
+  user.role = user.role ? (roleMap[user.role] || user.role) :
+    (['ADMIN', 'MANAGER', 'SHOP_OWNER', 'KOL_CTV', 'USER'].find(role => roles.includes(role)) || 'USER');
+  user.role = roleMap[user.role] || user.role;
+  user.status = user.status || 'ACTIVE';
   return user;
 }
 
@@ -152,11 +160,11 @@ export const authService = {
   },
 
   async getMe(): Promise<UserProfile> {
-    if (localStorage.getItem('scanms-auth-provider') === 'keycloak') return keycloakProfile(localStorage.getItem('token') || '');
     const res: any = await api.get('/users/me');
     const user = normalizeUser(res?.result || res?.data || res);
     if (user && user.id) {
       localStorage.setItem('user', JSON.stringify(user));
+      sessionStorage.setItem('scanms-user', JSON.stringify(user));
       if (user.stores?.[0]?.id) {
         localStorage.setItem('current_store_id', user.stores[0].id);
       }
@@ -176,6 +184,7 @@ export const authService = {
   },
 
   logout() {
+    const hasKeycloakSession = Boolean(sessionStorage.getItem('scanms-access-token'));
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     localStorage.removeItem('token');
     localStorage.removeItem('scanms-auth-provider');
@@ -189,6 +198,10 @@ export const authService = {
     localStorage.removeItem('scanms_cart_selected_guest');
     localStorage.removeItem('scanms_pending_checkout');
     window.dispatchEvent(new Event('auth-user-updated'));
+    if (hasKeycloakSession) {
+      endKeycloakSession();
+      return;
+    }
     window.location.href = '/login';
   },
 

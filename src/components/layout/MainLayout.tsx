@@ -1,46 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { Menu, X } from 'lucide-react';
+import { NAVIGATION_BY_ROLE } from '../../config/navigation.config';
+import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
 
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [mobileNavigation, setMobileNavigation] = useState(false);
-  useEffect(() => { setMobileNavigation(false); }, [location.pathname]);
 
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
     }
-    const token = localStorage.getItem('token');
-    if (token) {
-      authService
-        .getMe()
-        .then((freshUser) => {
-          if (freshUser && freshUser.id) {
-            setCurrentUser(freshUser);
-          }
-        })
-        .catch(() => {
-          // Token expired or invalid
-        });
-    }
-
-    const handleUserUpdated = () => {
-      const updated = authService.getCurrentUser();
-      if (updated) {
-        setCurrentUser(updated);
-      }
-    };
-
-    window.addEventListener('auth-user-updated', handleUserUpdated);
-    return () => window.removeEventListener('auth-user-updated', handleUserUpdated);
+    const update = () => setCurrentUser(authService.getCurrentUser());
+    window.addEventListener('scanms_auth_changed', update);
+    return () => window.removeEventListener('scanms_auth_changed', update);
   }, [location.pathname]);
 
   const toggleTheme = () => {
@@ -60,7 +39,6 @@ export default function MainLayout() {
   };
 
   const isAuth = location.pathname === '/login' || location.pathname === '/register';
-  const isShopSettings = location.pathname === '/merchant/settings';
 
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
@@ -74,25 +52,28 @@ export default function MainLayout() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex bg-[#FAF8F5] text-[#1A1612]">
-      <div className="hidden lg:block h-full"><Sidebar
+      <div className="hidden md:flex">
+      <Sidebar
         currentUser={currentUser}
         onLogout={handleLogout}
-      /></div>
-      {mobileNavigation && <div className="fixed inset-0 z-50 flex bg-black/40 lg:hidden" role="dialog" aria-label="Điều hướng" aria-modal="true">
-        <Sidebar currentUser={currentUser} onLogout={handleLogout} />
-        <button aria-label="Đóng điều hướng" onClick={() => setMobileNavigation(false)} className="self-start m-3 rounded-full bg-white p-3"><X size={20} /></button>
-      </div>}
+      />
+      </div>
 
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-        <button aria-label="Mở điều hướng" onClick={() => setMobileNavigation(true)} className="lg:hidden flex items-center gap-2 border-b bg-[#F3EFE6] px-4 py-2 text-sm font-semibold"><Menu size={18} />Menu</button>
         <Topbar
           currentUser={currentUser}
           theme={theme}
           onToggleTheme={toggleTheme}
           onLogout={handleLogout}
         />
+        <div className="md:hidden border-b border-[#EAE4D7] bg-white p-3 space-y-3">
+          {currentUser && <WorkspaceSwitcher variant="header" />}
+          <nav aria-label="Menu trên điện thoại" className="flex gap-3 overflow-x-auto text-sm whitespace-nowrap">
+            {(NAVIGATION_BY_ROLE[authService.getActiveWorkspace() === 'shop' ? 'SHOP_MANAGER' : authService.getActiveWorkspace() === 'kol' ? 'COLLABORATOR' : authService.getActiveWorkspace() === 'admin' ? currentUser?.role || 'SYSTEM_MANAGER' : 'CUSTOMER']?.items || []).map(item => <Link key={item.path} to={item.path} className="rounded-lg px-3 py-2 bg-[#FAF8F5] text-[#7D715E]">{item.label}</Link>)}
+          </nav>
+        </div>
 
-        <main className={`flex-1 overflow-y-auto overflow-x-hidden px-4 pt-2.5 pb-6 sm:px-6 sm:pt-3 sm:pb-8 lg:px-8 lg:pt-3 lg:pb-8 ${isShopSettings ? 'bg-white' : 'bg-[#FAF8F5]'}`}>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 bg-[#FAF8F5]">
           <div className="max-w-[1520px] w-full mx-auto">
             <Outlet />
           </div>

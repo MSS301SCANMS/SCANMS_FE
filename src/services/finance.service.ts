@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const client = axios.create({ baseURL: import.meta.env.VITE_FINANCE_API_URL || 'http://localhost:8080/api/v1/finance', timeout: 20000 });
+const client = axios.create({ baseURL: import.meta.env.VITE_FINANCE_API_URL || '/api/v1/finance', timeout: 20000 });
 client.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('scanms-access-token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
