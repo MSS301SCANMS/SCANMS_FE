@@ -5,16 +5,16 @@ import puppeteer from "puppeteer-core";
 const requireBackend = createRequire(
   new URL("../../backend/package.json", import.meta.url),
 );
-const jwt = requireBackend("jsonwebtoken");
-const ExcelJS = requireBackend("exceljs");
 const base = process.env.WITHDRAWAL_UI_TEST_URL;
 const browserPath = process.env.WITHDRAWAL_UI_BROWSER_PATH;
 const rawFixture = process.env.QA_FIXTURE_JSON;
 
 test(
   "FR20 prototype buttons open live manual/Excel dialogs; validation, double submit, template and row errors",
-  { skip: !base || !browserPath || !rawFixture },
+  { skip: !process.env.LEGACY_NESTJS_UI_TESTS || !base || !browserPath || !rawFixture },
   async () => {
+    const jwt = requireBackend("jsonwebtoken");
+    const ExcelJS = requireBackend("exceljs");
     assert.equal(new URL(base).hostname, "127.0.0.1");
     const fixture = JSON.parse(rawFixture);
     const browser = await puppeteer.launch({

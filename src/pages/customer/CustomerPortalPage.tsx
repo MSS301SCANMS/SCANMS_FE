@@ -28,9 +28,6 @@ import {
   MessageCircle,
   User,
   Copy,
-  Package,
-  CheckCheck,
-  Check,
   HelpCircle,
   Shield,
   Mail,
@@ -40,6 +37,7 @@ import {
 } from 'lucide-react';
 import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
 import { authService, type UserProfile } from '../../services/auth.service';
+import { CustomerWalletTab } from '../../components/customer/CustomerWalletTab';
 import { uploadService } from '../../services/upload.service';
 import { Select } from '../../components/ui/Select';
 import {
@@ -68,7 +66,7 @@ import {
   type AddressLocationResult,
 } from '../../components/customer/AddressLocationPicker';
 
-type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'identity' | 'upgrade' | 'vouchers' | 'security';
+type CustomerTab = 'orders' | 'addresses' | 'wishlist' | 'profile' | 'identity' | 'upgrade' | 'vouchers' | 'security' | 'wallet';
 type OrderFilterStatus = 'ALL' | 'UNPAID' | 'PENDING' | 'SHIPPING' | 'DELIVERED' | 'RECEIVING' | 'COMPLETED' | 'RETURN_REQUESTED' | 'CANCELLED' | 'RETURNED';
 
 const normalizeAdministrativeName = (value: string) => value
