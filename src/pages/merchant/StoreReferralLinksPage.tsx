@@ -46,8 +46,8 @@ export default function StoreReferralLinksPage() {
 
     async function initStore() {
       try {
-        const res: any = await api.get('/auth/me');
-        const user = res?.data || res;
+        const res: any = await api.get('/users/me');
+        const user = res?.result || res?.data || res;
 
         if (user?.stores && user.stores.length > 0) {
           setStoreId(user.stores[0].id);

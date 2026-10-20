@@ -1,4 +1,4 @@
-import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
+﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
@@ -86,11 +86,41 @@ export default function CollaboratorLiveSessionsPage() {
   const load = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
-      const response: any = await api.get('/live-sessions/my', {
+      const response: any = await api.get('/livestreams', {
         headers: { 'x-skip-cache': 'true' },
       });
-      const result = response?.data || response;
-      setSessions(Array.isArray(result) ? result : []);
+      const result = response?.data || response?.result || response;
+      const list = (Array.isArray(result) ? result : []).map((raw: any): Session => {
+        const participants = raw?.participantRefs || {};
+        const productIds = raw?.productRefs?.productIds || [];
+        return {
+          id: raw.id || raw.livestreamId,
+          title: raw.title || 'Phiên live',
+          description: raw.description,
+          platform: participants.platform || 'SCANMS',
+          liveUrl: raw.playbackRef || participants.liveUrl || '',
+          externalChannels: participants.externalChannels || [],
+          startsAt: raw.scheduledAt || raw.startsAt || raw.createdAt,
+          endsAt: participants.endsAt || raw.endedAt || raw.scheduledAt || raw.createdAt,
+          status: raw.status || 'SCHEDULED',
+          inviteStatus: participants.inviteStatus || 'PENDING',
+          commissionRate: participants.commissionRate ?? 0,
+          store: raw.store || { name: 'Shop', slug: '', logoUrl: null },
+          coupon: raw.coupon || {
+            displayCode: participants.voucherCode || '—',
+            discountType: participants.discountType || 'PERCENTAGE',
+            discountValue: participants.discountValue ?? 0,
+            usageLimitTotal: participants.usageLimitTotal ?? null,
+            usageCount: 0,
+          },
+          products: (productIds as string[]).map((pid) => ({
+            product: { id: pid, title: pid, imageUrl: null },
+          })),
+          report: raw.report,
+          governance: raw.governance,
+        };
+      });
+      setSessions(list);
       setLoadError(null);
     } catch (error: any) {
       const message = error?.response?.data?.message || error?.message || 'Không tải được phiên livestream.';
@@ -115,7 +145,7 @@ export default function CollaboratorLiveSessionsPage() {
   const respond = async (session: Session, accepted: boolean) => {
     try {
       setPendingAction(session.id);
-      await api.patch(`/live-sessions/my/${session.id}/respond`, { accepted });
+      await api.patch(`/livestreams/${session.id}/respond`, { accepted });
       toast.success(
         accepted
           ? 'Bạn đã nhận lời tham gia phiên live thành công!'

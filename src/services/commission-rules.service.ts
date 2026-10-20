@@ -78,18 +78,42 @@ export interface SettlementResponse {
   };
 }
 
+function mapPolicy(raw: any, storeId?: string): CommissionRule {
+  // BE lưu commissionRate theo % (10 = 10%), FE form cũng dùng %
+  const ratePct = Number(raw.commissionRate ?? 0);
+  return {
+    id: raw.id || raw.policyId,
+    storeId: raw.storeId || storeId || '',
+    name: raw.policyName || raw.name || 'Policy',
+    description: `Scope ${raw.scopeType || 'STORE'} · return ${raw.returnWindowDays ?? 14}d`,
+    minMonthlyRevenue: '0',
+    achievementBonus: '0',
+    bonusPercentage: String(ratePct),
+    isActive: String(raw.status || '').toUpperCase() === 'ACTIVE',
+    version: Number(raw.priority || 1),
+    effectiveFrom: raw.validFrom || null,
+    effectiveTo: raw.validTo || null,
+    createdBy: null,
+    updatedBy: null,
+    createdAt: raw.validFrom || new Date().toISOString(),
+    updatedAt: raw.validFrom || new Date().toISOString(),
+  };
+}
+
+/** Map Nest commission-rules → Spring /commission-policies */
 export const commissionRulesService = {
 
   async getRules(storeId: string): Promise<CommissionRule[]> {
-    const res: any = await api.get(`/stores/${storeId}/commission-rules`);
-    return res.data || res;
+    const res: any = await api.get('/commission-policies');
+    const list = res?.result ?? res?.data ?? [];
+    return (Array.isArray(list) ? list : [])
+      .filter((p: any) => !storeId || p.storeId === storeId)
+      .map((p: any) => mapPolicy(p, storeId));
   },
 
-  async getRule(storeId: string, ruleId: string): Promise<CommissionRule> {
-    const res: any = await api.get(
-      `/stores/${storeId}/commission-rules/${ruleId}`,
-    );
-    return res.data || res;
+  async getRule(_storeId: string, ruleId: string): Promise<CommissionRule> {
+    const res: any = await api.get(`/commission-policies/${ruleId}`);
+    return mapPolicy(res?.result ?? res?.data ?? res);
   },
 
   async createRule(
@@ -103,170 +127,82 @@ export const commissionRulesService = {
       isActive?: boolean;
     },
   ): Promise<CommissionRule> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules`,
-      data,
-    );
-    return res.data || res;
+    const res: any = await api.post('/commission-policies', {
+      policyName: data.name,
+      scopeType: 'STORE',
+      storeId,
+      // Percent: 10 = 10% (finalize chia /100)
+      commissionRate: Number(data.bonusPercentage),
+      returnWindowDays: 14,
+      validFrom: new Date().toISOString(),
+      status: data.isActive === false ? 'INACTIVE' : 'ACTIVE',
+      priority: 1,
+    });
+    return mapPolicy(res?.result ?? res?.data ?? res, storeId);
   },
 
-  async updateRule(
-    storeId: string,
-    ruleId: string,
-    data: {
-      name?: string;
-      description?: string;
-      minMonthlyRevenue?: string;
-      achievementBonus?: string;
-      bonusPercentage?: string;
-      isActive?: boolean;
-    },
-  ): Promise<CommissionRule> {
-    const res: any = await api.patch(
-      `/stores/${storeId}/commission-rules/${ruleId}`,
-      data,
-    );
-    return res.data || res;
+  async updateRule(_storeId: string, _ruleId: string, _data: any): Promise<CommissionRule> {
+    throw new Error('BE chưa hỗ trợ cập nhật commission policy.');
   },
 
-  async updateStatus(
-    storeId: string,
-    ruleId: string,
-    isActive: boolean,
-  ): Promise<{ id: string; name: string; isActive: boolean; message: string }> {
-    const res: any = await api.patch(
-      `/stores/${storeId}/commission-rules/${ruleId}/status`,
-      { isActive },
-    );
-    return res.data || res;
+  async updateStatus(_storeId: string, ruleId: string, isActive: boolean) {
+    return { id: ruleId, name: '', isActive, message: 'BE chưa hỗ trợ đổi status policy' };
   },
 
-  async deleteRule(
-    storeId: string,
-    ruleId: string,
-  ): Promise<{ success: boolean; message: string }> {
-    const res: any = await api.delete(
-      `/stores/${storeId}/commission-rules/${ruleId}`,
-    );
-    return res.data || res;
+  async deleteRule(_storeId: string, _ruleId: string) {
+    throw new Error('BE chưa hỗ trợ xóa commission policy.');
   },
 
-  async previewBonus(
-    storeId: string,
-    monthlyRevenue: string,
-  ): Promise<BonusPreviewResult> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules/preview`,
-      { monthlyRevenue },
-    );
-    return res.data || res;
+  async previewBonus(_storeId: string, monthlyRevenue: string): Promise<BonusPreviewResult> {
+    return {
+      monthlyRevenue,
+      highestReachedRule: null,
+      achievementBonus: '0',
+      rangeBonuses: [],
+      totalBonus: '0',
+      formula: 'BE chỉ lưu commission-policies, chưa có preview bonus.',
+    };
   },
 
-  async settleMonthlyBonus(
-    storeId: string,
-    collaboratorId: string,
-    yearMonth: string,
-    allowUnfinishedMonth = false,
-  ): Promise<SettlementResponse> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules/settle`,
-      { collaboratorId, yearMonth, allowUnfinishedMonth },
-    );
-    return res.data || res;
+  async settleMonthlyBonus(): Promise<SettlementResponse> {
+    throw new Error('BE chưa hỗ trợ settle bonus tháng.');
   },
 
-  async getSettlementHistory(
-    storeId: string,
-    yearMonth?: string,
-  ): Promise<SettlementHistoryItem[]> {
-    const res: any = await api.get(
-      `/stores/${storeId}/commission-rules/history`,
-      {
-        params: yearMonth ? { yearMonth } : {},
-      },
-    );
-    return res.data || res;
+  async getSettlementHistory(): Promise<SettlementHistoryItem[]> {
+    return [];
   },
 
-  async approveSettlement(
-    storeId: string,
-    settlementId: string,
-  ): Promise<{ success: boolean; message: string; settlement: any }> {
-    const res: any = await api.patch(
-      `/stores/${storeId}/commission-rules/settlements/${settlementId}/approve`,
-    );
-    return res.data || res;
+  async approveSettlement() {
+    throw new Error('BE chưa hỗ trợ approve settlement.');
   },
 
-  async payoutSettlement(
-    storeId: string,
-    settlementId: string,
-  ): Promise<{ success: boolean; message: string; settlement: any; ledger: any }> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules/settlements/${settlementId}/payout`,
-    );
-    return res.data || res;
+  async payoutSettlement() {
+    throw new Error('BE chưa hỗ trợ payout settlement.');
   },
 
-  async restoreRule(
-    storeId: string,
-    ruleId: string,
-  ): Promise<{ success: boolean; message: string; id: string }> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules/${ruleId}/restore`,
-    );
-    return res.data || res;
+  async restoreRule(_storeId: string, ruleId: string) {
+    return { success: false, message: 'BE chưa hỗ trợ restore', id: ruleId };
   },
 
-  async handleRefund(
-    storeId: string,
-    data: { orderId: string; refundAmount: string; reason: string },
-  ): Promise<{ success: boolean; message: string; refund: any; adjustment: any }> {
-    const res: any = await api.post(
-      `/stores/${storeId}/commission-rules/adjustments/refund`,
-      data,
-    );
-    return res.data || res;
+  async handleRefund() {
+    throw new Error('BE chưa hỗ trợ adjustment refund hoa hồng.');
   },
 
-  async getKolProgress(
-    storeId: string,
-    collaboratorId: string,
-    yearMonth?: string,
-  ): Promise<any> {
-    const res: any = await api.get(
-      `/stores/${storeId}/commission-rules/kol-progress/${collaboratorId}`,
-      { params: yearMonth ? { yearMonth } : {} },
-    );
-    return res.data || res;
+  async getKolProgress() {
+    return {};
   },
 
-  async getMyBonusProgress(
-    storeId: string,
-    yearMonth?: string,
-  ): Promise<any> {
-    const res: any = await api.get(
-      `/collaborator/stores/${storeId}/bonus-progress`,
-      { params: yearMonth ? { yearMonth } : {} },
-    );
-    return res.data || res;
+  async getMyBonusProgress() {
+    return {};
   },
 
-  async getMyBonusHistory(
-    storeId?: string,
-    yearMonth?: string,
-  ): Promise<any> {
-    const params: any = {};
-    if (storeId) params.storeId = storeId;
-    if (yearMonth) params.yearMonth = yearMonth;
-    const res: any = await api.get('/collaborator/bonus-history', { params });
-    return res.data || res;
+  async getMyBonusHistory() {
+    return [];
   },
 
-  async getCollaboratorStores(discovery?: boolean): Promise<any[]> {
-    const params = discovery !== undefined ? { discovery } : {};
-    const res: any = await api.get('/collaborator/stores', { params });
-    return res.data || res;
+  async getCollaboratorStores(): Promise<any[]> {
+    const res: any = await api.get('/stores/marketplace');
+    return res?.result ?? res?.data ?? [];
   },
 };
 

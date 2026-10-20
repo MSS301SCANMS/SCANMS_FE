@@ -1,4 +1,5 @@
 import api from './api';
+import { unwrapApi, unwrapList } from '@/utils/api-response';
 
 export type ReturnStatus =
   | 'REQUESTED' | 'SHOP_APPROVED' | 'PICKUP_BOOKED' | 'SHOP_REJECTED' | 'EXPIRED'
@@ -6,7 +7,8 @@ export type ReturnStatus =
   | 'INSPECTION_REJECTED' | 'REFUND_PENDING' | 'REFUND_PROCESSING'
   | 'REFUND_FAILED' | 'EXCHANGE_PENDING' | 'EXCHANGE_SHIPPED'
   | 'AWAITING_CUSTOMER_CONFIRMATION' | 'COMPLETED' | 'DISPUTED'
-  | 'REFUNDED' | 'CLOSED';
+  | 'REFUNDED' | 'CLOSED'
+  | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface ReturnShipment {
   id: string;
@@ -94,56 +96,100 @@ export interface ReturnDisputeRecord {
   returnRequest: ReturnDetail;
 }
 
-const unwrap = <T,>(response: unknown): T => {
-  const value = response as { data?: { data?: T } | T };
-  return ((value?.data as { data?: T } | undefined)?.data ?? value?.data ?? response) as T;
+function normalizeReturn(raw: any): ReturnDetail {
+  if (!raw) return raw;
+  const id = raw.id || raw.returnRequestId;
+  const evidence = raw.evidenceRefs || {};
+  return {
+    id,
+    orderId: raw.orderId || raw.orderItemId || '',
+    reason: raw.reason || '',
+    details: evidence.details || evidence.notes || null,
+    imageUrls: evidence.images || evidence.imageUrls || [],
+    unboxingVideoUrl: evidence.unboxingVideoUrl || evidence.videos?.[0] || '',
+    status: (raw.status || 'REQUESTED') as ReturnStatus,
+    shopResponse: raw.decisionReason || null,
+    submittedAt: raw.requestedAt || raw.createdAt || new Date().toISOString(),
+    order: {
+      id: raw.orderId || '',
+      externalOrderSn: raw.orderId || '',
+      storeName: '',
+    },
+    items: [],
+    events: [],
+  } as ReturnDetail;
+}
+
+const unsupported = (action: string) => {
+  throw new Error(`BE Spring chỉ hỗ trợ /returns CRUD + decision. Không có API: ${action}`);
 };
 
 export const returnService = {
-  getOne: async (id: string) => unwrap<ReturnDetail>(await api.get(`/returns/${id}`, {
-    headers: { 'x-skip-cache': 'true' },
-  })),
-  getShopQueue: async (page = 1, status?: ReturnStatus) =>
-    unwrap<{ total: number; page: number; items: ReturnDetail[] }>(
-      await api.get('/returns/shop', { params: { page, status }, headers: { 'x-skip-cache': 'true' } }),
-    ),
-  setInstructions: async (id: string, data: { returnAddress: string; returnInstructions: string }) =>
-    unwrap<ReturnDetail>(await api.patch(`/returns/${id}/instructions`, data)),
-  saveWarehouse: async (id: string, data: ReturnAddress) =>
-    unwrap<ReturnDetail>(await api.patch(`/returns/${id}/warehouse`, data)),
-  bookPickup: async (id: string, data: PickupBookingInput) =>
-    unwrap<ReturnDetail>(await api.post(`/returns/${id}/pickup`, data)),
-  simulatePickup: async (id: string, data: { status: 'picked' | 'delivered' }) =>
-    unwrap<ReturnDetail>(await api.patch(`/returns/${id}/pickup/simulate`, data)),
-  syncPickup: async (id: string) => unwrap<ReturnDetail>(await api.post(`/returns/${id}/pickup/sync`)),
-  submitShipment: async (id: string, data: { carrierName: string; trackingNumber: string; receipt: File }) => {
-    const body = new FormData();
-    body.append('carrierName', data.carrierName.trim());
-    body.append('trackingNumber', data.trackingNumber.trim());
-    body.append('receipt', data.receipt);
-    return unwrap<ReturnDetail>(await api.post(`/returns/${id}/return-shipment`, body, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 30000,
-    }));
+  getOne: async (id: string) =>
+    normalizeReturn(unwrapApi(await api.get(`/returns/${id}`, { headers: { 'x-skip-cache': 'true' } }))),
+
+  getShopQueue: async (page = 1, status?: ReturnStatus) => {
+    let items = unwrapList(await api.get('/returns', { headers: { 'x-skip-cache': 'true' } })).map(
+      normalizeReturn,
+    );
+    if (status) items = items.filter((i) => i.status === status);
+    return { total: items.length, page, items };
   },
-  correctShipment: async (id: string, data: { carrierName: string; trackingNumber: string }) =>
-    unwrap<ReturnDetail>(await api.patch(`/returns/${id}/return-shipment`, data)),
-  confirmReceipt: async (id: string) => unwrap<ReturnDetail>(await api.patch(`/returns/${id}/receipt`)),
-  startInspection: async (id: string) => unwrap<ReturnDetail>(await api.patch(`/returns/${id}/inspection/start`)),
-  submitInspection: async (id: string, data: { resolution: 'REFUND' | 'EXCHANGE' | 'REJECT'; notes: string }) =>
-    unwrap<ReturnDetail>(await api.patch(`/returns/${id}/inspection/result`, data)),
-  submitExchangeShipment: async (id: string, data: { carrierName: string; trackingNumber: string }) =>
-    unwrap<ReturnDetail>(await api.post(`/returns/${id}/exchange-shipment`, data)),
-  confirmCompletion: async (id: string) => unwrap<ReturnDetail>(await api.post(`/returns/${id}/confirmation`)),
-  openDispute: async (id: string, data: { reason: string; details: string }) =>
-    unwrap<ReturnDetail>(await api.post(`/returns/${id}/disputes`, data)),
-  getAdminDisputes: async () => unwrap<ReturnDisputeRecord[]>(await api.get('/admin/return-disputes', {
-    headers: { 'x-skip-cache': 'true' },
-  })),
-  getAdminStalled: async () => unwrap<ReturnDetail[]>(await api.get('/admin/return-disputes/overdue-inspections', {
-    headers: { 'x-skip-cache': 'true' },
-  })),
-  resolveDispute: async (id: string, data: {
-    ruling: 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP'; notes: string;
-  }) => unwrap<ReturnDetail>(await api.patch(`/admin/return-disputes/${id}/resolve`, data)),
+
+  create: async (data: {
+    orderItemId: string;
+    quantity: number;
+    reason: string;
+    evidenceRefs?: Record<string, unknown>;
+  }) => normalizeReturn(unwrapApi(await api.post('/returns', data))),
+
+  decide: async (
+    id: string,
+    data: { status: 'APPROVED' | 'REJECTED' | string; decisionReason?: string },
+  ) =>
+    normalizeReturn(
+      unwrapApi(
+        await api.post(`/returns/${id}/decision`, {
+          status: data.status,
+          decisionReason: data.decisionReason,
+        }),
+      ),
+    ),
+
+  setInstructions: async (_id: string, _data: { returnAddress: string; returnInstructions: string }) =>
+    unsupported('returns/{id}/instructions'),
+  saveWarehouse: async (_id: string, _data: ReturnAddress) => unsupported('returns/{id}/warehouse'),
+  bookPickup: async (_id: string, _data: PickupBookingInput) => unsupported('returns/{id}/pickup'),
+  simulatePickup: async (_id: string, _data: { status: 'picked' | 'delivered' }) =>
+    unsupported('returns/{id}/pickup/simulate'),
+  syncPickup: async (_id: string) => unsupported('returns/{id}/pickup/sync'),
+  submitShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string; receipt: File }) =>
+    unsupported('returns/{id}/return-shipment'),
+  correctShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string }) =>
+    unsupported('returns/{id}/return-shipment'),
+  confirmReceipt: async (_id: string) => unsupported('returns/{id}/receipt'),
+  startInspection: async (_id: string) => unsupported('returns/{id}/inspection/start'),
+  submitInspection: async (
+    id: string,
+    data: { resolution: 'REFUND' | 'EXCHANGE' | 'REJECT'; notes: string },
+  ) =>
+    returnService.decide(id, {
+      status: data.resolution === 'REJECT' ? 'REJECTED' : 'APPROVED',
+      decisionReason: data.notes,
+    }),
+  submitExchangeShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string }) =>
+    unsupported('returns/{id}/exchange-shipment'),
+  confirmCompletion: async (_id: string) => unsupported('returns/{id}/confirmation'),
+  openDispute: async (_id: string, _data: { reason: string; details: string }) =>
+    unsupported('returns/{id}/disputes'),
+  getAdminDisputes: async () => [] as ReturnDisputeRecord[],
+  getAdminStalled: async () => [] as ReturnDetail[],
+  resolveDispute: async (
+    id: string,
+    data: { ruling: 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP'; notes: string },
+  ) =>
+    returnService.decide(id, {
+      status: data.ruling === 'UPHOLD_SHOP' ? 'REJECTED' : 'APPROVED',
+      decisionReason: data.notes,
+    }),
 };

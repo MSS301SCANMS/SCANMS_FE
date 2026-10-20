@@ -34,11 +34,11 @@ export function CustomerWishlistTab({
   const [query, setQuery] = useState('');
   const [removing, setRemoving] = useState<string[]>([]);
   const search = normalizeSearch(query.trim());
-  const filteredItems = items.filter(({ product }) =>
-    normalizeSearch(`${product.title} ${product.store?.name || ''}`).includes(
-      search,
-    ),
-  );
+  const filteredItems = items.filter((item) => {
+    const product = item?.product;
+    if (!product) return false;
+    return normalizeSearch(`${product.title || ''} ${product.store?.name || ''}`).includes(search);
+  });
 
   const removeItem = async (productId: string) => {
     setRemoving((ids) => [...ids, productId]);
@@ -122,7 +122,10 @@ export function CustomerWishlistTab({
             </div>
           ) : (
             <div className="grid grid-cols-2 @max-[899px]:grid-cols-1 items-stretch gap-[12px] min-w-0">
-              {filteredItems.map(({ wishlistId, product: p }) => {
+              {filteredItems.map((item, index) => {
+                const p = item.product;
+                if (!p) return null;
+                const wishlistId = item.wishlistId || p.id || `wl-${index}`;
                 const discount =
                   p.originalPrice && Number(p.originalPrice) > Number(p.price)
                     ? Math.round(

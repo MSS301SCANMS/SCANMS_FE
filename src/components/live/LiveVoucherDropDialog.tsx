@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { CheckCircle2, Gift, Loader2, Ticket, X } from 'lucide-react';
 import api from '../../services/api';
 
@@ -18,7 +18,7 @@ export function LiveVoucherDropDialog({ sessionId, onClose, onReleased }: {
     let active = true;
     setLoading(true);
     setError('');
-    void api.get(`/live-sessions/public/detail/${sessionId}`, { headers: { 'x-skip-cache': '1' } }).then((res: any) => {
+    void api.get(`/livestreams/${sessionId}`, { headers: { 'x-skip-cache': '1' } }).then((res: any) => {
       const data = res?.data?.data || res?.data || res;
       if (!active) return;
       setSession(data);
@@ -40,7 +40,7 @@ export function LiveVoucherDropDialog({ sessionId, onClose, onReleased }: {
     setSending(true);
     setError('');
     try {
-      const res: any = await api.post(`/live-sessions/${sessionId}/voucher-drop`, { couponId: coupon.id, quantity: count });
+      const res: any = await api.post(`/livestreams/${sessionId}/voucher-drop`, { couponId: coupon.id, quantity: count });
       onReleased(res?.data?.data || res?.data || res);
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Chưa tung được voucher. Vui lòng thử lại.');

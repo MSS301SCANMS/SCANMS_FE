@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import api from '../services/api';
+import { isChatSocketEnabled } from '../services/chat-socket.service';
 
 type LiveSignal = {
   description?: RTCSessionDescriptionInit;
@@ -16,7 +17,7 @@ type LiveStreamTransportOptions = {
   onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+const SOCKET_URL = String(import.meta.env.VITE_SOCKET_URL || '').trim();
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
 ];
@@ -59,7 +60,7 @@ export function useLiveStreamTransport({
     let alive = true;
     const check = async () => {
       try {
-        const response: any = await api.get(`/live-sessions/public/detail/${sessionId}`, { headers: { 'x-skip-cache': 'true' } });
+        const response: any = await api.get(`/livestreams/${sessionId}`, { headers: { 'x-skip-cache': 'true' } });
         const session = response?.data || response;
         if (alive && session && (['ENDED', 'CANCELLED'].includes(session.status) || new Date(session.endsAt).getTime() <= Date.now())) {
           setSessionEnded(true);
@@ -236,6 +237,12 @@ export function useLiveStreamTransport({
 
   useEffect(() => {
     if (!sessionId) return undefined;
+
+    if (!isChatSocketEnabled() || !SOCKET_URL) {
+      setStreamError('Livestream realtime chưa bật (thiếu VITE_SOCKET_URL).');
+      setRoomJoined(false);
+      return undefined;
+    }
 
     let active = true;
     const socket = io(`${SOCKET_URL}/live-stream`, {

@@ -189,143 +189,145 @@ export interface CouponFilterParams {
   limit?: number;
 }
 
+function mapVoucher(raw: any): any {
+  if (!raw) return raw;
+  return {
+    ...raw,
+    id: raw.id || raw.voucherId,
+    displayCode: raw.code,
+    codeNormalized: raw.code,
+    discountType: raw.discountType,
+    discountValue: raw.value,
+    minimumOrderAmount: raw.minimumSubtotal,
+    maximumDiscountAmount: raw.cap,
+    expiresAt: raw.validUntil,
+    status: 'ACTIVE',
+    storeId: raw.storeId,
+  };
+}
+
+function toCreateVoucherBody(storeId: string | undefined, payload: any) {
+  return {
+    code: payload.code || payload.displayCode,
+    issuerType: storeId ? 'STORE' : 'PLATFORM',
+    storeId: storeId || payload.storeId,
+    productId: payload.productId,
+    livestreamId: payload.livestreamId,
+    scopeType: payload.scopeType || 'STORE',
+    discountType: payload.discountType,
+    value: payload.discountValue ?? payload.value,
+    cap: payload.maximumDiscountAmount ?? payload.cap,
+    minimumSubtotal: payload.minimumOrderAmount ?? payload.minimumSubtotal,
+    validFrom: payload.startsAt || payload.validFrom || new Date().toISOString(),
+    validUntil: payload.expiresAt || payload.validUntil,
+    limits: payload.limits,
+    scope: payload.scope,
+    funding: payload.funding,
+  };
+}
+
+/** Map Nest /coupons → Spring /vouchers + /checkout/quote */
 export const couponService = {
 
   getPublicStoreCoupons: async (storeId: string): Promise<PublicStoreCoupon[]> => {
-    const res: any = await api.get(`/coupons/stores/${storeId}/available`);
-    const payload = res?.data?.data ?? res?.data ?? res;
-    if (Array.isArray(payload)) return payload;
-    return Array.isArray(payload?.items) ? payload.items : [];
+    const res: any = await api.get('/vouchers');
+    const payload = res?.result ?? res?.data ?? res;
+    const list = Array.isArray(payload) ? payload : [];
+    return list.filter((v: any) => !storeId || v.storeId === storeId).map(mapVoucher);
   },
-
-
 
   validateCoupon: async (
     payload: ValidateCouponPayload,
   ): Promise<ValidateCouponResponse> => {
-    const res = await api.post('/coupons/validate', payload);
-    return res.data;
+    const res: any = await api.post('/checkout/quote', {
+      couponCode: (payload as any).code || (payload as any).couponCode,
+      items: ((payload as any).items || []).map((item: any) => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+      })),
+    });
+    const result = res?.result ?? res?.data ?? res;
+    return {
+      valid: true,
+      discountAmount: Number(result?.discountAmount ?? result?.voucherDiscountVnd ?? 0),
+      message: result?.message || 'OK',
+      ...result,
+    } as ValidateCouponResponse;
   },
 
-
-
-
-  getKolCoupons: async (params?: CouponFilterParams) => {
-    const res = await api.get('/collaborator/coupons', { params });
-    return res.data;
+  getKolCoupons: async (_params?: CouponFilterParams) => {
+    const res: any = await api.get('/vouchers');
+    const list = (res?.result ?? res?.data ?? []).map(mapVoucher);
+    return { data: list, items: list };
   },
 
   getKolCouponDetail: async (id: string): Promise<CouponItem> => {
-    const res = await api.get(`/collaborator/coupons/${id}`);
-    return res.data;
+    const res: any = await api.get(`/vouchers/${id}`);
+    return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
   proposeCoupon: async (payload: CreateCouponPayload) => {
-    const res = await api.post('/collaborator/coupons', payload);
-    return res.data;
+    const res: any = await api.post('/vouchers', toCreateVoucherBody((payload as any).storeId, payload));
+    return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
-  togglePauseCoupon: async (id: string) => {
-    const res = await api.patch(`/collaborator/coupons/${id}/pause`);
-    return res.data;
+  togglePauseCoupon: async (_id: string) => {
+    throw new Error('BE chưa hỗ trợ pause voucher.');
   },
 
-  deleteCoupon: async (id: string, reason?: string) => {
-    const res = await api.delete(`/collaborator/coupons/${id}`, {
-      data: { reason },
-    });
-    return res.data;
+  deleteCoupon: async (_id: string, _reason?: string) => {
+    throw new Error('BE chưa hỗ trợ xóa voucher.');
   },
 
-
-
-
-  createStoreCoupon: async (
-    storeId: string,
-    payload: CreateStoreCouponPayload,
-  ) => {
-    const res = await api.post(`/stores/${storeId}/coupons`, payload);
-    return res.data;
+  createStoreCoupon: async (storeId: string, payload: CreateStoreCouponPayload) => {
+    const res: any = await api.post('/vouchers', toCreateVoucherBody(storeId, payload));
+    return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
-  getStoreCoupons: async (storeId: string, params?: CouponFilterParams) => {
-    const res = await api.get(`/stores/${storeId}/coupons`, { params });
-    return res.data;
+  getStoreCoupons: async (storeId: string, _params?: CouponFilterParams) => {
+    const res: any = await api.get('/vouchers');
+    const list = (res?.result ?? res?.data ?? [])
+      .filter((v: any) => v.storeId === storeId)
+      .map(mapVoucher);
+    return { data: list, items: list };
   },
 
-  approveCoupon: async (
-    storeId: string,
-    couponId: string,
-    payload: ApproveCouponPayload,
-  ) => {
-    const res = await api.patch(
-      `/stores/${storeId}/coupons/${couponId}/approve`,
-      payload,
-    );
-    return res.data;
+  approveCoupon: async (_storeId: string, _couponId: string, _payload: ApproveCouponPayload) => {
+    throw new Error('BE chưa hỗ trợ duyệt voucher.');
   },
 
-  rejectCoupon: async (storeId: string, couponId: string, reason: string) => {
-    const res = await api.patch(
-      `/stores/${storeId}/coupons/${couponId}/reject`,
-      { reason },
-    );
-    return res.data;
+  rejectCoupon: async (_storeId: string, _couponId: string, _reason: string) => {
+    throw new Error('BE chưa hỗ trợ từ chối voucher.');
   },
 
-  updatePolicy: async (
-    storeId: string,
-    couponId: string,
-    payload: Partial<ApproveCouponPayload>,
-  ) => {
-    const res = await api.patch(
-      `/stores/${storeId}/coupons/${couponId}/policy`,
-      payload,
-    );
-    return res.data;
+  updatePolicy: async (_storeId: string, _couponId: string, _payload: Partial<ApproveCouponPayload>) => {
+    throw new Error('BE chưa hỗ trợ cập nhật policy voucher.');
   },
 
-  blockCoupon: async (storeId: string, couponId: string, reason: string) => {
-    const res = await api.patch(`/stores/${storeId}/coupons/${couponId}/block`, {
-      reason,
-    });
-    return res.data;
+  blockCoupon: async (_storeId: string, _couponId: string, _reason: string) => {
+    throw new Error('BE chưa hỗ trợ block voucher.');
   },
 
-
-
-
-  getAdminCoupons: async (params?: CouponFilterParams) => {
-    const res = await api.get('/admin/coupons', { params });
-    return res.data;
+  getAdminCoupons: async (_params?: CouponFilterParams) => {
+    const res: any = await api.get('/vouchers');
+    const list = (res?.result ?? res?.data ?? []).map(mapVoucher);
+    return { data: list, items: list };
   },
 
   createPlatformCoupon: async (payload: { storeId: string; code: string; benefitType: 'GOODS' | 'SHIPPING'; discountType: DiscountType; discountValue: number; budgetTotal: number; usageLimitTotal: number; maximumDiscountAmount?: number; minimumOrderAmount?: number; expiresAt?: string }) => {
-    const res = await api.post('/admin/coupons', payload);
-    return res.data;
+    const res: any = await api.post('/vouchers', toCreateVoucherBody(payload.storeId, payload));
+    return mapVoucher(res?.result ?? res?.data ?? res);
   },
-  getPlatformSubsidies: async (): Promise<PlatformSubsidySummary[]> => {
-    const res = await api.get('/admin/coupons/subsidies');
-    return res?.data?.data || res?.data || res;
+  getPlatformSubsidies: async (): Promise<PlatformSubsidySummary[]> => [],
+  recordPlatformReimbursement: async (_orderId: string, _amount: number, _bankReference: string) => {
+    throw new Error('BE chưa hỗ trợ hoàn trợ cấp voucher.');
   },
-
-  recordPlatformReimbursement: async (orderId: string, amount: number, bankReference: string) => {
-    const res = await api.post(`/admin/coupons/subsidies/${orderId}/reimbursements`, { amount, bankReference });
-    return res?.data?.data || res?.data || res;
+  getStorePlatformSubsidies: async (_storeId: string): Promise<PlatformSubsidySummary[]> => [],
+  adminBlockCoupon: async (_id: string, _reason: string) => {
+    throw new Error('BE chưa hỗ trợ block voucher.');
   },
-
-  getStorePlatformSubsidies: async (storeId: string): Promise<PlatformSubsidySummary[]> => {
-    const res = await api.get(`/stores/${storeId}/coupons/subsidies`);
-    return res?.data?.data || res?.data || res;
-  },
-
-  adminBlockCoupon: async (id: string, reason: string) => {
-    const res = await api.patch(`/admin/coupons/${id}/block`, { reason });
-    return res.data;
-  },
-
-  adminUnblockCoupon: async (id: string) => {
-    const res = await api.patch(`/admin/coupons/${id}/unblock`);
-    return res.data;
+  adminUnblockCoupon: async (_id: string) => {
+    throw new Error('BE chưa hỗ trợ unblock voucher.');
   },
 };

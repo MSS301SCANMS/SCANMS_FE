@@ -21,12 +21,23 @@ export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
-  role: 'SYSTEM_ADMIN' | 'SYSTEM_MANAGER' | 'SHOP_MANAGER' | 'COLLABORATOR' | 'CUSTOMER';
+  role:
+    | 'SYSTEM_ADMIN'
+    | 'SYSTEM_MANAGER'
+    | 'SHOP_MANAGER'
+    | 'SHOP_OWNER'
+    | 'COLLABORATOR'
+    | 'KOL_CTV'
+    | 'CUSTOMER'
+    | 'ADMIN'
+    | 'MANAGER'
+    | string;
   phoneNumber?: string;
   avatarUrl?: string | null;
   stores?: any[];
   collaboratorProfile?: any;
   wallet?: any;
+  roles?: string[];
 }
 
 export interface AvailableWorkspace {
@@ -57,18 +68,58 @@ function normalizeUser(raw: any): any {
   if (!user.id && user.userId) {
     user.id = user.userId;
   }
-  if (!user.role && Array.isArray(user.roles) && user.roles.length > 0) {
-    const beRoles: string[] = user.roles;
-    const highestRole =
-      ROLE_PRIORITY.find((r) => beRoles.includes(r)) || beRoles[0];
+
+  const beRoles: string[] = Array.isArray(user.roles)
+    ? user.roles.map((r: any) => (typeof r === 'string' ? r : r?.name || r?.roleName || '')).filter(Boolean)
+    : [];
+
+  // BE dùng SHOP_OWNER / KOL_CTV / USER — luôn map lại từ roles (ưu tiên cao hơn field role thô)
+  if (beRoles.length > 0) {
+    const highestRole = ROLE_PRIORITY.find((r) => beRoles.includes(r)) || beRoles[0];
     user.role = ROLE_MAP[highestRole] || highestRole;
+  } else if (user.role && ROLE_MAP[user.role]) {
+    user.role = ROLE_MAP[user.role];
+  } else if (typeof user.role === 'string' && user.role === 'SHOP_OWNER') {
+    user.role = 'SHOP_MANAGER';
+  }
+
+  return user;
+}
+
+function workspaceKeyFromRole(role?: string): 'shop' | 'admin' | 'customer' | 'kol' {
+  if (role === 'SHOP_MANAGER') return 'shop';
+  if (role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER') return 'admin';
+  if (role === 'CUSTOMER') return 'customer';
+  return 'kol';
+}
+
+async function attachOwnedStores(user: any): Promise<any> {
+  if (!user || user.role !== 'SHOP_MANAGER') return user;
+  if (Array.isArray(user.stores) && user.stores.length > 0) return user;
+  try {
+    const storesRes: any = await api.get('/stores/mine', { headers: { 'x-skip-cache': 'true' } });
+    const payload = storesRes?.result ?? storesRes?.data ?? storesRes;
+    const list = Array.isArray(payload) ? payload : payload ? [payload] : [];
+    if (!list.length) return user;
+    user.stores = list.map((s: any) => ({
+      ...s,
+      id: s.storeId || s.id,
+      isActive: s.isActive ?? true,
+      onboardingStatus: s.onboardingStatus || s.status || 'APPROVED',
+    }));
+    if (user.stores[0]?.id) {
+      localStorage.setItem('current_store_id', user.stores[0].id);
+    }
+  } catch {
+    /* store list optional at login */
   }
   return user;
 }
 
 export const authService = {
   async sendOtp(email: string) {
-    return api.post('/auth/send-otp', { email });
+    // BE không có /auth/send-otp — dùng flow forgot-password OTP
+    return api.post('/auth/forgot-password/send-otp', { email });
   },
 
   async sendForgotPasswordOtp(email: string) {
@@ -98,12 +149,24 @@ export const authService = {
     avatarUrl?: string;
     logoUrl?: string;
   }) {
-    return api.post('/auth/register', data);
+    const fullName = (data.fullName || '').trim();
+    const nameParts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = data.firstName || nameParts[0] || data.email.split('@')[0];
+    const lastName = data.lastName || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName);
+    return api.post('/auth/register', {
+      username: data.username || data.email.split('@')[0],
+      email: data.email.trim(),
+      password: data.password,
+      firstName,
+      lastName,
+    });
   },
 
   async login(identifier: string, password: string) {
+    // BE LoginRequest expects `email` (Keycloak username = email)
+    // AuthResponse chỉ có token — luôn gọi /users/me để lấy roles (SHOP_OWNER → SHOP_MANAGER)
     const res: any = await api.post('/auth/login', {
-      identifier: identifier.trim(),
+      email: identifier.trim(),
       password,
     });
     const accessToken =
@@ -117,47 +180,36 @@ export const authService = {
 
     if (accessToken) {
       localStorage.setItem('token', accessToken);
-      if (!user || !user.id) {
-        try {
-          const meRes: any = await api.get('/users/me');
-          user = normalizeUser(meRes?.result || meRes?.data || meRes);
-        } catch {
-          try {
-            const meRes: any = await api.get('/auth/me');
-            user = normalizeUser(meRes?.result || meRes?.data || meRes);
-          } catch (e) {
-            console.warn('Failed to fetch user profile after login:', e);
-          }
-        }
+      try {
+        const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
+        user = normalizeUser(meRes?.result || meRes?.data || meRes);
+      } catch (e) {
+        console.warn('Failed to fetch user profile after login:', e);
       }
 
       if (user && (user.id || user.userId)) {
-        user = normalizeUser(user);
+        user = await attachOwnedStores(normalizeUser(user));
         localStorage.setItem('user', JSON.stringify(user));
-        const uiRole =
-          user.role === 'SHOP_MANAGER'
-            ? 'shop'
-            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
-            ? 'admin'
-            : user.role === 'CUSTOMER'
-            ? 'customer'
-            : 'kol';
+        const uiRole = workspaceKeyFromRole(user.role);
         localStorage.setItem('scanms-current-role', uiRole);
         localStorage.setItem('scanms-active-workspace', uiRole);
         if (user.stores?.[0]?.id) {
           localStorage.setItem('current_store_id', user.stores[0].id);
-        } else {
+        } else if (uiRole !== 'shop') {
           localStorage.removeItem('current_store_id');
         }
         window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
         window.dispatchEvent(new Event('auth-user-updated'));
       }
     }
-    return res;
+    return { ...res, user, data: { ...(res?.data || {}), user, access_token: accessToken } };
   },
 
   async googleLogin(idToken: string, role?: string, storeName?: string) {
-    const res: any = await api.post('/auth/google', { idToken, role, storeName });
+    // BE GoogleLoginRequest chỉ nhận idToken
+    void role;
+    void storeName;
+    const res: any = await api.post('/auth/google', { idToken });
     const accessToken =
       res?.result?.access_token ||
       res?.data?.access_token ||
@@ -169,53 +221,45 @@ export const authService = {
 
     if (accessToken) {
       localStorage.setItem('token', accessToken);
-      if (!user || !user.id) {
-        try {
-          const meRes: any = await api.get('/users/me');
-          user = normalizeUser(meRes?.result || meRes?.data || meRes);
-        } catch {
-          try {
-            const meRes: any = await api.get('/auth/me');
-            user = normalizeUser(meRes?.result || meRes?.data || meRes);
-          } catch (e) {
-            console.warn('Failed to fetch user profile after google login:', e);
-          }
-        }
+      try {
+        const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
+        user = normalizeUser(meRes?.result || meRes?.data || meRes);
+      } catch (e) {
+        console.warn('Failed to fetch user profile after google login:', e);
       }
 
       if (user && (user.id || user.userId)) {
-        user = normalizeUser(user);
+        user = await attachOwnedStores(normalizeUser(user));
         localStorage.setItem('user', JSON.stringify(user));
-        const uiRole =
-          user.role === 'SHOP_MANAGER'
-            ? 'shop'
-            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
-            ? 'admin'
-            : user.role === 'CUSTOMER'
-            ? 'customer'
-            : 'kol';
+        const uiRole = workspaceKeyFromRole(user.role);
         localStorage.setItem('scanms-current-role', uiRole);
         localStorage.setItem('scanms-active-workspace', uiRole);
         if (user.stores?.[0]?.id) {
           localStorage.setItem('current_store_id', user.stores[0].id);
-        } else {
+        } else if (uiRole !== 'shop') {
           localStorage.removeItem('current_store_id');
         }
         window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
         window.dispatchEvent(new Event('auth-user-updated'));
       }
     }
-    return res;
+    return { ...res, user, data: { ...(res?.data || {}), user, access_token: accessToken } };
   },
 
   async getMe(): Promise<UserProfile> {
     const token = localStorage.getItem('token');
-    const res: any = await api.get('/auth/me');
+    const res: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
     if (token !== localStorage.getItem('token')) throw new Error('Phiên đăng nhập đã thay đổi.');
-    const user = res?.data || res;
-    if (user && user.id) {
+    let user = normalizeUser(res?.result || res?.data || res);
+    if (user && (user.id || user.userId)) {
       const previousUserId = this.getCurrentUser()?.id;
+      user = await attachOwnedStores(user);
       localStorage.setItem('user', JSON.stringify(user));
+      const uiRole = workspaceKeyFromRole(user.role);
+      if (!localStorage.getItem('scanms-active-workspace') || user.role === 'SHOP_MANAGER') {
+        localStorage.setItem('scanms-current-role', uiRole);
+        localStorage.setItem('scanms-active-workspace', uiRole);
+      }
       if (user.stores?.[0]?.id) {
         localStorage.setItem('current_store_id', user.stores[0].id);
       }
@@ -225,14 +269,14 @@ export const authService = {
   },
 
   async updateAvatar(avatarUrl: string): Promise<any> {
-    const res: any = await api.patch('/auth/avatar', { avatarUrl });
+    const res: any = await api.patch('/users/me', { avatarUrl });
     const user = this.getCurrentUser();
     if (user) {
       user.avatarUrl = avatarUrl;
       localStorage.setItem('user', JSON.stringify(user));
       window.dispatchEvent(new Event('auth-user-updated'));
     }
-    return res?.data || res;
+    return normalizeUser(res?.result || res?.data || res);
   },
 
   logout(returnTo?: string) {
@@ -279,19 +323,33 @@ export const authService = {
       },
     ];
 
+    // Admin/Manager chỉ workspace admin — không gán KOL/Shop (tránh sidebar KOL nhầm)
+    const isAdmin = u.role === 'SYSTEM_ADMIN' || u.role === 'SYSTEM_MANAGER';
+
     const isKol =
-      u.role === 'COLLABORATOR' ||
-      (Boolean(u.collaboratorProfile) && u.collaboratorProfile?.kycStatus === 'VERIFIED') ||
-      u.role === 'SYSTEM_ADMIN' ||
-      u.role === 'SYSTEM_MANAGER';
+      !isAdmin &&
+      (u.role === 'COLLABORATOR' ||
+        (Boolean(u.collaboratorProfile) &&
+          ['VERIFIED', 'APPROVED', 'ACTIVE'].includes(
+            String(u.collaboratorProfile?.kycStatus || u.collaboratorProfile?.approvalStatus || '').toUpperCase(),
+          )));
 
     const isShop =
-      u.role === 'SHOP_MANAGER' ||
-      Boolean(u.stores?.some((s: any) => s.isActive || s.isVerified || s.onboardingStatus === 'APPROVED')) ||
-      u.role === 'SYSTEM_ADMIN' ||
-      u.role === 'SYSTEM_MANAGER';
-
-    const isAdmin = u.role === 'SYSTEM_ADMIN' || u.role === 'SYSTEM_MANAGER';
+      !isAdmin &&
+      (u.role === 'SHOP_MANAGER' ||
+        u.role === 'SHOP_OWNER' ||
+        (Array.isArray(u.roles) &&
+          u.roles.some((r: any) => ['SHOP_OWNER', 'SHOP_MANAGER'].includes(String(r?.name || r)))) ||
+        Boolean(
+          u.stores?.some(
+            (s: any) =>
+              s.isActive ||
+              s.isVerified ||
+              ['APPROVED', 'VERIFIED', 'PENDING_APPROVAL', 'ACTIVE'].includes(
+                String(s.onboardingStatus || s.status || '').toUpperCase(),
+              ),
+          ),
+        ));
 
     if (isKol) {
       workspaces.push({
@@ -319,10 +377,10 @@ export const authService = {
         key: 'admin',
         label: isSuperAdmin ? 'Ban Quản Trị Tối Cao' : 'Vận Hành & Tuân Thủ',
         badge: isSuperAdmin ? 'SuperAdmin' : 'Operations',
-        route: isSuperAdmin ? '/admin/analytics' : '/admin/users',
+        route: isSuperAdmin ? '/admin/users' : '/admin/ops-dashboard',
         description: isSuperAdmin
-          ? 'Quản trị dòng tiền toàn sàn, chính sách, phân quyền & nhật ký kiểm toán'
-          : 'Thẩm định hồ sơ KYC, kiểm duyệt sản phẩm & AI giám sát gian lận',
+          ? 'Tài khoản, phân quyền, ví hệ thống & giám sát service'
+          : 'Duyệt shop/KOL, chính sách hoa hồng, voucher & dashboard vận hành',
       });
     }
 
@@ -340,7 +398,12 @@ export const authService = {
       return stored;
     }
 
-    if (user.role === 'SHOP_MANAGER' && availableWorkspaces.includes('shop')) return 'shop';
+    if (
+      (user.role === 'SHOP_MANAGER' || user.role === 'SHOP_OWNER') &&
+      availableWorkspaces.includes('shop')
+    ) {
+      return 'shop';
+    }
     if ((user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER') && availableWorkspaces.includes('admin')) return 'admin';
     if (user.role === 'COLLABORATOR' && availableWorkspaces.includes('kol')) return 'kol';
     return 'customer';
@@ -352,13 +415,13 @@ export const authService = {
     window.dispatchEvent(new CustomEvent('scanms_workspace_changed', { detail: { workspace: target } }));
 
     const user = this.getCurrentUser();
-    const isSuperAdmin = user?.role === 'SYSTEM_ADMIN';
-
     const targetRoute =
       target === 'shop'
         ? '/merchant/dashboard'
         : target === 'admin'
-        ? (isSuperAdmin ? '/admin/analytics' : '/admin/users')
+        ? user?.role === 'SYSTEM_MANAGER'
+          ? '/admin/ops-dashboard'
+          : '/admin/users'
         : target === 'kol'
         ? '/collaborator/dashboard'
         : '/customer/orders';

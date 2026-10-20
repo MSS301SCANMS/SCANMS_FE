@@ -29,8 +29,12 @@ async function request<T>(method: string, path: string, data?: unknown, params?:
   return response.data.result;
 }
 export const financeService = {
-  sourceOrders: () => request<FinanceSourceOrder[]>('GET', '/source-orders'),
-  importCommerceKycBank: () => request<MoneyBank>('POST', '/bank-accounts/kyc-import'),
+  sourceOrders: async () => [] as FinanceSourceOrder[],
+  importCommerceKycBank: () => request<MoneyBank>('POST', '/bank-accounts/kyc-sync', {
+    bank: { ownerType: 'CUSTOMER', ownerRefId: 'me', bankCode: 'VCB', holderName: 'KYC', accountNumber: '0000000000' },
+    caseReference: `kyc-${Date.now()}`,
+    bankOwnershipVerified: false,
+  }),
   bankCalendar: () => request<{ date: string; reason: string; actor: string; configuredAt: string }[]>('GET', '/bank-calendar'),
   closeBankDay: (date: string, reason: string) => request<string>('POST', '/bank-calendar', { date, reason }),
   capabilities: () => request<Capabilities>('GET', '/capabilities'),

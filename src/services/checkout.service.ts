@@ -28,11 +28,14 @@ export const checkoutService = {
     return response.data.result;
   },
   async quote(input: { couponCode: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
-    if (usesLegacyCheckout) return unwrap(await api.post('/coupons/validate', {
-      code: input.couponCode, storeId: input.storeId, customerPhone: input.customerPhone,
-      items: input.items, hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: false,
+    if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {
+      couponCode: input.couponCode,
+      items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
     }));
-    const response = await checkout.post('/checkout/quote', input);
+    const response = await checkout.post('/checkout/quote', {
+      couponCode: input.couponCode,
+      items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
+    });
     return response.data.result;
   },
   async paymentAvailable(): Promise<boolean> {

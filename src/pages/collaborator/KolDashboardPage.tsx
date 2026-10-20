@@ -6,17 +6,13 @@ import {
   Target,
   Wallet,
   BarChart3,
-  Crown,
   TrendingUp,
   ArrowUpRight,
-  ShieldCheck,
-  Clock,
   RefreshCw,
   PlusCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { tierService, type TierStatus } from '@/services/tier.service';
-import { walletService, type WalletSummary, type LedgerHistory } from '@/services/wallet.service';
+import { walletService, type LedgerHistory } from '@/services/wallet.service';
 import {
   analyticsService,
   type DashboardOverviewResponse,
@@ -60,17 +56,16 @@ function DashboardMetric({ label, value, note, growth, icon: Icon }: {
   );
 }
 
+/** Note: tổng quan chỉ số liệu — không trùng tạo link / quản lý ví (đã có sidebar). Bỏ cấp bậc. */
 export default function KolDashboardPage() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState('7');
   const [metric, setMetric] = useState<'clicks' | 'orders' | 'revenue' | 'commission'>('clicks');
   const [loading, setLoading] = useState(true);
 
-  const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [ledger, setLedger] = useState<LedgerHistory | null>(null);
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
-  const [tierStatus, setTierStatus] = useState<TierStatus | null>(null);
   const requestSequence = useRef(0);
 
   const loadData = async () => {
@@ -83,20 +78,16 @@ export default function KolDashboardPage() {
       startDate.setUTCHours(0, 0, 0, 0);
       startDate.setUTCDate(startDate.getUTCDate() - days + 1);
       const query = { range: 'custom', days, startDate: startDate.toISOString(), endDate: endDate.toISOString() };
-      const [walletData, ledgerData, overviewData, seriesData, tierData] = await Promise.all([
-        walletService.getMyWallet().catch(() => null),
+      const [ledgerData, overviewData, seriesData] = await Promise.all([
         walletService.getMyLedger(1).catch(() => null),
         analyticsService.getRealtimeOverview(query).catch(() => null),
         analyticsService.getTimeSeries({ ...query, interval: 'daily' }).catch(() => []),
-        tierService.getMyTierStatus().catch(() => null),
       ]);
 
       if (requestId !== requestSequence.current) return;
-      setWallet(walletData);
       setLedger(ledgerData);
       setOverview(overviewData);
       setTimeSeries(Array.isArray(seriesData) ? seriesData : []);
-      setTierStatus(tierData);
     } catch (err) {
       console.error('Lỗi tải dữ liệu Dashboard KOL:', err);
     } finally {
@@ -110,8 +101,6 @@ export default function KolDashboardPage() {
   }, [period]);
 
   const metrics = overview?.metrics;
-  const availBal = Number(wallet?.availableBalance || 0);
-  const pendingBal = Number(wallet?.pendingBalance || 0);
 
   const getMetricValue = (point: TimeSeriesPoint) => {
     const value = Number(point[metric]);
@@ -144,62 +133,17 @@ export default function KolDashboardPage() {
             </div>
             <button
               type="button"
-              className="order-last inline-flex w-full min-h-[44px] items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-[#1A1612] text-xs font-semibold hover:border-[#C59B58] hover:bg-[#FBF5EB] transition-colors disabled:opacity-60 cursor-pointer"
+              className="order-last inline-flex w-full min-h-[44px] items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-[#1A1612] text-xs font-semibold hover:border-[#C59B58] hover:bg-[#FBF5EB] transition-colors disabled:opacity-60 cursor-pointer sm:col-span-1 xl:col-span-3"
               onClick={() => void loadData()}
               disabled={loading}
             >
               <RefreshCw size={14} className={`text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-              <span>Làm mới</span>
+              <span>Làm mới dữ liệu</span>
             </button>
-            <button
-              type="button"
-              className="inline-flex w-full min-h-[44px] items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              onClick={() => navigate('/collaborator/marketing?tab=links')}
-            >
-              <PlusCircle size={14} />
-              <span>Tạo link tiếp thị</span>
-            </button>
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex w-full flex-col items-center justify-center gap-0.5 min-h-[44px] px-3 py-1.5 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:border-[#C59B58] hover:bg-[#F3EFE6] transition-colors cursor-pointer"
-              onClick={() => navigate('/collaborator/wallet')}
-            >
-              <span className="inline-flex items-center justify-center gap-1.5 leading-4">
-                Quản lý ví
-                <ArrowUpRight size={14} className="text-[#B88E4F]" aria-hidden="true" />
-              </span>
-            <span className="inline-flex items-center justify-center gap-1 text-[10px] font-normal leading-3 text-[#7D715E]">
-              <ShieldCheck size={13} className={wallet?.kycStatus === 'VERIFIED' ? 'text-[#059669]' : 'text-[#B88E4F]'} aria-hidden="true" />
-              <span>{wallet?.kycStatus === 'VERIFIED' ? 'KYC đã xác thực' : 'Chưa xác thực KYC'}</span>
-            </span>
-            </button>
-          </div>
       </section>
 
       <div className="min-w-0 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
-        <section className="grid grid-cols-1 md:grid-cols-2 items-center gap-2.5 p-3.5" aria-label="Số dư ví KOL" aria-busy={loading}>
-          <div className="grid gap-1.5 min-w-0 p-3 sm:p-4 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB]">
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#7D715E] leading-relaxed">
-              <Wallet size={15} className="text-[#B88E4F]" aria-hidden="true" />
-              Số dư khả dụng
-            </span>
-            <strong className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight tabular-nums text-[#1A1612]">
-              {availBal.toLocaleString('vi-VN')} ₫
-            </strong>
-          </div>
-          <div className="grid gap-1.5 min-w-0 p-3 sm:p-4 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5]">
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#7D715E] leading-relaxed">
-              <Clock size={14} className="text-[#B88E4F]" aria-hidden="true" />
-              Chờ đối soát Escrow
-            </span>
-            <strong className="text-2xl sm:text-3xl font-semibold leading-tight tracking-tight tabular-nums text-[#1A1612]">
-              {pendingBal.toLocaleString('vi-VN')} ₫
-            </strong>
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-t border-[#EAE4D7]" role="group" aria-label="Hiệu quả tiếp thị trong khoảng thời gian đã chọn">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="Hiệu quả tiếp thị trong khoảng thời gian đã chọn">
           <DashboardMetric
             label="Lượt nhấp tiếp thị"
             icon={MousePointerClick}
@@ -230,9 +174,7 @@ export default function KolDashboardPage() {
         </div>
       </div>
 
-      {/* Real Chart and Commission Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.4fr)] items-stretch gap-3.5">
-        {/* Biểu đồ diễn biến */}
         <div className="flex flex-col gap-3.5 min-w-0 p-4 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
           <div className="flex items-center justify-between flex-wrap gap-2.5 pb-3 border-b border-[#EAE4D7]">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -335,7 +277,6 @@ export default function KolDashboardPage() {
           )}
         </div>
 
-        {/* Lịch sử hoa hồng từ Ledger */}
         <div className="flex flex-col gap-3.5 min-w-0 p-4 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#EAE4D7]">
             <div className="flex items-center gap-2">
@@ -401,31 +342,6 @@ export default function KolDashboardPage() {
                 );
               })
             )}
-          </div>
-
-          {/* Cấp bậc thực tế */}
-          <div className="grid gap-1 mt-auto p-3 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB]">
-            <div className="flex items-center gap-1.5">
-              <Crown className="w-4 h-4 text-[#B88E4F] shrink-0" />
-              <strong className="text-xs font-semibold text-[#1A1612]">
-                {tierStatus?.currentTier
-                  ? `Hạng ${tierStatus.currentTier.name} (+${tierStatus.currentTier.extraBonusPercentage || 0}% Thưởng)`
-                  : 'Cấp bậc khởi đầu (Hạng Đồng)'}
-              </strong>
-            </div>
-            <p className="text-[11px] text-[#7D715E] leading-relaxed m-0">
-              {tierStatus?.nextTier ? (
-                <>
-                  Bạn cần thêm{' '}
-                  <strong className="text-[#B88E4F]">
-                    {Number(tierStatus.revenueNeeded || 0).toLocaleString('vi-VN')} ₫
-                  </strong>{' '}
-                  GMV so với ngưỡng hạng {tierStatus.nextTier.name} (đối chiếu tháng trước).
-                </>
-              ) : (
-                'Tích cực chia sẻ link tiếp thị để gia tăng hoa hồng và mở khóa đặc quyền tài khoản!'
-              )}
-            </p>
           </div>
         </div>
       </div>

@@ -962,10 +962,12 @@ return true;
     setCopyingLink(true);
     setCopiedLink(false);
     try {
-      const response: any = await api.get('/stores/my-store');
-      const store = response?.data || response;
-      if (!store?.slug) throw new Error('Gian hàng chưa có đường dẫn công khai để chia sẻ.');
-      const link = new URL(`/shop/${encodeURIComponent(store.slug)}`, window.location.origin).href;
+      const response: any = await api.get('/stores/mine');
+      const list = response?.result || response?.data || response;
+      const store = Array.isArray(list) ? list[0] : list;
+      const storeKey = store?.slug || store?.storeId || store?.id;
+      if (!storeKey) throw new Error('Gian hàng chưa có đường dẫn công khai để chia sẻ.');
+      const link = new URL(`/shop/${encodeURIComponent(storeKey)}`, window.location.origin).href;
       setSharedShopLink(link);
       if (!navigator.clipboard?.writeText) throw new Error('Trình duyệt không hỗ trợ sao chép tự động. Hãy chọn và chép liên kết bên dưới.');
       await navigator.clipboard.writeText(link);

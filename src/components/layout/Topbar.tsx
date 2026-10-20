@@ -4,7 +4,6 @@ import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-re
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
-import { NotificationDropdown } from './NotificationDropdown';
 import { ScanMSLogo } from '../common/ScanMSLogo';
 import { HeaderAccountButton } from './HeaderAccountButton';
 import { AccountConnectionStatus } from './AccountConnectionStatus';
@@ -132,7 +131,11 @@ export function Topbar({
       <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] flex items-center justify-between gap-3 sm:gap-6 relative z-30">
         {/* Left: Brand Logo */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Link to="/marketplace" className="flex items-center gap-2 group shrink-0" title="Về trang chủ Sàn SCANMS">
+          <Link
+            to={isShop ? '/merchant/dashboard' : isAdmin ? '/admin/users' : isCustomer ? '/marketplace' : '/collaborator/dashboard'}
+            className="flex items-center gap-2 group shrink-0"
+            title={isCustomer ? 'Về sàn mua sắm' : 'Về trang làm việc'}
+          >
             <ScanMSLogo size="md" className="scanms-header-logo" />
           </Link>
 
@@ -141,7 +144,7 @@ export function Topbar({
         {/* Right: Actions, Notifications & User Card */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <AccountConnectionStatus userId={currentUser?.id} />
-          <NotificationDropdown />
+          {/* Notifications Nest không thuộc mainflow — đã gỡ */}
 
           <div className="relative z-50" ref={menuRef}>
             <HeaderAccountButton
@@ -208,12 +211,12 @@ export function Topbar({
 
                 <div className="py-1 flex flex-col gap-0.5">
                   <Link
-                    to={isShop ? '/merchant/orders' : isCustomer || isAdmin ? '/customer/orders' : '/collaborator/dashboard'}
+                    to={isShop ? '/merchant/orders' : isCustomer ? '/customer/orders' : isAdmin ? '/admin/users' : '/collaborator/dashboard'}
                     onClick={() => setIsMenuOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    <span>{isShop ? 'Quản lý đơn hàng' : isCustomer ? 'Đơn mua của tôi' : isAdmin ? 'Đơn mua cá nhân' : 'Không gian KOL'}</span>
+                    <span>{isShop ? 'Quản lý đơn hàng' : isCustomer ? 'Đơn mua của tôi' : isAdmin ? 'Quản trị hệ thống' : 'Không gian KOL'}</span>
                   </Link>
 
                   <Link
@@ -225,14 +228,16 @@ export function Topbar({
                     <span>Cài đặt & Hồ sơ</span>
                   </Link>
 
-                  <Link
-                    to="/marketplace"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                  >
-                    <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    <span>Sàn mua sắm công khai</span>
-                  </Link>
+                  {isCustomer && (
+                    <Link
+                      to="/marketplace"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
+                    >
+                      <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      <span>Sàn mua sắm</span>
+                    </Link>
+                  )}
                 </div>
 
 

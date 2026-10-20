@@ -38,6 +38,7 @@ import { productPackageInput } from '../../utils/product-package.utils';
 import { authService } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { useAiAnalyzeProduct, type AiAnalyzeProductResult } from '../../hooks/useProducts';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -655,6 +656,9 @@ export default function ProductManagementPage() {
   const [variantOptionLists, setVariantOptionLists] = useState<Record<string, string>>({});
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<AiAnalyzeProductResult | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const aiAnalyze = useAiAnalyzeProduct();
 
   const loadProductsRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
@@ -978,6 +982,7 @@ export default function ProductManagementPage() {
     setFormSpecifications(getDefaultSpecsForCategory(''));
     setVariantSamplePolicies({});
     setFormImage('');
+    setAiResult(null);
     setFormSubImages([]);
     setFormVariants([]);
     setVariantOptionLists({});
@@ -1082,6 +1087,63 @@ export default function ProductManagementPage() {
     setShowModal(true);
   };
 
+  const applyAiHints = (result: AiAnalyzeProductResult) => {
+    setAiResult(result);
+    const label = result.topPrediction?.className || result.detections?.[0]?.className || '';
+    if (label && !formCategory) {
+      const suggested = inferCategoryFromTitle(label.replace(/[_-]/g, ' '));
+      if (suggested) handleCategoryChange(suggested);
+    }
+    if (label && !formTitle.trim()) {
+      setFormTitle(label.replace(/[_-]/g, ' '));
+    }
+    const style = result.stylePrediction?.style;
+    if (style) {
+      setFormSpecifications((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((s) => /kiểu dáng|form|style/i.test(s.key));
+        if (idx >= 0 && !next[idx].value) {
+          next[idx] = { ...next[idx], value: style };
+          return next;
+        }
+        if (!next.some((s) => s.key === 'Phong cách (AI)')) {
+          return [...next, { id: `ai-style-${Date.now()}`, key: 'Phong cách (AI)', value: style }];
+        }
+        return next;
+      });
+    }
+    const color = result.dominantColors?.[0]?.name;
+    if (color) {
+      setFormSpecifications((prev) => {
+        if (prev.some((s) => /màu/i.test(s.key) && s.value)) return prev;
+        const idx = prev.findIndex((s) => /màu/i.test(s.key));
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], value: color };
+          return next;
+        }
+        return [...prev, { id: `ai-color-${Date.now()}`, key: 'Màu chủ đạo (AI)', value: color }];
+      });
+    }
+  };
+
+  const runAiAnalyze = async (file: File) => {
+    setAiAnalyzing(true);
+    try {
+      const result = await aiAnalyze.mutateAsync(file);
+      applyAiHints(result);
+      showToast(
+        result.topPrediction
+          ? `AI: ${result.topPrediction.className} (${Math.round(result.topPrediction.confidence * 100)}%)`
+          : 'AI đã phân tích ảnh (không có prediction chính).',
+      );
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'AI analyze tạm không khả dụng — tiếp tục nhập tay.');
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
   const handleUploadSingleImage = async (file: File, isMain: boolean, subIndex?: number) => {
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -1111,6 +1173,7 @@ export default function ProductManagementPage() {
       if (isMain) {
         setFormImage(imageUrl);
         showToast('Đã tải ảnh chính (ảnh bìa) thành công!');
+        void runAiAnalyze(file);
       } else if (subIndex !== undefined && subIndex < formSubImages.length) {
         const nextSubs = [...formSubImages];
         nextSubs[subIndex] = imageUrl;
@@ -2353,7 +2416,7 @@ export default function ProductManagementPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setFormImage('')}
+                            onClick={() => { setFormImage(''); setAiResult(null); }}
                             className="p-1.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700 shadow transition cursor-pointer"
                             title="Xóa ảnh chính"
                           >
@@ -2376,6 +2439,24 @@ export default function ProductManagementPage() {
                       </button>
                     )}
                   </div>
+                  {(aiAnalyzing || aiResult) && (
+                    <div className="mt-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2 text-[11px] text-[#574C3D]">
+                      <div className="flex items-center gap-1.5 font-semibold text-[#6F4E20]">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {aiAnalyzing ? 'AI đang phân tích ảnh…' : 'Gợi ý từ AI'}
+                      </div>
+                      {aiResult && !aiAnalyzing && (
+                        <p className="mt-1 leading-relaxed">
+                          {aiResult.topPrediction
+                            ? `${aiResult.topPrediction.className} · ${Math.round(aiResult.topPrediction.confidence * 100)}%`
+                            : 'Không có prediction chính'}
+                          {aiResult.stylePrediction?.style ? ` · Style: ${aiResult.stylePrediction.style}` : ''}
+                          {aiResult.dominantColors?.[0]?.name ? ` · Màu: ${aiResult.dominantColors[0].name}` : ''}
+                          {aiResult.inferenceTimeMs ? ` · ${Math.round(aiResult.inferenceTimeMs)}ms` : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Danh sách ảnh phụ */}

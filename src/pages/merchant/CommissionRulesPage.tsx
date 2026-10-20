@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus,
   Edit2,
@@ -132,7 +132,7 @@ export const CommissionRulesPage: React.FC = () => {
         .filter((k: KolPartner) => Boolean(k.id));
 
       if (list.length === 0) {
-        const catRes: any = await api.get('/live-sessions/shop/catalog', { params: { storeId: sId } });
+        const catRes: any = await api.get('/livestreams', { params: { storeId: sId } });
         const creators = catRes?.creators || catRes?.data?.creators || [];
         list = creators.map((c: any) => ({
           id: c.id,
@@ -172,8 +172,8 @@ export const CommissionRulesPage: React.FC = () => {
     const init = async () => {
       try {
         let sId = localStorage.getItem('current_store_id') || '';
-        const userRes: any = await api.get('/auth/me');
-        const user = userRes?.data || userRes;
+        const userRes: any = await api.get('/users/me');
+        const user = userRes?.result || userRes?.data || userRes;
         if (!active) return;
         if (user?.role) setCurrentUserRole(user.role);
         const myStore = user?.stores?.[0] || user?.ownedStores?.[0] || user?.store;
