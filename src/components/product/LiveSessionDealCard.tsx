@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Clock3, Copy, Radio, TicketCheck } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from '../../utils/toast';
@@ -51,7 +51,7 @@ export function LiveSessionDealCard({
     let mounted = true;
     const load = async () => {
       try {
-        const response: any = await api.get(`/live-sessions/products/${productId}/active`);
+        const response: any = await api.get(`/livestreams/products/${productId}/active`);
         const result = response?.data || response;
         if (!mounted) return;
         setSession(result?.session || null);
@@ -99,7 +99,7 @@ export function LiveSessionDealCard({
   const claim = async () => {
     try {
       setLoading(true);
-      const response: any = await api.post(`/live-sessions/${session.id}/claim`, { claimKey: getClaimKey(session.id) });
+      const response: any = await api.post(`/livestreams/${session.id}/claim`, { claimKey: getClaimKey(session.id) });
       const result = response?.data || response;
       const applied = await onApplyCoupon(result?.couponCode || session.coupon.displayCode);
       if (applied) toast.success('Đã nhận và áp dụng voucher livestream.');

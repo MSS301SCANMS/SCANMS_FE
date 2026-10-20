@@ -2,7 +2,6 @@ import { Navigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import KolDashboardPage from './collaborator/KolDashboardPage';
 import ShopDashboardPage from './merchant/ShopDashboardPage';
-import KycApprovalPage from './admin/KycApprovalPage';
 
 export default function DashboardDispatcher() {
   const user = authService.getCurrentUser();
@@ -20,10 +19,12 @@ export default function DashboardDispatcher() {
   }
 
   if (activeWs === 'admin' && available.includes('admin')) {
-    if (user.role === 'SYSTEM_ADMIN') {
-      return <Navigate to="/admin/analytics" replace />;
-    }
-    return <KycApprovalPage />;
+    return (
+      <Navigate
+        to={user.role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/users'}
+        replace
+      />
+    );
   }
 
   if (activeWs === 'kol' && available.includes('kol')) {
@@ -38,12 +39,11 @@ export default function DashboardDispatcher() {
     return <ShopDashboardPage />;
   }
 
-  if (user.role === 'SYSTEM_ADMIN') {
-    return <Navigate to="/admin/analytics" replace />;
-  }
-
   if (user.role === 'SYSTEM_MANAGER') {
-    return <KycApprovalPage />;
+    return <Navigate to="/admin/ops-dashboard" replace />;
+  }
+  if (user.role === 'SYSTEM_ADMIN') {
+    return <Navigate to="/admin/users" replace />;
   }
 
   if (user.role === 'COLLABORATOR' && available.includes('kol')) {

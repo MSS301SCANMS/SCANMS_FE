@@ -192,7 +192,16 @@ export function useAiAnalyzeProduct() {
       const res: any = await api.post('/products/ai-analyze', body, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      return res?.data || res;
+      const payload = res?.result ?? res?.data ?? res;
+      return {
+        detections: payload?.detections || [],
+        topPrediction: payload?.topPrediction || null,
+        dominantColors: payload?.dominantColors || [],
+        stylePrediction: payload?.stylePrediction || null,
+        detectionFallback: Boolean(payload?.detectionFallback),
+        embeddingGenerated: Boolean(payload?.embeddingGenerated),
+        inferenceTimeMs: Number(payload?.inferenceTimeMs || 0),
+      };
     },
   });
 }

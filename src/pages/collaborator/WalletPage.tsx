@@ -86,7 +86,9 @@ function toMinorUnits(amount: string): bigint {
 
 export default function WalletPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'wallet';
+  // Note: chỉ giữ ví & rút tiền — bỏ tab KYC/social khỏi wallet
+  const activeTab = 'wallet';
+  void searchParams;
   const [kycData, setKycData] = useState<{ profile: KycProfile; channels: SocialChannel[] } | null>(null);
   const [socialData, setSocialData] = useState<SocialChannel[] | null>(null);
 
@@ -372,74 +374,24 @@ export default function WalletPage() {
 
   return (
     <div id="kol-wallet-page" data-active-tab={activeTab} className="flex flex-col gap-4 w-full min-w-0 pb-12 text-[#1A1612] text-left">
-      {/* Top Unified Hub Navigation Bar */}
+      {/* Theo note: chỉ giữ Ví & rút tiền */}
       <div className="p-1.5 sm:p-2 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
-        <nav className="grid grid-cols-2 lg:grid-cols-4 items-stretch gap-2 w-full" aria-label="Ví và hồ sơ">
+        <nav className="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-2 w-full" aria-label="Ví và rút tiền">
             <button
               type="button"
               onClick={() => setSearchParams({ tab: 'wallet' })}
-              className={`flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer select-none ${
-                activeTab === 'wallet'
-                  ? 'bg-[#FBF5EB] border border-[#EEDFC6] text-[#1A1612]'
-                  : 'text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] border border-[#EAE4D7]'
-              }`}
+              className="flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#FBF5EB] border border-[#EEDFC6] text-[#1A1612] cursor-pointer select-none"
               id="tab-btn-wallet"
-              aria-pressed={activeTab === 'wallet'}
+              aria-pressed="true"
             >
               <Wallet className="w-3.5 h-3.5 text-[#B88E4F]" />
               <span>Ví & rút tiền</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setSearchParams({ tab: 'kyc' })}
-              className={`flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer select-none ${
-                activeTab === 'kyc'
-                  ? 'bg-[#FBF5EB] border border-[#EEDFC6] text-[#1A1612]'
-                  : 'text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] border border-[#EAE4D7]'
-              }`}
-              id="tab-btn-kyc"
-              aria-pressed={activeTab === 'kyc'}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-              <span>Hồ sơ KYC</span>
+            <button type="button" onClick={() => void loadWallet()} disabled={loading}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-xs font-semibold text-[#795A2D] hover:bg-[#F3EFE6] transition-colors cursor-pointer disabled:opacity-60">
+              <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
+              <span>Làm mới ví</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setSearchParams({ tab: 'social' })}
-              className={`flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer select-none ${
-                activeTab === 'social'
-                  ? 'bg-[#FBF5EB] border border-[#EEDFC6] text-[#1A1612]'
-                  : 'text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] border border-[#EAE4D7]'
-              }`}
-              id="tab-btn-social"
-              aria-pressed={activeTab === 'social'}
-            >
-              <Share2 className="w-3.5 h-3.5 text-[#B88E4F]" />
-              <span>Kênh xã hội</span>
-            </button>
-            {activeTab === 'wallet' && (
-              <button type="button" onClick={() => void loadWallet()} disabled={loading}
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-xs font-semibold text-[#795A2D] hover:bg-[#F3EFE6] transition-colors cursor-pointer disabled:opacity-60">
-                <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
-                <span>Làm mới ví</span>
-              </button>
-            )}
-            {activeTab !== 'wallet' && (
-              <button
-                type="button"
-                aria-label="Tải lại tab hiện tại"
-                aria-busy={isReloading}
-                onClick={() => void handleReload()}
-                disabled={isReloading || submitting}
-                className="inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-xs font-semibold text-[#7D715E] hover:text-[#1A1612] hover:bg-[#FAF8F5] transition cursor-pointer disabled:opacity-50 select-none"
-                title={activeTab === 'kyc' ? 'Tải lại hồ sơ KYC' : 'Tải lại các kênh xã hội'}
-              >
-                <RefreshCw size={13} className={`text-[#B88E4F] ${isReloading ? 'animate-spin' : ''}`} />
-                <span>{isReloading ? 'Đang tải…' : 'Tải lại'}</span>
-              </button>
-            )}
         </nav>
       </div>
 
@@ -450,18 +402,6 @@ export default function WalletPage() {
         >
           {error}
         </div>
-      )}
-      {activeTab === 'kyc' && kycData && (
-        <KycSubmissionPage loadedData={kycData} isRefreshing={loading} />
-      )}
-      {activeTab === 'social' && socialData && (
-        <SocialChannelsPage loadedData={socialData} isRefreshing={loading} />
-      )}
-      {loading && ((activeTab === 'kyc' && !kycData) || (activeTab === 'social' && !socialData)) && (
-        <section className="kol-profile-loading" role="status" aria-busy="true">
-          <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-          <span>{activeTab === 'kyc' ? 'Đang tải dữ liệu hồ sơ KYC…' : 'Đang tải dữ liệu kênh xã hội…'}</span>
-        </section>
       )}
       {activeTab === 'wallet' && (
         <>

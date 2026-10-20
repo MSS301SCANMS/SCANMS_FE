@@ -1,4 +1,4 @@
-import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
+﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, Radio, RefreshCw, Search, TrendingUp, Award, PlayCircle, Loader2, Store, UserRound, Clock3 } from 'lucide-react';
 import api from '../../services/api';
@@ -47,7 +47,7 @@ export default function AdminLiveSessionsPage() {
   const load = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const response: any = await api.get('/live-sessions/admin', { headers: { 'x-skip-cache': 'true' } });
+      const response: any = await api.get('/livestreams', { headers: { 'x-skip-cache': 'true' } });
       const result = response?.data || response;
       setSessions(Array.isArray(result) ? result : []);
       setError('');

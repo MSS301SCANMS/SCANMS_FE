@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+﻿import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Radio,
@@ -47,7 +47,7 @@ export function LiveCommerceHubModal({ isOpen, onClose }: LiveCommerceHubModalPr
   const fetchPublicSessions = useCallback(async () => {
     try {
       setLoading(true);
-      const res: any = await api.get('/live-sessions/public/list');
+      const res: any = await api.get('/livestreams');
       const rawData = res?.data?.data ?? res?.data ?? res ?? [];
       const apiSessions = Array.isArray(rawData) ? rawData : [];
 

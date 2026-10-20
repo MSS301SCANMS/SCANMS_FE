@@ -121,169 +121,164 @@ export interface QueryReferralLinksParams {
   sortOrder?: 'asc' | 'desc';
 }
 
+function mapReferral(raw: any): ReferralLinkItem {
+  const id = raw.id || raw.referralLinkId;
+  const token = raw.token || raw.shortCode || id;
+  return {
+    id,
+    collaboratorId: raw.collaboratorId,
+    storeId: raw.storeId || '',
+    productId: raw.productId,
+    campaignId: null,
+    shortCode: token,
+    shortUrl: `/r/${token}`,
+    label: null,
+    channel: null,
+    destinationPath: `/products/${raw.productId}`,
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    utmContent: null,
+    status: (raw.status || 'ACTIVE') as ReferralLinkItem['status'],
+    isActive: String(raw.status || 'ACTIVE').toUpperCase() === 'ACTIVE',
+    expiresAt: raw.expiresAt || null,
+    disabledReason: null,
+    disabledBy: null,
+    disabledAt: null,
+    lastAccessedAt: null,
+    customCouponCode: null,
+    qrCodeUrl: null,
+    totalClicks: 0,
+    uniqueClicks: 0,
+    totalOrders: 0,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    product: {
+      id: raw.productId,
+      title: raw.productName || raw.productId,
+      imageUrl: null,
+      price: 0,
+    },
+    store: { id: raw.storeId || '', name: '', slug: '' },
+  };
+}
+
+const noDeal = () => {
+  throw new Error('BE chưa hỗ trợ affiliate-deals. Dùng /referrals.');
+};
+
+/** Map Nest referral/affiliate → Spring /referrals */
 export const referralLinksService = {
-
-  async getMyExclusiveDeals(): Promise<ExclusiveDealProposal[]> {
-    const res: any = await api.get('/affiliate-deals/mine');
-    const payload = res?.data ?? res;
-    return Array.isArray(payload) ? payload : payload?.data || [];
+  async getMyExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return []; },
+  async createExclusiveDeal(): Promise<ExclusiveDealProposal> { return noDeal(); },
+  async getShopExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return []; },
+  async approveExclusiveDeal() { return noDeal(); },
+  async rejectExclusiveDeal() { return noDeal(); },
+  async terminateExclusiveDeal() { return noDeal(); },
+  async deleteExclusiveDeal(id: string) {
+    return { success: false, message: 'BE chưa hỗ trợ affiliate-deals', deletedId: id };
   },
-
-  async createExclusiveDeal(payload: {
-    videoReviewCommitment: boolean;
-    productId: string;
-    proposedCommissionRate: number;
-    salesCommitment: string;
-  }): Promise<ExclusiveDealProposal> {
-    const res: any = await api.post('/affiliate-deals/proposals', payload);
-    return res?.data?.data || res?.data || res;
-  },
-
-  async getShopExclusiveDeals(): Promise<ExclusiveDealProposal[]> {
-    const res: any = await api.get('/affiliate-deals/shop');
-    const payload = res?.data ?? res;
-    return Array.isArray(payload) ? payload : payload?.data || [];
-  },
-
-  async approveExclusiveDeal(id: string, voucher?: { discountPercent: number; minimumOrderAmount: number; maximumDiscountAmount: number; usageLimitTotal: number; budgetTotal: number; validDays: number }) {
-    const res: any = await api.patch(`/affiliate-deals/${id}/approve`, voucher || {});
-    return res?.data?.data || res?.data || res;
-  },
-
-  async rejectExclusiveDeal(id: string, reason?: string) {
-    const res: any = await api.patch(`/affiliate-deals/${id}/reject`, { reason });
-    return res?.data?.data || res?.data || res;
-  },
-
-  async terminateExclusiveDeal(id: string, payload: { reason: string; escalateDispute?: boolean }) {
-    const res: any = await api.post(`/affiliate-deals/${id}/terminate`, payload);
-    return res?.data?.data || res?.data || res;
-  },
-
-  async deleteExclusiveDeal(id: string): Promise<{ success: boolean; message: string; deletedId: string }> {
-    const res: any = await api.delete(`/affiliate-deals/${id}`);
-    return res?.data || res;
-  },
-
-  async getMyDealStatus(): Promise<{
-    isBlocked: boolean;
-    violationsCount: number;
-    cooldownUntil: string | null;
-    remainingDays: number;
-    reason: string | null;
-    sampleRequestsBlocked: boolean;
-    sampleRequestsBlockReason: string | null;
-  }> {
-    const res: any = await api.get('/affiliate-deals/my-status');
-    return res?.data?.data || res?.data || res;
+  async getMyDealStatus() {
+    return {
+      isBlocked: false,
+      violationsCount: 0,
+      cooldownUntil: null,
+      remainingDays: 0,
+      reason: null,
+      sampleRequestsBlocked: false,
+      sampleRequestsBlockReason: null,
+    };
   },
 
   async getEligibleProducts(params?: { search?: string; storeId?: string; page?: number; limit?: number }): Promise<EligibleProduct[]> {
-    const res: any = await api.get('/collaborator/referral-links/products', { params });
-    return res?.data || res || [];
+    const res: any = await api.get('/public/products', { params });
+    const payload = res?.result ?? res?.data ?? res;
+    const list = Array.isArray(payload) ? payload : payload?.items || [];
+    return list.map((p: any) => ({
+      id: p.id || p.productId,
+      title: p.title || p.name,
+      sku: p.sku || '',
+      categoryName: p.categoryName || null,
+      imageUrl: p.imageUrl || null,
+      originalPrice: p.originalPrice ?? null,
+      price: p.price ?? p.priceVnd ?? 0,
+      customCommissionRate: null,
+      stockQuantity: p.stockQuantity ?? 0,
+      store: {
+        id: p.storeId || '',
+        name: p.storeName || '',
+        slug: p.storeId || '',
+        defaultCommissionRate: 0,
+      },
+      estimatedCommissionRate: 0,
+      estimatedCommissionAmount: 0,
+    }));
   },
 
-  async getMyLinks(params?: QueryReferralLinksParams): Promise<{ data: ReferralLinkItem[]; meta: any }> {
-    const res: any = await api.get('/collaborator/referral-links', { params });
-    const payload = res?.data || res;
-    return {
-      data: payload?.data || [],
-      meta: payload?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 },
-    };
+  async getMyLinks(_params?: QueryReferralLinksParams): Promise<{ data: ReferralLinkItem[]; meta: any }> {
+    const res: any = await api.get('/referrals');
+    const list = (res?.result ?? res?.data ?? []).map(mapReferral);
+    return { data: list, meta: { total: list.length, page: 1, limit: list.length || 20, totalPages: 1 } };
   },
 
   async getLinkDetail(id: string): Promise<ReferralLinkItem> {
-    const res: any = await api.get(`/collaborator/referral-links/${id}`);
-    return res?.data?.data || res?.data || res;
+    const res: any = await api.get(`/referrals/${id}`);
+    return mapReferral(res?.result ?? res?.data ?? res);
   },
 
   async createLink(payload: CreateReferralLinkPayload): Promise<ReferralLinkItem> {
-    const res: any = await api.post('/collaborator/referral-links', payload);
-    return res?.data?.data || res?.data || res;
-  },
-
-  async updateLink(id: string, payload: Partial<CreateReferralLinkPayload>): Promise<ReferralLinkItem> {
-    const res: any = await api.patch(`/collaborator/referral-links/${id}`, payload);
-    return res?.data?.data || res?.data || res;
-  },
-
-  async toggleStatus(id: string): Promise<ReferralLinkItem> {
-    const res: any = await api.patch(`/collaborator/referral-links/${id}/status`);
-    return res?.data?.data || res?.data || res;
-  },
-
-  async deleteLink(id: string): Promise<{ success: boolean; message: string }> {
-    const res: any = await api.delete(`/collaborator/referral-links/${id}`);
-    return res?.data || res;
-  },
-
-  async getStoreLinks(storeId: string, params?: QueryReferralLinksParams): Promise<{ data: ReferralLinkItem[]; meta: any }> {
-    const res: any = await api.get(`/stores/${storeId}/referral-links`, { params });
-    const payload = res?.data || res;
-    return {
-      data: payload?.data || [],
-      meta: payload?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 },
-    };
-  },
-
-  async blockLink(storeId: string, linkId: string, reason: string): Promise<any> {
-    const res: any = await api.patch(`/stores/${storeId}/referral-links/${linkId}/block`, { reason });
-    return res?.data || res;
-  },
-
-  async unblockLink(storeId: string, linkId: string): Promise<any> {
-    const res: any = await api.patch(`/stores/${storeId}/referral-links/${linkId}/unblock`);
-    return res?.data || res;
-  },
-
-  async getAdminReferralLinks(params?: QueryReferralLinksParams): Promise<{ data: ReferralLinkItem[]; meta: any }> {
-    const res: any = await api.get('/admin/referral-links', { params });
-    const payload = res?.data || res;
-    return {
-      data: payload?.data || [],
-      meta: payload?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 },
-    };
-  },
-
-  async blockLinkByAdmin(linkId: string, reason: string): Promise<any> {
-    const res: any = await api.patch(`/admin/referral-links/${linkId}/block`, { reason });
-    return res?.data || res;
-  },
-
-  async unblockLinkByAdmin(linkId: string): Promise<any> {
-    const res: any = await api.patch(`/admin/referral-links/${linkId}/unblock`);
-    return res?.data || res;
-  },
-
-  getQrDownloadUrl(id: string, format: 'png' | 'svg' = 'png', size: number = 1024): string {
-    const baseURL = (api.defaults.baseURL || '/api').replace(/\/$/, '');
-    return `${baseURL}/referral-links/${id}/qr?format=${format}&size=${size}&download=true`;
-  },
-
-  async downloadQrCode(
-    id: string,
-    shortCode: string,
-    format: 'png' | 'svg' = 'png',
-    size: number = 1024,
-  ): Promise<void> {
-    const res = await api.get(`/referral-links/${id}/qr`, {
-      params: { format, size, download: true },
-      responseType: 'blob',
+    const me: any = await api.get('/collaborators/me');
+    const collaboratorId = me?.result?.collaboratorId || me?.result?.id || me?.data?.id;
+    if (!collaboratorId) throw new Error('Không tìm thấy hồ sơ collaborator.');
+    const token = `ref-${payload.productId.slice(0, 8)}-${Date.now().toString(36)}`;
+    const res: any = await api.post('/referrals', {
+      collaboratorId,
+      productId: payload.productId,
+      token,
+      status: 'ACTIVE',
+      expiresAt: payload.expiresAt,
     });
-    const mimeType = format === 'png' ? 'image/png' : 'image/svg+xml;charset=utf-8';
-    const responseData = res instanceof Blob ? res : (res as any)?.data ?? res;
-    const blob =
-      responseData instanceof Blob
-        ? responseData
-        : new Blob([responseData], { type: mimeType });
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = `SCANMS-QR-${shortCode}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    return mapReferral(res?.result ?? res?.data ?? res);
+  },
+
+  async updateLink(_id: string, _payload: Partial<CreateReferralLinkPayload>): Promise<ReferralLinkItem> {
+    throw new Error('BE chưa hỗ trợ cập nhật referral link.');
+  },
+
+  async toggleStatus(_id: string): Promise<ReferralLinkItem> {
+    throw new Error('BE chưa hỗ trợ đổi trạng thái referral link.');
+  },
+
+  async deleteLink(_id: string): Promise<{ success: boolean; message: string }> {
+    throw new Error('BE chưa hỗ trợ xóa referral link.');
+  },
+
+  async getStoreLinks(_storeId: string, params?: QueryReferralLinksParams) {
+    return this.getMyLinks(params);
+  },
+
+  async blockLink(_storeId: string, _linkId: string, _reason: string) {
+    throw new Error('BE chưa hỗ trợ block referral link.');
+  },
+  async unblockLink(_storeId: string, _linkId: string) {
+    throw new Error('BE chưa hỗ trợ unblock referral link.');
+  },
+  async getAdminReferralLinks(params?: QueryReferralLinksParams) {
+    return this.getMyLinks(params);
+  },
+  async blockLinkByAdmin(_linkId: string, _reason: string) {
+    throw new Error('BE chưa hỗ trợ block referral link.');
+  },
+  async unblockLinkByAdmin(_linkId: string) {
+    throw new Error('BE chưa hỗ trợ unblock referral link.');
+  },
+
+  getQrDownloadUrl(id: string, _format: 'png' | 'svg' = 'png', _size: number = 1024): string {
+    return `${window.location.origin}/r/${id}`;
+  },
+
+  async downloadQrCode(id: string, shortCode: string): Promise<void> {
+    const text = `${window.location.origin}/r/${shortCode || id}`;
+    await navigator.clipboard.writeText(text);
   },
 };
 

@@ -245,24 +245,24 @@ export const ShopCouponsPage: React.FC = () => {
       setLoading(true);
       let availableStores: any[] = [];
       try {
-        const res: any = await api.get('/auth/me');
-        const user = res?.data || res;
+        const res: any = await api.get('/users/me');
+        const user = res?.result || res?.data || res;
         if (user?.stores && user.stores.length > 0) {
           availableStores = user.stores;
         }
       } catch (e) {
-        console.warn('Cannot fetch /auth/me stores:', e);
+        console.warn('Cannot fetch /users/me stores:', e);
       }
 
       if (availableStores.length === 0) {
         try {
-          const myStoreRes: any = await api.get('/stores/my-store');
-          const myStore = myStoreRes?.data || myStoreRes;
-          if (myStore && myStore.id) {
-            availableStores = [myStore];
+          const myStoreRes: any = await api.get('/stores/mine');
+          const stores = myStoreRes?.result || myStoreRes?.data || myStoreRes;
+          if (Array.isArray(stores) && stores.length > 0) {
+            availableStores = stores.map((s: any) => ({ ...s, id: s.id || s.storeId }));
           }
         } catch (e) {
-          console.warn('Cannot fetch /stores/my-store:', e);
+          console.warn('Cannot fetch /stores/mine:', e);
         }
       }
 

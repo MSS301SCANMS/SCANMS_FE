@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   ShieldCheck,
   X,
@@ -174,7 +174,7 @@ export function LiveGovernancePanel({
     const refresh = async () => {
       try {
         const response: any = await api.get(
-          `/live-sessions/${session.id}/governance`,
+          `/livestreams/${session.id}/governance`,
           { headers: { "x-skip-cache": "true" } },
         );
         if (alive) setRemote(response?.data || response);
@@ -225,7 +225,7 @@ export function LiveGovernancePanel({
     setBusy(true);
     try {
       const response: any = await api.post(
-        `/live-sessions/${session.id}/governance`,
+        `/livestreams/${session.id}/governance`,
         {
           action,
           message: message.trim(),

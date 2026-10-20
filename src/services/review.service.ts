@@ -98,11 +98,11 @@ export const reviewService = {
     body.append("file", file);
     body.append("productId", productId);
     body.append("reviewToken", order.reviewToken ?? "");
-    const response = await reviewApi.post<
-      unknown,
-      Envelope<{ secureUrl: string }>
-    >(`/orders/${order.id}/review/media`, body, {
+    const isVideo = file.type.startsWith("video/");
+    const endpoint = isVideo ? "/upload/video" : "/upload/image";
+    const response: any = await reviewApi.post(endpoint, body, {
       headers: { "Content-Type": "multipart/form-data" },
+      params: { folder: "reviews" },
       signal,
       timeout: 180000,
       onUploadProgress: (event) => {
@@ -112,10 +112,17 @@ export const reviewService = {
           );
       },
     });
-    if (!response.data.secureUrl?.startsWith("https://"))
+    const url =
+      response?.result?.secureUrl ||
+      response?.result?.url ||
+      response?.data?.secureUrl ||
+      response?.data?.url ||
+      response?.secureUrl ||
+      response?.url;
+    if (!url || typeof url !== "string")
       throw new Error("Máy chủ chưa trả về URL tải lên hợp lệ.");
     onProgress(100);
-    return response.data.secureUrl;
+    return url;
   },
   async submit(
     order: VerifiedReviewOrder,
@@ -125,15 +132,29 @@ export const reviewService = {
       comment: string;
       images: string[];
       video?: string;
+      orderItemId?: string;
     },
   ): Promise<SubmittedProductReview> {
-    const response = await reviewApi.post<
-      unknown,
-      Envelope<{ review: SubmittedProductReview }>
-    >(`/orders/${order.id}/review`, {
-      ...payload,
-      reviewToken: order.reviewToken,
+    const response: any = await reviewApi.post("/feedbacks", {
+      productId: payload.productId,
+      orderItemId: payload.orderItemId,
+      rating: payload.rating,
+      comment: payload.comment,
+      imageRefs: {
+        images: payload.images,
+        video: payload.video,
+        reviewToken: order.reviewToken,
+      },
     });
-    return response.data.review;
+    const raw = response?.result || response?.data?.review || response?.data || response;
+    return {
+      id: raw.id || raw.feedbackId,
+      productId: payload.productId,
+      rating: payload.rating,
+      comment: payload.comment,
+      createdAt: raw.createdAt || new Date().toISOString(),
+      images: payload.images,
+      video: payload.video || null,
+    };
   },
 };

@@ -826,8 +826,28 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
 
 export function useScanmsChat() {
   const context = useContext(ScanmsChatContext);
+  // Soft-fallback: tránh ErrorBoundary trắng khi provider chưa mount
   if (!context) {
-    throw new Error('useScanmsChat must be used within a ScanmsChatProvider');
+    return {
+      isOpen: false,
+      isMinimized: false,
+      activeConversationId: '',
+      conversations: [],
+      activeProduct: null,
+      activeConversation: undefined,
+      openChat: () => undefined,
+      closeChat: () => undefined,
+      toggleMinimize: () => undefined,
+      selectConversation: () => undefined,
+      sendMessage: async () => undefined,
+      sendAttachment: async () => undefined,
+      sendProductsInquiry: async () => undefined,
+      shareCouponVoucher: async () => undefined,
+      clearActiveProduct: () => undefined,
+      deleteConversation: () => undefined,
+      clearConversationMessages: () => undefined,
+      clearAllConversations: () => undefined,
+    } as any;
   }
   return context;
 }

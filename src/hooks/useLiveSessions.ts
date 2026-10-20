@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 
 // ─── Query Keys ────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export function useKolLiveSessions() {
   return useQuery({
     queryKey: liveSessionKeys.kolMy,
     queryFn: async () => {
-      const res: any = await api.get('/live-sessions/my');
+      const res: any = await api.get('/livestreams');
       return res?.data || res || [];
     },
   });
@@ -27,7 +27,7 @@ export function useShopLiveSessions() {
   return useQuery({
     queryKey: liveSessionKeys.shopList,
     queryFn: async () => {
-      const res: any = await api.get('/live-sessions/shop');
+      const res: any = await api.get('/livestreams');
       return res?.data || res || [];
     },
   });
@@ -38,7 +38,7 @@ export function useAdminLiveSessions() {
   return useQuery({
     queryKey: liveSessionKeys.adminList,
     queryFn: async () => {
-      const res: any = await api.get('/live-sessions/admin');
+      const res: any = await api.get('/livestreams');
       return res?.data || res || [];
     },
   });
@@ -51,7 +51,7 @@ export function useRespondLiveInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ sessionId, accepted }: { sessionId: string; accepted: boolean }) =>
-      api.patch(`/live-sessions/my/${sessionId}/respond`, { accepted }),
+      api.patch(`/livestreams/${sessionId}/respond`, { accepted }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: liveSessionKeys.kolMy });
     },
@@ -63,7 +63,7 @@ export function useUpdateLiveSessionState() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ sessionId, action }: { sessionId: string; action: string }) =>
-      api.patch(`/live-sessions/shop/${sessionId}/state`, { action }),
+      api.patch(`/livestreams/${sessionId}/state`, { action }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: liveSessionKeys.shopList });
     },

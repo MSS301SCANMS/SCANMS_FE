@@ -462,11 +462,9 @@ export default function ProductDetailPage() {
   const getShareUrls = () => {
     const identifier = data?.product?.sku || data?.product?.id || slug || '';
     const productUrl = new URL(window.location.pathname, window.location.origin).toString();
-    const apiBase = String(api.defaults.baseURL || '/api').replace(/\/+$/, '');
-    const previewUrl = new URL(
-      `${apiBase}/public/products/${encodeURIComponent(identifier)}/seo`,
-      window.location.origin,
-    ).toString();
+    // BE không có /seo — dùng URL sản phẩm công khai
+    const previewUrl = productUrl;
+    void identifier;
     return { productUrl, previewUrl };
   };
 
@@ -902,9 +900,8 @@ export default function ProductDetailPage() {
     try {
       const codeUpper = rawCode.trim().toUpperCase();
       setCouponCode(codeUpper);
-      const res: any = await api.post('/coupons/validate', {
-        code: codeUpper,
-        storeId: data.store.id,
+      const res: any = await api.post('/checkout/quote', {
+        couponCode: codeUpper,
         items: [
           {
             productId: data.product.id,
@@ -914,7 +911,7 @@ export default function ProductDetailPage() {
         ],
       });
 
-      const couponRes = res?.data?.data || res?.data || {};
+      const couponRes = res?.result || res?.data?.data || res?.data || {};
       if (couponContextRef.current !== requestContext) return false;
       const discount = Number(
         couponRes.discountAmount || couponRes.totalDiscount || 0,

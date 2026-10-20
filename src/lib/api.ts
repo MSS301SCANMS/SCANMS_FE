@@ -2,7 +2,7 @@ import axios from 'axios';
 import { apiCache } from '../utils/apiCache';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
   timeout: 10000,
   withCredentials: true,
   headers: {
@@ -58,7 +58,11 @@ api.interceptors.response.use(
       apiCache.invalidate();
     }
 
-    return response.data;
+    const payload = response.data;
+    if (payload && typeof payload === 'object' && 'result' in payload && !('data' in payload)) {
+      return { ...payload, data: (payload as any).result };
+    }
+    return payload;
   },
   async (error) => {
     const status = error.response?.status;

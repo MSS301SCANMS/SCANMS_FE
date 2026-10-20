@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 
 export type LiveSessionDeal = {
@@ -32,7 +32,7 @@ export function useLiveSessionDeals(productIds: string[]) {
         const productIds = productIdsKey.split(',');
         const chunks = Array.from({ length: Math.ceil(productIds.length / 100) }, (_, index) => productIds.slice(index * 100, (index + 1) * 100));
         const payloads: any[] = await Promise.all(chunks.map(async (chunk) => {
-          const response: any = await api.get('/live-sessions/products/active', {
+          const response: any = await api.get('/livestreams/products/active', {
             params: { productIds: chunk.join(',') },
             headers: { 'x-skip-cache': 'true' },
           });

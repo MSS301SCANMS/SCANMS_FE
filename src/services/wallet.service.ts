@@ -1,11 +1,9 @@
-import api from "./api";
+import { financeService, type OwnerType } from './finance.service';
 import type {
-  PayoutStatus,
   WalletSummary,
   WithdrawalRequest,
   WithdrawalHistory,
   PayosWalletTopUp,
-  LedgerEntry,
   LedgerHistory,
 } from '@/types/wallet.types';
 
@@ -17,100 +15,192 @@ export type {
   PayosWalletTopUp,
   LedgerEntry,
   LedgerHistory,
-};
+} from '@/types/wallet.types';
 
-interface ApiEnvelope<T> {
-  data: T;
+function mapWallet(w: Awaited<ReturnType<typeof financeService.wallet>>): WalletSummary {
+  const available = String(w.availableBalanceVnd ?? 0);
+  const held = String(w.heldBalanceVnd ?? 0);
+  return {
+    stores: [],
+    unallocatedAvailableBalance: available,
+    unallocatedPendingBalance: held,
+    pendingBalance: held,
+    availableBalance: available,
+    minimumWithdrawalAmount: '50000',
+    withdrawalTaxPolicy: { threshold: '0', rate: '0' },
+    kycStatus: 'VERIFIED',
+    canWithdraw: w.status === 'ACTIVE',
+    bankAccount: null,
+  };
+}
+
+function mapWithdrawal(w: Awaited<ReturnType<typeof financeService.withdrawals>>['items'][number]): WithdrawalRequest {
+  return {
+    id: w.withdrawalId,
+    amount: String(w.amountVnd ?? 0),
+    status: w.status as any,
+    requestedAt: w.requestedAt,
+    completedAt: w.completedAt,
+    failureReason: w.failureReason,
+    bankAccountId: w.bankAccountId,
+    walletId: w.walletId,
+  } as WithdrawalRequest;
 }
 
 export const walletService = {
   async payosAvailability() {
-    return (await api.get<never, ApiEnvelope<{ available: boolean }>>('/wallets/top-up-payos/availability', { headers: { 'x-skip-cache': 'true' } })).data;
+    const caps = await financeService.capabilities();
+    return { available: caps.paymentAvailable === true };
   },
+
   async createPayosTopUp(amount: number) {
-    return (await api.post<never, ApiEnvelope<PayosWalletTopUp>>('/wallets/top-up-payos', { amount }, { timeout: 20000 })).data;
+    const wallet = await financeService.wallet('CUSTOMER');
+    const payment = await financeService.topup(
+      wallet.walletId,
+      amount,
+      `topup-${wallet.walletId}-${Date.now()}`,
+    );
+    return {
+      id: payment.paymentId,
+      amount,
+      status: payment.status,
+      checkoutUrl: payment.checkoutUrl,
+      qrCode: payment.qrCode,
+    } as PayosWalletTopUp;
   },
+
   async pendingPayosTopUp() {
-    return (await api.get<never, ApiEnvelope<PayosWalletTopUp | null>>('/wallets/top-up-payos/pending', { headers: { 'x-skip-cache': 'true' } })).data;
+    const page = await financeService.payments(0);
+    const pending = page.items.find((p) =>
+      ['PENDING', 'PROCESSING', 'WAITING_PAYMENT'].includes(String(p.status).toUpperCase()),
+    );
+    if (!pending) return null;
+    return {
+      id: pending.paymentId,
+      amount: pending.amountVnd,
+      status: pending.status,
+      checkoutUrl: pending.checkoutUrl,
+      qrCode: pending.qrCode,
+    } as PayosWalletTopUp;
   },
+
   async payosTopUpStatus(id: string) {
-    return (await api.get<never, ApiEnvelope<PayosWalletTopUp>>(`/wallets/top-up-payos/${encodeURIComponent(id)}/status`, { timeout: 20000, headers: { 'x-skip-cache': 'true' } })).data;
+    const payment = await financeService.paymentStatus(id, true);
+    return {
+      id: payment.paymentId,
+      amount: payment.amountVnd,
+      status: payment.status,
+      checkoutUrl: payment.checkoutUrl,
+      qrCode: payment.qrCode,
+    } as PayosWalletTopUp;
   },
+
   async getMyLedger(page = 1): Promise<LedgerHistory> {
-    return (
-      await api.get<LedgerHistory, ApiEnvelope<LedgerHistory>>(
-        "/wallets/me/ledger",
-        { params: { page, limit: 10 }, headers: { 'x-skip-cache': 'true' } },
-      )
-    ).data;
+    const wallet = await financeService.wallet('CUSTOMER');
+    const ledger = await financeService.ledger(wallet.walletId, Math.max(0, page - 1));
+    return {
+      items: ledger.items.map((e) => ({
+        id: e.transactionId,
+        type: e.type,
+        direction: e.direction,
+        amount: String(e.amountVnd),
+        balanceAfter: String(e.balanceAfterVnd),
+        createdAt: e.createdAt,
+        referenceType: e.referenceType,
+        referenceId: e.referenceId,
+      })),
+      pagination: {
+        total: ledger.total,
+        page: ledger.page + 1,
+        limit: ledger.size,
+        totalPages: Math.max(1, Math.ceil(ledger.total / ledger.size)),
+      },
+    } as LedgerHistory;
   },
+
   async cancelPayosTopUp(id: string) {
-    return (await api.post<never, ApiEnvelope<PayosWalletTopUp>>(`/wallets/top-up-payos/${encodeURIComponent(id)}/cancel`, {}, { timeout: 30000 })).data;
+    const payment = await financeService.cancelPayment(id);
+    return {
+      id: payment.paymentId,
+      amount: payment.amountVnd,
+      status: payment.status,
+    } as PayosWalletTopUp;
   },
-  async getMyWallet(): Promise<WalletSummary> {
-    return (
-      await api.get<WalletSummary, ApiEnvelope<WalletSummary>>("/wallets/me", { headers: { 'x-skip-cache': 'true' } })
-    ).data;
+
+  async getMyWallet(ownerType: OwnerType = 'CUSTOMER', storeId?: string): Promise<WalletSummary> {
+    return mapWallet(await financeService.wallet(ownerType, storeId));
   },
 
   async getMyWithdrawals(page = 1): Promise<WithdrawalHistory> {
-    return (
-      await api.get<WithdrawalHistory, ApiEnvelope<WithdrawalHistory>>(
-        "/wallets/withdrawals",
-        {
-          params: { page, limit: 10 },
-          headers: { 'x-skip-cache': 'true' },
-        },
-      )
-    ).data;
+    const wallet = await financeService.wallet('CUSTOMER');
+    const result = await financeService.withdrawals(wallet.walletId, Math.max(0, page - 1));
+    return {
+      items: result.items.map(mapWithdrawal),
+      pagination: {
+        total: result.total,
+        page: result.page + 1,
+        limit: result.size,
+        totalPages: Math.max(1, Math.ceil(result.total / result.size)),
+      },
+    } as WithdrawalHistory;
   },
 
   async createWithdrawal(amount: string, storeId: string) {
-    return (
-      await api.post<
-        never,
-        ApiEnvelope<{
-          message: string;
-          request: WithdrawalRequest;
-          availableBalance: string;
-        }>
-      >("/wallets/withdrawals", { amount, storeId })
-    ).data;
+    const ownerType: OwnerType = storeId ? 'STORE' : 'CUSTOMER';
+    const wallet = await financeService.wallet(ownerType, storeId || undefined);
+    const banks = await financeService.banks(ownerType, storeId || wallet.ownerRefId);
+    const bank = banks.find((b) => b.active && b.verificationStatus === 'VERIFIED') || banks[0];
+    if (!bank) throw new Error('Chưa có tài khoản ngân hàng để rút tiền.');
+    const withdrawal = await financeService.withdraw({
+      walletId: wallet.walletId,
+      bankAccountId: bank.bankAccountId,
+      amountVnd: Number(amount),
+      idempotencyKey: `wd-${wallet.walletId}-${Date.now()}`,
+    });
+    return {
+      message: 'Đã tạo yêu cầu rút tiền',
+      request: mapWithdrawal(withdrawal),
+      availableBalance: String(wallet.availableBalanceVnd),
+    };
   },
 
   async updateBankAccount(data: {
     bankName: string;
     bankAccountNumber: string;
     bankAccountName: string;
+    bankCode?: string;
+    ownerType?: OwnerType;
+    ownerRefId?: string;
   }) {
-    return (
-      await api.put<
-        never,
-        ApiEnvelope<{ success: boolean; message: string }>
-      >("/wallets/me/bank-account", data)
-    ).data;
+    await financeService.registerBank({
+      ownerType: data.ownerType || 'CUSTOMER',
+      ownerRefId: data.ownerRefId || 'me',
+      bankCode: data.bankCode || data.bankName,
+      holderName: data.bankAccountName,
+      accountNumber: data.bankAccountNumber,
+    });
+    return { success: true, message: 'Đã cập nhật tài khoản ngân hàng' };
   },
 
-  async disconnectBankAccount() {
-    return (
-      await api.delete<
-        never,
-        ApiEnvelope<{ success: boolean; message: string }>
-      >("/wallets/me/bank-account")
-    ).data;
+  async disconnectBankAccount(bankAccountId?: string) {
+    if (!bankAccountId) {
+      const banks = await financeService.banks('CUSTOMER');
+      const active = banks.find((b) => b.active);
+      if (!active) return { success: true, message: 'Không có tài khoản ngân hàng' };
+      await financeService.deactivateBank(active.bankAccountId);
+    } else {
+      await financeService.deactivateBank(bankAccountId);
+    }
+    return { success: true, message: 'Đã ngắt liên kết tài khoản ngân hàng' };
   },
 
   async topUpDemo(amount: number) {
-    return (
-      await api.post<
-        never,
-        ApiEnvelope<{
-          message: string;
-          amount: number;
-          availableBalance: string;
-        }>
-      >("/wallets/top-up-demo", { amount })
-    ).data;
+    const topup = await this.createPayosTopUp(amount);
+    return {
+      message: 'Đã tạo yêu cầu nạp tiền',
+      amount,
+      availableBalance: '0',
+      payment: topup,
+    };
   },
 };
-

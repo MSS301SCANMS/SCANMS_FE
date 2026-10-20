@@ -1,4 +1,4 @@
-import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
+﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -249,20 +249,59 @@ export default function LiveSessionsPage({
 
   const lastRefreshKey = useRef(refreshKey);
 
+  const mapLivestream = useCallback((raw: any): LiveSessionItem => {
+    const participants = raw?.participantRefs || {};
+    const collabIds = raw?.collaboratorRefs?.collaboratorIds || [];
+    const productIds = raw?.productRefs?.productIds || [];
+    return {
+      id: raw.id || raw.livestreamId,
+      title: raw.title || 'Phiên live',
+      description: raw.description,
+      platform: participants.platform || 'SCANMS',
+      liveUrl: raw.playbackRef || participants.liveUrl || '',
+      externalChannels: participants.externalChannels || [],
+      startsAt: raw.scheduledAt || raw.startsAt || raw.createdAt,
+      endsAt: raw.endedAt || raw.endsAt || raw.scheduledAt || raw.createdAt,
+      status: raw.status || 'SCHEDULED',
+      inviteStatus: participants.inviteStatus || 'PENDING',
+      commissionRate: participants.commissionRate ?? 0,
+      store: raw.store || { name: currentStoreName || 'Shop', slug: '', logoUrl: null },
+      creator: raw.creator || {
+        id: collabIds[0] || '',
+        fullName: participants.creatorName || 'KOL',
+        avatarUrl: null,
+      },
+      coupon: raw.coupon || {
+        displayCode: participants.voucherCode || '—',
+        discountType: 'PERCENTAGE',
+        discountValue: 0,
+        usageLimitTotal: null,
+        usageCount: 0,
+      },
+      products: (productIds as string[]).map((pid) => ({
+        product: { id: pid, title: pid, imageUrl: null },
+      })),
+      report: raw.report,
+    } as LiveSessionItem;
+  }, [currentStoreName]);
+
   const loadSessions = useCallback(async (currentStore: string) => {
     try {
-      const response: any = await api.get('/live-sessions/shop', {
+      const response: any = await api.get('/livestreams', {
         params: { storeId: currentStore },
         headers: { 'x-skip-cache': 'true' },
       });
-      const data: LiveSessionItem[] = response?.data || response || [];
-      setSessions(data);
-      setDetailModalSession((current) => current ? data.find((session) => session.id === current.id) || current : current);
-      return data;
+      const rawList = response?.data || response?.result || response || [];
+      const list = (Array.isArray(rawList) ? rawList : [])
+        .filter((item: any) => !currentStore || item.storeId === currentStore || !item.storeId)
+        .map(mapLivestream);
+      setSessions(list);
+      setDetailModalSession((current) => current ? list.find((session) => session.id === current.id) || current : current);
+      return list;
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message || 'Không tải được danh sách phiên livestream.');
     }
-  }, []);
+  }, [mapLivestream]);
 
   useEffect(() => {
     let active = true;
@@ -270,8 +309,8 @@ export default function LiveSessionsPage({
       try {
         setLoading(true);
         setLoadError('');
-        const meRes: any = await api.get('/auth/me');
-        const user = meRes?.data || meRes;
+        const meRes: any = await api.get('/users/me');
+        const user = meRes?.result || meRes?.data || meRes;
         const myStore = user?.stores?.[0] || user?.ownedStores?.[0] || user?.store;
         const sId = myStore?.id || localStorage.getItem('current_store_id') || '';
         if (!active) return;
@@ -282,17 +321,39 @@ export default function LiveSessionsPage({
           return;
         }
 
-        const [catRes, loadedSessions] = await Promise.all([
-          api.get('/live-sessions/shop/catalog', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }),
+        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
+          api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
+          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
           loadSessions(sId),
         ]);
         if (!active) return;
         if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
-        const cat = (catRes as any)?.data || catRes;
-        setCatalog(cat);
+        const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
+        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
+        const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
+          id: p.productId || p.id,
+          title: p.title || p.name || 'Sản phẩm',
+          imageUrl: p.imageUrl || p.thumbnailUrl || null,
+          price: p.price ?? p.basePrice ?? 0,
+        }));
+        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
+          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
+          .map((c: any) => ({
+            id: c.collaboratorId || c.id || c.userId,
+            fullName: c.displayName || c.fullName || c.username || 'KOL',
+            avatarUrl: c.avatarUrl || null,
+            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
+            socialChannels: c.socialChannels || [],
+            baseRate: c.baseRate ?? 10,
+            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
+            isExclusiveVip: Boolean(c.isExclusiveVip),
+            exclusiveDealRate: c.exclusiveDealRate,
+            campaignBonusRate: c.campaignBonusRate || 0,
+          }));
+        setCatalog({ products, creators, defaultCommissionRate: 10 });
         setForm((prev) => ({
           ...prev,
-          commissionRate: String(cat.defaultCommissionRate || 10),
+          commissionRate: '10',
         }));
       } catch (err: any) {
         if (active) setLoadError(err?.response?.data?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
@@ -319,25 +380,21 @@ export default function LiveSessionsPage({
     let active = true;
     setLinkLoading(true);
     setLinkError('');
-    void api
-      .post('/live-sessions/shop/link-code', { storeId, creatorId: form.creatorId })
-      .then((response: any) => {
-        const result = response?.data || response;
-        if (!active) return;
-        if (!/^[A-Za-z0-9_-]{12}$/.test(result?.code || '')) throw new Error('Máy chủ chưa trả về mã phòng hợp lệ.');
-        setLinkLoading(false);
-        setForm((prev) =>
-          prev.creatorId === form.creatorId
-            ? { ...prev, scanmsLiveUrl: `${window.location.origin}/live/${result.code}` }
-            : prev
-        );
-      })
-      .catch((error: any) => {
-        if (active) {
-          setLinkLoading(false);
-          setLinkError(error?.response?.data?.message || error?.message || 'Không tạo được link SCANMS Live.');
-        }
-      });
+    // Spring livestream API không cấp mã phòng riêng — sinh mã local ổn định theo store+KOL
+    const seed = `${storeId}:${form.creatorId}:${Date.now().toString(36)}`;
+    const code = btoa(unescape(encodeURIComponent(seed)))
+      .replace(/[^A-Za-z0-9]/g, '')
+      .slice(0, 12)
+      .padEnd(12, '0');
+    queueMicrotask(() => {
+      if (!active) return;
+      setLinkLoading(false);
+      setForm((prev) =>
+        prev.creatorId === form.creatorId
+          ? { ...prev, scanmsLiveUrl: `${window.location.origin}/live/${code}` }
+          : prev
+      );
+    });
     return () => {
       active = false;
     };
@@ -349,11 +406,6 @@ export default function LiveSessionsPage({
     if (!storeId) return;
     void (async () => {
       try {
-        const response: any = await api.get('/live-sessions/shop/catalog', {
-          params: { storeId },
-          headers: { 'x-skip-cache': 'true' },
-        });
-        setCatalog(response?.data || response);
         await loadSessions(storeId);
       } catch (error: any) {
         toast.error(error?.response?.data?.message || error?.message || 'Không làm mới được dữ liệu phiên.');
@@ -572,27 +624,31 @@ export default function LiveSessionsPage({
 
     try {
       setSaving(true);
-      const res: any = await api.post('/live-sessions/shop', {
+      const res: any = await api.post('/livestreams', {
         storeId,
-        creatorId: form.creatorId,
         title: form.title,
-        platform: form.platform,
-        liveUrl: finalLiveUrl,
-        externalChannels,
-        startsAt: new Date(form.startsAt).toISOString(),
-        endsAt: new Date(form.endsAt).toISOString(),
-        productIds: form.productIds,
-        variantIds: form.variantIds,
-        discountType: form.discountType,
-        discountValue: Number(form.discountValue),
-        minimumOrderAmount: form.minimumOrderAmount ? Number(form.minimumOrderAmount) : undefined,
-        maximumDiscountAmount: form.maximumDiscountAmount ? Number(form.maximumDiscountAmount) : undefined,
-        usageLimitTotal: Number(form.usageLimitTotal),
-        usageLimitPerCustomer: Number(form.usageLimitPerCustomer),
-        commissionRate: finalRate,
-        customMessage: form.customMessage?.trim() || undefined,
         description: form.description || undefined,
-        coverImageUrl: form.coverImageUrl || undefined,
+        playbackRef: finalLiveUrl,
+        scheduledAt: new Date(form.startsAt).toISOString(),
+        productRefs: { productIds: form.productIds, variantIds: form.variantIds },
+        collaboratorRefs: { collaboratorIds: [form.creatorId] },
+        participantRefs: {
+          inviteStatus: 'PENDING',
+          creatorId: form.creatorId,
+          creatorName: selectedCreator?.fullName,
+          platform: form.platform,
+          liveUrl: finalLiveUrl,
+          externalChannels,
+          commissionRate: finalRate,
+          voucherCode: undefined,
+          discountType: form.discountType,
+          discountValue: Number(form.discountValue),
+          usageLimitTotal: Number(form.usageLimitTotal),
+          usageLimitPerCustomer: Number(form.usageLimitPerCustomer),
+          customMessage: form.customMessage?.trim() || undefined,
+          coverImageUrl: form.coverImageUrl || undefined,
+          endsAt: new Date(form.endsAt).toISOString(),
+        },
       });
 
       toast.success('Đã tạo phiên live và gửi lời mời đến KOL.');
@@ -628,7 +684,13 @@ export default function LiveSessionsPage({
 
   const changeState = async (session: LiveSessionItem, action: 'PAUSED' | 'RESUME' | 'CANCELLED' | 'START_NOW') => {
     try {
-      await api.patch(`/live-sessions/shop/${session.id}/state`, { action });
+      if (action === 'start' || action === 'START' || action === 'go_live') {
+        await api.post(`/livestreams/${session.id}/start`);
+      } else if (action === 'end' || action === 'END' || action === 'stop') {
+        await api.post(`/livestreams/${session.id}/end`);
+      } else {
+        await api.patch(`/livestreams/${session.id}`, { status: action });
+      }
       if (action === 'START_NOW') {
         liveBroadcastService.broadcastLive({
           sessionId: session.id,
@@ -1612,121 +1674,14 @@ export default function LiveSessionsPage({
             </div>
           </section>
 
-          {/* Block 5: Thiết lập hoa hồng phiên Live & Cảnh báo tài chính */}
-          <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#FBF5EB] text-xs font-extrabold text-[#B88E4F]">5</span>
-                <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#1A1612]">Cộng dồn hoa hồng phiên Live & Cảnh báo tài chính</h3>
-              </div>
-              <span className="text-[11px] font-semibold text-[#7D715E]">
-                Tự động hoàn nguyên khi kết thúc phiên live
-              </span>
-            </div>
-
-            {/* Formula Visualizer Card */}
-            <div className="rounded-2xl border border-[#EEDFC6] bg-gradient-to-r from-[#FBF5EB] via-white to-[#FBF5EB] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-[#B88E4F]" />
-                  Bóc tách công thức hoa hồng thời gian thực
-                </span>
-                <div className="inline-flex items-center gap-1 text-[11px] font-bold text-[#7D715E]">
-                  <span>Đối tác phát sóng:</span>
-                  <strong className="text-[#1A1612]">{selectedCreator?.fullName || 'Chưa chọn'}</strong>
-                </div>
-              </div>
-
-              {/* Layered Math Breakdown Grid */}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
-                <div className="rounded-xl border border-[#EAE4D7] bg-white p-2.5 shadow-2xs">
-                  <span className="text-[10px] font-semibold text-[#7D715E] block">
-                    Nền + cấp bậc + Deal
-                  </span>
-                  <span className="text-base font-extrabold text-[#1A1612]">{creatorBaseRate}%</span>
-                </div>
-
-                <div className="rounded-xl border border-[#EAE4D7] bg-white p-2.5 shadow-2xs">
-                  <span className="text-[10px] font-semibold text-[#7D715E] block">
-                    🎁 Thưởng chiến dịch VIP
-                  </span>
-                  <span className="text-base font-extrabold text-amber-700">
-                    +{creatorCampaignBonus}%
-                  </span>
-                </div>
-
-                <div className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-2.5 shadow-2xs">
-                  <span className="text-[10px] font-semibold text-[#B88E4F] block">
-                    🔴 Thưởng phiên Live
-                  </span>
-                  <span className="text-base font-extrabold text-[#B88E4F]">
-                    +{liveBoostRate}%
-                  </span>
-                </div>
-
-                <div className={`rounded-xl border p-2.5 shadow-2xs ${
-                  financialAlertTier === 'SAFE'
-                    ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
-                    : financialAlertTier === 'WARNING'
-                    ? 'border-amber-200 bg-amber-50/70 text-amber-900'
-                    : financialAlertTier === 'DANGER'
-                    ? 'border-rose-200 bg-rose-50 text-rose-900'
-                    : 'border-red-400 bg-red-100 text-red-900'
-                }`}>
-                  <span className="text-[10px] font-extrabold block uppercase tracking-wide">
-                    = ƯỚC TÍNH TỐI ĐA
-                  </span>
-                  <span className="text-lg font-black">{totalCommissionRate}%</span>
-                </div>
-              </div>
-
-              {/* Quick Boost Selector Chips */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-[#F0EAE0] pt-3">
-                <span className="text-xs font-bold text-[#5F5547]">Chọn nhanh mức thưởng thêm phiên Live:</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {[
-                    { label: '+2%', boost: 2 },
-                    { label: '+3% (Khuyến nghị)', boost: 3 },
-                  ].map((chip) => {
-                    const isSelected = form.liveBoost === chip.boost;
-                    return (
-                      <button
-                        key={chip.boost}
-                        type="button"
-                        onClick={() => {
-                          setForm((prev) => ({
-                            ...prev,
-                            liveBoost: chip.boost,
-                            commissionRate: String(preLiveRate + chip.boost),
-                          }));
-                        }}
-                        className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                          isSelected
-                            ? 'border border-[#C59B58] bg-[#C59B58] text-white shadow-xs'
-                            : 'border border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58] hover:text-[#1A1612]'
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs leading-relaxed text-[#7D715E]">
-              Nền 10% + cấp bậc (0–3%) + Deal (1–3%) + chiến dịch (1–2%) + Live (2–3%). Trần an toàn 25%.
-            </p>
-          </section>
-
-          {/* Block 6: Lời nhắn riêng gửi KOL qua Chat */}
+          {/* Note: đã bỏ block cộng dồn hoa hồng — chỉ giữ lời nhắn KOL */}
           <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#FBF5EB] text-xs font-extrabold text-[#B88E4F]">6</span>
-                <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#1A1612]">Lời nhắn riêng gửi KOL qua Chat</h3>
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#FBF5EB] text-xs font-extrabold text-[#B88E4F]">5</span>
+                <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#1A1612]">Lời nhắn riêng gửi KOL</h3>
               </div>
-              <span className="text-[11px] text-[#7D715E] font-medium">Tự động gửi vào hộp thoại Chat nội bộ</span>
+              <span className="text-[11px] text-[#7D715E] font-medium">Tuỳ chọn</span>
             </div>
 
             <div className="space-y-1.5">

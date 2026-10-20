@@ -93,21 +93,26 @@ export default function LoginPage() {
     setIsRoleDropdownOpen(false);
   };
 
-  const navigateAfterLogin = (userRole?: string) => {
+  const navigateAfterLogin = (userRole?: string, fromGoogle = false) => {
     if (returnTo) {
       navigate(returnTo);
       return;
     }
-    if (userRole === 'SHOP_MANAGER') {
+    const current = authService.getCurrentUser();
+    const role = userRole || current?.role;
+    const workspaces = authService.getUserAvailableWorkspaces(current).map((w) => w.key);
+
+    if (role === 'SHOP_MANAGER' || role === 'SHOP_OWNER' || workspaces.includes('shop')) {
       navigate('/merchant/dashboard');
-    } else if (userRole === 'SYSTEM_ADMIN') {
-      navigate('/admin/analytics');
-    } else if (userRole === 'SYSTEM_MANAGER') {
+    } else if (role === 'SYSTEM_MANAGER') {
+      navigate('/admin/ops-dashboard');
+    } else if (role === 'SYSTEM_ADMIN') {
       navigate('/admin/users');
-    } else if (userRole === 'CUSTOMER') {
-      navigate('/customer/orders');
-    } else {
+    } else if (role === 'COLLABORATOR' || workspaces.includes('kol')) {
       navigate('/collaborator/dashboard');
+    } else {
+      // Customer (kể cả Google) → sàn mua sắm
+      navigate('/marketplace');
     }
   };
 
@@ -123,14 +128,21 @@ export default function LoginPage() {
 
     try {
       const res: any = await authService.login(submittedIdentifier, submittedPassword);
-      const user = res?.data?.user || res?.user;
-      const loginRole: RoleType = ({ CUSTOMER: 'customer', COLLABORATOR: 'kol', SHOP_MANAGER: 'shop', SYSTEM_MANAGER: 'manager', SYSTEM_ADMIN: 'admin' } as Record<string, RoleType>)[user?.role] || role;
+      const user = res?.user || res?.data?.user || authService.getCurrentUser();
+      const loginRole: RoleType = ({
+        CUSTOMER: 'customer',
+        COLLABORATOR: 'kol',
+        SHOP_MANAGER: 'shop',
+        SHOP_OWNER: 'shop',
+        SYSTEM_MANAGER: 'manager',
+        SYSTEM_ADMIN: 'admin',
+      } as Record<string, RoleType>)[user?.role] || role;
       rememberLoginIdentifier(loginRole, submittedIdentifier, rememberMe);
       setPasswordAuthState('success');
       toast.success(`Đăng nhập thành công! Chào mừng ${user?.fullName || user?.email}`);
 
       setTimeout(() => {
-        navigateAfterLogin(user?.role);
+        navigateAfterLogin(user?.role, false);
       }, 350);
     } catch (err: any) {
       setPasswordAuthState('error');
@@ -160,9 +172,9 @@ export default function LoginPage() {
           ? 'SYSTEM_MANAGER'
           : 'SYSTEM_ADMIN';
       const res: any = await authService.googleLogin(idToken, apiRole);
-      const user = res?.data?.user || res?.user;
+      const user = res?.user || res?.data?.user || authService.getCurrentUser();
       toast.success(`Đăng nhập Google thành công! Chào mừng ${user?.fullName || user?.email}`);
-      navigateAfterLogin(user?.role);
+      navigateAfterLogin(user?.role, true);
     } catch (err: any) {
       setError(err.message || 'Đăng nhập Google thất bại');
     } finally {

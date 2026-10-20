@@ -1,4 +1,7 @@
-import api from './api';
+/**
+ * Nest realtime dashboard chưa có trên Spring gateway.
+ * Soft-stub: không gọi /dashboard/realtime/* (tránh 404 spam).
+ */
 
 export interface DashboardOverviewResponse {
   period: {
@@ -12,25 +15,20 @@ export interface DashboardOverviewResponse {
     totalClicks: number;
     previousClicks: number;
     growthClicks: number;
-
     totalOrders: number;
     previousOrders: number;
     growthOrders: number;
-
     completedOrders: number;
     grossRevenue: number;
     previousRevenue: number;
     growthRevenue: number;
-
     totalCommission: number;
     previousCommission: number;
     growthCommission: number;
-
     vipBonusCommission: number;
     conversionRate: number;
     previousConversionRate: number;
     growthConversionRate: number;
-
     averageOrderValue: number;
     activeReferralLinks: number;
   };
@@ -48,56 +46,83 @@ export interface TimeSeriesPoint {
 }
 
 export interface TopProductItem {
-  rank: number;
   productId: string;
-  title: string;
-  sku: string;
-  imageUrl?: string;
-  unitPrice: number;
-  storeName?: string;
-  ordersCount: number;
-  quantitySold: number;
-  grossRevenue: number;
+  productName: string;
+  imageUrl?: string | null;
+  clicks: number;
+  orders: number;
+  revenue: number;
+  commission: number;
 }
 
 export interface TopChannelItem {
   channel: string;
   clicks: number;
   orders: number;
-  conversionRate: number;
-  trafficSharePercent: number;
-}
-
-export interface FunnelStage {
-  stage: string;
-  label: string;
-  count: number;
-  percentage: number;
+  revenue: number;
+  commission: number;
 }
 
 export interface FunnelResponse {
-  stages: FunnelStage[];
-  conversionRate: number;
-  fulfillmentRate: number;
+  clicks: number;
+  addToCart: number;
+  checkouts: number;
+  paidOrders: number;
 }
 
 export interface CampaignPerformanceItem {
   campaignId: string;
   name: string;
-  bonusCommissionRate: number;
-  isActive: boolean;
-  startDate: string;
-  endDate: string;
-  storeName?: string;
-  participantsCount: number;
-  totalOrders: number;
+  clicks: number;
+  orders: number;
+  revenue: number;
+  commission: number;
+}
+
+export interface ShopKolProgressItem {
+  collaboratorId: string;
+  fullName: string;
   totalRevenue: number;
   totalCommissions: number;
   myStatus?: string;
 }
 
+const emptyOverview = (): DashboardOverviewResponse => {
+  const now = new Date().toISOString();
+  return {
+    period: {
+      startDate: now,
+      endDate: now,
+      prevStartDate: now,
+      prevEndDate: now,
+      range: 'custom',
+    },
+    metrics: {
+      totalClicks: 0,
+      previousClicks: 0,
+      growthClicks: 0,
+      totalOrders: 0,
+      previousOrders: 0,
+      growthOrders: 0,
+      completedOrders: 0,
+      grossRevenue: 0,
+      previousRevenue: 0,
+      growthRevenue: 0,
+      totalCommission: 0,
+      previousCommission: 0,
+      growthCommission: 0,
+      vipBonusCommission: 0,
+      conversionRate: 0,
+      previousConversionRate: 0,
+      growthConversionRate: 0,
+      averageOrderValue: 0,
+      activeReferralLinks: 0,
+    },
+  };
+};
+
 export const analyticsService = {
-  getRealtimeOverview: async (params?: {
+  getRealtimeOverview: async (_params?: {
     range?: string;
     days?: number;
     startDate?: string;
@@ -106,58 +131,45 @@ export const analyticsService = {
     storeId?: string;
     channel?: string;
     campaignId?: string;
-  }, fresh = false) => {
-    const res = await api.get<{ data?: DashboardOverviewResponse } | DashboardOverviewResponse>(
-      '/dashboard/realtime/overview',
-      { params, headers: fresh ? { 'x-skip-cache': 'true' } : undefined },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  }, _fresh = false) => emptyOverview(),
 
-  getTimeSeries: async (params?: {
+  getTimeSeries: async (_params?: {
     range?: string;
     days?: number;
     startDate?: string;
     endDate?: string;
     interval?: string;
     storeId?: string;
-  }, fresh = false) => {
-    const res = await api.get<{ data?: TimeSeriesPoint[] } | TimeSeriesPoint[]>(
-      '/dashboard/realtime/timeseries',
-      { params, headers: fresh ? { 'x-skip-cache': 'true' } : undefined },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  }, _fresh = false): Promise<TimeSeriesPoint[]> => [],
 
-  getTopProducts: async (params?: { range?: string; limit?: number; startDate?: string; endDate?: string }) => {
-    const res = await api.get<{ data?: TopProductItem[] } | TopProductItem[]>(
-      '/dashboard/realtime/top-products',
-      { params, headers: { 'x-skip-cache': '1' } },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  getTopProducts: async (_params?: {
+    range?: string;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<TopProductItem[]> => [],
 
-  getTopChannels: async (params?: { range?: string; limit?: number; startDate?: string; endDate?: string }) => {
-    const res = await api.get<{ data?: TopChannelItem[] } | TopChannelItem[]>(
-      '/dashboard/realtime/top-channels',
-      { params, headers: { 'x-skip-cache': '1' } },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  getTopChannels: async (_params?: {
+    range?: string;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<TopChannelItem[]> => [],
 
-  getConversionFunnel: async (params?: { range?: string; startDate?: string; endDate?: string }) => {
-    const res = await api.get<{ data?: FunnelResponse } | FunnelResponse>(
-      '/dashboard/realtime/funnel',
-      { params, headers: { 'x-skip-cache': '1' } },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  getConversionFunnel: async (_params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FunnelResponse> => ({
+    clicks: 0,
+    addToCart: 0,
+    checkouts: 0,
+    paidOrders: 0,
+  }),
 
-  getCampaignPerformance: async (params?: { range?: string; startDate?: string; endDate?: string }) => {
-    const res = await api.get<{ data?: CampaignPerformanceItem[] } | CampaignPerformanceItem[]>(
-      '/dashboard/realtime/campaigns',
-      { params, headers: { 'x-skip-cache': '1' } },
-    );
-    return (res.data as any)?.data || res.data;
-  },
+  getCampaignPerformance: async (_params?: {
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<CampaignPerformanceItem[]> => [],
 };

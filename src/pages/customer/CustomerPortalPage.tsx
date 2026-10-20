@@ -661,8 +661,8 @@ export default function CustomerPortalPage() {
     try {
       const data = await customerService.getProfile();
       setProfileData(data);
-      setNameInput(data.user.fullName || '');
-      setPhoneInput(data.user.phoneNumber || '');
+      setNameInput(data?.user?.fullName || currentUser?.fullName || '');
+      setPhoneInput(data?.user?.phoneNumber || currentUser?.phoneNumber || '');
     } catch (err: any) {
       console.error('Fetch profile error:', err);
     } finally {
@@ -808,8 +808,8 @@ export default function CustomerPortalPage() {
   const openAddAddressModal = () => {
     setEditingAddressId(null);
     setAddressForm({
-      fullName: profileData?.user.fullName || '',
-      phoneNumber: profileData?.user.phoneNumber || '',
+      fullName: profileData?.user?.fullName || '',
+      phoneNumber: profileData?.user?.phoneNumber || '',
       provinceCode: '',
       provinceName: '',
       districtCode: '',
@@ -1038,7 +1038,7 @@ export default function CustomerPortalPage() {
   };
 
   const handleReorder = (order: CustomerOrder) => {
-    const firstItem = order.orderItems[0];
+    const firstItem = order.orderItems?.[0];
     if (!firstItem?.product) {
       toast.error('Sản phẩm không còn khả dụng để mua lại');
       return;
@@ -1297,7 +1297,7 @@ export default function CustomerPortalPage() {
 
                             {/* Order Items List */}
                             <div className="min-w-0 px-[16px] @max-[499px]:px-[12px] divide-y divide-[#EAE4D7]">
-                              {order.orderItems.map((item) => (
+                              {(order.orderItems || []).map((item) => (
                                 <div key={item.id} className="grid grid-cols-[64px_minmax(0,1fr)_auto] @max-[499px]:grid-cols-[56px_minmax(0,1fr)] items-center @max-[499px]:items-start gap-[12px] @max-[499px]:gap-[8px_10px] py-[14px] @max-[499px]:py-[12px]">
                                   <div className="w-[64px] h-[64px] @max-[499px]:w-[56px] @max-[499px]:h-[56px] @max-[499px]:row-span-2 border border-[#EAE4D7] rounded-[9px] bg-[#FAF8F5] flex items-center justify-center shrink-0 overflow-hidden">
                                     <img
@@ -1593,7 +1593,7 @@ export default function CustomerPortalPage() {
                           <div className="min-w-0">
                             <span className="block text-[#7D715E] text-[10px] leading-[1.5]">Tài khoản đăng nhập</span>
                             <strong className="block text-[13px] font-[600] leading-[1.5] break-words text-[#1A1612]">
-                              {profileData?.user.email || currentUser?.email || 'Tài khoản SCANMS'}
+                              {profileData?.user?.email || currentUser?.email || 'Tài khoản SCANMS'}
                             </strong>
                           </div>
                         </div>
@@ -1607,7 +1607,7 @@ export default function CustomerPortalPage() {
                           <div className="flex flex-col gap-[6px] min-w-0">
                             <span className="text-[12px] font-[550] leading-[1.5] text-[#1A1612]">Email</span>
                             <div className="flex items-center justify-between flex-wrap gap-[4px_8px] min-h-[40px] p-[5px_8px_5px_10px] border border-[#EAE4D7] rounded-[8px] bg-[#FAF8F5]">
-                              <span className="min-w-0 text-[#7D715E] text-[12px] leading-[1.5] break-words">{maskEmail(profileData?.user.email || currentUser?.email)}</span>
+                              <span className="min-w-0 text-[#7D715E] text-[12px] leading-[1.5] break-words">{maskEmail(profileData?.user?.email || currentUser?.email)}</span>
                               <button type="button" className="inline-flex items-center justify-center shrink-0 gap-[4px] min-h-[24px] px-[5px] py-[3px] border-0 rounded-[5px] bg-transparent text-[#B88E4F] text-[11px] font-[550] whitespace-nowrap cursor-pointer hover:bg-[#FBF5EB] transition-colors" onClick={() => toast.info('Email đã được bảo mật theo chuẩn định danh')} aria-label="Thay đổi email"><Edit2 size={12} aria-hidden="true" />Thay đổi</button>
                             </div>
                           </div>
@@ -1674,8 +1674,8 @@ export default function CustomerPortalPage() {
                         className="hidden"
                       />
                       <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="relative grid place-items-center w-[88px] h-[88px] @max-[719px]:w-[64px] @max-[719px]:h-[64px] @max-[719px]:col-start-1 @max-[719px]:row-span-2 p-0 border border-[#EEDFC6] rounded-full bg-[#FAF8F5] text-[#B88E4F] cursor-pointer overflow-hidden" aria-label="Chọn ảnh đại diện mới">
-                        {uploadingAvatar ? <Loader2 size={24} className="animate-spin" /> : profileData?.user.avatarUrl || currentUser?.avatarUrl ? (
-                          <img src={profileData?.user.avatarUrl || currentUser?.avatarUrl || ''} alt="Ảnh đại diện của bạn" className="w-full h-full object-cover" />
+                        {uploadingAvatar ? <Loader2 size={24} className="animate-spin" /> : profileData?.user?.avatarUrl || currentUser?.avatarUrl ? (
+                          <img src={profileData?.user?.avatarUrl || currentUser?.avatarUrl || ''} alt="Ảnh đại diện của bạn" className="w-full h-full object-cover" />
                         ) : <User size={32} aria-hidden="true" />}
                         <span className="absolute -bottom-px -right-px grid place-items-center w-[28px] h-[28px] border border-[#EEDFC6] rounded-[8px] bg-[#FBF5EB] text-[#B88E4F]" aria-hidden="true"><Camera size={12} /></span>
                       </button>
@@ -2018,7 +2018,7 @@ export default function CustomerPortalPage() {
             <div className="flex flex-col gap-2">
               <strong className="text-xs font-bold text-[#1A1612]">Kiện hàng chi tiết:</strong>
               <div className="divide-y divide-[#F0EBE0] border border-[#EAE4D7] rounded-xl overflow-hidden bg-white">
-                {selectedOrderDetails.orderItems.map((item) => (
+                {(selectedOrderDetails.orderItems || []).map((item) => (
                   <div key={item.id} className="p-3 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-12 h-12 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] overflow-hidden shrink-0">

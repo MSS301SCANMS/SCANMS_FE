@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import './LiveStreamRoomHeader.css';
 import '../../components/live/LiveReactionFlight.css';
 import { LiveVoucherDropDialog } from '../../components/live/LiveVoucherDropDialog';
@@ -683,7 +683,7 @@ export default function LiveStreamRoomPage() {
     async function load() {
       try {
         setLoading(true);
-        const res: any = await api.get(`/live-sessions/public/detail/${encodeURIComponent(identifier)}`);
+        const res: any = await api.get(`/livestreams/${encodeURIComponent(identifier)}`);
         const data = res?.data || res;
         if (active && data?.id) {
           setSessionData(data);
@@ -875,7 +875,7 @@ export default function LiveStreamRoomPage() {
       const revision = pinRevision.current;
       try {
         const res: any = await api.post(
-          `/live-sessions/public/${encodeURIComponent(identifier)}/interaction`,
+          `/livestreams/${encodeURIComponent(identifier)}/interaction`,
           {
             action: 'HEARTBEAT',
             clientId: clientIdRef.current,
@@ -910,7 +910,7 @@ export default function LiveStreamRoomPage() {
 
     const handleBeforeUnload = () => {
       try {
-        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/live-sessions/public/${encodeURIComponent(identifier)}/interaction`;
+        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/livestreams/${encodeURIComponent(identifier)}`;
         const payload = JSON.stringify({ action: 'LEAVE', clientId: clientIdRef.current });
         navigator.sendBeacon?.(url, new Blob([payload], { type: 'application/json' }));
       } catch {}
@@ -982,7 +982,7 @@ export default function LiveStreamRoomPage() {
     setPinPendingId(pendingId);
     pinRevision.current += 1;
     try {
-      const url = `/live-sessions/${sessionData.id}/pinned-product`;
+      const url = `/livestreams/${sessionData.id}/pinned-product`;
       if (productId === null) {
         await api.delete(url);
       } else {
@@ -1092,7 +1092,7 @@ export default function LiveStreamRoomPage() {
 
       // Gửi tương tác thực tế lên server backend để cộng dồn
       api
-        .post(`/live-sessions/public/${encodeURIComponent(identifier)}/interaction`, {
+        .post(`/livestreams/${encodeURIComponent(identifier)}/interaction`, {
           action: 'LIKE',
           clientId: clientIdRef.current,
           count: increment,
@@ -1166,12 +1166,12 @@ export default function LiveStreamRoomPage() {
     setVoucherClaimLoading(true);
     try {
       if (sessionData?.id) {
-        await api.post(`/live-sessions/${sessionData.id}/claim`, {
+        await api.post(`/livestreams/${sessionData.id}/claim`, {
           claimKey: `claim_${currentUser?.id || 'guest'}_${Date.now()}`,
         });
       }
       if (sessionData?.coupon?.id && currentUser?.role === 'CUSTOMER') {
-        await api.post(`/coupons/saved/${sessionData.coupon.id}`);
+        // BE chưa có saved-coupon — bỏ qua
       }
       setIsVoucherClaimed(true);
       toast.success(`Đã nhận mã voucher ${couponCode}. Nhập mã khi thanh toán để sử dụng.`);
@@ -2566,7 +2566,7 @@ export default function LiveStreamRoomPage() {
             </div>
             <div className={cn('mt-3 grid shrink-0 items-end gap-3 border-t border-[#EAE4D7] bg-[#FAF8F5] px-6 py-4', isSessionHost && sessionData?.id ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
               {isSessionHost && sessionData?.id && <LiveGovernancePanel session={sessionData} audience="kol" liveRoom compact onChanged={() => {
-                void api.get(`/live-sessions/public/detail/${sessionData.id}`, { headers: { 'x-skip-cache': '1' } }).then((response: any) => setSessionData(response?.data || response)).catch(() => {});
+                void api.get(`/livestreams/${sessionData.id}`, { headers: { 'x-skip-cache': '1' } }).then((response: any) => setSessionData(response?.data || response)).catch(() => {});
               }} />}
               <button
                 type="button"

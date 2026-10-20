@@ -146,11 +146,31 @@ export const orderService = {
     limit?: number;
     storeId?: string;
   }, fresh = false): Promise<StoreOrdersResponse> {
-    const response = (await api.get("/orders/my-store", {
-      params,
+    const response: any = await api.get("/seller-orders", {
+      params: {
+        storeId: params?.storeId,
+        status: params?.status,
+      },
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
-    })) as unknown as ApiEnvelope<StoreOrdersResponse>;
-    return response.data;
+    });
+    const list = Array.isArray(response?.result)
+      ? response.result
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
+    const page = params?.page || 1;
+    const limit = params?.limit || 20;
+    return {
+      items: list,
+      pagination: {
+        total: list.length,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(list.length / limit)),
+      },
+    };
   },
 
   async updateOrderFulfillment(
@@ -162,22 +182,54 @@ export const orderService = {
       note?: string;
     },
   ) {
-    const response = (await api.patch(
-      `/orders/${orderId}/fulfillment`,
-      data,
-    )) as unknown as ApiEnvelope<{
-      message: string;
-      order: any;
-    }>;
-    return response.data;
+    // Map FE statuses → SellerOrderStatus query param
+    const statusMap: Record<string, string> = {
+      PENDING: 'PENDING',
+      SHIPPING: 'SHIPPED',
+      DELIVERED: 'DELIVERED',
+      COMPLETED: 'COMPLETED',
+      CANCELLED: 'CANCELLED',
+      RETURN_REQUESTED: 'RETURN_REQUESTED',
+      RETURNED: 'RETURNED',
+      DISPUTED: 'DISPUTED',
+    };
+    const status = statusMap[data.status] || data.status;
+    const response: any = await api.patch(`/seller-orders/${orderId}/status`, null, {
+      params: { status },
+    });
+    if (data.trackingNumber) {
+      try {
+        const shipment: any = await api.get(`/shipments/by-seller-order/${orderId}`);
+        const shipmentId = shipment?.result?.shipmentId || shipment?.result?.id || shipment?.data?.id;
+        if (shipmentId) {
+          await api.patch(`/shipments/${shipmentId}/status`, null, {
+            params: {
+              status: 'IN_TRANSIT',
+              carrier: data.carrierName,
+              trackingCode: data.trackingNumber,
+            },
+          });
+        }
+      } catch {
+        // shipment may not exist yet
+      }
+    }
+    return {
+      message: 'Cập nhật trạng thái đơn thành công',
+      order: response?.result || response?.data || response,
+    };
   },
 
-  async respondReturnRequest(orderId: string, data: { decision: 'APPROVE' | 'REJECT'; response: string }) {
-    const response = (await api.patch(`/orders/${orderId}/return-request/respond`, data)) as unknown as ApiEnvelope<{
-      message: string;
-      returnRequest: StoreReturnRequest;
-    }>;
-    return response.data;
+  async respondReturnRequest(returnId: string, data: { decision: 'APPROVE' | 'REJECT'; response: string }) {
+    const status = data.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+    const response: any = await api.post(`/returns/${returnId}/decision`, {
+      status,
+      decisionReason: data.response,
+    });
+    return {
+      message: 'Đã xử lý yêu cầu trả hàng',
+      returnRequest: response?.result || response?.data || response,
+    };
   },
 
   async quoteDiscount(data: {
@@ -186,66 +238,33 @@ export const orderService = {
     discountCode: string;
     items: ManualOrderItemInput[];
   }) {
-    const response = (await api.post(
-      "/orders/manual/discount",
-      data,
-    )) as unknown as ApiEnvelope<{
-      code: string;
-      discountAmount: number;
-      message: string;
-    }>;
-    return response.data;
+    const response: any = await api.post('/checkout/quote', {
+      couponCode: data.discountCode,
+      items: data.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    });
+    const result = response?.result || response?.data || response;
+    return {
+      code: data.discountCode,
+      discountAmount: Number(result?.discountAmount ?? result?.voucherDiscountVnd ?? 0),
+      message: result?.message || 'OK',
+    };
   },
 
   async downloadExcelTemplate() {
-
-    const blob = (await api.get("/orders/import-excel/template", {
-      responseType: "blob",
-    })) as unknown as Blob;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "scanms-order-import-template.xlsx";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    throw new Error('BE chưa hỗ trợ import Excel đơn hàng.');
   },
-  async createManualOrder(data: ManualOrderInput) {
-    const response = (await api.post(
-      "/orders/manual",
-      data,
-    )) as unknown as ApiEnvelope<{
-      message: string;
-      order: CreatedManualOrder;
-    }>;
-    return response.data;
+  async createManualOrder(_data: ManualOrderInput) {
+    throw new Error('BE chưa hỗ trợ tạo đơn thủ công. Dùng luồng checkout.');
   },
 
-  async importExcel(file: File, storeId?: string) {
-    const formData = new FormData();
-    formData.append("file", file);
-    if (storeId) {
-      formData.append("storeId", storeId);
-    }
-
-    const response = (await api.post("/orders/import-excel", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-      timeout: 60000,
-    })) as unknown as ApiEnvelope<ExcelImportResult>;
-    return response.data;
+  async importExcel(_file: File, _storeId?: string) {
+    throw new Error('BE chưa hỗ trợ import Excel đơn hàng.');
   },
 
-  /**
-   * Shop chủ động hủy đơn hàng (chỉ PENDING) — gọi POST /orders/:id/cancel
-   * Backend tự động: hoàn kho, thu hồi coupon, clawback hoa hồng KOL.
-   */
-  async shopCancelOrder(
-    orderId: string,
-    reason: string,
-  ): Promise<{ message: string; order: any }> {
-    const response = (await api.post(
-      `/orders/${orderId}/cancel`,
-      { reason },
-    )) as unknown as ApiEnvelope<{ message: string; order: any }>;
-    return response.data;
+  async shopCancelOrder(_orderId: string, _reason: string): Promise<{ message: string; order: any }> {
+    throw new Error('BE chưa hỗ trợ hủy đơn từ phía shop qua API này.');
   },
 };
