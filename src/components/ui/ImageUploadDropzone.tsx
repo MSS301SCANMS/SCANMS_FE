@@ -21,6 +21,7 @@ export interface ImageUploadDropzoneProps {
   iconType?: 'camera' | 'idcard' | 'file' | 'upload';
   required?: boolean;
   className?: string;
+  variant?: 'compact' | 'document';
 }
 
 export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
@@ -32,6 +33,7 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
   iconType = 'upload',
   required = false,
   className = '',
+  variant = 'compact',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -84,6 +86,88 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
         return <UploadCloud className="w-4 h-4 text-[#B88E4F]" />;
     }
   };
+
+  if (variant === 'document') {
+    return (
+      <div className={`upgrade-document ${className}`}>
+        <div className="upgrade-document-label">
+          <span>
+            {label}
+            {required && <span className="upgrade-required"> *</span>}
+          </span>
+          {value && (
+            <span className="upgrade-document-status">Đã đính kèm</span>
+          )}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/jpg"
+          onChange={handleFileSelected}
+          className="hidden"
+          aria-label={label}
+        />
+        <div className={`upgrade-document-body ${value ? 'has-image' : ''}`}>
+          {value ? (
+            <button
+              type="button"
+              className="upgrade-document-preview"
+              onClick={() =>
+                window.open(value, '_blank', 'noopener,noreferrer')
+              }
+              aria-label={`Xem ${label}`}
+            >
+              <img src={value} alt={label} />
+            </button>
+          ) : (
+            <span className="upgrade-document-icon">
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                renderIcon()
+              )}
+            </span>
+          )}
+          <div className="upgrade-document-copy">
+            <strong>
+              {uploading
+                ? 'Đang tải ảnh…'
+                : value
+                  ? 'Đã tải ảnh'
+                  : 'Tải ảnh lên'}
+            </strong>
+            <span>
+              {value
+                ? 'Bấm ảnh để xem rõ'
+                : 'PNG, JPG, WEBP · ≤ 5 MB'}
+            </span>
+          </div>
+          <div className="upgrade-document-actions">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="upgrade-document-choose"
+            >
+              {value ? 'Đổi ảnh' : 'Chọn ảnh'}
+            </button>
+            {value && (
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => onChange('')}
+                aria-label={`Xóa ${label}`}
+                className="upgrade-document-remove"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+        {helperText && <p className="upgrade-document-hint">{helperText}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-1 ${className}`}>

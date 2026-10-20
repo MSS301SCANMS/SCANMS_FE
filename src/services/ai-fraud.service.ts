@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export type FraudRiskLevel = 'CLEAN' | 'LOW_RISK' | 'SUSPICIOUS' | 'FRAUD_CRITICAL';
 
@@ -80,7 +80,7 @@ export const aiFraudService = {
    * Quét toàn diện traffic và tính toán chỉ số rủi ro
    */
   scanTraffic: async (params?: FraudScanFilterParams): Promise<FraudScanSummary> => {
-    const res = await api.get('/ai/fraud/scan', { params });
+    const res = await api.get('/ai/fraud/scan', { params, headers: { 'x-skip-cache': '1' } });
     return res.data?.data || res.data || res;
   },
 
@@ -120,4 +120,3 @@ export const aiFraudService = {
     return res.data?.data || res.data || res;
   },
 };
-

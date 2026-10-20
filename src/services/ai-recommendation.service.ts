@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface ScoreBreakdown {
   categoryScore: number;
@@ -33,6 +33,8 @@ export interface KolMatchResult {
   bio: string;
   matchScore: number;
   matchLevel: string;
+  categoryMatchSource?: 'SALES' | 'PROFILE' | 'NONE';
+  matchedCategory?: string;
   scoreBreakdown: ScoreBreakdown;
   aiReasoning: string;
   keyStrengths: string[];
@@ -79,7 +81,7 @@ export const aiRecommendationService = {
   getGeneralRecommendations: async (
     params?: RecommendKolsParams,
   ): Promise<AiRecommendationResponse> => {
-    const res = await api.get('/ai/recommend-kols', { params });
+    const res = await api.get('/ai/recommend-kols', { params, headers: { 'x-skip-cache': 'true' } });
     return res.data?.data || res.data || res;
   },
 
@@ -89,4 +91,3 @@ export const aiRecommendationService = {
     return res.data?.data || res.data || res;
   },
 };
-

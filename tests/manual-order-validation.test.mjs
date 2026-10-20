@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 const source = await readFile(
-  new URL("../src/components/orders/manualOrderValidation.ts", import.meta.url),
+  new URL("../src/validations/manual-order.validation.ts", import.meta.url),
   "utf8",
 );
 const compiled = ts.transpileModule(source, {

@@ -1,6 +1,7 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface CreateGhnOrderPayload {
+  environment?: 'LIVE' | 'TEST';
   note?: string;
   requiredNote?: 'CHOTHUHANG' | 'CHOXEMHANGKHONGTHU' | 'KHONGCHOXEMHANG';
   weight?: number;
@@ -21,29 +22,52 @@ export interface GhnOrderResult {
   expectedDeliveryTime: string | null;
   codAmount: number;
   isRealGhn: boolean;
+  environment: 'LIVE' | 'TEST';
   orderStatus: string;
 }
 
 export interface GhnTrackingTimeline {
   status: string;
   title: string;
-  description: string;
+  description?: string;
+  warehouse?: string | null;
+  shipperName?: string | null;
+  shipperPhone?: string | null;
   time: string | null;
   completed: boolean;
 }
 
 export interface GhnTrackingDetail {
+  simulationAvailable?: boolean;
+  isSimulation?: boolean;
+  simulationStartedAt?: string;
+  nextEventAt?: string | null;
+  shipperPhoneDisplay?: string | null;
+  shipperCanCall?: boolean;
   orderCode: string;
   carrier: string;
   status: string;
   statusText: string;
-  trackingUrl: string;
+  trackingUrl: string | null;
+  environment?: 'LIVE' | 'TEST';
+  shipperName: string | null;
+  shipperPhone: string | null;
+  isStale?: boolean;
+  lastCheckedAt?: string | null;
   expectedDeliveryTime: string | null;
   timeline: GhnTrackingTimeline[];
   ghnRawDetail?: any;
 }
 
 export const shippingService = {
+  startCustomerSimulation: async (orderId: string): Promise<GhnTrackingDetail> => {
+    const res = await api.post(`/shipping/ghn/simulation/${encodeURIComponent(orderId)}/start`, {});
+    return res.data;
+  },
+  completeCustomerSimulation: async (orderId: string): Promise<{ message: string; status: string }> => {
+    const res = await api.post(`/shipping/ghn/simulation/${encodeURIComponent(orderId)}/complete`, {});
+    return res.data;
+  },
   /**
    * Tạo vận đơn trên hệ thống GHN Express
    */
@@ -51,7 +75,7 @@ export const shippingService = {
     orderId: string,
     payload?: CreateGhnOrderPayload,
   ): Promise<GhnOrderResult> => {
-    const res = await api.post(`/shipping/ghn/create-order/${orderId}`, payload || {});
+    const res = await api.post(`/shipping/ghn/create-order/${orderId}`, payload || {}, { timeout: 60000 });
     return res.data;
   },
 
@@ -84,4 +108,3 @@ export const shippingService = {
     return res.data;
   },
 };
-

@@ -1,0 +1,32 @@
+.sample-freight { margin-top:12px; padding-top:12px; border-top:1px solid #EAE4D7; color:#7D715E; }
+.sample-freight p,.sample-freight dl,.sample-freight dd { margin:0; }
+.sample-freight__row { display:flex; align-items:center; flex-wrap:wrap; gap:14px 20px; padding:12px 14px; border-radius:10px; background:#FAF8F5; }
+.sample-freight__amounts { flex:1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:230px; }
+.sample-freight__amounts>div { min-width:0; }
+.sample-freight__amounts>div+div { padding-left:16px; border-left:1px solid #EAE4D7; }
+.sample-freight__amounts dt { font-size:10px; line-height:1.5; }
+.sample-freight__amounts dd { margin-top:3px; color:#231D15; font-size:15px; font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums; }
+.sample-freight__amounts dd>span { font-size:11px; font-weight:500; }
+.sample-freight__amounts dd.sample-freight__unknown { font-size:11px; font-weight:500; }
+.sample-freight__pay { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; gap:7px; min-height:38px; padding:9px 13px; border:1px solid #EEDFC6; border-radius:9px; background:#FBF5EB; color:#231D15; font-size:11px; line-height:1.4; font-weight:600; white-space:nowrap; cursor:pointer; transition:background .15s,border-color .15s; }
+.sample-freight__pay:hover { background:#F3EFE6; border-color:#C59B58; }
+.sample-freight__pay>svg { color:#8C6B32; }
+.sample-freight__pay:focus-visible { outline:2px solid #B88E4F; outline-offset:3px; }
+.sample-freight__pay:disabled { opacity:.5; cursor:default; }
+.sample-freight p.sample-freight__paid { display:flex; align-items:center; gap:6px; max-width:170px; color:#795A2D; font-size:10px; line-height:1.5; font-weight:600; }
+.sample-freight__paid>svg { flex-shrink:0; }
+.sample-freight p.sample-freight__reference { display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 5px; margin-top:8px; font-size:9px; line-height:1.6; }
+.sample-freight__reference code { overflow-wrap:anywhere; }
+.sample-freight__reference>span { margin-left:auto; }
+.sample-freight p.sample-freight__note { display:flex; align-items:flex-start; gap:5px; margin-top:8px; font-size:9px; line-height:1.6; }
+.sample-freight__note>svg { margin-top:1px; flex-shrink:0; color:#8C6B32; }
+.sample-freight p.sample-freight__error { margin-top:8px; font-size:11px; line-height:1.5; color:#DC2626; }
+@media(max-width:480px) {
+  .sample-freight__row { gap:10px; padding:11px; }
+  .sample-freight__amounts { flex-basis:100%; min-width:0; }
+  .sample-freight__amounts dt { font-size:9px; }
+  .sample-freight__amounts dd { font-size:14px; }
+  .sample-freight__pay { width:100%; }
+  .sample-freight p.sample-freight__paid { max-width:none; }
+  .sample-freight__reference>span { margin-left:0; flex-basis:100%; }
+}

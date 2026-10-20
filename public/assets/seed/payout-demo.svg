@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="460" viewBox="0 0 800 460" role="img" aria-label="Chứng từ minh họa Capstone, không phải biên lai ngân hàng">
+  <rect width="800" height="460" fill="#FAF8F5"/>
+  <rect x="40" y="40" width="720" height="380" rx="16" fill="#FFFFFF" stroke="#EAE4D7" stroke-width="2"/>
+  <text x="400" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#1A1612">SCANMS CAPSTONE</text>
+  <text x="400" y="200" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#B88E4F">CHỨNG TỪ MINH HỌA</text>
+  <text x="400" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#7D715E">Không phải biên lai ngân hàng</text>
+  <text x="400" y="310" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#7D715E">Không chứng minh giao dịch chuyển tiền thực tế</text>
+</svg>

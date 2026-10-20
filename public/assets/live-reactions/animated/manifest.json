@@ -1,0 +1,101 @@
+[
+  {
+    "id": "heart",
+    "codepoint": "2764_fe0f",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/2764_fe0f/512.webp",
+    "originalBytes": 294160,
+    "bytes": 164236,
+    "resizedTo": 128,
+    "sha256": "0c491b9ba4217f3a463d486d11e1b3da30955a3036a4a945840073906819e061"
+  },
+  {
+    "id": "like",
+    "codepoint": "1f44d",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f44d/512.webp",
+    "originalBytes": 159212,
+    "bytes": 86518,
+    "resizedTo": 128,
+    "sha256": "ed449258bbef2a6ca5a45c6ab53eb93901d6e8f4d81b4cde3ce09f01f9902368"
+  },
+  {
+    "id": "haha",
+    "codepoint": "1f602",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f602/512.webp",
+    "originalBytes": 623904,
+    "bytes": 272446,
+    "resizedTo": 128,
+    "sha256": "fa34392473426af26fa32181272dc316d17f68604de25e3921b8f907ea2e48fc"
+  },
+  {
+    "id": "wow",
+    "codepoint": "1f62e",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f62e/512.webp",
+    "originalBytes": 517402,
+    "bytes": 222682,
+    "resizedTo": 128,
+    "sha256": "db4916c575c374afa7df5fe40a01bf64f824884e9d7d06ba39926b29f6cf174f"
+  },
+  {
+    "id": "sad",
+    "codepoint": "1f622",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f622/512.webp",
+    "originalBytes": 451328,
+    "bytes": 219866,
+    "resizedTo": 128,
+    "sha256": "ca8c905ea74b5f907a94a68a87c1ae1e37b03b50fb9d5ad3084208fd48d3c47b"
+  },
+  {
+    "id": "angry",
+    "codepoint": "1f621",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f621/512.webp",
+    "originalBytes": 677356,
+    "bytes": 321732,
+    "resizedTo": 128,
+    "sha256": "0c48a366cbcd987f5356a1151e3a7b2a31e5ab817ea569ff6f435bbda68f3ffb"
+  },
+  {
+    "id": "fire",
+    "codepoint": "1f525",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/512.webp",
+    "originalBytes": 189752,
+    "bytes": 107596,
+    "resizedTo": 128,
+    "sha256": "a5907ad208f6ea13b64bb4a413559d8b8d1f6b011ac8bebd5675aad72961af01"
+  },
+  {
+    "id": "gift",
+    "codepoint": "1f381",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f381/512.webp",
+    "originalBytes": 571536,
+    "bytes": 271904,
+    "resizedTo": 128,
+    "sha256": "26df5237d8cd6872f2333bf93ee0982a5590cad3dc3629754f89b9af668f18fa"
+  },
+  {
+    "id": "party",
+    "codepoint": "1f389",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f389/512.webp",
+    "originalBytes": 304340,
+    "bytes": 191794,
+    "resizedTo": 128,
+    "sha256": "6e03c9efb275ebe50dce3fac067321d9196c1406d3038a1d9d0d5bbfae11fb5e"
+  },
+  {
+    "id": "hundred",
+    "codepoint": "1f4af",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f4af/512.webp",
+    "originalBytes": 360892,
+    "bytes": 274112,
+    "resizedTo": 128,
+    "sha256": "b3e6e5a9cf37c977dba7cbac28352deed3e05c4b30e0910a42adae9bbf4fae52"
+  },
+  {
+    "id": "star",
+    "codepoint": "1f31f",
+    "source": "https://fonts.gstatic.com/s/e/notoemoji/latest/1f31f/512.webp",
+    "originalBytes": 194954,
+    "bytes": 139964,
+    "resizedTo": 128,
+    "sha256": "85faa9e292f11a120b754cced0c539598ea300670dda1c4730142aeb5261d86c"
+  }
+]

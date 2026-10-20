@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   ShieldCheck,
   X,
-  Upload,
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
 import api from "../../services/api";
 import { authService } from "../../services/auth.service";
-import { uploadService } from "../../services/upload.service";
+import { LiveEvidenceAttachments, LiveEvidenceGallery } from "./LiveEvidenceAttachments";
 import { toast } from "../../utils/toast";
 
 type Statement = {
@@ -50,6 +49,8 @@ export type LiveGovernance = {
     status: string;
     submittedAt: string;
     explanation?: Statement;
+    initiatedBy?: 'SHOP';
+    kolStatement?: Statement;
     appeal?: Statement;
     escalation?: Statement;
     decision?: Decision;
@@ -64,6 +65,9 @@ type Session = {
 };
 const labels: Record<string, string> = {
   REQUEST_END: "Yêu cầu kết thúc",
+  END_BY_KOL: "Kết thúc phiên Live",
+  SHOP_END: "Kết thúc phiên & gửi Admin",
+  KOL_EXPLAIN: "KOL gửi giải trình & bằng chứng",
   EMERGENCY_STOP: "Dừng khẩn cấp",
   ACCEPT_END: "Đồng ý kết thúc",
   REJECT_END: "Tiếp tục phiên",
@@ -79,6 +83,8 @@ const reasons: Record<string, string> = {
   TECHNICAL: "Sự cố kỹ thuật",
   KOL_VIOLATION: "KOL vi phạm",
   OTHER: "Lý do khác",
+  PERSONAL: "Việc cá nhân / bận đột xuất",
+  HEALTH: "Sức khỏe / sự cố bất ngờ",
 };
 const statuses: Record<string, string> = {
   OPEN: "Chờ Vận hành & Tuân thủ xử lý",
@@ -118,11 +124,15 @@ export function LiveGovernancePanel({
   audience,
   onChanged,
   liveRoom = false,
+  initialAction,
+  compact = false,
 }: {
   session: Session;
   audience: "shop" | "kol" | "admin";
   onChanged?: () => void;
   liveRoom?: boolean;
+  initialAction?: string;
+  compact?: boolean;
 }) {
   const [remote, setRemote] = useState<Session | null>(null);
   const [action, setAction] = useState<string | null>(null);
@@ -147,6 +157,7 @@ export function LiveGovernancePanel({
     ["LIVE", "SCHEDULED", "PAUSED"].includes(current.status) &&
     current.inviteStatus === "ACCEPTED";
   const decisionForm = action === "DECIDE" || action === "DECIDE_APPEAL";
+  const compactIdle = compact && audience === "kol" && active && !g.stop && g.request?.status !== "PENDING" && !dispute && !g.timeline?.length;
 
   useEffect(() => {
     if (
@@ -188,6 +199,8 @@ export function LiveGovernancePanel({
   }, [liveRoom, session.id]);
 
   const open = (next: string) => {
+    if (busy || uploading) return;
+    setReason(next === "END_BY_KOL" ? "PERSONAL" : "TECHNICAL");
     setAction(next);
     setMessage("");
     setEvidence([]);
@@ -196,9 +209,17 @@ export function LiveGovernancePanel({
     setSanction("NONE");
     setCompensation(0);
   };
+  useEffect(() => {
+    if (initialAction) open(initialAction);
+  }, [initialAction, session.id]);
   const submit = async () => {
+    if (busy || uploading) return;
     if (message.trim().length < 10) {
       toast.error("Ghi nội dung cụ thể, ít nhất 10 ký tự.");
+      return;
+    }
+    if (["SHOP_END", "EMERGENCY_STOP", "KOL_EXPLAIN", "COMPLAIN", "EXPLAIN"].includes(action || '') && evidence.length === 0) {
+      toast.error("Cần thêm ít nhất một ảnh, video hoặc liên kết bằng chứng.");
       return;
     }
     setBusy(true);
@@ -242,7 +263,7 @@ export function LiveGovernancePanel({
       key={value}
       type="button"
       onClick={() => open(value)}
-      className={`${button} ${value === "EMERGENCY_STOP" ? "text-[#DC2626]" : ""}`}
+      className={compactIdle && value === "END_BY_KOL" ? "inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#EEDFC6] bg-white px-4 text-xs font-semibold text-[#DC2626] transition hover:border-[#C59B58] hover:bg-[#FBF5EB] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] cursor-pointer" : `${button} ${["EMERGENCY_STOP", "END_BY_KOL"].includes(value) ? "text-[#DC2626]" : ""}`}
     >
       {labels[value]}
     </button>
@@ -256,17 +277,7 @@ export function LiveGovernancePanel({
         <p className="mt-1 whitespace-pre-wrap break-words text-sm">
           {statement.message}
         </p>
-        {statement.evidence?.map((url, index) => (
-          <a
-            key={url}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mr-3 mt-2 inline-block text-xs text-[#B88E4F] underline"
-          >
-            Bằng chứng {index + 1}
-          </a>
-        ))}
+        {!!statement.evidence?.length && <div className="mt-3"><LiveEvidenceGallery urls={statement.evidence} /></div>}
       </div>
     );
   const decision = dispute?.finalDecision || dispute?.decision;
@@ -275,9 +286,9 @@ export function LiveGovernancePanel({
   return (
     <div
       ref={panelRef}
-      className="mt-4 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3 text-[#1A1612] sm:p-4"
+      className={compactIdle ? "w-full min-w-0" : "mt-4 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3 text-[#1A1612] sm:p-4"}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className={compactIdle ? "hidden" : "flex flex-wrap items-center justify-between gap-2"}>
         <h4 className="flex items-center gap-2 text-sm font-semibold">
           <ShieldCheck className="h-4 w-4 text-[#B88E4F]" /> Bảo vệ hợp tác
           livestream
@@ -309,9 +320,12 @@ export function LiveGovernancePanel({
           trạng thái đơn.
         </p>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
+      {dispute?.initiatedBy === "SHOP" && ["OPEN", "ESCALATED", "APPEALED"].includes(dispute.status) && <p className="mt-2 text-xs leading-5 text-[#7D715E]">Hồ sơ đã gửi Admin · Shop: {dispute.explanation?.evidence?.length ? "đã cung cấp bằng chứng" : "chờ bổ sung bằng chứng"} · KOL: {dispute.kolStatement?.evidence?.length ? "đã gửi giải trình và bằng chứng" : "chờ gửi giải trình và bằng chứng"}.</p>}
+      <div className={compactIdle ? "w-full" : "mt-3 flex flex-wrap gap-2"}>
+        {audience === "kol" && active && ["LIVE", "PAUSED"].includes(current.status) && actButton("END_BY_KOL")}
         {audience === "shop" && active && (
           <>
+            {actButton("SHOP_END")}
             {g.request?.status !== "PENDING" && actButton("REQUEST_END")}
             {actButton("EMERGENCY_STOP")}
           </>
@@ -323,6 +337,7 @@ export function LiveGovernancePanel({
           </>
         )}
         {audience === "kol" && g.stop && !dispute && actButton("COMPLAIN")}
+        {audience === "kol" && dispute?.initiatedBy === "SHOP" && ["OPEN", "ESCALATED"].includes(dispute.status) && !dispute.kolStatement && actButton("KOL_EXPLAIN")}
         {audience === "shop" &&
           dispute &&
           ["OPEN", "ESCALATED", "APPEALED"].includes(dispute.status) &&
@@ -372,8 +387,10 @@ export function LiveGovernancePanel({
       )}
       {expanded && (
         <div className="mt-3 space-y-2">
-          {renderStatement("KOL khiếu nại", dispute)}
+          {renderStatement("Lý do và bằng chứng kết thúc phiên", g.stop)}
+          {renderStatement(dispute?.initiatedBy === "SHOP" ? "Hồ sơ Shop kết thúc phiên · Chuyển Admin" : "KOL khiếu nại", dispute)}
           {renderStatement("Shop giải trình", dispute?.explanation)}
+          {renderStatement("KOL giải trình & bằng chứng", dispute?.kolStatement)}
           {renderStatement("Kháng nghị", dispute?.appeal)}
           {renderStatement("Chuyển cấp", dispute?.escalation)}
           {g.snapshot && (
@@ -410,6 +427,7 @@ export function LiveGovernancePanel({
                 <p className="mt-1 whitespace-pre-wrap break-words text-[#7D715E]">
                   {event.message}
                 </p>
+                {!!event.evidence?.length && <div className="mt-2"><LiveEvidenceGallery urls={event.evidence} /></div>}
               </li>
             ))}
           </ol>
@@ -446,7 +464,9 @@ export function LiveGovernancePanel({
                 Đơn đã đặt được giữ nguyên.
               </p>
             )}
-            {["REQUEST_END", "EMERGENCY_STOP"].includes(action) && (
+            {action === "END_BY_KOL" && <p className="mb-4 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-sm text-[#7D715E]">Xác nhận kết thúc phiên? Phát sóng và voucher Live sẽ dừng; đơn mới không được cộng thưởng Live. Đơn đã đặt tiếp tục được xử lý theo điều kiện đã ghi nhận.</p>}
+            {action === "SHOP_END" && <p className="mb-4 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-sm text-[#7D715E]">Shop chủ động kết thúc phiên. Bắt buộc chọn lý do, ghi giải trình và cung cấp bằng chứng. Hồ sơ được gửi Admin; KOL được thông báo để gửi giải trình đối chiếu. Đơn đã đặt giữ nguyên điều kiện đã ghi nhận.</p>}
+            {["END_BY_KOL", "REQUEST_END", "EMERGENCY_STOP", "SHOP_END"].includes(action) && (
               <label className="mb-3 block text-xs text-[#7D715E]">
                 Lý do bắt buộc
                 <select
@@ -454,7 +474,7 @@ export function LiveGovernancePanel({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 >
-                  {Object.entries(reasons).map(([value, title]) => (
+                  {Object.entries(reasons).filter(([value]) => action !== "END_BY_KOL" || !["KOL_VIOLATION", "OUT_OF_STOCK"].includes(value)).map(([value, title]) => (
                     <option key={value} value={value}>
                       {title}
                     </option>
@@ -540,77 +560,32 @@ export function LiveGovernancePanel({
               Nội dung / căn cứ bắt buộc
               <textarea
                 className={`${field} mt-1 min-h-28`}
+                required
+                minLength={10}
                 maxLength={4000}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Mô tả sự việc, lý do và căn cứ đối chiếu…"
               />
             </label>
-            {["COMPLAIN", "EXPLAIN", "APPEAL"].includes(action) && (
+            <p className="mt-1 text-xs text-[#7D715E]">Vui lòng tự nhập lý do cụ thể, tối thiểu 10 ký tự. Không chấp nhận nội dung chỉ có khoảng trắng.</p>
+            {["END_BY_KOL", "COMPLAIN", "EXPLAIN", "APPEAL", "SHOP_END", "EMERGENCY_STOP", "KOL_EXPLAIN"].includes(action) && (
               <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-[#1A1612]">{action === "END_BY_KOL" ? "Ảnh / bằng chứng kèm theo (không bắt buộc)" : "Ảnh / bằng chứng đối chiếu"}</p>
+                {action === "END_BY_KOL" && <p className="text-xs leading-relaxed text-[#7D715E]">Bạn có thể đính kèm ảnh về sự cố hoặc việc đột xuất. Lý do và bằng chứng sẽ được lưu trong hồ sơ, thông báo cho Shop và Admin để xem xét.</p>}
                 <div className="flex gap-2">
                   <input
                     className={field}
                     value={link}
+                    disabled={busy || uploading}
                     onChange={(e) => setLink(e.target.value)}
                     placeholder="Liên kết bằng chứng https://…"
                   />
-                  <button type="button" className={button} onClick={addLink}>
+                  <button type="button" className={button} disabled={busy || uploading} onClick={addLink}>
                     Thêm
                   </button>
                 </div>
-                <label
-                  className={`${button} inline-flex cursor-pointer items-center gap-2`}
-                >
-                  <Upload className="h-4 w-4" />
-                  {uploading ? "Đang tải…" : "Tải ảnh / video bằng chứng"}
-                  <input
-                    className="hidden"
-                    type="file"
-                    accept="image/*,video/*"
-                    disabled={uploading || busy || evidence.length >= 10}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!file) return;
-                      setUploading(true);
-                      try {
-                        const result = await uploadService.uploadMedia(
-                          file,
-                          "scanms/live-disputes",
-                        );
-                        setEvidence((prev) => [...prev, result.url]);
-                      } catch {
-                        toast.error("Không tải được bằng chứng.");
-                      } finally {
-                        setUploading(false);
-                      }
-                    }}
-                  />
-                </label>
-                {evidence.map((url, index) => (
-                  <div
-                    key={url}
-                    className="flex items-center justify-between gap-2 text-xs"
-                  >
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-[#B88E4F] underline"
-                    >
-                      Bằng chứng {index + 1}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEvidence(evidence.filter((item) => item !== url))
-                      }
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                ))}
+                <LiveEvidenceAttachments evidence={evidence} setEvidence={setEvidence} uploading={uploading} onUploadingChange={setUploading} disabled={busy} />
               </div>
             )}
             <div className="mt-5 flex justify-end gap-2">
@@ -624,7 +599,7 @@ export function LiveGovernancePanel({
               </button>
               <button
                 type="button"
-                disabled={busy || uploading}
+                disabled={busy || uploading || message.trim().length < 10}
                 onClick={() => void submit()}
                 className="rounded-xl bg-[#C59B58] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B88E4F] disabled:opacity-50"
               >

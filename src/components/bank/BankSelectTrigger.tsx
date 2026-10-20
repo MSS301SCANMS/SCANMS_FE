@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Landmark, ChevronDown } from 'lucide-react';
-import { type VietQrBank, findBankByQuery } from '../../constants/vietnamBanks';
+import { type VietQrBank, findBankByQuery } from '@/config/banks.config';
 import { BankSelectorModal } from './BankSelectorModal';
 
 export interface BankSelectTriggerProps {
@@ -55,18 +55,18 @@ export const BankSelectTrigger: React.FC<BankSelectTriggerProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsModalOpen(true)}
-        className={`w-full min-h-[44px] p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 text-left cursor-pointer ${
+        className={`w-full h-11 px-3.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 text-left cursor-pointer shadow-2xs ${
           disabled
             ? 'opacity-50 cursor-not-allowed bg-[#FAF8F5] border-[#EAE4D7]'
             : currentBank
-            ? 'bg-[#FAF8F5] hover:bg-white border-[#C59B58] ring-1 ring-[#C59B58]/20 shadow-2xs'
-            : 'bg-[#FAF8F5] hover:bg-white border-[#EAE4D7] hover:border-[#C59B58]/60 shadow-2xs'
+            ? 'bg-[#FAF8F5] hover:bg-white border-[#C59B58] ring-1 ring-[#C59B58]/20'
+            : 'bg-[#FAF8F5] hover:bg-white border-[#EAE4D7] hover:border-[#C59B58]/60'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           {currentBank ? (
             <>
-              <div className="w-10 h-8 rounded-lg bg-white border border-[#EAE4D7] p-1 flex items-center justify-center shrink-0 shadow-2xs">
+              <div className="w-8 h-7 rounded-lg bg-white border border-[#EAE4D7] p-0.5 flex items-center justify-center shrink-0 shadow-2xs">
                 <img
                   src={currentBank.logo}
                   alt={currentBank.shortName}
@@ -77,23 +77,23 @@ export const BankSelectTrigger: React.FC<BankSelectTriggerProps> = ({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <strong className="text-xs font-black text-[#1A1612]">
+                <div className="flex items-center gap-1.5">
+                  <strong className="text-xs font-black text-[#1A1612] truncate">
                     {currentBank.shortName}
                   </strong>
-                  <span className="text-[10px] font-mono font-bold bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] px-1.5 py-0.2 rounded-md">
+                  <span className="text-[9.5px] font-mono font-bold bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] px-1 py-0.2 rounded">
                     BIN {currentBank.bin}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#7D715E] truncate leading-tight mt-0.5">
+                <p className="text-[10.5px] text-[#7D715E] truncate leading-none mt-0.5">
                   {currentBank.name}
                 </p>
               </div>
             </>
           ) : (
             <>
-              <div className="w-8 h-8 rounded-lg bg-white border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shrink-0">
-                <Landmark className="w-4 h-4 text-[#B88E4F]" />
+              <div className="w-7 h-7 rounded-lg bg-white border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shrink-0">
+                <Landmark className="w-3.5 h-3.5 text-[#B88E4F]" />
               </div>
               <span className="text-xs text-[#7D715E] font-medium truncate">
                 {value || placeholder}
@@ -102,11 +102,11 @@ export const BankSelectTrigger: React.FC<BankSelectTriggerProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0 text-[#B88E4F]">
+        <div className="flex items-center gap-1 shrink-0 text-[#B88E4F]">
           <span className="text-[11px] font-bold hidden sm:inline">
-            {currentBank ? 'Đổi ngân hàng' : 'Chọn'}
+            {currentBank ? 'Đổi' : 'Chọn'}
           </span>
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-3.5 h-3.5 text-[#7D715E]" />
         </div>
       </button>
 

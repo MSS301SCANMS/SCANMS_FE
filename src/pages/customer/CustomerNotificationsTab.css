@@ -1,0 +1,53 @@
+.customer-notification-list { container:notification-list / inline-size; display:grid; gap:12px; min-width:0; }
+.customer-notification-card { min-width:0; overflow:hidden; border:1px solid #EAE4D7; border-radius:16px; background:#FFFFFF; box-shadow:0 2px 8px rgb(35 29 21 / 2%); transition:border-color 160ms,box-shadow 160ms; }
+.customer-notification-card[data-read="false"] { border-color:#EEDFC6; }
+.customer-notification-card:hover { border-color:#C59B58; box-shadow:0 4px 16px rgb(35 29 21 / 4%); }
+.customer-notification-main { display:grid; grid-template-columns:44px minmax(0,1fr); align-items:start; gap:14px; padding:18px 20px 14px; }
+.customer-notification-icon { display:grid; place-items:center; width:44px; height:44px; border:1px solid #EEDFC6; border-radius:13px; background:#FBF5EB; color:#B88E4F; }
+.customer-notification-card[data-read="true"] .customer-notification-icon { border-color:#EAE4D7; background:#FAF8F5; color:#7D715E; }
+.customer-notification-content { min-width:0; }
+.customer-notification-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; min-height:22px; margin-bottom:5px; font-size:11px; line-height:1.5; }
+.customer-notification-category { color:#7D715E; font-size:12px; font-weight:600; }
+.customer-notification-unread, .customer-notification-read { display:inline-flex; align-items:center; gap:5px; }
+.customer-notification-unread { padding:2px 7px; border:1px solid #EEDFC6; border-radius:6px; background:#FBF5EB; color:#8A642C; font-size:10px; }
+.customer-notification-unread i { width:4px; height:4px; border-radius:50%; background:#C59B58; }
+.customer-notification-read { color:#7D715E; font-size:10px; }
+.customer-notification-card h3 { margin:0; color:#1A1612; font-family:inherit; font-size:15px; font-weight:650; line-height:1.5; letter-spacing:-.15px; }
+.customer-notification-card[data-read="true"] h3 { font-weight:550; }
+.customer-notification-card h3 button { display:block; max-width:100%; margin:0; padding:0; border:0; background:transparent; color:inherit; font:inherit; line-height:inherit; text-align:left; overflow-wrap:anywhere; cursor:pointer; transition:color 160ms; }
+.customer-notification-card h3 button:hover { color:#8A642C; }
+.customer-notification-message { margin:6px 0 0; color:#7D715E; font-size:13px; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere; }
+.customer-notification-references { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.customer-notification-references > span { min-width:0; max-width:100%; padding:4px 8px; border:1px solid #EAE4D7; border-radius:6px; background:#FAF8F5; color:#7D715E; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+.customer-notification-references strong { color:#4A3F33; font-weight:550; }
+.customer-notification-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; margin:0 20px 0 78px; padding:10px 0 14px; border-top:1px solid #F3EFE6; }
+.customer-notification-time { display:inline-flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; color:#7D715E; font-size:11px; line-height:1.5; font-variant-numeric:tabular-nums; }
+.customer-notification-time svg { flex-shrink:0; }
+.customer-notification-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-left:auto; }
+.customer-notification-actions button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:40px; padding:9px 12px; border:1px solid transparent; border-radius:9px; font-family:inherit; font-size:12px; font-weight:550; line-height:1.5; white-space:nowrap; cursor:pointer; transition:background 160ms,border-color 160ms,color 160ms; }
+.customer-notification-actions button svg { flex-shrink:0; color:#B88E4F; }
+.customer-notification-actions .customer-notification-mark { background:#FFFFFF; color:#7D715E; }
+.customer-notification-actions .customer-notification-mark:hover { border-color:#EAE4D7; background:#FAF8F5; color:#1A1612; }
+.customer-notification-actions .customer-notification-open { min-width:116px; border-color:#EEDFC6; background:#FBF5EB; color:#1A1612; }
+.customer-notification-actions .customer-notification-open:hover { border-color:#C59B58; background:#F3EFE6; }
+.customer-notification-actions button:disabled { opacity:.55; cursor:wait; }
+.customer-notification-card button:focus-visible { outline:2px solid #C59B58; outline-offset:3px; }
+.customer-notification-spinner { animation:customer-notification-spin .8s linear infinite; }
+@keyframes customer-notification-spin { to { transform:rotate(360deg); } }
+@container notification-list (max-width:620px) {
+  .customer-notification-main { grid-template-columns:40px minmax(0,1fr); gap:12px; padding:16px 16px 12px; }
+  .customer-notification-icon { width:40px; height:40px; border-radius:11px; }
+  .customer-notification-card h3 { font-size:14px; }
+  .customer-notification-message { font-size:12px; }
+  .customer-notification-footer { margin:0 16px; padding:12px 0; }
+  .customer-notification-actions button { min-height:44px; }
+  .customer-notification-mark span { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .customer-notification-actions .customer-notification-mark { width:44px; padding:10px; border-color:#EAE4D7; }
+}
+@container notification-list (max-width:400px) {
+  .customer-notification-footer { gap:10px; }
+  .customer-notification-time { flex-basis:100%; }
+  .customer-notification-actions { width:100%; }
+  .customer-notification-actions .customer-notification-open { min-width:0; flex:1; }
+}
+@media (prefers-reduced-motion:reduce) { .customer-notification-card, .customer-notification-card h3 button, .customer-notification-actions button { transition:none; } .customer-notification-spinner { animation:none; } }

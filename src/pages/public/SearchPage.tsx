@@ -1,29 +1,30 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Store,
   X,
   ShoppingBag,
   SlidersHorizontal,
   Check,
   Filter,
   BadgeCheck,
-  Zap,
   MessageSquare,
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Heart,
 } from 'lucide-react';
 import api from '../../services/api';
 import { PublicHeader } from '../../components/layout/PublicHeader';
 import { authService } from '../../services/auth.service';
 import { customerService } from '../../services/customer.service';
-import { formatMoney, getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
-import type { Product } from '../../features/marketplace/marketplace.types';
+import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { sortCatalogProducts } from '@/utils/product-sort.utils';
+import type { Product } from '@/types/marketplace.types';
+import { HOME_CATEGORY_GROUPS, matchesHomeCategory } from '@/utils/marketplace-category.utils';
 import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
-import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
+import { useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
+import { MarketplaceProductCard } from '../../components/marketplace/MarketplaceProductCard';
+import { QuickCustomerAuth } from '../../components/marketplace/QuickCustomerAuth';
 import { LiveCommerceHubModal } from '../../components/marketplace/LiveCommerceHubModal';
 
 interface CategoryItem {
@@ -45,6 +46,9 @@ export default function SearchPage() {
 
   const queryParam = searchParams.get('q') || '';
   const categoryParam = searchParams.get('category') || 'all';
+  const categoryGroup = searchParams.get('categoryGroup') || '';
+  const discountedOnly = searchParams.get('discount') === 'true';
+  const categoryGroupLabel = HOME_CATEGORY_GROUPS.find((group) => group.id === categoryGroup)?.label;
   const storeParam = searchParams.get('store') || 'all';
 
   const [items, setItems] = useState<Product[]>([]);
@@ -97,11 +101,13 @@ export default function SearchPage() {
   }, [stores, selectedStore, showAllStores]);
 
   // Cart & Modals
-  const { openCart } = useCart();
+  const { openCart, addItem, buyNow, cart, startCheckout } = useCart();
+  const [pendingPurchase, setPendingPurchase] = useState<{ productId: string; variantId?: string; intent: 'cart' | 'buy' } | null>(null);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const isKolUser = currentUser?.role === 'COLLABORATOR';
+  const commissionFilterActive = isKolUser && onlyHasCommission;
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
 
   // Load customer wishlist & sync events
@@ -200,6 +206,37 @@ export default function SearchPage() {
     );
   };
 
+  const handlePurchase = (product: Product, intent: 'cart' | 'buy', variantId?: string) => {
+    if (!product.storeId) {
+      toast.error('Chưa xác định được gian hàng. Vui lòng mở chi tiết sản phẩm.');
+      return;
+    }
+    const payload = {
+      product: { ...product, variants: product.variants?.filter((variant) => variant.isActive !== false) },
+      store: { id: product.storeId, name: product.brand },
+      variantId, quantity: 1, openCartAfterAdd: false,
+    };
+    if (!authService.getCurrentUser() || !localStorage.getItem('token')) {
+      addItem(payload);
+      setPendingPurchase({ productId: product.id, variantId, intent });
+    } else if (intent === 'buy') {
+      buyNow(payload);
+    } else {
+      addItem(payload);
+      openCart();
+    }
+  };
+
+  const finishAuthentication = () => {
+    if (!pendingPurchase) return;
+    const matching = cart.filter((item) => item.productId === pendingPurchase.productId
+      && (!pendingPurchase.variantId || item.variantId === pendingPurchase.variantId));
+    const intent = pendingPurchase.intent;
+    setPendingPurchase(null);
+    if (intent === 'buy' && matching.length) startCheckout(matching);
+    else openCart();
+  };
+
   // Sync state when URL params change
   useEffect(() => {
     setSearchInput(queryParam);
@@ -210,6 +247,7 @@ export default function SearchPage() {
   // Update URL search parameters when filters change
   const updateUrlParams = (updates: Record<string, string | null>) => {
     const newParams = new URLSearchParams(searchParams);
+    if ('category' in updates) newParams.delete('categoryGroup');
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === '' || value === 'all' || value === 'false') {
         newParams.delete(key);
@@ -254,15 +292,23 @@ export default function SearchPage() {
     let mounted = true;
     setLoading(true);
 
-    api.get('/public/products?limit=100')
-      .then((res) => {
-        if (!mounted) return;
+    const loadProducts = async () => {
+      const products: any[] = [];
+      let page = 1, totalPages = 1;
+      do {
+        const res = await api.get('/public/products', { params: { limit: 48, page, sortBy: 'newest' } });
         const payload = res.data?.data !== undefined ? res.data.data : res.data;
-        const productList = Array.isArray(payload?.items)
-          ? payload.items
-          : Array.isArray(payload)
-            ? payload
-            : [];
+        const batch = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+        if (!mounted) return [];
+        products.push(...batch);
+        if (!batch.length) break;
+        totalPages = Number(payload?.pagination?.totalPages) || 1;
+        page++;
+      } while (mounted && page <= totalPages);
+      return products;
+    };
+    loadProducts().then((productList) => {
+        if (!mounted) return;
 
         if (productList.length > 0) {
           const mapped: Product[] = productList.map((item: any) => {
@@ -276,13 +322,7 @@ export default function SearchPage() {
             if (rawRate > 0) badge = `Hoa hồng ${rawRate}%`;
             else if (item.stockQuantity > 0) badge = 'Sẵn hàng';
 
-            const titleLower = (item.title || item.name || '').toLowerCase();
-            const resolvedBrand = item.store?.name || item.brand || (
-              titleLower.includes('lumi') ? 'Lumière Lab Vietnam' :
-              (titleLower.includes('granola') || titleLower.includes('trà') || titleLower.includes('hạt')) ? 'GreenBio Health & Herbs' :
-              (titleLower.includes('aura') || titleLower.includes('bàn phím') || titleLower.includes('tai nghe')) ? 'Aura Bio Cosmetics Vietnam' :
-              'Sora Skin Official Store'
-            );
+            const resolvedBrand = item.store?.name || item.brand || 'Gian hàng đối tác';
 
             return {
               id: item.id,
@@ -293,15 +333,20 @@ export default function SearchPage() {
               categoryLabel: item.categoryName || 'Khác',
               price: priceNum,
               origPrice: origNum,
-              image: getSafeProductImageUrl(item.imageUrl, item.title || item.name, item.categoryName),
-              rating: 5.0,
-              sold: `${50 + (item.stockQuantity % 120)}`,
+              image: getSafeProductImageUrl(item.imageUrl || item.mediaAssets?.[0]?.urlOrContent, item.title || item.name, item.categoryName),
+              rating: Number(item.rating || 0),
+              reviews: Number(item.reviewCount || 0),
+              sold: String(Number(item.soldCount ?? 0)),
+              soldCount: Number(item.soldCount ?? 0),
+              viewCount: Number(item.viewCount ?? 0),
+              createdAt: item.createdAt,
               commissionRate: rawRate || undefined,
               commissionAmount: rawRate > 0 ? Math.round(priceNum * (rawRate / 100)) : undefined,
               seller: resolvedBrand,
-              storeId: item.store?.id || '',
+              storeId: item.store?.id || item.storeId || '',
               stock: item.stockQuantity !== undefined ? item.stockQuantity : 100,
-              stockQuantity: item.stockQuantity !== undefined ? item.stockQuantity : 100,
+              stockQuantity: Number(item.stockQuantity || 0),
+              variants: Array.isArray(item.variants) ? item.variants : [],
               badge,
               features: ['Chính hãng 100%', 'Đồng kiểm tận tay', 'Bảo hộ 14 ngày'],
             };
@@ -326,6 +371,8 @@ export default function SearchPage() {
   // Filter and Sort Logic
   const filteredProducts = useMemo(() => {
     return items.filter((p) => {
+      if (!matchesHomeCategory(p.category, categoryGroup)) return false;
+      if (discountedOnly && p.origPrice <= p.price) return false;
       // 1. Search keyword
       if (searchInput.trim()) {
         const q = searchInput.toLowerCase().trim();
@@ -363,14 +410,14 @@ export default function SearchPage() {
       if (maxPrice && p.price > Number(maxPrice)) return false;
 
       // 6. Only with commission
-      if (onlyHasCommission && (!p.commissionRate || p.commissionRate <= 0)) {
+      if (commissionFilterActive && (!p.commissionRate || p.commissionRate <= 0)) {
         return false;
       }
 
       // 7. Only in stock
-      if (onlyInStock && (p.stockQuantity ?? 0) <= 0) {
-        return false;
-      }
+      const variants = (p.variants || []).filter((variant) => variant.isActive !== false);
+      const inStock = variants.length ? variants.some((variant) => variant.stockQuantity > 0) : (p.stockQuantity ?? 0) > 0;
+      if (onlyInStock && !inStock) return false;
 
       return true;
     });
@@ -382,37 +429,31 @@ export default function SearchPage() {
     pricePreset,
     minPrice,
     maxPrice,
-    onlyHasCommission,
+    commissionFilterActive,
     onlyInStock,
+    categoryGroup,
+    discountedOnly,
   ]);
 
   // Sort
   const displayedProducts = useMemo(() => {
-    const list = [...filteredProducts];
-    if (sortBy === 'price_asc') {
-      list.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'price_desc') {
-      list.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'sales') {
-      list.sort((a, b) => (Number(b.sold) || 0) - (Number(a.sold) || 0));
-    } else if (sortBy === 'newest') {
-      list.reverse();
-    }
-    return list;
+    return sortCatalogProducts(filteredProducts, sortBy);
   }, [filteredProducts, sortBy]);
   const { deals: liveDeals, now: liveDealsNow } = useLiveSessionDeals(displayedProducts.map((product) => product.id));
 
   // Active filter count
   const activeFilterCount = useMemo(() => {
     let count = 0;
+    if (categoryGroupLabel) count++;
+    if (discountedOnly) count++;
     if (searchInput.trim()) count++;
     if (selectedCategory !== 'all') count++;
     if (selectedStore !== 'all') count++;
     if (pricePreset !== 'all' || minPrice || maxPrice) count++;
-    if (onlyHasCommission) count++;
+    if (commissionFilterActive) count++;
     if (onlyInStock) count++;
     return count;
-  }, [searchInput, selectedCategory, selectedStore, pricePreset, minPrice, maxPrice, onlyHasCommission, onlyInStock]);
+  }, [searchInput, selectedCategory, selectedStore, pricePreset, minPrice, maxPrice, commissionFilterActive, onlyInStock, categoryGroupLabel, discountedOnly]);
 
   const handleResetFilters = () => {
     setSearchInput('');
@@ -431,6 +472,12 @@ export default function SearchPage() {
   const renderFilterContent = () => (
     <div className="space-y-3.5 text-left">
       {/* Category Section - SCANMS Standard */}
+      {(categoryGroupLabel || discountedOnly) && (
+        <div className="flex flex-wrap gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs">
+          {categoryGroupLabel && <button type="button" onClick={() => updateUrlParams({ categoryGroup: null })} className="inline-flex items-center gap-2 text-[#1A1612]">{categoryGroupLabel}<X size={14} aria-label="Bỏ lọc ngành hàng" /></button>}
+          {discountedOnly && <button type="button" onClick={() => updateUrlParams({ discount: null })} className="inline-flex items-center gap-2 text-[#1A1612]">Sản phẩm giảm giá<X size={14} aria-label="Bỏ lọc giảm giá" /></button>}
+        </div>
+      )}
       <div>
         <div className="space-y-1">
           {/* Tất cả sản phẩm (Toàn sàn & Mọi gian hàng) */}
@@ -645,53 +692,30 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Partner Privilege Toggles / Service & Promotion - SCANMS Standard */}
+      {/* Buyer filters shared by the sidebar and mobile drawer. */}
       <div className="pt-3 border-t border-[#EAE4D7] space-y-1.5">
-        <label className="block text-xs font-bold uppercase tracking-wider text-[#1A1612] mb-1 pb-1 border-b border-[#EAE4D7]/70">
-          Dịch vụ & Khuyến mãi
+        <h3 className="text-xs font-bold uppercase tracking-wider text-[#1A1612] mb-1 pb-1 border-b border-[#EAE4D7]/70">
+          Ưu đãi & tình trạng hàng
+        </h3>
+        <label className="flex min-h-9 items-center gap-2 pl-1 cursor-pointer text-xs text-[#231D15] hover:text-[#B88E4F]">
+          <input type="checkbox" checked={discountedOnly} onChange={(event) => updateUrlParams({ discount: event.target.checked ? 'true' : null })}
+            className="h-3.5 w-3.5 shrink-0 accent-[#C59B58] focus-visible:outline-[#C59B58]" />
+          <span className={discountedOnly ? 'font-bold text-[#B88E4F]' : ''}>Đang giảm giá</span>
         </label>
-
-        {/* Checkbox 1: Commission */}
-        <label
-          onClick={() => {
-            const next = !onlyHasCommission;
-            setOnlyHasCommission(next);
-            updateUrlParams({ commission: next ? 'true' : null });
-          }}
-          className="flex items-center gap-2 py-1 pl-1 cursor-pointer text-xs text-[#231D15] hover:text-[#B88E4F] transition-colors group select-none"
-        >
-          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
-            onlyHasCommission
-              ? 'bg-[#C59B58] border-[#B88E4F] text-[#1A1612]'
-              : 'border-[#C4B7A6] bg-white group-hover:border-[#C59B58]'
-          }`}>
-            {onlyHasCommission && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-          </div>
-          <span className={onlyHasCommission ? 'font-bold text-[#B88E4F]' : 'font-normal'}>
-            Hoa hồng CTV/KOL
-          </span>
+        <label className="flex min-h-9 items-center gap-2 pl-1 cursor-pointer text-xs text-[#231D15] hover:text-[#B88E4F]">
+          <input type="checkbox" checked={onlyInStock} onChange={(event) => {
+            setOnlyInStock(event.target.checked);
+            updateUrlParams({ inStock: event.target.checked ? 'true' : null });
+          }} className="h-3.5 w-3.5 shrink-0 accent-[#C59B58] focus-visible:outline-[#C59B58]" />
+          <span className={onlyInStock ? 'font-bold text-[#B88E4F]' : ''}>Còn hàng</span>
         </label>
-
-        {/* Checkbox 2: In Stock */}
-        <label
-          onClick={() => {
-            const next = !onlyInStock;
-            setOnlyInStock(next);
-            updateUrlParams({ inStock: next ? 'true' : null });
-          }}
-          className="flex items-center gap-2 py-1 pl-1 cursor-pointer text-xs text-[#231D15] hover:text-[#B88E4F] transition-colors group select-none"
-        >
-          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
-            onlyInStock
-              ? 'bg-[#C59B58] border-[#B88E4F] text-[#1A1612]'
-              : 'border-[#C4B7A6] bg-white group-hover:border-[#C59B58]'
-          }`}>
-            {onlyInStock && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-          </div>
-          <span className={onlyInStock ? 'font-bold text-[#B88E4F]' : 'font-normal'}>
-            Sẵn hàng giao ngay
-          </span>
-        </label>
+        {isKolUser && <label className="flex min-h-9 items-center gap-2 pl-1 cursor-pointer text-xs text-[#231D15] hover:text-[#B88E4F]">
+          <input type="checkbox" checked={onlyHasCommission} onChange={(event) => {
+            setOnlyHasCommission(event.target.checked);
+            updateUrlParams({ commission: event.target.checked ? 'true' : null });
+          }} className="h-3.5 w-3.5 shrink-0 accent-[#C59B58] focus-visible:outline-[#C59B58]" />
+          <span className={onlyHasCommission ? 'font-bold text-[#B88E4F]' : ''}>Có hoa hồng CTV/KOL</span>
+        </label>}
       </div>
 
       {/* Reset Filter Button at Bottom */}
@@ -762,7 +786,7 @@ export default function SearchPage() {
           <div className="flex-1 min-w-0 space-y-3.5">
             
             {/* SCANMS Standard Sort Bar: Exact matching 52px height and alignment with Bộ lọc sản phẩm */}
-            <div className="h-[52px] bg-[#F3EFE6] border border-[#EAE4D7] rounded-xl px-4 flex items-center justify-between gap-3 shadow-2xs">
+            <div className="h-[52px] bg-white border border-[#EAE4D7] rounded-xl px-4 flex items-center justify-between gap-3 shadow-[0_2px_12px_rgba(75,57,34,0.03)]">
               <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
                 {/* Mobile Filter Button */}
                 <button
@@ -792,7 +816,7 @@ export default function SearchPage() {
                   }}
                   className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-98 ${
                     sortBy === 'popular'
-                      ? 'bg-[#C59B58] text-white shadow-2xs border border-[#C59B58]'
+                      ? 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]'
                       : 'bg-white text-[#1A1612] hover:bg-[#FAF8F5] hover:text-[#B88E4F] border border-[#EAE4D7]'
                   }`}
                   aria-pressed={sortBy === 'popular'}
@@ -809,7 +833,7 @@ export default function SearchPage() {
                   }}
                   className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-98 ${
                     sortBy === 'newest'
-                      ? 'bg-[#C59B58] text-white shadow-2xs border border-[#C59B58]'
+                      ? 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]'
                       : 'bg-white text-[#1A1612] hover:bg-[#FAF8F5] hover:text-[#B88E4F] border border-[#EAE4D7]'
                   }`}
                   aria-pressed={sortBy === 'newest'}
@@ -826,7 +850,7 @@ export default function SearchPage() {
                   }}
                   className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-98 ${
                     sortBy === 'sales'
-                      ? 'bg-[#C59B58] text-white shadow-2xs border border-[#C59B58]'
+                      ? 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]'
                       : 'bg-white text-[#1A1612] hover:bg-[#FAF8F5] hover:text-[#B88E4F] border border-[#EAE4D7]'
                   }`}
                   aria-pressed={sortBy === 'sales'}
@@ -840,16 +864,26 @@ export default function SearchPage() {
                   className="relative"
                   onMouseEnter={() => setIsPriceDropdownOpen(true)}
                   onMouseLeave={() => setIsPriceDropdownOpen(false)}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setIsPriceDropdownOpen(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setIsPriceDropdownOpen(false);
+                      event.currentTarget.querySelector('button')?.focus();
+                    }
+                  }}
                 >
                   <button
                     type="button"
-                    onClick={() => setIsPriceDropdownOpen((prev) => !prev)}
+                    onClick={() => setIsPriceDropdownOpen(true)}
                     className={`min-w-[145px] sm:min-w-[165px] px-3.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer select-none active:scale-98 flex items-center justify-between gap-2 ${
                       sortBy === 'price_asc' || sortBy === 'price_desc'
-                        ? 'bg-[#C59B58] text-white shadow-2xs border border-[#C59B58]'
+                        ? 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]'
                         : 'bg-white text-[#1A1612] hover:bg-[#FAF8F5] hover:text-[#B88E4F] border border-[#EAE4D7]'
                     }`}
                     aria-expanded={isPriceDropdownOpen}
+                    aria-controls="price-sort-options"
                   >
                     <span className="truncate">
                       {sortBy === 'price_asc'
@@ -861,13 +895,14 @@ export default function SearchPage() {
                     <ChevronDown
                       className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${
                         isPriceDropdownOpen ? 'rotate-180' : ''
-                      } ${sortBy === 'price_asc' || sortBy === 'price_desc' ? 'text-white' : 'text-[#7D715E]'}`}
+                      } ${sortBy === 'price_asc' || sortBy === 'price_desc' ? 'text-[#8C6226]' : 'text-[#7D715E]'}`}
                     />
                   </button>
 
                   {/* Dropdown Menu */}
                   {isPriceDropdownOpen && (
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[#EAE4D7] rounded-lg shadow-lg z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 text-left">
+                    <div id="price-sort-options" className="absolute left-0 top-full z-30 w-full pt-1">
+                    <div className="w-full bg-white border border-[#EAE4D7] rounded-lg shadow-lg py-1 overflow-hidden text-left">
                       <button
                         type="button"
                         onClick={() => {
@@ -901,6 +936,7 @@ export default function SearchPage() {
                         <span>Giá: Cao đến Thấp</span>
                         {sortBy === 'price_desc' && <Check className="w-3.5 h-3.5 text-[#B88E4F]" />}
                       </button>
+                    </div>
                     </div>
                   )}
                 </div>
@@ -984,7 +1020,7 @@ export default function SearchPage() {
                   </span>
                 )}
 
-                {onlyHasCommission && (
+                {commissionFilterActive && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#EAE4D7] text-[#1A1612] font-medium">
                     <strong>Có hoa hồng CTV</strong>
                     <button
@@ -1057,130 +1093,20 @@ export default function SearchPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
-                {displayedProducts.map((p) => {
-                  const productDetailUrl = `/products/${p.sku || p.id}`;
-                  const formatSoldCount = (sold?: number | string) => {
-                    const count = Number(sold) || 600000;
-                    if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}tr+`;
-                    if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1).replace('.0', '')}k+`;
-                    return `${count}`;
-                  };
-
-                  return (
-                    <div
-                      key={p.id}
-                      className="bg-white border border-[#EAE4D7] rounded-xl overflow-hidden hover:-translate-y-1 hover:shadow-[0_10px_24px_rgba(75,57,34,0.12)] hover:border-[#C59B58] transition-all duration-200 flex flex-col justify-between group text-left relative"
-                    >
-                      {/* Entire Card Clickable Area -> Product Details (SCANMS Standard) */}
-                      <Link
-                        to={productDetailUrl}
-                        className="block flex-1 flex flex-col cursor-pointer"
-                        title={p.name}
-                      >
-                        {/* Image Container with Discount Badge & Wishlist Heart */}
-                        <div className="relative aspect-square bg-[#F3EFE6] overflow-hidden">
-                          <LiveSessionDealBadge deal={liveDeals[p.id]} now={liveDealsNow} />
-                          <img
-                            src={p.image}
-                            alt={p.name}
-                            className="w-full h-full object-cover object-center transition-transform duration-300 scale-[1.02] group-hover:scale-[1.06]"
-                            loading="lazy"
-                            onError={(e) => {
-                              const target = e.currentTarget as HTMLImageElement;
-                              if (!target.dataset.hasFallback) {
-                                target.dataset.hasFallback = 'true';
-                                target.src = getSafeProductImageUrl(null, p.name);
-                              }
-                            }}
-                          />
-                          {p.origPrice > p.price && (
-                            <span className="absolute top-0 left-0 px-1.5 py-0.5 rounded-br-md bg-[#FEE2E2] text-[#DC2626] text-[9.5px] sm:text-[10px] font-bold border-r border-b border-[#FADCD5] shadow-2xs z-10">
-                              -{Math.round(((p.origPrice - p.price) / p.origPrice) * 100)}%
-                            </span>
-                          )}
-
-                          {/* Wishlist Heart Button */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleToggleWishlist(p.id);
-                            }}
-                            className={`absolute top-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm z-10 cursor-pointer active:scale-90 ${
-                              wishlistIds.has(p.id)
-                                ? 'bg-white text-[#DC2626] ring-1 ring-[#DC2626]/30 shadow-[0_2px_8px_rgba(220,38,38,0.25)] hover:scale-110'
-                                : 'bg-white/90 hover:bg-white text-[#7D715E] hover:text-[#DC2626] hover:scale-110 backdrop-blur-xs'
-                            }`}
-                            title={wishlistIds.has(p.id) ? 'Bỏ lưu sản phẩm' : 'Lưu vào danh sách yêu thích'}
-                          >
-                            <Heart className={`w-3.5 h-3.5 transition-colors ${wishlistIds.has(p.id) ? 'fill-[#DC2626] text-[#DC2626]' : ''}`} />
-                          </button>
-                        </div>
-
-{/* Card Content - SCANMS Compact Proportions */}
-                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
-                          <div>
-                            {/* Row 1: Store Icon & Shop Name • Chính hãng */}
-                            <div className="flex items-center justify-between gap-1 h-5 mb-1 min-w-0">
-                              <Link
-                                to={p.storeId ? `/shops/${p.storeId}` : `/marketplace?store=${encodeURIComponent(p.brand || '')}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-[10.5px] font-bold text-[#7D715E] hover:text-[#B88E4F] flex items-center gap-1 min-w-0 truncate"
-                                title={p.brand || 'Gian hàng đối tác'}
-                              >
-                                <Store className="w-3 h-3 text-[#B88E4F] shrink-0" />
-                                <span className="truncate max-w-[85px] sm:max-w-[105px]">
-                                  {p.brand || 'Gian hàng đối tác'}
-                                </span>
-                              </Link>
-                              <span className="inline-flex items-center px-1 py-0.2 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-[8.5px] sm:text-[9px] font-extrabold text-[#B88E4F] shrink-0">
-                                Chính hãng
-                              </span>
-                            </div>
-
-                            {/* Row 2: Product Title (Strictly fixed height 34px - 2 lines, so 1-line and 2-line titles are 100% evenly aligned) */}
-                            <h3
-                              className="text-xs font-semibold text-[#1A1612] group-hover:text-[#B88E4F] transition-colors line-clamp-2 h-[34px] leading-[17px] mb-1 overflow-hidden"
-                              title={p.name}
-                            >
-                              {p.name}
-                            </h3>
-
-                            {/* Row 3: SCANMS Badge Row - "Rẻ Vô Địch" / "Hoa hồng" (Fixed height h-5 to keep all cards uniform) */}
-                            <div className="flex items-center gap-1 h-5 mb-1.5 min-w-0">
-                              <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-[9px] font-black text-[#B88E4F] shrink-0 shadow-2xs tracking-tight"
-                                title="Bảo chứng giá tốt nhất sàn - Rẻ Vô Địch"
-                              >
-                                <Zap className="w-2.5 h-2.5 fill-[#B88E4F] text-[#B88E4F] shrink-0" />
-                                <span>Rẻ Vô Địch</span>
-                              </span>
-
-                              {isKolUser && (p.commissionRate || 0) > 0 && (
-                                <span className="text-[9px] text-[#B88E4F] font-bold bg-[#FBF5EB] px-1 py-0.5 rounded border border-[#EEDFC6] truncate">
-                                  HH {p.commissionRate}%
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Row 4: SCANMS Standard Bottom Bar: Big Bold Price on Left, Sold Count on Right */}
-                          <div className="pt-1.5 border-t border-[#EAE4D7]/60 flex items-center justify-between gap-1">
-                            <span className="text-xs sm:text-sm font-black text-[#B88E4F] tracking-tight truncate">
-                              {formatMoney(p.price)}
-                            </span>
-
-                            <span className="text-[10px] text-[#7D715E] font-medium shrink-0 whitespace-nowrap">
-                              {formatSoldCount(p.sold)} đã bán
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-
+                {displayedProducts.map((p) => (
+                  <div key={p.id} className="flex min-w-0 flex-col [&>article]:flex-1">
+                    <MarketplaceProductCard
+                      product={p}
+                      wished={wishlistIds.has(p.id)}
+                      onWishlist={() => void handleToggleWishlist(p.id)}
+                      onPurchase={(intent, variantId) => handlePurchase(p, intent, variantId)}
+                      deal={liveDeals[p.id]}
+                      now={liveDealsNow}
+                    />
                       {/* Optional discreet Chat Shop for KOL partners */}
                       {isKolUser && (
-                        <div className="px-2.5 pb-2 pt-0">
+                        <div className="space-y-1 px-2.5 pb-2 pt-2">
+                          {(p.commissionRate || 0) > 0 && <span className="block text-center text-[10px] font-semibold text-[#B88E4F]">Hoa hồng {p.commissionRate}%</span>}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1196,9 +1122,8 @@ export default function SearchPage() {
                           </button>
                         </div>
                       )}
-                    </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1250,6 +1175,7 @@ export default function SearchPage() {
         isOpen={isLiveModalOpen}
         onClose={() => setIsLiveModalOpen(false)}
       />
+      {pendingPurchase && <QuickCustomerAuth onClose={() => setPendingPurchase(null)} onSuccess={finishAuthentication} />}
     </div>
   );
 }

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { HelpCircle, User, Camera, Loader2 } from 'lucide-react';
+import { User, Camera, Loader2, Save, ShieldCheck } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { customerService } from '../../services/customer.service';
 import { uploadService } from '../../services/upload.service';
-import { toast } from '../../utils/toast';
 import { Select } from '../../components/ui/Select';
+import { toast } from '../../utils/toast';
 
 export default function CreatorAccountDetails() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
@@ -15,13 +15,39 @@ export default function CreatorAccountDetails() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Profile metadata
-  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
-  const [birthDay, setBirthDay] = useState('02');
-  const [birthMonth, setBirthMonth] = useState('01');
-  const [birthYear, setBirthYear] = useState('2000');
-  const [addressInput, setAddressInput] = useState('');
-  const [bioInput, setBioInput] = useState('');
+  // KOL profile metadata (Gender & Date of birth)
+  const metaKey = `scanms_kol_meta_${currentUser?.id || 'kol'}`;
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>(() => {
+    try {
+      const saved = localStorage.getItem(metaKey);
+      if (saved) return JSON.parse(saved).gender || 'MALE';
+    } catch {}
+    return 'MALE';
+  });
+
+  const [birthDay, setBirthDay] = useState(() => {
+    try {
+      const saved = localStorage.getItem(metaKey);
+      if (saved) return JSON.parse(saved).birthDay || '02';
+    } catch {}
+    return '02';
+  });
+
+  const [birthMonth, setBirthMonth] = useState(() => {
+    try {
+      const saved = localStorage.getItem(metaKey);
+      if (saved) return JSON.parse(saved).birthMonth || '01';
+    } catch {}
+    return '01';
+  });
+
+  const [birthYear, setBirthYear] = useState(() => {
+    try {
+      const saved = localStorage.getItem(metaKey);
+      if (saved) return JSON.parse(saved).birthYear || '2000';
+    } catch {}
+    return '2000';
+  });
 
   // Sync latest user profile on mount
   useEffect(() => {
@@ -32,17 +58,6 @@ export default function CreatorAccountDetails() {
         if (isMounted && profile?.user) {
           if (profile.user.fullName) setNameInput(profile.user.fullName);
           if (profile.user.phoneNumber) setPhoneInput(profile.user.phoneNumber);
-          if (profile.user.gender) setGender(profile.user.gender);
-          if (profile.user.dateOfBirth) {
-            const parts = profile.user.dateOfBirth.split('-');
-            if (parts.length === 3) {
-              setBirthYear(parts[0]);
-              setBirthMonth(parts[1]);
-              setBirthDay(parts[2]);
-            }
-          }
-          setAddressInput(profile.user.address || '');
-          setBioInput(profile.user.bio || '');
         }
       } catch {
         // Fallback to authService user
@@ -88,7 +103,6 @@ export default function CreatorAccountDetails() {
   };
 
   const username =
-    (currentUser as any)?.username ||
     currentUser?.email?.split('@')[0] ||
     'kol_creator';
 
@@ -96,22 +110,16 @@ export default function CreatorAccountDetails() {
     e.preventDefault();
     setUpdatingProfile(true);
     try {
-      const dateOfBirth =
-        birthYear && birthMonth && birthDay
-          ? `${birthYear}-${birthMonth}-${birthDay}`
-          : undefined;
-
-      const payload: Record<string, any> = {
+      await customerService.updateProfile({
         fullName: nameInput.trim(),
-        phoneNumber: phoneInput.trim() || undefined,
-        gender: gender || undefined,
-        dateOfBirth,
-        address: addressInput.trim() || undefined,
-        bio: bioInput.trim() || undefined,
-      };
+        phoneNumber: phoneInput.trim(),
+      });
 
-      console.log('[SCANMS] updateProfile payload:', JSON.stringify(payload));
-      await customerService.updateProfile(payload);
+      // Persist gender and birth date in localStorage
+      localStorage.setItem(
+        metaKey,
+        JSON.stringify({ gender, birthDay, birthMonth, birthYear })
+      );
 
       // Refresh auth session
       await authService.getMe();
@@ -142,6 +150,7 @@ export default function CreatorAccountDetails() {
     try {
       setUploadingAvatar(true);
       const secureUrl = await uploadService.uploadImage(file, 'scanms/avatars');
+      await authService.updateAvatar(secureUrl);
       await customerService.updateProfile({ avatarUrl: secureUrl });
       await authService.getMe();
       window.dispatchEvent(new Event('auth-user-updated'));
@@ -156,299 +165,177 @@ export default function CreatorAccountDetails() {
   };
 
   return (
-    <div className="bg-white border border-[#EAE4D7] rounded-xl p-6 sm:p-8 shadow-2xs text-left">
-      {/* Header */}
-      <div className="pb-4 border-b border-[#EAE4D7]">
-        <h1 className="text-xl font-bold text-[#1A1612] m-0 font-display">
-          Hồ Sơ Của Tôi
-        </h1>
-        <p className="text-xs text-[#7D715E] mt-1 m-0">
-          Quản lý thông tin hồ sơ để bảo mật tài khoản
-        </p>
-      </div>
+    <section className="bg-white border border-[#EAE4D7] rounded-xl text-[#1A1612] shadow-sm overflow-hidden text-left" aria-labelledby="creator-account-title">
+      <header className="flex items-center gap-2.5 p-4 sm:px-5 border-b border-[#EAE4D7]">
+        <span className="grid place-items-center w-[34px] h-[34px] shrink-0 rounded-lg bg-[#FBF5EB] text-[#B88E4F]"><User size={18} /></span>
+        <div>
+          <h1 id="creator-account-title" className="text-base sm:text-lg font-semibold text-[#1A1612] tracking-tight">Hồ sơ của tôi</h1>
+          <p className="text-xs text-[#7D715E] mt-0.5">Cập nhật thông tin cá nhân và ảnh đại diện của bạn.</p>
+        </div>
+      </header>
 
-      {/* Form & Avatar Body */}
-      <div className="pt-6 flex flex-col-reverse md:flex-row items-start gap-8 lg:gap-12">
-        {/* Left Column: Form Fields (SCANMS Style - Image 1) */}
-        <form onSubmit={handleUpdateProfile} className="flex-1 w-full space-y-5">
-          {/* 1. Tên đăng nhập */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0">
-              Tên đăng nhập
-            </label>
-            <div className="flex-1">
-              <span className="text-xs sm:text-sm text-[#1A1612] font-semibold">
-                {username}
-              </span>
-              <p className="text-[11px] text-[#A89D8E] mt-0.5 m-0">
-                Tên đăng nhập chỉ có thể thay đổi một lần.
-              </p>
+      <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_225px] gap-6 items-start">
+        <form onSubmit={handleUpdateProfile} className="min-w-0" id="creator-account-form">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 items-start">
+            <div className="min-w-0 border-0 p-0 m-0">
+              <span className="block mb-1.5 text-xs font-medium text-[#7D715E]">Tên đăng nhập</span>
+              <div className="flex items-center min-h-[38px] px-3 py-2 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] text-xs font-medium text-[#1A1612] break-all">{username}</div>
+              <p className="mt-1.5 text-[10px] text-[#7D715E]">Tên đăng nhập chỉ có thể thay đổi một lần.</p>
             </div>
-          </div>
-
-          {/* 2. Tên */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0">
-              Tên
-            </label>
-            <div className="flex-1 max-w-md">
+            <div className="min-w-0 border-0 p-0 m-0">
+              <label htmlFor="creator-account-name" className="block mb-1.5 text-xs font-medium text-[#7D715E]">Họ và tên</label>
               <input
+                id="creator-account-name"
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 required
+                autoComplete="name"
                 placeholder="Nhập họ và tên"
-                className="w-full bg-white border border-[#EAE4D7] focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58] rounded-md px-3.5 py-2 text-xs sm:text-sm text-[#1A1612] outline-none transition"
+                className="w-full min-w-0 h-[38px] px-3 py-2 border border-[#EAE4D7] rounded-lg bg-white text-[#1A1612] text-xs transition-colors focus:border-[#C59B58] focus:outline-none focus:ring-2 focus:ring-[#C59B58]/20 placeholder:text-[#A89D8E]"
               />
             </div>
-          </div>
-
-          {/* 3. Email */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0">
-              Email
-            </label>
-            <div className="flex-1 flex items-center gap-3">
-              <span className="text-xs sm:text-sm text-[#1A1612]">
-                {maskEmail(currentUser?.email)}
-              </span>
-              <button
-                type="button"
-                onClick={() => toast.info('Email đã được bảo mật theo chuẩn định danh')}
-                className="text-xs text-blue-600 hover:text-blue-700 underline font-medium cursor-pointer"
-              >
-                Thay Đổi
-              </button>
+            <div className="min-w-0 border-0 p-0 m-0">
+              <span className="block mb-1.5 text-xs font-medium text-[#7D715E]">Email</span>
+              <div className="flex items-center justify-between gap-2.5 min-h-[38px] pl-3 pr-1.5 py-1 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5]">
+                <span className="flex-1 min-w-0 text-xs font-medium text-[#1A1612] break-all">{maskEmail(currentUser?.email)}</span>
+                <button
+                  type="button"
+                  onClick={() => toast.info('Email đã được bảo mật theo chuẩn định danh')}
+                  className="inline-flex items-center justify-center gap-1 shrink-0 min-h-[28px] px-2 py-1 border border-[#EAE4D7] rounded-md bg-white text-[#7D715E] text-[11px] font-medium hover:bg-[#FBF5EB] hover:border-[#EEDFC6] hover:text-[#1A1612] transition-colors"
+                >
+                  <ShieldCheck size={13} className="text-[#B88E4F]" /> Bảo mật
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* 4. Số điện thoại */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0">
-              Số điện thoại
-            </label>
-            <div className="flex-1">
+            <div className="min-w-0 border-0 p-0 m-0">
+              <label htmlFor={isEditingPhone ? 'creator-account-phone' : undefined} className="block mb-1.5 text-xs font-medium text-[#7D715E]">Số điện thoại</label>
               {isEditingPhone ? (
-                <div className="flex items-center gap-2 max-w-xs">
+                <div className="flex items-center gap-1.5">
                   <input
+                    id="creator-account-phone"
                     type="tel"
                     value={phoneInput}
                     onChange={(e) => setPhoneInput(e.target.value)}
                     placeholder="0912345678"
-                    className="w-full bg-white border border-[#C59B58] rounded-md px-3 py-1.5 text-xs text-[#1A1612] outline-none"
+                    autoComplete="tel"
                     autoFocus
+                    className="flex-1 min-w-0 h-[38px] px-3 py-2 border border-[#EAE4D7] rounded-lg bg-white text-[#1A1612] text-xs transition-colors focus:border-[#C59B58] focus:outline-none focus:ring-2 focus:ring-[#C59B58]/20 placeholder:text-[#A89D8E]"
                   />
                   <button
                     type="button"
                     onClick={() => setIsEditingPhone(false)}
-                    className="px-2.5 py-1.5 rounded bg-[#FAF5EB] text-xs font-semibold text-[#8C6226] border border-[#EEDFC6] hover:bg-[#C59B58] hover:text-white transition cursor-pointer shrink-0"
+                    className="inline-flex items-center justify-center shrink-0 h-[38px] px-3 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB] text-[#1A1612] text-xs font-medium hover:bg-[#FAF8F5] transition-colors"
                   >
                     Xong
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs sm:text-sm text-[#1A1612]">
-                    {phoneInput ? maskPhone(phoneInput) : 'Chưa cập nhật'}
-                  </span>
+                <div className="flex items-center justify-between gap-2.5 min-h-[38px] pl-3 pr-1.5 py-1 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5]">
+                  <span className="flex-1 min-w-0 text-xs font-medium text-[#1A1612] break-all">{phoneInput ? maskPhone(phoneInput) : 'Chưa cập nhật'}</span>
                   <button
                     type="button"
                     onClick={() => setIsEditingPhone(true)}
-                    className="text-xs text-blue-600 hover:text-blue-700 underline font-medium cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1 shrink-0 min-h-[28px] px-2 py-1 border border-[#EAE4D7] rounded-md bg-white text-[#7D715E] text-[11px] font-medium hover:bg-[#FBF5EB] hover:border-[#EEDFC6] hover:text-[#1A1612] transition-colors"
                   >
-                    Thay Đổi
+                    Thay đổi
                   </button>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* 5. Giới tính */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 flex items-center sm:justify-end gap-1">
-              <span>Giới tính</span>
-              <HelpCircle className="w-3 h-3 text-[#A89D8E]" />
-            </label>
-            <div className="flex items-center gap-5 text-xs sm:text-sm text-[#1A1612]">
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="gender"
-                  checked={gender === 'MALE'}
-                  onChange={() => setGender('MALE')}
-                  className="accent-[#C59B58] w-4 h-4 cursor-pointer"
-                />
-                <span>Nam</span>
-              </label>
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="gender"
-                  checked={gender === 'FEMALE'}
-                  onChange={() => setGender('FEMALE')}
-                  className="accent-[#C59B58] w-4 h-4 cursor-pointer"
-                />
-                <span>Nữ</span>
-              </label>
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="gender"
-                  checked={gender === 'OTHER'}
-                  onChange={() => setGender('OTHER')}
-                  className="accent-[#C59B58] w-4 h-4 cursor-pointer"
-                />
-                <span>Khác</span>
-              </label>
-            </div>
-          </div>
-
-          {/* 6. Ngày sinh */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 flex items-center sm:justify-end gap-1">
-              <span>Ngày sinh</span>
-              <HelpCircle className="w-3 h-3 text-[#A89D8E]" />
-            </label>
-            <div className="flex items-center gap-2">
-              <Select
-                value={birthDay}
-                onChange={(e) => setBirthDay(e.target.value)}
-                className="w-28 text-xs font-semibold"
-              >
-                {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
-                  <option key={d} value={d}>
-                    Ngày {d}
-                  </option>
+            <fieldset className="min-w-0 border-0 p-0 m-0">
+              <legend className="block mb-1.5 text-xs font-medium text-[#7D715E]">Giới tính</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['MALE', 'Nam'], ['FEMALE', 'Nữ'], ['OTHER', 'Khác'],
+                ] as const).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex items-center justify-center gap-2 min-h-[38px] p-2 border rounded-lg text-xs cursor-pointer transition-colors border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58]/50 has-[:checked]:bg-[#FBF5EB] has-[:checked]:border-[#EEDFC6] has-[:checked]:text-[#1A1612] has-[:checked]:font-medium"
+                  >
+                    <input type="radio" name="gender" value={value} checked={gender === value} onChange={() => setGender(value)} className="w-3.5 h-3.5 accent-[#C59B58] cursor-pointer" />
+                    <span>{label}</span>
+                  </label>
                 ))}
-              </Select>
-              <Select
-                value={birthMonth}
-                onChange={(e) => setBirthMonth(e.target.value)}
-                className="w-28 text-xs font-semibold"
-              >
-                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((m) => (
-                  <option key={m} value={m}>
-                    Tháng {m}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                value={birthYear}
-                onChange={(e) => setBirthYear(e.target.value)}
-                className="w-28 text-xs font-semibold"
-              >
-                {Array.from({ length: 70 }, (_, i) => String(2015 - i)).map((y) => (
-                  <option key={y} value={y}>
-                    Năm {y}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-
-          {/* 7. Địa chỉ */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 pt-2">
-              Địa chỉ
-            </label>
-            <div className="flex-1 max-w-md">
-              <input
-                type="text"
-                value={addressInput}
-                onChange={(e) => setAddressInput(e.target.value)}
-                maxLength={500}
-                placeholder="Nhập địa chỉ của bạn"
-                className="w-full bg-white border border-[#EAE4D7] focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58] rounded-md px-3.5 py-2 text-xs sm:text-sm text-[#1A1612] outline-none transition"
-              />
-            </div>
-          </div>
-
-          {/* 8. Giới thiệu bản thân */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
-            <label className="sm:w-32 sm:text-right text-xs text-[#7D715E] font-medium shrink-0 pt-2">
-              Giới thiệu
-            </label>
-            <div className="flex-1 max-w-md">
-              <textarea
-                value={bioInput}
-                onChange={(e) => setBioInput(e.target.value)}
-                maxLength={500}
-                rows={3}
-                placeholder="Giới thiệu ngắn về bản thân"
-                className="w-full bg-white border border-[#EAE4D7] focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58] rounded-md px-3.5 py-2 text-xs sm:text-sm text-[#1A1612] outline-none transition resize-none"
-              />
-              <span className="text-[10px] text-[#A89D8E] mt-0.5 block text-right">{bioInput.length}/500</span>
-            </div>
-          </div>
-
-          {/* 9. Nút Lưu (SCANMS Style) */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 pt-3">
-            <div className="sm:w-32 shrink-0" />
-            <button
-              type="submit"
-              disabled={updatingProfile}
-              className="px-8 py-2.5 rounded-md bg-[#C59B58] hover:bg-[#B88E4F] text-white text-xs sm:text-sm font-semibold transition cursor-pointer shadow-xs flex items-center justify-center gap-2 self-start"
-            >
-              {updatingProfile && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>Lưu</span>
-            </button>
+              </div>
+            </fieldset>
+            <fieldset className="min-w-0 border-0 p-0 m-0">
+              <legend className="block mb-1.5 text-xs font-medium text-[#7D715E]">Ngày sinh</legend>
+              <div className="grid grid-cols-3 gap-2">
+                <Select aria-label="Ngày sinh" value={birthDay} onChange={(e) => setBirthDay(e.target.value)}>
+                  {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
+                    <option key={d} value={d}>Ngày {d}</option>
+                  ))}
+                </Select>
+                <Select aria-label="Tháng sinh" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)}>
+                  {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((m) => (
+                    <option key={m} value={m}>Tháng {m}</option>
+                  ))}
+                </Select>
+                <Select aria-label="Năm sinh" value={birthYear} onChange={(e) => setBirthYear(e.target.value)}>
+                  {Array.from({ length: 70 }, (_, i) => String(2015 - i)).map((y) => (
+                    <option key={y} value={y}>Năm {y}</option>
+                  ))}
+                </Select>
+              </div>
+            </fieldset>
           </div>
         </form>
 
-        {/* Vertical Divider */}
-        <div className="hidden md:block w-px bg-[#EAE4D7] self-stretch mx-2" />
-
-        {/* Right Column: Avatar Upload (SCANMS Style - Image 1) */}
-        <div className="w-full md:w-64 flex flex-col items-center justify-center py-4 px-2">
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              className="w-28 h-28 rounded-full border border-[#EAE4D7] bg-[#FAF8F5] overflow-hidden flex items-center justify-center relative shadow-xs cursor-pointer group hover:border-[#C59B58] transition"
-              title="Bấm để chọn ảnh đại diện mới"
-            >
-              {uploadingAvatar ? (
-                <Loader2 className="w-8 h-8 text-[#B88E4F] animate-spin" />
-              ) : currentUser?.avatarUrl ? (
-                <img
-                  src={currentUser.avatarUrl}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <User className="w-12 h-12 text-[#A89D8E]" />
-              )}
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
-                <Camera className="w-5 h-5 text-white drop-shadow" />
-                <span className="text-[10px] font-bold mt-1">Đổi ảnh</span>
-              </div>
-            </button>
-          </div>
-
+        <aside className="flex flex-col items-center justify-center gap-3 p-4 border border-[#EAE4D7] rounded-xl bg-[#FAF8F5]" aria-label="Ảnh đại diện">
+          <h2 className="text-xs font-medium text-[#7D715E]">Ảnh đại diện</h2>
           <button
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={uploadingAvatar}
-            className="mt-4 px-5 py-2 rounded-md border border-[#EAE4D7] hover:border-[#C59B58] bg-white hover:bg-[#FAF8F5] text-xs font-medium text-[#1A1612] hover:text-[#C59B58] transition cursor-pointer shadow-2xs"
+            className="relative grid place-items-center shrink-0 w-[86px] h-[86px] border border-[#EAE4D7] rounded-full bg-white text-[#B88E4F] hover:border-[#C59B58] transition-colors overflow-hidden group disabled:opacity-60 disabled:cursor-not-allowed"
+            aria-label="Chọn ảnh đại diện mới"
           >
-            {uploadingAvatar ? 'Đang tải...' : 'Chọn Ảnh'}
+            {uploadingAvatar ? <Loader2 className="animate-spin" size={24} /> : currentUser?.avatarUrl ? (
+              <img src={currentUser.avatarUrl} alt="Ảnh đại diện của bạn" className="w-full h-full object-cover rounded-full" />
+            ) : <User size={36} />}
+            {!uploadingAvatar && (
+              <span className="absolute right-0.5 bottom-0.5 grid place-items-center w-6 h-6 border border-[#EEDFC6] rounded-full bg-[#FBF5EB] text-[#B88E4F] shadow-sm">
+                <Camera size={13} />
+              </span>
+            )}
           </button>
-
-          <div className="mt-3 text-center text-[11px] text-[#7D715E] leading-relaxed space-y-0.5">
-            <p className="m-0">Dụng lượng file tối đa 1 MB</p>
-            <p className="m-0">Định dạng:.JPEG, .PNG</p>
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              className="inline-flex items-center justify-center gap-1.5 min-h-[32px] px-3 py-1.5 border border-[#EAE4D7] rounded-lg bg-white text-[#1A1612] text-xs font-medium hover:bg-[#FBF5EB] hover:border-[#C59B58] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+            >
+              <Camera size={14} className="text-[#B88E4F]" /> {uploadingAvatar ? 'Đang tải...' : 'Chọn ảnh'}
+            </button>
+            <p className="text-[10px] text-[#7D715E] text-center">JPEG, PNG, WEBP · Tối đa 1 MB</p>
           </div>
-
           <input
             type="file"
             ref={avatarInputRef}
             onChange={handleAvatarFileSelected}
             accept="image/png,image/jpeg,image/webp,image/jpg"
             className="hidden"
+            aria-label="Tải ảnh đại diện"
           />
-        </div>
+        </aside>
       </div>
-    </div>
+
+      <footer className="flex flex-wrap items-center justify-between gap-3 p-3 sm:px-5 border-t border-[#EAE4D7] bg-[#FAF8F5]/50">
+        <span className="flex items-center gap-1.5 text-xs text-[#7D715E]">
+          <ShieldCheck size={14} className="text-[#B88E4F] shrink-0" /> Thông tin liên hệ được ẩn để bảo vệ tài khoản.
+        </span>
+        <button
+          type="submit"
+          form="creator-account-form"
+          disabled={updatingProfile}
+          className="inline-flex items-center justify-center gap-2 min-h-[36px] px-5 border border-[#EEDFC6] rounded-lg bg-[#C59B58] text-white text-xs font-medium hover:bg-[#B88E4F] transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
+        >
+          {updatingProfile ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {updatingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
+        </button>
+      </footer>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-import api from "../lib/api";
+import api from "./api";
 import type { PayoutStatus } from "./wallet.service";
 
 export interface MerchantPayout {
@@ -127,4 +127,3 @@ export async function getPayoutErrorMessage(error: unknown): Promise<string> {
   }
   return error instanceof Error ? error.message : "Không thể xử lý payout";
 }
-

@@ -1,0 +1,201 @@
+/* SCANMS light theme. The animated scene and the form have independent layers. */
+.scanms-login-page {
+  min-height: 100dvh;
+  padding: 16px 40px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: #FAF8F5;
+  color: #1A1612;
+  color-scheme: light;
+}
+.login-page-header {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+}
+.login-page-main { width: 100%; max-width: 1240px; margin: 0 auto auto; }
+.login-experience {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  padding: 0;
+  background: linear-gradient(to right, transparent 72%, #FAF8F0 91%), radial-gradient(ellipse at 20% 18%, #FFFDF7 2%, transparent 55%), linear-gradient(135deg, #EEDFC6, #FBF5EB 52%, #EEDFC6);
+  border: 2px solid #EEDFC6;
+  border-radius: 30px;
+  box-shadow: 0 20px 65px -30px rgb(125 113 94 / 28%), 0 2px 6px rgb(125 113 94 / 3%);
+  isolation: isolate;
+  overflow: clip;
+}
+.login-experience::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('/assets/auth_luxury_card_inner.jpg') center / 100% 100% no-repeat;
+  mask: url('/assets/login-gold-curve-mask.svg') center / 100% 100% no-repeat;
+  /* Match the original narrow ribbon without changing its photographic highlights. */
+  transform: scaleX(0.8);
+  transform-origin: 55% center;
+}
+.login-experience::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent 86%, #FAF8F0 91%);
+}
+.login-showcase {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+  border-radius: 0;
+}
+.login-showcase-copy { padding: 40px 42px 0; position: relative; z-index: 1; animation: login-content-enter 600ms both; }
+.login-showcase-eyebrow { display: inline-flex; gap: 9px; align-items: center; padding: 8px 16px; border: 1px solid #EEDFC6; border-radius: 999px; background: rgb(255 255 255 / 90%); box-shadow: 0 2px 6px rgb(125 113 94 / 6%); font-size: 12px; font-weight: 700; color: #1A1612; }
+.login-showcase-eyebrow svg { color: #B88E4F; flex-shrink: 0; }
+.login-showcase-copy h1 { margin: 19px 0 0; padding-bottom: 5px; font-size: clamp(30px, 3vw, 40px); font-style: italic; line-height: 1.2; font-weight: 600; letter-spacing: -1px; }
+.login-showcase-copy h1 span { color: #B88E4F; }
+.login-shopping-scene { position: relative; flex: 1; min-height: 400px; }
+/* Keep the shopping objects below the headline; only small accents float above. */
+.login-scene-canvas, .login-scene-fallback { position: absolute; inset: 0; }
+.login-upper-glints { position: absolute; top: -144px; right: 24px; width: 27%; height: 130px; pointer-events: none; }
+.login-upper-glints span { position: absolute; left: var(--glint-x); top: var(--glint-y); width: 4px; height: 4px; border-radius: 50%; background: #C59B58; opacity: .5; animation: login-glint-drift 7s ease-in-out infinite; animation-delay: var(--glint-delay); }
+.login-upper-glints span:nth-child(3n) { width: 3px; height: 9px; border-radius: 1px; background: linear-gradient(135deg, #EEDFC6, #B88E4F, #FBF5EB); }
+.login-shopping-scene[data-motion-paused='true'] .login-upper-glints span { animation-play-state: paused; }
+@keyframes login-glint-drift {
+  0%, 100% { transform: translate3d(0, 8px, 0) rotate(-18deg); opacity: .25; }
+  50% { transform: translate3d(8px, -14px, 0) rotate(30deg); opacity: .8; }
+}
+.login-upper-bubbles { position: absolute; top: -164px; right: 28px; width: 40%; height: 250px; pointer-events: none; }
+.login-upper-bubbles span {
+  position: absolute; bottom: 0; left: var(--bubble-x);
+  width: var(--bubble-size); height: var(--bubble-size); border-radius: 50%;
+  border: 1px solid rgb(197 155 88 / 48%);
+  background: radial-gradient(circle at 28% 24%, rgb(255 255 255 / 95%) 0 7%, transparent 23%), radial-gradient(circle at 70% 78%, rgb(197 155 88 / 15%), transparent 65%);
+  box-shadow: inset 1px 1px 2px rgb(255 255 255 / 85%), inset -1px -1px 2px rgb(184 142 79 / 15%);
+  opacity: 0;
+  animation: login-bubble-rise var(--bubble-duration) linear var(--bubble-delay) infinite;
+}
+.login-shopping-scene[data-motion-paused='true'] .login-upper-bubbles span { animation-play-state: paused; }
+@keyframes login-bubble-rise {
+  0% { transform: translate3d(0, 6px, 0) scale(.7); opacity: 0; }
+  15% { transform: translate3d(var(--bubble-sway), calc(var(--bubble-rise) * -.15), 0) scale(.85); opacity: .65; }
+  45% { transform: translate3d(0, calc(var(--bubble-rise) * -.45), 0) scale(.95); opacity: .8; }
+  75% { transform: translate3d(var(--bubble-sway), calc(var(--bubble-rise) * -.75), 0) scale(1); opacity: .55; }
+  100% { transform: translate3d(0, calc(var(--bubble-rise) * -1), 0) scale(1.06); opacity: 0; }
+}
+.login-scene-canvas { opacity: 0; transition: opacity 500ms ease; }
+.login-scene-canvas canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.login-gift-keyboard { position: absolute; bottom: 10px; right: 10px; z-index: 2; }
+.login-gift-keyboard button { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.login-gift-keyboard button:focus-visible { position: relative; width: auto; height: auto; clip-path: none; padding: 8px 12px; background: #FFFFFF; border: 1px solid #C59B58; border-radius: 8px; color: #231D15; }
+.login-scene-fallback {
+  background: url('/assets/scanms-shopping-scene.webp?v=single-product') center / contain no-repeat;
+  transition: opacity 350ms ease;
+}
+.login-shopping-scene[data-scene-state='ready'] .login-scene-canvas { opacity: 1; }
+.login-shopping-scene[data-scene-state='ready'] .login-scene-fallback { opacity: 0; visibility: hidden; }
+.login-shopping-scene[data-scene-state='fallback'] .login-scene-canvas { display: none; }
+.login-form-panel { padding: 28px 32px 26px 100px; display: flex; flex-direction: column; justify-content: space-between; gap: 25px; min-width: 0; min-height: 580px; position: relative; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.login-form-heading { margin-bottom: 8px; text-align: center; }
+.login-form-heading h2 { margin: 0; font-size: 34px; font-weight: 900; letter-spacing: -1px; line-height: 1.25; }
+.login-form-heading h2 > span { color: #B88E4F; }
+.login-form-panel input:not([type='checkbox']), .login-form-panel button.h-11 { min-height: 44px; font-size: 13px; }
+.login-form-panel input::placeholder { color: #7D715E; }
+.login-form-panel label { font-weight: 500; }
+.login-form-panel form { display: flex; flex-direction: column; gap: 12px; }
+.login-form-panel form > * { margin-block: 0; }
+.login-role-options { max-height: 280px; overflow-y: auto; }
+.login-submit {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  margin-top: 16px;
+  padding: 12px 18px;
+  border: 1px solid #EEDFC6;
+  border-radius: 999px;
+  background: #FBF5EB;
+  color: #231D15;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%);
+  cursor: pointer;
+  transition: background 180ms, transform 180ms, box-shadow 180ms;
+}
+.login-submit:hover:not(:disabled) { background: #F3EFE6; border-color: #C59B58; transform: translateY(-1px); box-shadow: 0 6px 16px rgb(197 155 88 / 15%); }
+.login-submit:active:not(:disabled) { transform: translateY(0); }
+.login-submit:disabled { cursor: wait; }
+.login-register-link { padding-top: 14px; border-top: 1px solid #EAE4D7; text-align: center; font-size: 12px; line-height: 1.7; color: #7D715E; }
+.login-register-link a { color: #90682F; }
+.scanms-login-page :is(button, a):focus-visible { outline: 2px solid #B88E4F; outline-offset: 4px; }
+.scanms-login-page > footer { padding-top: 0; font-size: 11px; }
+@media (min-width: 1500px) {
+  .login-page-main, .login-page-header { max-width: 1320px; }
+  .login-form-panel { padding-inline: 108px 36px; }
+  .login-showcase-copy { padding: 34px 38px 0; }
+}
+@media (max-width: 1050px) {
+  .login-upper-bubbles { width: 34%; right: 22px; }
+  .scanms-login-page { padding: 18px 24px; gap: 22px; }
+  .login-form-panel { padding: 26px 24px 24px 74px; }
+  .login-showcase-copy { padding: 26px 22px 0; }
+  .login-showcase-copy h1 { font-size: 32px; letter-spacing: -1.1px; }
+}
+@media (min-width: 761px) and (max-height: 820px) {
+  .scanms-login-page { padding-block: 10px; gap: 12px; }
+  .login-page-header { min-height: 44px; }
+  .login-form-panel { padding-block: 24px; gap: 22px; min-height: 540px; }
+  .login-form-heading h2 { font-size: 32px; }
+  .login-showcase-copy { padding-top: 24px; }
+  .login-submit { margin-top: 14px; }
+}
+@media (max-width: 760px) {
+  .scanms-login-page { padding: 14px 16px 20px; gap: 18px; }
+  .login-page-header { min-height: 48px; }
+  .login-page-header > a:first-child { max-width: 61%; }
+  .login-page-header > a:last-child { font-size: 11px; padding: 8px 10px; white-space: nowrap; }
+  .login-experience { grid-template-columns: minmax(0, 1fr); border-radius: 22px; padding: 0; }
+  .login-experience::before { background: linear-gradient(160deg, transparent 10%, #FFFEF9 65%, #FBF5EB); mask: none; transform: none; }
+  .login-experience::after { display: none; }
+  .login-showcase { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 175px; border-radius: 0; }
+  .login-showcase-copy { padding: 24px 0 22px 22px; align-self: center; }
+  .login-showcase-eyebrow { font-size: 9px; gap: 4px; line-height: 1.5; padding: 5px 8px; }
+  .login-showcase-eyebrow svg { display: none; }
+  .login-showcase-copy h1 { font-size: clamp(20px, 4.3vw, 29px); letter-spacing: -0.7px; margin: 10px 0 0; line-height: 1.25; }
+  .login-showcase-copy p { display: none; }
+  .login-shopping-scene { min-height: 175px; }
+  .login-upper-glints, .login-upper-bubbles { display: none; }
+  .login-scene-canvas, .login-scene-fallback { top: 0; }
+  .login-scene-fallback { margin: 10px; }
+  .login-form-panel { padding: 26px 24px; gap: 24px; min-height: 490px; }
+  .login-form-heading h2 { font-size: 28px; }
+  .login-form-panel input:not([type='checkbox']) { font-size: 16px; }
+  .scanms-login-page > footer { gap: 8px 12px; font-size: 10px; }
+}
+@keyframes login-content-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-upper-bubbles { display: none; }
+  .scanms-login-page *, .scanms-login-page *::before, .scanms-login-page *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

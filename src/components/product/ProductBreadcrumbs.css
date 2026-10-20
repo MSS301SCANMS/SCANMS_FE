@@ -1,0 +1,41 @@
+.product-breadcrumbs {
+  min-width: 0;
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border: 1px solid #EAE4D7;
+  border-radius: 10px;
+  background: #FFFFFF;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.product-breadcrumbs__list {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-breadcrumbs li { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.product-breadcrumbs__ancestor { flex: 0 0 auto; }
+.product-breadcrumbs a { color: #7D715E; text-decoration: none; transition: color .15s; }
+.product-breadcrumbs a:hover { color: #B88E4F; text-decoration: underline; text-underline-offset: 4px; }
+.product-breadcrumbs a:focus-visible { outline: 2px solid #B88E4F; outline-offset: 4px; border-radius: 3px; }
+.product-breadcrumbs .product-breadcrumbs__home { display: inline-flex; align-items: center; gap: 8px; color: #1A1612; font-weight: 600; white-space: nowrap; }
+.product-breadcrumbs__home-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: #FBF5EB; color: #B88E4F; }
+.product-breadcrumbs__separator { flex-shrink: 0; color: #B88E4F; opacity: .65; }
+.product-breadcrumbs__category { max-width: min(30vw, 240px); }
+.product-breadcrumbs__category a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-breadcrumbs__current { flex: 1; }
+.product-breadcrumbs__current span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1A1612; font-weight: 500; }
+@media (max-width: 639px) {
+  .product-breadcrumbs { padding: 9px 12px; margin-bottom: 10px; font-size: 11px; }
+  .product-breadcrumbs__list { flex-wrap: wrap; gap: 8px 10px; }
+  .product-breadcrumbs li { gap: 10px; }
+  .product-breadcrumbs__category { max-width: calc(100% - 125px); }
+  .product-breadcrumbs__current { flex-basis: 100%; padding-top: 8px; border-top: 1px solid #EAE4D7; }
+  .product-breadcrumbs__current .product-breadcrumbs__separator { display: none; }
+  .product-breadcrumbs__current span { white-space: normal; overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) { .product-breadcrumbs a { transition: none; } }

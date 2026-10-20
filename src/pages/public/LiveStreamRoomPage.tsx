@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import './LiveStreamRoomHeader.css';
+import '../../components/live/LiveReactionFlight.css';
+import { LiveVoucherDropDialog } from '../../components/live/LiveVoucherDropDialog';
+import { HostStudioProducts } from '../../components/live/HostStudioProducts';
+import { LivePinnedProductCard, LiveReactionDock } from '../../components/live/LiveRoomCommerce';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Eye,
@@ -22,9 +27,6 @@ import {
   Mic,
   MicOff,
   Upload,
-  Flame,
-  ChevronUp,
-  ChevronDown,
   ShieldCheck,
   MessageCircle,
   Check,
@@ -44,7 +46,7 @@ import { cn } from '../../utils/cn';
 import { useLiveStreamTransport } from '../../hooks/useLiveStreamTransport';
 import { FACE_FILTERS, useLiveFaceFilter, type FaceFilter } from '../../hooks/useLiveFaceFilter';
 import { FaceFilterPreview } from '../../components/live/FaceFilterPreview';
-import type { FilterCategory } from '../../features/live/faceFilters';
+import type { FilterCategory } from '@/components/live/faceFilters';
 
 interface LiveProduct {
   id: string;
@@ -104,10 +106,10 @@ interface FloatingReaction {
   left?: number;
   size: number;
   driftX: number;
-  sway: number;
-  rotStart: number;
-  rotMid: number;
-  rotEnd: number;
+  path: string;
+  rise: number;
+  tilt: number;
+  delay: number;
   duration: number;
 }
 
@@ -141,15 +143,17 @@ export interface LiveReactionDef {
   iconUrl: string;
   color: string;
   burstColor: string;
+  fallbackIconUrl?: string;
 }
 
-// Official Animated Facebook Live Reactions & Authentic TikTok 3D Elements
+// Animated Google Noto Emoji, bundled locally (CC BY 4.0), with static reduced-motion fallbacks.
 export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
   {
     id: 'heart',
     emoji: '❤️',
     label: 'Thả tim',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/love.gif',
+    iconUrl: '/assets/live-reactions/animated/heart.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/heart.png',
     color: 'from-rose-500 to-red-500',
     burstColor: '#ef4444',
   },
@@ -157,7 +161,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'like',
     emoji: '👍',
     label: 'Thích',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/like.gif',
+    iconUrl: '/assets/live-reactions/animated/like.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/like.png',
     color: 'from-blue-500 to-indigo-600',
     burstColor: '#3b82f6',
   },
@@ -165,7 +170,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'haha',
     emoji: '😂',
     label: 'Haha',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/haha.gif',
+    iconUrl: '/assets/live-reactions/animated/haha.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/haha.png',
     color: 'from-amber-400 to-yellow-500',
     burstColor: '#eab308',
   },
@@ -173,7 +179,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'wow',
     emoji: '😮',
     label: 'Wow',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/wow.gif',
+    iconUrl: '/assets/live-reactions/animated/wow.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/wow.png',
     color: 'from-yellow-400 to-orange-500',
     burstColor: '#f59e0b',
   },
@@ -181,7 +188,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'sad',
     emoji: '😢',
     label: 'Buồn',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/sad.gif',
+    iconUrl: '/assets/live-reactions/animated/sad.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/sad.png',
     color: 'from-blue-400 to-sky-500',
     burstColor: '#38bdf8',
   },
@@ -189,7 +197,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'angry',
     emoji: '😡',
     label: 'Phẫn nộ',
-    iconUrl: 'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/angry.gif',
+    iconUrl: '/assets/live-reactions/animated/angry.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/angry.png',
     color: 'from-red-600 to-orange-600',
     burstColor: '#dc2626',
   },
@@ -197,7 +206,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'fire',
     emoji: '🔥',
     label: 'Cháy quá',
-    iconUrl: 'https://em-content.zobj.net/source/apple/354/fire_1f525.png',
+    iconUrl: '/assets/live-reactions/animated/fire.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/fire.png',
     color: 'from-amber-500 to-orange-500',
     burstColor: '#f97316',
   },
@@ -205,7 +215,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'gift',
     emoji: '🎁',
     label: 'Tặng quà',
-    iconUrl: 'https://em-content.zobj.net/source/apple/354/wrapped-gift_1f381.png',
+    iconUrl: '/assets/live-reactions/animated/gift.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/gift.png',
     color: 'from-purple-500 to-indigo-500',
     burstColor: '#a855f7',
   },
@@ -213,7 +224,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'party',
     emoji: '🎉',
     label: 'Bắn pháo',
-    iconUrl: 'https://em-content.zobj.net/source/apple/354/party-popper_1f389.png',
+    iconUrl: '/assets/live-reactions/animated/party.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/party.png',
     color: 'from-pink-500 to-rose-500',
     burstColor: '#ec4899',
   },
@@ -221,7 +233,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'hundred',
     emoji: '💯',
     label: '100 Điểm',
-    iconUrl: 'https://em-content.zobj.net/source/apple/354/hundred-points_1f4af.png',
+    iconUrl: '/assets/live-reactions/animated/hundred.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/hundred.png',
     color: 'from-red-500 to-rose-600',
     burstColor: '#dc2626',
   },
@@ -229,7 +242,8 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
     id: 'star',
     emoji: '⭐',
     label: '5 Sao',
-    iconUrl: 'https://em-content.zobj.net/source/microsoft-teams/363/glowing-star_1f31f.png',
+    iconUrl: '/assets/live-reactions/animated/star.webp',
+    fallbackIconUrl: '/assets/live-reactions/animated/star.png',
     color: 'from-amber-400 to-yellow-500',
     burstColor: '#f59e0b',
   },
@@ -237,222 +251,16 @@ export const REALISTIC_3D_REACTIONS: LiveReactionDef[] = [
 
 // Dòng chảy tim đổi màu TikTok Live siêu rực rỡ khi spam tap
 export const TIKTOK_HEARTS = [
-  'https://raw.githubusercontent.com/duytq94/react-native-fb-reactions-animation/master/Images/love.gif',
-  'https://em-content.zobj.net/source/apple/354/red-heart_2764-fe0f.png',
-  'https://em-content.zobj.net/source/apple/354/pink-heart_1fa77.png',
-  'https://em-content.zobj.net/source/apple/354/orange-heart_1f9e1.png',
-  'https://em-content.zobj.net/source/apple/354/purple-heart_1f49c.png',
-  'https://em-content.zobj.net/source/apple/354/light-blue-heart_1fa75.png',
+  '/assets/live-reactions/heart.png',
+  '/assets/live-reactions/heart-pink.png',
+  '/assets/live-reactions/heart-orange.png',
+  '/assets/live-reactions/heart-purple.png',
+  '/assets/live-reactions/heart-light_blue.png',
+  '/assets/live-reactions/heart-yellow.png',
 ];
 
 
-const USER_PROFILES_MAP: Record<string, Partial<UserProfileData>> = {
-  'Hương Giang': {
-    name: 'Hương Giang',
-    handle: '@huonggiang.beauty',
-    role: 'VIEWER',
-    badgeTitle: '💎 Người mua Kim Cương',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-    bio: 'Tín đồ dưỡng da khoa học • Chuyên săn deal độc quyền trên SCANMS Live • Đã review 35+ sản phẩm đạt chuẩn.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 02/2024',
-    city: 'Hà Nội',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '48 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '35 bài' },
-    ],
-    tags: ['Khách hàng VIP', 'Fan cứng Live', 'Đã xác thực CCCD'],
-  },
-  'KOC Linh Trương': {
-    name: 'KOC Linh Trương',
-    handle: '@linhtruong.koc',
-    role: 'HOST',
-    badgeTitle: '👑 Host KOC Triệu View',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    bio: 'KOC Beauty & Skincare Reviewer • Đại sứ thương hiệu liên kết SCANMS • Chia sẻ bí quyết làm đẹp khoa học & deal chính hãng.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 08/2023',
-    city: 'TP. Hồ Chí Minh',
-    metrics: [
-      { label: 'Followers', value: '1.2M' },
-      { label: 'Lượt thích', value: '8.6M' },
-      { label: 'Đã tiếp thị', value: '45.2K đơn' },
-    ],
-    socials: [
-      { platform: 'TikTok', handle: '@linhtruong.koc' },
-      { platform: 'Instagram', handle: '@linhtruong.beauty' },
-      { platform: 'YouTube', handle: 'Linh Trương Official' },
-    ],
-    tags: ['Top Creator', 'Beauty & Care', 'KOC Kim Cương', 'KYC Verified'],
-  },
-  'Sora Skin Official': {
-    name: 'Sora Skin Official Store',
-    handle: '@soraskin.official',
-    role: 'SHOP',
-    badgeTitle: '🏪 Gian Hàng Chính Hãng Mall',
-    avatar: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=300&auto=format&fit=crop&q=80',
-    bio: 'Thương hiệu dược mỹ phẩm phục hồi da sinh học thuần chay hàng đầu Việt Nam. Cam kết 100% hàng chính hãng, đồng kiểm 14 ngày.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 01/2023',
-    city: 'Hà Nội',
-    metrics: [
-      { label: 'Đánh giá', value: '4.9/5.0 ★' },
-      { label: 'Tỉ lệ phản hồi', value: '99% (5p)' },
-      { label: 'Sản phẩm', value: '68 SKU' },
-    ],
-    tags: ['Chính hãng 100%', 'Hỗ trợ KOC 25%', 'Giao nhanh 24h', 'Đồng kiểm 14 ngày'],
-  },
-  'Thanh Nga': {
-    name: 'Thanh Nga',
-    handle: '@thanhnga.glow',
-    role: 'VIEWER',
-    badgeTitle: '✨ Người Mua Tích Cực',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80',
-    bio: 'Yêu thích skincare phục hồi và chống lão hóa • Hay săn voucher độc quyền trong livestream SCANMS.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 05/2024',
-    city: 'Đà Nẵng',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '29 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '24 bài' },
-    ],
-    tags: ['Người mua tích cực', 'Thành viên Bạc', 'Đã KYC'],
-  },
-  'Hoàng Long': {
-    name: 'Hoàng Long',
-    handle: '@hoanglong.tech',
-    role: 'VIEWER',
-    badgeTitle: '⚡ Người Mua Uy Tín VIP',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-    bio: 'Kỹ sư công nghệ & Content Creator • Thích trải nghiệm sản phẩm chăm sóc nam giới & gia đình.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 04/2024',
-    city: 'Hải Phòng',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '34 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Chi tiêu', value: '18.5 tr' },
-    ],
-    tags: ['VIP Vàng', 'Fan cứng Live', 'Đã xác thực eKYC'],
-  },
-  'Minh Tuấn': {
-    name: 'Minh Tuấn',
-    handle: '@minhtuan.review',
-    role: 'VIEWER',
-    badgeTitle: '🛍️ Khách Hàng Thân Thiết',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-    bio: 'Thích săn deal KCN và serum B5 • Đánh giá sản phẩm trung thực và khách quan.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 03/2024',
-    city: 'TP. Hồ Chí Minh',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '41 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '30 bài' },
-    ],
-    tags: ['Khách hàng thân thiết', 'Đã KYC CCCD', 'Đồng kiểm 100%'],
-  },
-  'Thu Thảo': {
-    name: 'Thu Thảo',
-    handle: '@thuthao.skincare',
-    role: 'VIEWER',
-    badgeTitle: '🌸 Fan Cứng Phiên Live',
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
-    bio: 'Dược sĩ tư vấn mỹ phẩm & Khách hàng quen của Sora Skin • Luôn theo dõi các buổi live săn deal.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 01/2024',
-    city: 'Hà Nội',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '62 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '55 bài' },
-    ],
-    tags: ['Fan cứng Live', 'Khách VIP Kim Cương', 'Đã xác thực CCCD'],
-  },
-  'Quốc Bảo': {
-    name: 'Quốc Bảo',
-    handle: '@quocbao.buyer',
-    role: 'VIEWER',
-    badgeTitle: '💎 Khách Hàng Kim Cương',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&auto=format&fit=crop&q=80',
-    bio: 'Người tiêu dùng thông minh • Thường mua trọn bộ combo chăm sóc da toàn diện cho cả gia đình.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 06/2024',
-    city: 'Đà Nẵng',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '25 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '20 bài' },
-    ],
-    tags: ['Khách hàng thân thiết', 'VIP Bạc', 'Đã KYC'],
-  },
-  'Kim Ngân': {
-    name: 'Kim Ngân',
-    handle: '@kimngan.beauty',
-    role: 'VIEWER',
-    badgeTitle: '✨ Người Mua Uy Tín',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
-    bio: 'Yêu thích làm đẹp và mỹ phẩm sạch hữu cơ • Rất thích cách KOC tư vấn nhiệt tình trên Live!',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 07/2024',
-    city: 'Hà Nội',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '19 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '16 bài' },
-    ],
-    tags: ['Người mua tích cực', 'Thành viên Mới', 'Đã KYC'],
-  },
-  'Thùy Chi': {
-    name: 'Thùy Chi',
-    handle: '@thuychi.cosmetics',
-    role: 'VIEWER',
-    badgeTitle: '🌿 Khách Hàng Thân Thiết',
-    avatar: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=300&auto=format&fit=crop&q=80',
-    bio: 'Chuyên viên trang điểm tự do • Chọn SCANMS vì nguồn hàng chính hãng 100% minh bạch xuất xứ.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 02/2024',
-    city: 'Bình Dương',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '54 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '46 bài' },
-    ],
-    tags: ['Khách VIP Vàng', 'Đã định danh eKYC', 'Fan cứng Live'],
-  },
-  'Ngọc Hân': {
-    name: 'Ngọc Hân',
-    handle: '@ngochan.daily',
-    role: 'VIEWER',
-    badgeTitle: '⚡ Fan Cứng Livestream',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    bio: 'Nhân viên văn phòng • Thường xem livestream buổi trưa và tối để săn voucher giảm giá sâu.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 03/2024',
-    city: 'Cần Thơ',
-    metrics: [
-      { label: 'Đơn hoàn tất', value: '28 đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Đánh giá 5★', value: '25 bài' },
-    ],
-    tags: ['Fan cứng Live', 'Đã xác thực CCCD', 'Khách thân thiết'],
-  },
-};
-
-const resolveUserProfile = (msg: ChatMessage, currentUser: any): UserProfileData => {
+const resolveUserProfile = (msg: ChatMessage, currentUser: any, sessionData?: any): UserProfileData => {
   const isMe =
     (currentUser?.fullName && msg.sender.includes(currentUser.fullName)) ||
     msg.sender.includes('Bạn') ||
@@ -466,77 +274,88 @@ const resolveUserProfile = (msg: ChatMessage, currentUser: any): UserProfileData
         ? 'Nhà Sáng Tạo KOC/KOL'
         : currentUser.role === 'ADMIN'
         ? 'Quản Trị Viên Sàn'
-        : 'Thành Viên SCANMS';
+        : 'Khách Hàng SCANMS';
 
     return {
-      name: currentUser.fullName || 'Nguyễn Thành Thắng',
-      handle: `@${(currentUser.email || 'thang.leader').split('@')[0]}`,
+      name: currentUser.fullName || 'Bạn',
+      handle: `@${(currentUser.email || 'user').split('@')[0]}`,
       role: msg.role,
       badgeTitle: roleTitle,
-      avatar: currentUser.avatar || undefined,
-      bio: 'Thành viên tích cực trên Sàn Thương Mại Tiếp Thị Liên Kết SCANMS. Đã liên kết tài khoản ngân hàng và xác minh định danh eKYC.',
+      avatar: currentUser.avatar || currentUser.avatarUrl || undefined,
+      bio: 'Thành viên chính thức trên Sàn Tiếp Thị Liên Kết SCANMS. Tài khoản đã xác thực thông tin và tham gia giao dịch an toàn.',
       verified: true,
       trustScore: 100,
-      memberSince: 'Tháng 01/2024',
-      city: 'TP. Hồ Chí Minh',
+      memberSince: 'Tháng 01/2026',
+      city: 'Việt Nam',
       metrics: [
         { label: 'Cấp bậc', value: 'VIP Pro' },
-        { label: 'Điểm tín nhiệm', value: '100/100' },
-        { label: 'Đã hoàn tất KYC', value: '100%' },
+        { label: 'Tín nhiệm', value: '100/100' },
+        { label: 'eKYC', value: 'Đã duyệt' },
       ],
       tags: ['Tài khoản của bạn', 'eKYC Đã duyệt', 'Bảo mật 2FA'],
     };
   }
 
-  const preset = USER_PROFILES_MAP[msg.sender];
-  if (preset) {
+  if (msg.role === 'HOST') {
+    const hostName = sessionData?.creator?.fullName || sessionData?.creator?.name || msg.sender;
     return {
-      name: preset.name || msg.sender,
-      handle: preset.handle || `@${msg.sender.toLowerCase().replace(/\\s+/g, '')}`,
-      role: preset.role || msg.role,
-      badgeTitle:
-        preset.badgeTitle ||
-        (msg.role === 'HOST'
-          ? '👑 Host Phiên Live'
-          : msg.role === 'SHOP'
-          ? '🏪 Gian Hàng Chính Hãng'
-          : '🛍️ Khách Hàng Thân Thiết'),
-      avatar: preset.avatar || msg.avatar,
-      bio: preset.bio || 'Thành viên uy tín tham gia giao dịch và tương tác trên Sàn SCANMS.',
-      verified: preset.verified ?? true,
-      trustScore: preset.trustScore ?? 100,
-      memberSince: preset.memberSince || 'Tháng 03/2024',
-      city: preset.city || 'Việt Nam',
-      metrics: preset.metrics || [
-        { label: 'Đơn thành công', value: '30+ đơn' },
-        { label: 'Tỉ lệ nhận hàng', value: '100%' },
-        { label: 'Đánh giá 5★', value: '25 bài' },
+      name: hostName,
+      handle: `@${(sessionData?.creator?.email || 'koc.host').split('@')[0]}`,
+      role: 'HOST',
+      badgeTitle: '👑 Host KOC Phiên Live',
+      avatar: sessionData?.creator?.avatarUrl || msg.avatar,
+      bio: 'Nhà sáng tạo KOC/KOL đối tác của Sàn SCANMS. Chia sẻ trải nghiệm sản phẩm thực tế và trợ giá deal độc quyền cho người xem.',
+      verified: true,
+      trustScore: 100,
+      memberSince: 'Tháng 08/2025',
+      city: 'TP. Hồ Chí Minh',
+      metrics: [
+        { label: 'Followers', value: '120K+' },
+        { label: 'Lượt thích', value: '850K+' },
+        { label: 'KOC Verfied', value: '100%' },
       ],
-      socials: preset.socials,
-      tags: preset.tags || ['Người mua uy tín', 'Đã xác thực CCCD'],
+      tags: ['Top Creator', 'KOC Đối Tác', 'KYC Verified'],
     };
   }
 
+  if (msg.role === 'SHOP') {
+    const shopName = sessionData?.store?.name || msg.sender;
+    return {
+      name: shopName,
+      handle: `@${(sessionData?.store?.slug || 'shop.mall').toLowerCase()}`,
+      role: 'SHOP',
+      badgeTitle: '🏪 Gian Hàng Đối Tác Chính Hãng',
+      avatar: sessionData?.store?.logoUrl || msg.avatar,
+      bio: sessionData?.store?.description || 'Gian hàng đối tác kinh doanh chính hãng trên Sàn SCANMS. Cam kết 100% nguồn gốc xuất xứ và đồng kiểm khi nhận hàng.',
+      verified: true,
+      trustScore: 100,
+      memberSince: 'Tháng 01/2025',
+      city: 'Việt Nam',
+      metrics: [
+        { label: 'Đánh giá', value: '4.9 ★' },
+        { label: 'Phản hồi', value: '100%' },
+        { label: 'Hàng chính hãng', value: '100%' },
+      ],
+      tags: ['Chính hãng 100%', 'Giao nhanh 24h', 'Đồng kiểm nhận hàng'],
+    };
+  }
+
+  const cleanHandle = msg.sender.toLowerCase().replace(/[^a-z0-9]/g, '') || 'viewer';
   return {
     name: msg.sender,
-    handle: `@${msg.sender.toLowerCase().replace(/[^a-z0-9]/g, '') || 'viewer'}`,
+    handle: `@${cleanHandle}`,
     role: msg.role,
-    badgeTitle:
-      msg.role === 'HOST'
-        ? '👑 Host Phiên Live'
-        : msg.role === 'SHOP'
-        ? '🏪 Gian Hàng Đối Tác'
-        : '🛍️ Người Mua Uy Tín',
+    badgeTitle: '🛍️ Thành Viên Tương Tác',
     avatar: msg.avatar,
     bio: 'Khách hàng thân thiết tham gia giao dịch và theo dõi livestream trên hệ thống SCANMS.',
     verified: true,
     trustScore: 100,
-    memberSince: 'Tháng 04/2024',
+    memberSince: 'Tháng 02/2026',
     city: 'Việt Nam',
     metrics: [
-      { label: 'Đơn thành công', value: '15+ đơn' },
-      { label: 'Tỉ lệ nhận hàng', value: '100%' },
-      { label: 'Điểm uy tín', value: '100/100' },
+      { label: 'Tương tác', value: 'Tích cực' },
+      { label: 'Nhận hàng', value: '100%' },
+      { label: 'Uy tín', value: '100/100' },
     ],
     tags: ['Thành viên Live', 'Đã xác thực'],
   };
@@ -604,24 +423,10 @@ export default function LiveStreamRoomPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const { remoteStream, hostOnline, isStreamLive, streamError, sessionEnded } = useLiveStreamTransport({
-    sessionId: sessionData?.id,
-    isHost: isSessionHost,
-    localStream: isCameraActive ? filteredStream : null,
-  });
-
-  useEffect(() => {
-    if (!sessionEnded) return;
-    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
-    mediaStreamRef.current = null;
-    setIsCameraActive(false);
-    setCameraStream(null);
-    setSessionData((previous: any) => previous ? { ...previous, status: 'ENDED' } : previous);
-  }, [sessionEnded]);
-
   // Floating Reactions & Hearts
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const reactionCounterRef = useRef(0);
+  const lastReactionFlightAt = useRef(0);
 
   // In-stream drawers / overlays (TikTok Shop Live Style)
   const [isBagOpen, setIsBagOpen] = useState(false);
@@ -630,16 +435,111 @@ export default function LiveStreamRoomPage() {
   const [bagSearchQuery, setBagSearchQuery] = useState('');
   const [isBagSearchOpen, setIsBagSearchOpen] = useState(false);
   const [isHostStudioOpen, setIsHostStudioOpen] = useState(false);
-  const [studioTab, setStudioTab] = useState<'PRODUCTS' | 'STUDIO'>('PRODUCTS');
-  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState<number>(2720); // 45p 20s
+  const [studioTab, setStudioTab] = useState<'PRODUCTS' | 'STUDIO' | 'GOVERNANCE'>('PRODUCTS');
 
-  // Đồng hồ đếm thời gian phát live thực tế (Live duration timer)
+  const [pinnedIndex, setPinnedIndex] = useState(0);
+  const [isPinnedDealCollapsed, setIsPinnedDealCollapsed] = useState(false);
+  const [isVoucherClaimed, setIsVoucherClaimed] = useState(false);
+  const [voucherClaimLoading, setVoucherClaimLoading] = useState(false);
+
+  // Chat stream state - starting with official verified welcome notice (no fake mock comments)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'system-welcome',
+      sender: 'Hệ Thống SCANMS',
+      role: 'SYSTEM',
+      avatar: '/favicon.ico',
+      text: 'Chào mừng bạn đến với phiên Livestream chính thức trên Sàn SCANMS! Hãy tương tác tích cực, săn deal trợ giá độc quyền và lưu voucher phiên live.',
+      time: 'Bắt đầu',
+    },
+  ]);
+  const [inputComment, setInputComment] = useState('');
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Real-time Transport hook (WebRTC P2P + Socket.IO Chat/Reaction/Pinning)
+  const {
+    remoteStream,
+    hostOnline,
+    isStreamLive,
+    streamError,
+    sessionEnded,
+    sendLiveChat,
+    pinProduct,
+    sendReaction,
+  } = useLiveStreamTransport({
+    sessionId: sessionData?.id,
+    isHost: isSessionHost,
+    localStream: isCameraActive ? filteredStream : null,
+    onNewChatMessage: (msg) => {
+      if (!msg || !msg.text) return;
+      setChatMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [
+          ...prev,
+          {
+            id: msg.id || 'chat_' + Date.now(),
+            sender: msg.sender || 'Người xem',
+            role: msg.role || 'VIEWER',
+            avatar: msg.avatar,
+            text: msg.text,
+            time: msg.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          },
+        ];
+      });
+    },
+    onPinnedProductChange: (data) => {
+      if (typeof data.productIndex === 'number') {
+        setPinnedIndex(data.productIndex);
+        setIsPinnedDealCollapsed(false);
+        toast.info(`Host đã ghim sản phẩm #${data.productIndex + 1}!`);
+      }
+    },
+    onReactionBroadcast: (data) => {
+      if (data?.emoji) {
+        triggerReaction(data.emoji, undefined, data.iconUrl, true);
+      }
+    },
+  });
+
   useEffect(() => {
+    if (!sessionEnded) return;
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    setIsCameraActive(false);
+    setCameraStream(null);
+    setSessionData((previous: any) => (previous ? { ...previous, status: 'ENDED' } : previous));
+  }, [sessionEnded]);
+
+  const isStreamEnded = Boolean(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status));
+
+  useEffect(() => {
+    setFloatingReactions([]);
+    lastReactionFlightAt.current = 0;
+  }, [identifier, isStreamEnded]);
+
+  // Dynamic elapsed duration calculation from startsAt
+  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState<number>(() => {
+    if (sessionData?.startsAt) {
+      const diff = Math.max(0, Math.floor((Date.now() - new Date(sessionData.startsAt).getTime()) / 1000));
+      return diff;
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    if (sessionData?.startsAt) {
+      const diff = Math.max(0, Math.floor((Date.now() - new Date(sessionData.startsAt).getTime()) / 1000));
+      setLiveElapsedSeconds(diff);
+    }
+  }, [sessionData?.startsAt]);
+
+  useEffect(() => {
+    if (isStreamEnded) return;
     const timer = setInterval(() => {
       setLiveElapsedSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isStreamEnded]);
 
   const formatLiveDuration = (totalSec: number) => {
     const hours = Math.floor(totalSec / 3600);
@@ -651,27 +551,41 @@ export default function LiveStreamRoomPage() {
     return `${minutes}p ${seconds < 10 ? '0' : ''}${seconds}s`;
   };
 
-  const liveOrdersCount = sessionData?.ordersCount ?? (identifier === 'demo' ? 64 : 0);
-  const liveGrossRevenue = sessionData?.totalRevenue ?? (identifier === 'demo' ? 18450000 : 0);
-  const liveCommissionRate = sessionData?.commissionRate ? Number(sessionData.commissionRate) : (identifier === 'demo' ? 20 : 0);
+  // Real business stats from backend
+  const liveOrdersCount = sessionData?.liveStats?.report?.ordersCount ?? sessionData?.ordersCount ?? 0;
+  const liveGrossRevenue = sessionData?.liveStats?.report?.grossRevenue ?? sessionData?.totalRevenue ?? 0;
+  const liveCommissionRate = sessionData?.commissionRate ? Number(sessionData.commissionRate) : 10;
   const liveKocCommission = Math.round(liveGrossRevenue * (liveCommissionRate / 100));
   const liveShopEarnings = liveGrossRevenue - liveKocCommission;
-  const liveShopName = sessionData?.store?.name || 'Sora Skin Official Store';
-  const liveHostName = sessionData?.creator?.fullName || sessionData?.creator?.name || 'Nguyễn Thành Thắng (Leader)';
+  const liveShopName = sessionData?.store?.name || 'Gian Hàng Đối Tác';
+  const liveHostName = sessionData?.creator?.fullName || sessionData?.creator?.name || 'KOC Host';
 
-  const [pinnedIndex, setPinnedIndex] = useState(0);
-  const [isPinnedDealCollapsed, setIsPinnedDealCollapsed] = useState(false);
-  const [dealCountdownSeconds, setDealCountdownSeconds] = useState(405); // 06:45
-  const [isVoucherClaimed, setIsVoucherClaimed] = useState(false);
-  const [voucherClaimLoading, setVoucherClaimLoading] = useState(false);
+  const [pinPendingId, setPinPendingId] = useState<string | null>(null);
+  const pinRevision = useRef(0);
+  const [isVoucherDropOpen, setIsVoucherDropOpen] = useState(false);
+  // Countdown timer toward session end or deal window
+  const [dealCountdownSeconds, setDealCountdownSeconds] = useState<number>(() => {
+    if (sessionData?.endsAt) {
+      const diff = Math.max(0, Math.floor((new Date(sessionData.endsAt).getTime() - Date.now()) / 1000));
+      return diff > 0 ? diff : 300;
+    }
+    return 300;
+  });
 
-  // Live countdown timer for deal price
   useEffect(() => {
+    if (sessionData?.endsAt) {
+      const diff = Math.max(0, Math.floor((new Date(sessionData.endsAt).getTime() - Date.now()) / 1000));
+      if (diff > 0) setDealCountdownSeconds(diff);
+    }
+  }, [sessionData?.endsAt]);
+
+  useEffect(() => {
+    if (isStreamEnded) return;
     const timer = setInterval(() => {
-      setDealCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 405));
+      setDealCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 300));
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isStreamEnded]);
 
   const formatCountdown = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -688,7 +602,7 @@ export default function LiveStreamRoomPage() {
       handleOpenShopProfile();
       return;
     }
-    const profile = resolveUserProfile(msg, currentUser);
+    const profile = resolveUserProfile(msg, currentUser, sessionData);
     setSelectedProfile(profile);
   };
 
@@ -708,7 +622,7 @@ export default function LiveStreamRoomPage() {
     setSelectedProfile(null);
     if (profile.role === 'SHOP') {
       openChat({
-        id: sessionData?.storeId || 'sora-skin',
+        id: sessionData?.storeId || sessionData?.store?.id || 'shop',
         name: profile.name,
         logoUrl: profile.avatar,
       });
@@ -721,7 +635,7 @@ export default function LiveStreamRoomPage() {
 
   // MỞ HỒ SƠ CHI TIẾT CỦA KOC / KOL ĐANG LIVESTREAM
   const handleOpenKolProfile = () => {
-    const kolName = sessionData?.creator?.fullName || (currentUser?.fullName ? `${currentUser.fullName} (Host)` : 'KOC Linh Trương');
+    const kolName = sessionData?.creator?.fullName || sessionData?.creator?.name || (currentUser?.fullName ? `${currentUser.fullName} (Host)` : 'KOC Host');
     const kolAvatar =
       sessionData?.creator?.avatarUrl ||
       (currentUser as any)?.avatar ||
@@ -730,27 +644,25 @@ export default function LiveStreamRoomPage() {
 
     const kolProfile: UserProfileData = {
       name: kolName,
-      handle: `@${(sessionData?.creator?.email || currentUser?.email || 'thang.koc').split('@')[0]}`,
+      handle: `@${(sessionData?.creator?.email || currentUser?.email || 'koc.host').split('@')[0]}`,
       role: 'HOST',
       badgeTitle: '👑 Top 1 KOC Livestream • Đối Tác SCANMS',
       avatar: kolAvatar,
-      bio: 'Nhà sáng tạo nội dung & KOC độc quyền trên Sàn Thương Mại Tiếp Thị Liên Kết SCANMS. Chuyên review mỹ phẩm chăm sóc da thực tế và tung deal trợ giá độc quyền từ các Gian hàng đối tác.',
+      bio: 'Nhà sáng tạo KOC/KOL đối tác của Sàn SCANMS. Chia sẻ trải nghiệm sản phẩm thực tế và trợ giá deal độc quyền cho người xem.',
       verified: true,
       trustScore: 100,
-      memberSince: 'Tháng 08/2023',
+      memberSince: 'Tháng 08/2025',
       city: 'TP. Hồ Chí Minh',
       metrics: [
-        { label: 'Followers', value: '1.2M' },
-        { label: 'Lượt thích', value: '8.6M' },
-        { label: 'Đã tiếp thị', value: '45.2K đơn' },
+        { label: 'Followers', value: '120K+' },
+        { label: 'Lượt thích', value: '850K+' },
+        { label: 'KOC Verfied', value: '100%' },
       ],
       socials: [
-        { platform: 'TikTok', handle: '@thang.koc' },
-        { platform: 'Instagram', handle: '@thang.beauty' },
-        { platform: 'Facebook', handle: 'Nguyễn Thành Thắng Official' },
-        { platform: 'YouTube', handle: 'Thắng Review Official' },
+        { platform: 'TikTok', handle: `@${(sessionData?.creator?.email || 'koc').split('@')[0]}` },
+        { platform: 'Instagram', handle: `@${(sessionData?.creator?.email || 'koc').split('@')[0]}.beauty` },
       ],
-      tags: ['Top Creator SCANMS', 'Đại sứ Sora Skin', 'KOL Kim Cương', 'eKYC Đã duyệt'],
+      tags: ['Top Creator', 'KOC Đối Tác', 'KYC Verified'],
     };
     setSelectedProfile(kolProfile);
   };
@@ -761,152 +673,9 @@ export default function LiveStreamRoomPage() {
       sessionData?.store?.slug ||
       sessionData?.store?.id ||
       sessionData?.storeId ||
-      (sessionData?.store?.name?.toLowerCase().includes('aura') ? 'aura-bio' : 'sora-skin');
+      'shop';
     navigate(`/shop/${shopSlug}`);
   };
-
-  // Chat & Realtime ticker
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      sender: 'Hương Giang',
-      role: 'VIEWER',
-      avatar: USER_PROFILES_MAP['Hương Giang']?.avatar,
-      text: 'Chào chị Linh! Da dầu mụn dùng serum B5 này cấp ẩm ổn không ạ?',
-      time: '19:42',
-    },
-    {
-      id: '2',
-      sender: 'KOC Linh Trương',
-      role: 'HOST',
-      avatar: USER_PROFILES_MAP['KOC Linh Trương']?.avatar,
-      text: 'Siêu hợp em nhé, dòng B5 Centella này thẩm thấu cực nhanh, kiềm dầu nhẹ và không bết dính chút nào!',
-      time: '19:42',
-    },
-    {
-      id: '3',
-      sender: 'Sora Skin Official',
-      role: 'SHOP',
-      avatar: USER_PROFILES_MAP['Sora Skin Official']?.avatar,
-      text: 'Shop trợ giá độc quyền phiên live giảm 30% + voucher 25k cho mọi người nha ❤️',
-      time: '19:43',
-    },
-    {
-      id: '4',
-      sender: 'Thanh Nga',
-      role: 'VIEWER',
-      avatar: USER_PROFILES_MAP['Thanh Nga']?.avatar,
-      text: 'Đã nhận mã 25k, đang chốt combo 2 món luôn ạ!',
-      time: '19:43',
-    },
-  ]);
-  const [inputComment, setInputComment] = useState('');
-  const chatBottomRef = useRef<HTMLDivElement>(null);
-
-  // Default demo products if session has none (chuẩn số liệu thực tế ảnh 1 và danh mục)
-  const defaultProducts: LiveProduct[] = useMemo(
-    () => [
-      {
-        id: 'demo-prod-5',
-        title: 'Set quà Armaf Scent Love - Thiệp n...',
-        imageUrl:
-          'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=400&auto=format&fit=crop&q=80',
-        price: 1350000,
-        livePrice: 1190000,
-        discountPercentage: 12,
-        storeName: 'ARMAFVIETNAM',
-        soldPercent: 95,
-        stockLeft: 3,
-        category: 'Nước hoa',
-        badge: 'Mall',
-      },
-      {
-        id: 'demo-prod-6',
-        title: 'Nước hoa unisex Armaf Perle D\'or...',
-        imageUrl:
-          'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=400&auto=format&fit=crop&q=80',
-        price: 2800000,
-        livePrice: 2205000,
-        discountPercentage: 21,
-        storeName: 'ARMAFVIETNAM',
-        soldPercent: 84,
-        stockLeft: 6,
-        category: 'Nước hoa',
-        badge: '10.10',
-      },
-      {
-        id: 'demo-prod-7',
-        title: 'Nước Hoa Nữ ARMAF Club De N...',
-        imageUrl:
-          'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=400&auto=format&fit=crop&q=80',
-        price: 1350000,
-        livePrice: 1040000,
-        discountPercentage: 23,
-        storeName: 'ARMAFVIETNAM',
-        soldPercent: 91,
-        stockLeft: 5,
-        category: 'Nước hoa',
-        badge: 'Xu Hướng',
-      },
-      {
-        id: 'demo-prod-1',
-        title: 'Kem Chống Nắng Phổ Rộng Kiềm Dầu Sora Skin Invisible Shield SPF50+ 50g',
-        imageUrl:
-          'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&auto=format&fit=crop&q=80',
-        price: 420000,
-        livePrice: 315000,
-        discountPercentage: 25,
-        storeName: 'Sora Skin Official Store',
-        soldPercent: 88,
-        stockLeft: 7,
-        category: 'Chăm sóc da',
-        badge: 'Mall',
-      },
-      {
-        id: 'demo-prod-2',
-        title: 'Serum Phục Hồi & Làm Dịu Da B5 Centella Sora Skin 50ml',
-        imageUrl:
-          'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400&auto=format&fit=crop&q=80',
-        price: 385000,
-        livePrice: 289000,
-        discountPercentage: 25,
-        storeName: 'Sora Skin Official Store',
-        soldPercent: 79,
-        stockLeft: 12,
-        category: 'Serum & Kem',
-        badge: '10.10',
-      },
-      {
-        id: 'demo-prod-3',
-        title: 'Serum Vitamin C 15% Dưỡng Sáng Mờ Thâm Niacinamide 30ml',
-        imageUrl:
-          'https://images.unsplash.com/photo-1608248597359-0098f62f9fd1?w=400&auto=format&fit=crop&q=80',
-        price: 350000,
-        livePrice: 265000,
-        discountPercentage: 24,
-        storeName: 'Sora Skin Official Store',
-        soldPercent: 92,
-        stockLeft: 4,
-        category: 'Serum & Kem',
-        badge: 'Xu Hướng',
-      },
-      {
-        id: 'demo-prod-4',
-        title: 'Sữa Rửa Mặt Dịu Nhẹ pH 5.5 Chiết Xuất Rau Má Centella 150ml',
-        imageUrl:
-          'https://images.unsplash.com/photo-1556228722-d0b71239c4d5?w=400&auto=format&fit=crop&q=80',
-        price: 245000,
-        livePrice: 185000,
-        discountPercentage: 24,
-        storeName: 'Sora Skin Official Store',
-        soldPercent: 64,
-        stockLeft: 19,
-        category: 'Chăm sóc da',
-        badge: 'Mall',
-      },
-    ],
-    [],
-  );
 
   // Load session info from API
   useEffect(() => {
@@ -1103,6 +872,7 @@ export default function LiveStreamRoomPage() {
     let active = true;
 
     const syncLiveStats = async () => {
+      const revision = pinRevision.current;
       try {
         const res: any = await api.post(
           `/live-sessions/public/${encodeURIComponent(identifier)}/interaction`,
@@ -1113,6 +883,12 @@ export default function LiveStreamRoomPage() {
         );
         const data = res?.data?.data || res?.data || res;
         if (active && data) {
+          if (revision === pinRevision.current && Object.prototype.hasOwnProperty.call(data, 'pinnedProductId')) {
+            setSessionData((prev: any) => prev ? { ...prev, pinnedProductId: data.pinnedProductId } : prev);
+          }
+          if (Object.prototype.hasOwnProperty.call(data, 'voucherDrop')) {
+            setSessionData((prev: any) => prev ? { ...prev, voucherDrop: data.voucherDrop } : prev);
+          }
           if (typeof data.viewers === 'number') {
             setViewerCount(Math.max(0, data.viewers));
           }
@@ -1150,57 +926,20 @@ export default function LiveStreamRoomPage() {
     };
   }, [identifier, likesStorageKey, sessionEnded]);
 
-  // Real-time purchase alert ticker
-  useEffect(() => {
-    if (identifier !== 'demo') return;
-    const buyerNames = ['Thu Thảo', 'Quốc Bảo', 'Minh Tuấn', 'Ngọc Hân', 'Hoàng Long', 'Thùy Chi', 'Kim Ngân'];
-    const buyerCities = ['Hà Nội', 'TP.HCM', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ', 'Bình Dương'];
-    const items = [
-      'Serum B5 Centella',
-      'Kem Chống Nắng Kiềm Dầu',
-      'Combo Serum + KCN',
-      'Sữa Rửa Mặt Amino Acid',
-    ];
 
-    const alertInterval = setInterval(() => {
-      const name = buyerNames[Math.floor(Math.random() * buyerNames.length)];
-      const city = buyerCities[Math.floor(Math.random() * buyerCities.length)];
-      const item = items[Math.floor(Math.random() * items.length)];
-
-      // Add automated comment occasionally
-      if (Math.random() > 0.4) {
-        const preset = USER_PROFILES_MAP[name];
-        setChatMessages((prev) => [
-          ...prev.slice(-30),
-          {
-            id: String(Date.now()),
-            sender: name,
-            role: 'VIEWER',
-            avatar: preset?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-            text: `(${city}) Vừa chốt đơn ${item} nhận voucher phiên live rồi nha shop!`,
-            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-          },
-        ]);
-      }
-    }, 9000);
-
-    return () => {
-      clearInterval(alertInterval);
-    };
-  }, [identifier]);
 
   // Auto-scroll chat
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Derived products
+  // Derived products from actual session data
   const products: LiveProduct[] = useMemo(() => {
     if (sessionData?.products && sessionData.products.length > 0) {
       return sessionData.products.map((p: any, idx: number) => {
         const prod = p.product || {};
         const basePrice = Number(p.variant?.price ?? prod.price ?? 0);
-        const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 20;
+        const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 15;
         const discountType = sessionData.coupon?.discountType || 'PERCENTAGE';
         const livePrice =
           discountType === 'PERCENTAGE'
@@ -1211,23 +950,59 @@ export default function LiveStreamRoomPage() {
           variantId: p.variantId || p.variant?.id || undefined,
           variantName: p.variant?.name,
           title: prod.title || prod.name || `Sản phẩm Deal Live #${idx + 1}`,
-          imageUrl: prod.imageUrl || defaultProducts[idx % defaultProducts.length]?.imageUrl,
+          imageUrl: prod.imageUrl || sessionData?.store?.logoUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&auto=format&fit=crop&q=80',
           price: basePrice,
           livePrice,
-          discountPercentage: Math.round(((basePrice - livePrice) / basePrice) * 100),
+          discountPercentage: basePrice > 0 ? Math.round(((basePrice - livePrice) / basePrice) * 100) : 0,
           storeName: sessionData.store?.name || 'Gian Hàng Đối Tác',
           storeId: sessionData.store?.id,
-          soldPercent: 75 + ((idx * 7) % 20),
-          stockLeft: Math.max(3, 15 - idx * 2),
-          category: prod.category || (idx % 2 === 0 ? 'Chăm sóc da' : 'Nước hoa'),
-          badge: idx === 0 ? 'Mall' : idx % 2 === 1 ? '10.10' : 'Xu Hướng',
+          soldPercent: Math.min(96, 65 + ((idx * 7) % 30)),
+          stockLeft: p.variant?.stockQuantity ?? prod.stockQuantity ?? Math.max(3, 20 - idx * 2),
+          category: prod.category || 'Mỹ phẩm & Làm đẹp',
+          badge: idx === 0 ? 'Mall' : idx % 2 === 1 ? 'Deal Hot' : 'Xu Hướng',
         };
       });
     }
-    return defaultProducts;
-  }, [sessionData, defaultProducts]);
+    return [];
+  }, [sessionData]);
 
-  const pinnedProduct = products[pinnedIndex] || products[0];
+  useEffect(() => {
+    if (sessionData?.pinnedProductId) {
+      const idx = products.findIndex((p) => p.id === sessionData.pinnedProductId);
+      if (idx >= 0) setPinnedIndex(idx);
+    }
+  }, [sessionData?.pinnedProductId, products]);
+
+  const pinnedProduct = products[pinnedIndex];
+
+  const handlePinChange = async (productId: string | null) => {
+    if (!sessionData?.id || pinPendingId !== null) return;
+    const pendingId = productId ?? pinnedProduct?.id;
+    if (!pendingId) return;
+    setPinPendingId(pendingId);
+    pinRevision.current += 1;
+    try {
+      const url = `/live-sessions/${sessionData.id}/pinned-product`;
+      if (productId === null) {
+        await api.delete(url);
+      } else {
+        await api.post(url, { productId });
+        const newIdx = products.findIndex((p) => p.id === productId);
+        if (newIdx >= 0 && pinProduct) {
+          setPinnedIndex(newIdx);
+          pinProduct(newIdx, productId);
+        }
+      }
+      setSessionData((prev: any) => ({ ...prev, pinnedProductId: productId }));
+      setIsPinnedDealCollapsed(false);
+      toast.success(productId ? 'Đã chuyển sản phẩm đang giới thiệu.' : 'Đã bỏ ghim sản phẩm.');
+    } catch {
+      toast.error('Chưa thể cập nhật ghim. Kiểm tra quyền chủ phiên và trạng thái Live rồi thử lại.');
+    } finally {
+      pinRevision.current += 1;
+      setPinPendingId(null);
+    }
+  };
 
   // Dynamic categories available for filter pills (TikTok Live style)
   const availableCategories = useMemo(() => {
@@ -1236,7 +1011,7 @@ export default function LiveStreamRoomPage() {
       if (p.category) cats.add(p.category);
     });
     if (cats.size < 2) {
-      cats.add('Nước hoa');
+      cats.add('Mỹ phẩm');
       cats.add('Chăm sóc da');
     }
     return Array.from(cats);
@@ -1250,7 +1025,7 @@ export default function LiveStreamRoomPage() {
       list = list.filter((p) => p.title.toLowerCase().includes(q));
     }
     if (bagFilterTab === 'PINNED') {
-      return [products[pinnedIndex] || products[0]];
+      return list.filter((p) => p.id === products[pinnedIndex]?.id);
     }
     if (bagFilterTab !== 'ALL') {
       return list.filter(
@@ -1262,7 +1037,7 @@ export default function LiveStreamRoomPage() {
     return list;
   }, [products, pinnedIndex, bagFilterTab, bagSearchQuery]);
 
-  const couponCode = sessionData?.coupon?.displayCode || 'LIVEDEAL25K';
+  const couponCode = sessionData?.coupon?.displayCode || '';
   const couponDiscount = sessionData?.coupon
     ? sessionData.coupon.discountType === 'PERCENTAGE'
       ? `${Number(sessionData.coupon.discountValue)}%`
@@ -1270,24 +1045,24 @@ export default function LiveStreamRoomPage() {
     : '25.000 ₫';
 
   // TRIGGER FLOATING EMOJI REACTION (TikTok / Facebook Live style)
-  const triggerReaction = (emoji: string, e?: React.MouseEvent, customIconUrl?: string) => {
+  const triggerReaction = (emoji: string, e?: React.MouseEvent, customIconUrl?: string, isRemoteBroadcast = false) => {
+    if (isStreamEnded) return;
     const stageRect = stageRef.current?.getBoundingClientRect();
     let baseBottom = 76;
     let baseRight: number | undefined = undefined;
     let baseLeft: number | undefined = undefined;
 
     const matchedDef = REALISTIC_3D_REACTIONS.find((r) => r.emoji === emoji || r.id === emoji);
-    const resolvedIconUrl = customIconUrl || matchedDef?.iconUrl;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const resolvedIconUrl = reducedMotion ? matchedDef?.fallbackIconUrl || customIconUrl || matchedDef?.iconUrl : customIconUrl || matchedDef?.iconUrl;
 
     if (e && stageRect) {
       const targetBtn = (e.target as HTMLElement).closest('button');
       if (targetBtn && stageRef.current?.contains(targetBtn)) {
-        // Bấm trực tiếp vào các nút icon reaction ở thanh dock dưới góc phải
         const btnRect = targetBtn.getBoundingClientRect();
         baseRight = Math.max(12, stageRect.right - (btnRect.left + btnRect.width / 2) - 20);
         baseBottom = Math.max(50, stageRect.bottom - btnRect.top + 8);
       } else if (!targetBtn && stageRef.current?.contains(e.target as Node)) {
-        // Bấm trực tiếp vào màn hình live stage
         baseLeft = Math.max(20, Math.min(stageRect.width - 60, e.clientX - stageRect.left - 24));
         baseBottom = Math.max(30, stageRect.bottom - e.clientY);
       } else {
@@ -1295,93 +1070,83 @@ export default function LiveStreamRoomPage() {
         baseBottom = 76;
       }
     } else {
-      // Mặc định xuất hiện phía góc dưới bên phải khu vực reaction dock
       baseRight = Math.floor(Math.random() * 120) + 36;
       baseBottom = 76;
     }
 
-    // TĂNG SỐ LƯỢT THẢ TIM THẬT NGAY LẬP TỨC
-    const increment = emoji === '❤️' ? 2 : 1;
-    setLikesCount((prev) => {
-      const next = prev + increment;
-      localStorage.setItem(likesStorageKey, String(next));
-      return next;
-    });
+    if (!isRemoteBroadcast) {
+      sendReaction(emoji, customIconUrl);
 
-    // Hiệu ứng micro pop +1 / +2 bay lên từ icon tim góc trên
-    setLikeDelta(increment);
-    if (likeDeltaTimerRef.current) clearTimeout(likeDeltaTimerRef.current);
-    likeDeltaTimerRef.current = setTimeout(() => setLikeDelta(null), 1000);
+      // TĂNG SỐ LƯỢT THẢ TIM THẬT NGAY LẬP TỨC
+      const increment = emoji === '❤️' ? 2 : 1;
+      setLikesCount((prev) => {
+        const next = prev + increment;
+        localStorage.setItem(likesStorageKey, String(next));
+        return next;
+      });
 
-    // Gửi tương tác thực tế lên server backend để cộng dồn
-    api
-      .post(`/live-sessions/public/${encodeURIComponent(identifier)}/interaction`, {
-        action: 'LIKE',
-        clientId: clientIdRef.current,
-        count: increment,
-      })
-      .then((res: any) => {
-        const data = res?.data?.data || res?.data || res;
-        if (data && typeof data.likes === 'number') {
-          setLikesCount((prev) => Math.max(prev, data.likes));
-          localStorage.setItem(likesStorageKey, String(data.likes));
-        }
-      })
-      .catch(() => {});
+      // Hiệu ứng micro pop +1 / +2 bay lên từ icon tim góc trên
+      setLikeDelta(increment);
+      if (likeDeltaTimerRef.current) clearTimeout(likeDeltaTimerRef.current);
+      likeDeltaTimerRef.current = setTimeout(() => setLikeDelta(null), 1000);
 
-    // Khi bấm tim hoặc icon, bắn ra 1 đến 2 icon với kích thước và độ lệch khác nhau
-    const spawnCount = emoji === '❤️' ? (Math.random() < 0.6 ? 2 : 3) : 1;
+      // Gửi tương tác thực tế lên server backend để cộng dồn
+      api
+        .post(`/live-sessions/public/${encodeURIComponent(identifier)}/interaction`, {
+          action: 'LIKE',
+          clientId: clientIdRef.current,
+          count: increment,
+        })
+        .then((res: any) => {
+          const data = res?.data?.data || res?.data || res;
+          if (data && typeof data.likes === 'number') {
+            setLikesCount((prev) => Math.max(prev, data.likes));
+            localStorage.setItem(likesStorageKey, String(data.likes));
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (!isRemoteBroadcast && sendReaction) {
+      sendReaction(emoji, resolvedIconUrl);
+    }
+    const flightTime = performance.now();
+    if (flightTime - lastReactionFlightAt.current < 80) return;
+    lastReactionFlightAt.current = flightTime;
+    const spawnCount = reducedMotion ? 1 : matchedDef?.id === 'heart' ? 3 : 2;
     const newItems: FloatingReaction[] = [];
-
+    const stageWidth = stageRect?.width || 400;
+    const stageHeight = stageRect?.height || 600;
+    const originX = Math.max(24, Math.min(stageWidth - 24, baseLeft !== undefined ? baseLeft + 20 : stageWidth - (baseRight ?? 36) - 20));
+    const riseRoom = Math.max(60, stageHeight - baseBottom - 30);
     for (let i = 0; i < spawnCount; i++) {
       reactionCounterRef.current += 1;
       const newId = reactionCounterRef.current;
-      // Drift & sway chuẩn vật lý tự nhiên TikTok / Facebook
-      const driftX = (Math.random() - 0.5) * 110;
-      const sway = Math.floor(Math.random() * 22) + 16;
-      const rotStart = Math.floor(Math.random() * 20) - 10;
-      const rotMid = Math.floor(Math.random() * 26) - 13;
-      const rotEnd = Math.floor(Math.random() * 32) - 16;
-      // Tốc độ bay nhanh, dứt khoát: 0.95s - 1.25s (thay vì 2s chậm chạp)
-      const duration = +(Math.random() * 0.3 + 0.95).toFixed(2);
-
-      const offsetSpread = (Math.random() - 0.5) * 26;
-      // Dòng chảy tim luân chuyển màu rực rỡ như TikTok Live
-      const assignedIconUrl = emoji === '❤️'
-        ? TIKTOK_HEARTS[(newId + i) % TIKTOK_HEARTS.length]
-        : resolvedIconUrl;
-
+      const size = i === 0 ? 38 + Math.random() * 6 : 27 + Math.random() * 8;
+      const rise = Math.min(riseRoom, Math.min(500, stageHeight * .65)) * (.78 + Math.random() * .22);
+      const direction = Math.random() < .5 ? -1 : 1;
+      const clampX = (value: number) => Math.max(24 - originX, Math.min(stageWidth - originX - 24, value));
+      const driftX = clampX(direction * (18 + Math.random() * 48));
+      const control1 = clampX(-direction * (18 + Math.random() * 36));
+      const control2 = clampX(direction * (35 + Math.random() * 54));
       newItems.push({
-        id: newId,
-        emoji,
-        iconUrl: assignedIconUrl,
-        bottom: baseBottom + i * 10,
-        right: baseRight !== undefined ? Math.max(8, baseRight + offsetSpread) : undefined,
-        left: baseLeft !== undefined ? Math.max(8, baseLeft + offsetSpread) : undefined,
-        size: Math.floor(Math.random() * 14) + (i === 0 ? 48 : 40),
-        driftX,
-        sway,
-        rotStart,
-        rotMid,
-        rotEnd,
-        duration,
+        id: newId, emoji, iconUrl: resolvedIconUrl,
+        bottom: Math.max(16, Math.min(stageHeight - 40, baseBottom)),
+        left: originX - size / 2, size, driftX, rise,
+        path: `path("M 0 0 C ${control1.toFixed(1)} ${(-rise * .3).toFixed(1)}, ${control2.toFixed(1)} ${(-rise * .7).toFixed(1)}, ${driftX.toFixed(1)} ${(-rise).toFixed(1)}")`,
+        tilt: direction * (4 + Math.random() * 7),
+        delay: i * 100 + Math.random() * 45,
+        duration: 2.1 + Math.random() * .65,
       });
-
-      setTimeout(() => {
-        setFloatingReactions((prev) => prev.filter((r) => r.id !== newId));
-      }, Math.floor(duration * 1000) + 60);
     }
-
-    setFloatingReactions((prev) => [...prev.slice(-45), ...newItems]);
+    setFloatingReactions((previous) => [...previous, ...newItems].slice(-24));
   };
 
   // Handle click anywhere on the video screen (TikTok style tap to heart)
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Không kích hoạt nếu bấm vào nút, input, card tương tác
     if ((e.target as HTMLElement).closest('button, input, select, a, [role="button"]')) {
       return;
     }
-    // 75% ra tim đổi màu TikTok, 25% ra các reaction biểu cảm vui nhộn Facebook
     const isHeart = Math.random() < 0.75;
     if (isHeart) {
       triggerReaction('❤️', e);
@@ -1395,7 +1160,7 @@ export default function LiveStreamRoomPage() {
   // Claim voucher
   const handleClaimVoucher = async () => {
     if (isVoucherClaimed) {
-      toast.success(`Bạn đã lưu mã ${couponCode} vào ví rồi!`);
+      toast.success(`Bạn đã nhận mã ${couponCode}.`);
       return;
     }
     setVoucherClaimLoading(true);
@@ -1405,8 +1170,11 @@ export default function LiveStreamRoomPage() {
           claimKey: `claim_${currentUser?.id || 'guest'}_${Date.now()}`,
         });
       }
+      if (sessionData?.coupon?.id && currentUser?.role === 'CUSTOMER') {
+        await api.post(`/coupons/saved/${sessionData.coupon.id}`);
+      }
       setIsVoucherClaimed(true);
-      toast.success(`Đã lưu mã voucher ${couponCode} vào ví! Mã sẽ tự áp dụng khi bạn thanh toán.`);
+      toast.success(`Đã nhận mã voucher ${couponCode}. Nhập mã khi thanh toán để sử dụng.`);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Chưa lưu được voucher. Vui lòng thử lại.');
     } finally {
@@ -1418,15 +1186,25 @@ export default function LiveStreamRoomPage() {
   const handleSendComment = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputComment.trim()) return;
+    const text = inputComment.trim();
+    const sender = currentUser?.fullName || 'Khách xem #' + Math.floor(Math.random() * 900 + 100);
+    const role = (currentUser?.role === 'SHOP_MANAGER'
+      ? 'SHOP'
+      : currentUser?.role === 'COLLABORATOR'
+      ? 'HOST'
+      : 'VIEWER') as any;
+    const avatar = currentUser?.avatarUrl || (currentUser as any)?.avatar || undefined;
+
     const newMsg: ChatMessage = {
-      id: String(Date.now()),
-      sender: currentUser?.fullName || 'Bạn (Khách xem)',
-      role: (currentUser?.role === 'SHOP_MANAGER' ? 'SHOP' : currentUser?.role === 'COLLABORATOR' ? 'HOST' : 'VIEWER') as any,
-      avatar: currentUser?.avatarUrl || (currentUser as any)?.avatar || undefined,
-      text: inputComment.trim(),
+      id: 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      sender,
+      role,
+      avatar,
+      text,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
     setChatMessages((prev) => [...prev, newMsg]);
+    sendLiveChat(text, { sender, avatar, role });
     setInputComment('');
   };
 
@@ -1509,30 +1287,30 @@ export default function LiveStreamRoomPage() {
       />
 
       {/* TOP HEADER BAR (TONE SÁNG TRẮNG BE CHUẨN THƯƠNG HIỆU SCANMS) */}
-      <header className="h-16 px-3 sm:px-6 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] flex items-center justify-between z-30 shrink-0 shadow-2xs">
-        <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+      <header className={cn('live-room-header', couponCode && 'has-voucher')} aria-label="Thông tin và điều khiển phòng Live">
+        <div className="live-room-identity">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="p-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] transition cursor-pointer"
+            className="live-room-back"
             title="Quay lại Sàn Mua Sắm"
           >
             <ArrowLeft className="w-4 h-4 text-[#7D715E]" />
           </button>
 
           {/* Logo & Live Badge */}
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sm sm:text-base tracking-tight text-[#1A1612] hidden sm:inline">
+          <div className="live-room-brand">
+            <span className="live-room-wordmark">
               SCANMS <span className="text-[#B88E4F]">LIVE</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-black uppercase tracking-wider shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-              {isCameraActive ? 'Camera Live' : 'Trực tiếp'}
+            <span className={cn('live-room-status', sessionData?.status === 'LIVE' && !isStreamEnded && 'is-live')}>
+              <span className="live-room-status-dot" />
+              {isStreamEnded ? 'Đã kết thúc' : sessionData?.status === 'LIVE' ? 'Trực tiếp' : sessionData?.status === 'PAUSED' ? 'Tạm dừng' : 'Chờ phát'}
             </span>
           </div>
 
           {/* KOL / Host Avatar & Shop Information (Bấm để xem Profile chi tiết) */}
-          <div className="flex items-center gap-2 pl-1 sm:pl-3 border-l border-[#EAE4D7] min-w-0">
+          <div className="live-room-host">
             {/* Avatar KOL với vòng pulse phát sóng trực tiếp */}
             <button
               type="button"
@@ -1558,30 +1336,27 @@ export default function LiveStreamRoomPage() {
             </button>
 
             {/* Thông tin 2 hàng: Tên KOL (trên) & Tên Shop (dưới) */}
-            <div className="min-w-0 flex flex-col justify-center">
+            <div className="live-room-host-text">
               {/* Hàng 1: KOL đang live */}
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={handleOpenKolProfile}
-                  className="text-xs sm:text-sm font-black text-[#1A1612] hover:text-[#B88E4F] transition-colors truncate max-w-[120px] sm:max-w-[160px] text-left cursor-pointer flex items-center gap-1 group/kolname"
-                  title="Xem thông tin chi tiết KOC đang livestream"
+                  className="live-room-host-name group/kolname"
+                  title={sessionData?.creator?.fullName || 'Xem hồ sơ nhà sáng tạo'}
                 >
                   <span className="truncate group-hover/kolname:underline">
-                    {sessionData?.creator?.fullName || (currentUser?.fullName ? `${currentUser.fullName} (Host)` : 'KOC Linh Trương')}
+                    {sessionData?.creator?.fullName || 'Nhà sáng tạo'}
                   </span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
                 </button>
-                <span className="hidden sm:inline-flex items-center px-1.5 py-0.2 rounded-md bg-[#FBF5EB] border border-[#EEDFC6] text-[9px] font-black text-[#B88E4F] uppercase tracking-wide">
-                  KOC Live
-                </span>
               </div>
 
               {/* Hàng 2: Gian Hàng Đối Tác cung cấp sản phẩm (Bấm avatar hoặc tên để vào shop) */}
               <button
                 type="button"
                 onClick={handleOpenShopProfile}
-                className="text-[10.5px] text-[#7D715E] hover:text-[#B88E4F] transition-colors truncate max-w-[140px] sm:max-w-[200px] text-left cursor-pointer flex items-center gap-1.5 group/shop"
+                className="live-room-shop group/shop"
                 title="Bấm vào để đến gian hàng của Chủ Shop"
               >
                 <div className="w-4 h-4 rounded-full overflow-hidden bg-[#FAF8F5] border border-[#E8D4B0] shrink-0 group-hover/shop:scale-110 transition-transform">
@@ -1595,10 +1370,10 @@ export default function LiveStreamRoomPage() {
                   />
                 </div>
                 <span className="group-hover/shop:underline truncate font-semibold text-[#1A1612] group-hover/shop:text-[#B88E4F]">
-                  {sessionData?.store?.name || 'Sora Skin Official Store'}
+                  {sessionData?.store?.name || 'Gian hàng'}
                 </span>
                 <span className="px-1 py-0.2 rounded bg-amber-50 text-amber-700 text-[8px] font-black border border-amber-200 shrink-0">
-                  MALL
+                  SHOP
                 </span>
               </button>
             </div>
@@ -1607,7 +1382,7 @@ export default function LiveStreamRoomPage() {
             <button
               type="button"
               onClick={() => setIsFollowing((v) => !v)}
-              className={`ml-1 px-2.5 py-1 rounded-full text-xs font-bold transition shrink-0 cursor-pointer select-none active:scale-95 ${
+              className={`live-room-follow ${
                 isFollowing
                   ? 'bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]'
                   : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] text-white shadow-xs hover:opacity-95'
@@ -1620,45 +1395,45 @@ export default function LiveStreamRoomPage() {
 
         {/* Voucher Live Pill trong Header (Sang trọng, Vàng Be, KHÔNG CHE VIDEO) */}
         {couponCode && (
-          <div className="hidden lg:flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-full bg-[#FAF8F5] border border-[#EEDFC6] shadow-2xs">
+          <div className="live-room-voucher" title={`Voucher ${couponCode}: Giảm ${couponDiscount}`}>
             <div className="w-5 h-5 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#B88E4F] shrink-0">
               <Ticket className="w-3 h-3 text-[#B88E4F]" />
             </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-extrabold text-[#1A1612]">Voucher: Giảm {couponDiscount}</span>
-              <span className="text-[10px] text-[#7D715E] font-mono">({couponCode})</span>
+            <div className="live-room-voucher-text">
+              <span className="live-room-voucher-label">Ưu đãi phiên Live</span>
+              <span className="live-room-voucher-value">Giảm {couponDiscount}</span>
             </div>
+            <span className="live-room-voucher-code">{couponCode}</span>
             <button
               type="button"
               onClick={() => void handleClaimVoucher()}
-              disabled={voucherClaimLoading}
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer select-none active:scale-95 shadow-2xs ${
+              disabled={voucherClaimLoading || isStreamEnded}
+              className={`live-room-claim ${
                 isVoucherClaimed
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-[#F3EFE6] text-[#7D715E]'
                   : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] text-white'
               }`}
             >
-              {isVoucherClaimed ? 'Đã lưu' : 'Lưu mã'}
+              {isStreamEnded ? 'Đã kết thúc' : voucherClaimLoading ? 'Đang lưu…' : isVoucherClaimed ? 'Đã lưu' : 'Lưu mã'}
             </button>
           </div>
         )}
 
         {/* Right Stats & Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="live-room-controls">
           {/* Viewers Pill (Số người đang xem trực tiếp thực tế) */}
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-xs font-bold text-[#1A1612] shadow-2xs"
+            className="live-room-viewers"
             title={`${viewerCount.toLocaleString('vi-VN')} người đang xem trực tiếp phiên live này`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <Eye className="w-3.5 h-3.5 text-[#B88E4F]" />
             <span className="font-mono">{viewerCount.toLocaleString('vi-VN')}</span>
           </div>
 
           {/* Likes Pill with Micro Pop Animation (Lượt thả tim thực tế) */}
-          <div className="relative">
-            <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-xs font-black text-rose-600 shadow-2xs cursor-pointer active:scale-90 transition-transform select-none"
+          <div className="live-room-likes-wrap">
+            <button type="button"
+              className="live-room-likes"
               onClick={(e) => triggerReaction('❤️', e, REALISTIC_3D_REACTIONS[0].iconUrl)}
               title={`${likesCount.toLocaleString('vi-VN')} lượt thả tim thực tế (Bấm để thả tim)`}
             >
@@ -1666,7 +1441,7 @@ export default function LiveStreamRoomPage() {
               <span className="font-mono">
                 {likesCount >= 10000 ? `${(likesCount / 1000).toFixed(1)}k` : likesCount.toLocaleString('vi-VN')}
               </span>
-            </div>
+            </button>
 
             {/* Flying +1 / +2 Pop Indicator */}
             {likeDelta && (
@@ -1681,7 +1456,7 @@ export default function LiveStreamRoomPage() {
             <button
               type="button"
               onClick={isCameraActive ? stopCamera : startCamera}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer select-none shadow-xs ${
+              className={`live-room-camera live-room-tool ${
                 isCameraActive
                   ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                   : 'bg-white hover:bg-[#FAF8F5] text-[#1A1612] border border-[#EAE4D7]'
@@ -1691,12 +1466,12 @@ export default function LiveStreamRoomPage() {
               {isCameraActive ? (
                 <>
                   <VideoOff className="w-3.5 h-3.5 text-rose-600" />
-                  <span className="hidden sm:inline">Tắt Cam</span>
+                  <span className="live-room-camera-label">Tắt camera</span>
                 </>
               ) : (
                 <>
                   <Video className="w-3.5 h-3.5 text-[#B88E4F]" />
-                  <span className="hidden sm:inline">Bật Camera Live</span>
+                  <span className="live-room-camera-label">Bật camera</span>
                 </>
               )}
             </button>
@@ -1704,13 +1479,13 @@ export default function LiveStreamRoomPage() {
 
           {/* Mute Audio Toggle */}
           {isSessionHost && (
-            <div className="relative">
+            <div className="live-room-filter">
               <button type="button" disabled={!isCameraActive} aria-expanded={isFilterPanelOpen}
                 onClick={() => setIsFilterPanelOpen((open) => !open)}
                 className={cn('inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-40',
                   faceFilter === 'off' ? 'border-[#EAE4D7] bg-white text-[#7D715E]' : 'border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]')}
                 title="Filter khuôn mặt">
-                <Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Filter</span>
+                <Sparkles className="h-4 w-4" /><span className="sr-only">Filter</span>
               </button>
               {isFilterPanelOpen && isCameraActive && (
                 <div className="absolute right-0 top-full z-50 mt-3 flex max-h-[calc(100dvh-100px)] w-[min(380px,calc(100vw-24px))] flex-col rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-lg">
@@ -1756,7 +1531,7 @@ export default function LiveStreamRoomPage() {
           <button
             type="button"
             onClick={() => setIsMuted((v) => !v)}
-            className="p-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] transition cursor-pointer"
+            className="live-room-tool live-room-sound"
             title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-[#7D715E]" />}
@@ -1771,7 +1546,7 @@ export default function LiveStreamRoomPage() {
                 toast.success('Đã sao chép link phòng live');
               }
             }}
-            className="p-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer hidden sm:block"
+            className="live-room-tool live-room-share"
             title="Chia sẻ phiên livestream"
           >
             <Share2 className="w-4 h-4" />
@@ -1785,25 +1560,37 @@ export default function LiveStreamRoomPage() {
             <button
               type="button"
               onClick={() => setIsHostStudioOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-white text-xs font-bold transition shadow-xs cursor-pointer select-none"
+              className="live-room-studio"
+              title="Mở Host Studio"
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Host Studio</span>
+              <span>Host Studio</span>
             </button>
           )}
         </div>
       </header>
+      {sessionData?.voucherDrop && !isStreamEnded && (
+        <div role="status" className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2 text-xs text-[#1A1612]">
+          <Ticket size={16} className="text-[#B88E4F]" />
+          <span>Vừa tung ưu đãi <strong>{sessionData.voucherDrop.code}</strong> · {sessionData.voucherDrop.quantity} lượt được giới thiệu</span>
+          <button type="button" onClick={() => void handleClaimVoucher()} disabled={voucherClaimLoading || isVoucherClaimed} className="rounded-lg border border-[#EEDFC6] bg-white px-3 py-1 font-semibold text-[#B88E4F] disabled:opacity-50">{isVoucherClaimed ? 'Đã lưu mã' : 'Nhận voucher'}</button>
+        </div>
+      )}
 
-      {isSessionHost && sessionData?.id && <div className="max-h-[35vh] shrink-0 overflow-auto px-3 pb-3"><LiveGovernancePanel session={sessionData} audience="kol" liveRoom /></div>}
-      {(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status)) && <div className="shrink-0 border-b border-[#EEDFC6] bg-[#FBF5EB] px-6 py-3 text-sm text-[#7D715E]">Phiên đã kết thúc. Đơn đã đặt tiếp tục được xử lý; KOL có thể xem lý do và gửi khiếu nại trong hồ sơ phiên.</div>}
+      {(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status)) && (
+        <div className="shrink-0 border-b border-[#EEDFC6] bg-[#FBF5EB] px-6 py-2.5 text-xs font-semibold text-[#7D715E] flex flex-wrap items-center justify-between gap-2">
+          <span>Phiên livestream đã kết thúc. Đơn đã đặt tiếp tục được xử lý; KOL có thể xem lý do và gửi khiếu nại trong hồ sơ phiên.</span>
+          <button type="button" onClick={() => navigate('/marketplace')} className="text-[#B88E4F] hover:underline font-bold">Khám phá phiên khác →</button>
+        </div>
+      )}
 
-      {/* MAIN SCREEN: BRIGHT WARM STAGE + CHAT SIDEBAR */}
-      <div className="flex-1 relative flex flex-col md:flex-row overflow-hidden bg-[#F3EFE6]">
+      {/* MAIN SCREEN: LUXURY STAGE + REAL-TIME CHAT SIDEBAR */}
+      <div className="flex-1 relative flex flex-col md:flex-row overflow-hidden bg-[#1A1612]">
         {/* CENTRAL VIDEO STREAM & INTERACTIVE STAGE */}
         <div
           ref={stageRef}
           onClick={handleScreenClick}
-          className="relative flex-1 h-full overflow-hidden flex items-center justify-center cursor-pointer select-none bg-[#EAE4D7]/40"
+          className="relative flex-1 h-full overflow-hidden flex items-center justify-center cursor-pointer select-none bg-[#1A1612]"
         >
           {/* Real Webcam Stream View OR Virtual Backdrop */}
           <div className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center">
@@ -1845,7 +1632,75 @@ export default function LiveStreamRoomPage() {
               />
             )}
 
-            {(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status)) && <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#FAF8F5]"><div className="px-6 text-center"><p className="text-lg font-semibold text-[#1A1612]">Phiên livestream đã kết thúc</p><p className="mt-2 text-sm text-[#7D715E]">Cảm ơn bạn đã theo dõi trên SCANMS.</p></div></div>}
+            {isStreamEnded && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#FAF8F5]/95 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-300">
+                <div className="max-w-md w-full bg-white rounded-3xl border border-[#EEDFC6] p-6 sm:p-8 text-center shadow-2xl flex flex-col items-center">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black uppercase tracking-wider mb-4">
+                    <span className="w-2 h-2 rounded-full bg-rose-600" />
+                    Phiên Livestream Đã Kết Thúc
+                  </div>
+
+                  <div className="w-20 h-20 rounded-full border-2 border-[#C59B58] p-1 mb-3 shadow-xs">
+                    <img
+                      src={
+                        sessionData?.creator?.avatarUrl ||
+                        sessionData?.store?.logoUrl ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80'
+                      }
+                      alt="Host Avatar"
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  </div>
+
+                  <h3 className="text-base sm:text-lg font-black text-[#1A1612]">
+                    {sessionData?.title || 'Phiên Livestream Tiếp Thị Liên Kết'}
+                  </h3>
+                  <p className="text-xs text-[#7D715E] mt-1 mb-5">
+                    Chủ trì bởi <b>{liveHostName}</b> · Gian hàng <b>{liveShopName}</b>
+                  </p>
+
+                  {/* KPI Summary Grid */}
+                  <div className="grid grid-cols-3 gap-2 w-full p-3 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] mb-6">
+                    <div className="text-center">
+                      <div className="text-[10px] uppercase font-bold text-[#7D715E]">Thời lượng</div>
+                      <div className="text-xs font-extrabold text-[#1A1612] mt-0.5">
+                        {formatLiveDuration(liveElapsedSeconds)}
+                      </div>
+                    </div>
+                    <div className="text-center border-x border-[#EAE4D7]">
+                      <div className="text-[10px] uppercase font-bold text-[#7D715E]">Lượt xem</div>
+                      <div className="text-xs font-extrabold text-[#1A1612] mt-0.5">
+                        {viewerCount.toLocaleString('vi-VN')}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] uppercase font-bold text-[#7D715E]">Lượt thích</div>
+                      <div className="text-xs font-extrabold text-[#B88E4F] mt-0.5">
+                        {likesCount.toLocaleString('vi-VN')} ❤️
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col sm:flex-row gap-2.5 w-full">
+                    <button
+                      type="button"
+                      onClick={handleOpenShopProfile}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-[#231D15] text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Store className="w-3.5 h-3.5" />
+                      Ghé Thăm Gian Hàng
+                    </button>
+                    <Link
+                      to="/marketplace"
+                      className="flex-1 py-2.5 px-4 rounded-xl border border-[#EAE4D7] bg-white hover:bg-[#F3EFE6] text-[#1A1612] text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      Khám Phá Sàn SCANMS
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!isSessionHost && !remoteStream && (hostOnline || isStreamLive || streamError) && (
               <div className="absolute left-1/2 top-1/2 z-10 max-w-[min(90%,420px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-center text-sm font-semibold text-[#1A1612] shadow-lg backdrop-blur-sm">
@@ -1867,163 +1722,36 @@ export default function LiveStreamRoomPage() {
           </div>
 
           {/* REALTIME FLOATING REACTION EMOJIS (TikTok / Facebook Live Flying Trails) */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
+          <div aria-hidden="true" className="absolute inset-0 pointer-events-none overflow-hidden z-30">
             {floatingReactions.map((reaction) => (
-              <span
-                key={reaction.id}
+              <span key={reaction.id} className="live-reaction-flight"
+                onAnimationEnd={event => {
+                  if (event.target === event.currentTarget) setFloatingReactions(previous => previous.filter(item => item.id !== reaction.id));
+                }}
                 style={{
-                  position: 'absolute',
-                  bottom: `${reaction.bottom}px`,
-                  right: reaction.right !== undefined ? `${reaction.right}px` : undefined,
-                  left: reaction.left !== undefined ? `${reaction.left}px` : undefined,
-                  width: `${reaction.size}px`,
-                  height: `${reaction.size}px`,
-                  fontSize: `${reaction.size}px`,
-                  '--drift-x': `${reaction.driftX}px`,
-                  '--sway': `${reaction.sway}px`,
-                  '--rot-start': `${reaction.rotStart}deg`,
-                  '--rot-mid': `${reaction.rotMid}deg`,
-                  '--rot-end': `${reaction.rotEnd}deg`,
-                  '--reaction-duration': `${reaction.duration}s`,
-                } as React.CSSProperties}
-                className="animate-floating-reaction select-none drop-shadow-md inline-flex items-center justify-center leading-none pointer-events-none"
-              >
-                {reaction.iconUrl ? (
-                  <img
-                    src={reaction.iconUrl}
-                    alt={reaction.emoji}
-                    style={{ width: `${reaction.size}px`, height: `${reaction.size}px` }}
-                    className="object-contain filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.42)] select-none pointer-events-none"
-                    loading="eager"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <span style={{ fontSize: `${reaction.size * 0.75}px` }}>{reaction.emoji}</span>
-                )}
+                  bottom: reaction.bottom, left: reaction.left, width: reaction.size, height: reaction.size,
+                  offsetPath: reaction.path,
+                  '--flight-duration': `${reaction.duration}s`, '--flight-delay': `${reaction.delay}ms`,
+                  '--flight-tilt': `${reaction.tilt}deg`, '--flight-rise': `${reaction.rise}px`, '--flight-drift': `${reaction.driftX}px`,
+                } as React.CSSProperties}>
+                <span className="live-reaction-flight-visual">
+                  {reaction.iconUrl ? <img src={reaction.iconUrl} alt="" decoding="async" draggable={false}
+                    onError={event => { event.currentTarget.style.display = 'none'; }} /> : <span style={{ fontSize: reaction.size * .8 }}>{reaction.emoji}</span>}
+                </span>
               </span>
             ))}
           </div>
 
-          {/* PINNED DEAL CARD (Deal Ghim Đang Giới Thiệu - Thiết Kế Nhỏ Gọn & Hiệu Ứng Lung Linh) */}
           {pinnedProduct && (!isBagOpen || bagPosition !== 'left') && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-16 sm:bottom-18 left-3 sm:left-4 z-20 transition-all duration-300 pointer-events-auto"
-            >
-              {isPinnedDealCollapsed ? (
-                /* Nút Thu Gọn Siêu Nhỏ Gọn Có Hiệu Ứng Nhấp Nháy & Glow */
-                <button
-                  type="button"
-                  onClick={() => setIsPinnedDealCollapsed(false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-[#EEDFC6] shadow-[0_4px_16px_rgba(197,155,88,0.25)] text-[#1A1612] hover:bg-[#FAF8F5] transition-all hover:scale-105 active:scale-95 cursor-pointer text-xs font-bold group select-none animate-in fade-in zoom-in-95 duration-200"
-                  title="Bấm để mở rộng sản phẩm đang giới thiệu"
-                >
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600" />
-                  </span>
-                  <Flame className="w-3.5 h-3.5 text-rose-500 animate-bounce" />
-                  <span className="font-extrabold text-[#B88E4F]">#{pinnedIndex + 1} Deal Live</span>
-                  <span className="text-[11px] text-rose-600 font-mono font-black">{formatCountdown(dealCountdownSeconds)}</span>
-                  <ChevronUp className="w-3 h-3 text-[#7D715E] group-hover:-translate-y-0.5 transition-transform" />
-                </button>
-              ) : (
-                /* Card Sản Phẩm Nhỏ Gọn Với Hiệu Ứng Ánh Sáng Shimmer & Ticking Countdown */
-                <div className="relative w-[280px] sm:w-[310px] rounded-2xl bg-white/95 backdrop-blur-md border border-[#EEDFC6] p-2.5 text-[#1A1612] shadow-[0_8px_30px_rgba(197,155,88,0.22)] hover:shadow-[0_12px_36px_rgba(197,155,88,0.3)] transition-all duration-300 hover:-translate-y-0.5 group overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-                  {/* Subtle top shimmer glow bar */}
-                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C59B58] to-transparent opacity-80" />
-
-                  {/* Header: Pinned Label + Countdown Timer + Minimize Button */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 text-rose-700 text-[9.5px] font-black uppercase tracking-wider shadow-2xs">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600" />
-                      </span>
-                      <span>ĐANG GIỚI THIỆU #{pinnedIndex + 1}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-[#B88E4F] bg-[#FBF5EB] px-2 py-0.5 rounded-full border border-[#EEDFC6]/60">
-                        <Flame className="w-3 h-3 text-rose-500 animate-pulse" />
-                        <span className="font-mono">{formatCountdown(dealCountdownSeconds)}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsPinnedDealCollapsed(true)}
-                        className="p-1 rounded-md text-[#7D715E] hover:text-[#1A1612] hover:bg-[#FAF8F5] transition cursor-pointer"
-                        title="Thu nhỏ thẻ giới thiệu"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Product Info Row: Compact Thumbnail + Title + Price */}
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-[#EAE4D7] shrink-0 bg-white shadow-2xs group-hover:border-[#C59B58]/60 transition-colors">
-                      <img
-                        src={pinnedProduct.imageUrl || ''}
-                        alt={pinnedProduct.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      {pinnedProduct.discountPercentage && (
-                        <span className="absolute bottom-0 right-0 left-0 bg-gradient-to-r from-rose-600 to-red-600 text-white text-[8px] font-black text-center py-0.2">
-                          -{pinnedProduct.discountPercentage}%
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <h4
-                        className="text-xs font-bold text-[#1A1612] truncate leading-tight group-hover:text-[#B88E4F] transition-colors"
-                        title={pinnedProduct.title}
-                      >
-                        {pinnedProduct.title}
-                      </h4>
-                      <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
-                        <span className="text-xs sm:text-[13px] font-black text-rose-600 font-mono tracking-tight">
-                          {Number(pinnedProduct.livePrice || pinnedProduct.price).toLocaleString('vi-VN')} ₫
-                        </span>
-                        {pinnedProduct.livePrice && (
-                          <span className="text-[10px] text-[#7D715E] line-through font-mono">
-                            {Number(pinnedProduct.price).toLocaleString('vi-VN')} ₫
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick Action Buttons: Compact & Shimmer */}
-                  <div className="mt-2 pt-2 border-t border-[#EAE4D7]/70 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleAddToCart(pinnedProduct)}
-                      className="flex-1 py-1.5 px-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] hover:bg-[#F3EFE6] text-[#B88E4F] hover:text-[#1A1612] text-[11px] font-bold transition cursor-pointer select-none active:scale-95 text-center shadow-2xs"
-                    >
-                      Thêm vào giỏ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleInstantBuy(pinnedProduct)}
-                      className="relative flex-1 py-1.5 px-2 rounded-xl bg-gradient-to-r from-[#C59B58] via-[#D4AF37] to-[#B88E4F] hover:brightness-105 text-white text-[11px] font-black tracking-wide transition shadow-xs cursor-pointer select-none active:scale-95 text-center overflow-hidden group/btn"
-                    >
-                      {/* Sweep shine light effect */}
-                      <span className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
-                      <span>MUA NGAY</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div onClick={(event) => event.stopPropagation()} className="absolute bottom-[84px] left-3 sm:left-4 z-20 pointer-events-auto">
+              <LivePinnedProductCard product={pinnedProduct} index={pinnedIndex} countdown={formatCountdown(dealCountdownSeconds)} collapsed={isPinnedDealCollapsed} onCollapsedChange={setIsPinnedDealCollapsed} onAddToCart={() => handleAddToCart(pinnedProduct)} onBuy={() => handleInstantBuy(pinnedProduct)} disabled={isStreamEnded} />
             </div>
           )}
 
           {/* BOTTOM STREAM CONTROLS: TÚI ĐỒ LIVE & REACTION EMOJI DOCK (TIKTOK / SHOPEE STYLE) */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-auto"
+            className={cn('live-stream-bottom-controls absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-auto', isReactionDockExpanded && 'live-controls-reactions-open')}
           >
             {/* Bag Button: Túi Đồ Live (Thiết kế nhỏ gọn, sang trọng) */}
             <div className="flex items-center gap-2">
@@ -2046,103 +1774,7 @@ export default function LiveStreamRoomPage() {
               </button>
             </div>
 
-            {/* COLLAPSIBLE 3D REACTION DOCK (TIKTOK & FACEBOOK LIVE STYLE) */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Khi Mở Rộng: Hiển thị đầy đủ khay 11 Icon Facebook & TikTok kèm nút Thu gọn */}
-              {isReactionDockExpanded ? (
-                <div className="flex items-center gap-1 sm:gap-1.5 bg-white/95 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl border border-[#EEDFC6] shadow-[0_8px_30px_rgba(197,155,88,0.28)] animate-in slide-in-from-right-4 duration-200">
-                  {/* Nút Thu Gọn (Collapse Button) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsReactionDockExpanded(false)}
-                    className="p-1 sm:p-1.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612] transition-colors cursor-pointer select-none active:scale-90"
-                    title="Thu gọn thanh cảm xúc"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-
-                  <div className="h-6 w-px bg-[#EAE4D7] mx-0.5" />
-
-                  {/* Danh sách 11 Icon sắc nét chuẩn Facebook Live GIF & TikTok */}
-                  <div className="flex items-center gap-1 sm:gap-1.5 max-w-[280px] xs:max-w-none overflow-x-auto no-scrollbar py-0.5">
-                    {REALISTIC_3D_REACTIONS.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={(e) => triggerReaction(item.emoji, e, item.iconUrl)}
-                        className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl hover:bg-[#FAF8F5] active:scale-75 hover:scale-125 transition-all duration-150 flex items-center justify-center cursor-pointer select-none shadow-2xs hover:shadow-xs group"
-                        title={item.label}
-                      >
-                        <img
-                          src={item.iconUrl}
-                          alt={item.label}
-                          className="w-7 h-7 sm:w-8 sm:h-8 object-contain drop-shadow-xs group-hover:scale-115 transition-transform"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                        <span className="text-base sm:text-lg absolute inset-0 flex items-center justify-center -z-10">
-                          {item.emoji}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="h-6 w-px bg-[#EAE4D7] mx-0.5" />
-
-                  {/* Heart Tap Button Trong Khay Mở Rộng */}
-                  <button
-                    type="button"
-                    onClick={(e) => triggerReaction('❤️', e)}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-500 via-rose-600 to-red-600 hover:from-rose-600 hover:to-red-700 text-white flex items-center justify-center shadow-md hover:shadow-rose-500/35 transition-all duration-150 cursor-pointer select-none active:scale-75 hover:scale-110"
-                    title="Thả tim (Bấm liên tục để bắn tim bay)"
-                  >
-                    <img
-                      src={REALISTIC_3D_REACTIONS[0].iconUrl}
-                      alt="Heart"
-                      className="w-7 h-7 sm:w-8 sm:h-8 object-contain filter drop-shadow-sm animate-pulse pointer-events-none"
-                    />
-                  </button>
-                </div>
-              ) : (
-                /* Khi Thu Gọn: Nút bấm nhỏ gọn tinh tế + Nút Thả tim đỏ rực */
-                <div className="flex items-center gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl border border-[#EEDFC6] shadow-[0_4px_24px_rgba(197,155,88,0.22)] animate-in fade-in duration-200">
-                  {/* Nút Mở Rộng khay Icon */}
-                  <button
-                    type="button"
-                    onClick={() => setIsReactionDockExpanded(true)}
-                    className="group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shadow-2xs"
-                    title="Bấm để mở đủ 11 icon cảm xúc chuẩn Facebook & TikTok Live"
-                  >
-                    <img
-                      src={REALISTIC_3D_REACTIONS[1].iconUrl}
-                      alt="Like"
-                      className="w-5 h-5 object-contain group-hover:scale-125 transition-transform"
-                    />
-                    <span className="hidden sm:inline text-[11px] text-[#7D715E] group-hover:text-[#1A1612]">
-                      Icon Live
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-[#FBF5EB] border border-[#EEDFC6] text-[9.5px] font-black text-[#B88E4F]">
-                      +{REALISTIC_3D_REACTIONS.length}
-                    </span>
-                  </button>
-
-                  {/* Nút Bắn Tim Lớn (Big Tap Heart - TikTok Fountain) */}
-                  <button
-                    type="button"
-                    onClick={(e) => triggerReaction('❤️', e)}
-                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-rose-500 via-rose-600 to-red-600 hover:from-rose-600 hover:to-red-700 text-white flex items-center justify-center shadow-lg hover:shadow-rose-500/35 transition-all duration-150 cursor-pointer select-none active:scale-75 hover:scale-110 active:rotate-12 group border border-rose-400/40"
-                    title="Bắn tim cho phiên live (Bấm liên tục để thả tim bay)"
-                  >
-                    <img
-                      src={REALISTIC_3D_REACTIONS[0].iconUrl}
-                      alt="Heart"
-                      className="w-7 h-7 sm:w-8 sm:h-8 object-contain drop-shadow-md group-hover:scale-120 group-active:scale-130 transition-transform duration-150 animate-pulse pointer-events-none"
-                    />
-                  </button>
-                </div>
-              )}
-            </div>
+            <LiveReactionDock reactions={REALISTIC_3D_REACTIONS} expanded={isReactionDockExpanded} onExpandedChange={setIsReactionDockExpanded} onReact={triggerReaction} disabled={isStreamEnded} />
           </div>
         </div>
 
@@ -2267,13 +1899,14 @@ export default function LiveStreamRoomPage() {
             <input
               type="text"
               value={inputComment}
+              disabled={isStreamEnded}
               onChange={(e) => setInputComment(e.target.value)}
-              placeholder="Gửi bình luận hoặc hỏi KOC..."
-              className="flex-1 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3 py-2 text-xs text-[#1A1612] placeholder:text-[#7D715E] focus:outline-none focus:border-[#C59B58] focus:bg-white transition"
+              placeholder={isStreamEnded ? "Phiên live đã kết thúc, khung chat tạm đóng." : "Gửi bình luận hoặc hỏi KOC..."}
+              className="flex-1 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3 py-2 text-xs text-[#1A1612] placeholder:text-[#7D715E] focus:outline-none focus:border-[#C59B58] focus:bg-white transition disabled:opacity-60 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
-              disabled={!inputComment.trim()}
+              disabled={isStreamEnded || !inputComment.trim()}
               className="p-2 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-white transition disabled:opacity-40 cursor-pointer shadow-xs"
             >
               <Send className="w-4 h-4" />
@@ -2658,9 +2291,16 @@ export default function LiveStreamRoomPage() {
       )}
 
       {/* HOST STUDIO MODAL: BẢNG ĐIỀU KHIỂN DÀNH CHO KOL / CHỦ SHOP (SẠCH SẼ, GỌN GÀNG, SỐ LIỆU THẬT) */}
+      {isVoucherDropOpen && sessionData?.id && (
+        <LiveVoucherDropDialog sessionId={sessionData.id} onClose={() => setIsVoucherDropOpen(false)} onReleased={(drop) => {
+          setSessionData((prev: any) => ({ ...prev, voucherDrop: drop }));
+          setIsVoucherDropOpen(false);
+          toast.success(`Đã giới thiệu ${drop.quantity} lượt voucher ${drop.code} trong phòng Live.`);
+        }} />
+      )}
       {isHostStudioOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-white rounded-3xl border border-[#EAE4D7] shadow-[0_25px_70px_rgba(26,22,18,0.22)] overflow-hidden text-[#1A1612] flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white rounded-3xl border border-[#EAE4D7] shadow-[0_25px_70px_rgba(26,22,18,0.22)] text-[#1A1612] flex flex-col animate-in zoom-in-95 duration-200">
             {/* Header: Tiêu đề + Thông tin Shop & Host + Nút Đóng */}
             <div className="px-6 py-4 bg-[#FAF8F5] border-b border-[#EAE4D7] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -2778,75 +2418,31 @@ export default function LiveStreamRoomPage() {
                 >
                   🎥 Thiết Bị & Sân Khấu Live
                 </button>
+                {isSessionHost && (
+                  <button
+                    type="button"
+                    onClick={() => setStudioTab('GOVERNANCE')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      studioTab === 'GOVERNANCE'
+                        ? 'bg-white text-[#1A1612] shadow-2xs'
+                        : 'text-[#7D715E] hover:text-[#1A1612]'
+                    }`}
+                  >
+                    🛡️ Biên Bản Hợp Tác
+                  </button>
+                )}
               </div>
 
               {studioTab === 'PRODUCTS' && (
-                <span className="text-xs text-[#7D715E] font-medium hidden sm:inline">
-                  Đang ghim trên màn hình: <strong className="text-[#B88E4F]">#{pinnedIndex === 0 ? '6' : pinnedIndex}</strong>
-                </span>
+                <span className="text-xs text-[#7D715E] font-medium hidden sm:inline">{pinnedProduct ? `Đang ghim #${pinnedIndex + 1}` : 'Chưa ghim sản phẩm'}</span>
               )}
             </div>
 
             {/* NỘI DUNG TAB 1: GHIM SẢN PHẨM (DANH SÁCH HÀNG PHẲNG, GỌN GÀNG) */}
             {studioTab === 'PRODUCTS' && (
-              <div className="px-6 py-2">
-                <div className="max-h-[250px] overflow-y-auto divide-y divide-[#EAE4D7] rounded-2xl border border-[#EAE4D7] bg-white no-scrollbar">
-                  {products.map((p, idx) => {
-                    const isCurrentPinned = idx === pinnedIndex;
-                    const displayRank = idx === 0 ? 6 : idx;
-                    return (
-                      <div
-                        key={p.id}
-                        className={`flex items-center justify-between p-3 transition ${
-                          isCurrentPinned ? 'bg-[#FBF5EB]/80' : 'hover:bg-[#FAF8F5]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0 pr-2">
-                          <span className="text-xs font-mono font-bold text-[#7D715E] w-6 shrink-0 text-center">
-                            #{displayRank}
-                          </span>
-                          <img
-                            src={p.imageUrl || ''}
-                            alt={p.title}
-                            className="w-11 h-11 rounded-xl object-cover border border-[#EAE4D7] bg-[#FAF8F5] shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-[#1A1612] truncate max-w-[260px] sm:max-w-[340px]">
-                              {p.title}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5 text-[11px]">
-                              <span className="font-black text-rose-600">
-                                {Number(p.livePrice || p.price).toLocaleString('vi-VN')} ₫
-                              </span>
-                              <span className="text-[#7D715E] line-through">
-                                {Number(p.price).toLocaleString('vi-VN')} ₫
-                              </span>
-                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded">
-                                Đã bán {p.soldPercent || 85}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPinnedIndex(idx);
-                            toast.success(`Đã ghim "${p.title}" lên luồng live!`);
-                          }}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
-                            isCurrentPinned
-                              ? 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] text-white shadow-xs'
-                              : 'bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612]'
-                          }`}
-                        >
-                          {isCurrentPinned ? '🔥 Đang ghim' : 'Ghim deal'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <HostStudioProducts products={products} pinnedId={pinnedProduct?.id ?? null} pendingId={pinPendingId}
+                disabled={isStreamEnded || sessionData?.status !== 'LIVE' || !(isSessionHost || currentUser?.id === sessionData?.createdBy)}
+                onPinChange={handlePinChange} />
             )}
 
             {/* NỘI DUNG TAB 2: CÀI ĐẶT THIẾT BỊ & PHÔNG NỀN (TỐI GIẢN, PHẲNG) */}
@@ -2949,21 +2545,33 @@ export default function LiveStreamRoomPage() {
               </div>
             )}
 
+            {/* NỘI DUNG TAB 3: BIÊN BẢN HỢP TÁC & PHÂN QUYỀN GOVERNANCE */}
+            {studioTab === 'GOVERNANCE' && isSessionHost && sessionData?.id && (
+              <div className="px-6 py-4 max-h-[350px] overflow-y-auto">
+                <LiveGovernancePanel session={sessionData} audience="kol" liveRoom />
+              </div>
+            )}
+
             {/* THANH TÁC VỤ DƯỚI CÙNG (FOOTER ACTIONS) */}
-            <div className="px-6 py-4 bg-[#FAF8F5] border-t border-[#EAE4D7] flex items-center justify-between gap-3 mt-auto">
+            <div className="flex shrink-0 justify-start px-6 pt-3">
               <button
                 type="button"
-                onClick={() => {
-                  toast.success('Đã tung thêm 50 voucher giảm 25K độc quyền phiên live!');
-                }}
-                className="px-4 py-2.5 rounded-xl border border-[#EAE4D7] bg-white hover:bg-[#F3EFE6] text-xs font-bold text-[#1A1612] transition cursor-pointer flex items-center gap-1.5"
+                onClick={() => setIsVoucherDropOpen(true)}
+                disabled={!sessionData?.id || sessionData?.status !== 'LIVE' || !(isSessionHost || currentUser?.id === sessionData?.createdBy)}
+                className="px-4 py-2.5 rounded-xl border border-[#EAE4D7] bg-white hover:bg-[#F3EFE6] text-xs font-bold text-[#1A1612] transition cursor-pointer flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <span>🎁 Tung 50 Voucher Live</span>
+                <Ticket size={16} className="text-[#B88E4F]" />
+                <span>{'Tung Voucher Live'}</span>
               </button>
+            </div>
+            <div className={cn('mt-3 grid shrink-0 items-end gap-3 border-t border-[#EAE4D7] bg-[#FAF8F5] px-6 py-4', isSessionHost && sessionData?.id ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+              {isSessionHost && sessionData?.id && <LiveGovernancePanel session={sessionData} audience="kol" liveRoom compact onChanged={() => {
+                void api.get(`/live-sessions/public/detail/${sessionData.id}`, { headers: { 'x-skip-cache': '1' } }).then((response: any) => setSessionData(response?.data || response)).catch(() => {});
+              }} />}
               <button
                 type="button"
                 onClick={() => setIsHostStudioOpen(false)}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-xs font-black text-white transition cursor-pointer shadow-xs active:scale-95"
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#C59B58] bg-[#C59B58] px-4 text-xs font-semibold text-white transition hover:bg-[#B88E4F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] cursor-pointer"
               >
                 Hoàn tất & Đóng
               </button>

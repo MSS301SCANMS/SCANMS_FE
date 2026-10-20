@@ -1,0 +1,35 @@
+.sample-violation-button { display:inline-flex; align-items:center; gap:6px; padding:8px 11px; border:1px solid #EEDFC6; border-radius:9px; background:#FBF5EB; color:#B88E4F; font-size:12px; cursor:pointer; }
+.sample-violation-button:hover:not(:disabled) { border-color:#C59B58; }
+.sample-violation-unavailable { display:flex; flex-direction:column; align-items:flex-end; gap:5px; max-width:100%; }
+.sample-violation-unavailable small { color:#7D715E; font-size:10px; line-height:1.5; text-align:right; }
+.sample-violation-button:disabled { background:#FAF8F5; border-color:#EAE4D7; color:#7D715E; cursor:not-allowed; }
+.sample-deadline-actions { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start; gap:6px 10px; width:min(100%, 370px); }
+.sample-deadline-actions:empty { display:none; }
+.sample-deadline-actions .sample-violation-button { width:100%; min-height:38px; justify-content:center; padding:9px 12px; font-weight:500; line-height:18px; white-space:nowrap; }
+.sample-deadline-actions .sample-violation-button svg { flex-shrink:0; }
+.sample-deadline-actions .sample-violation-unavailable { display:contents; }
+.sample-deadline-actions .sample-violation-unavailable small { grid-column:1 / -1; text-align:right; font-size:10px; line-height:16px; }
+.sample-deadline-actions .sample-violation-state { grid-column:1 / -1; }
+@media (max-width:400px) { .sample-deadline-actions { gap:6px; } .sample-deadline-actions .sample-violation-button { padding:8px 6px; font-size:11px; } }
+.sample-violation-state { color:#7D715E; font-size:11px; line-height:1.6; }
+.sample-violation-overlay { position:fixed; inset:0; z-index:150; display:grid; place-items:center; padding:16px; background:rgb(35 29 21 / .35); backdrop-filter:blur(3px); }
+.sample-violation-dialog { width:100%; max-width:460px; max-height:85dvh; overflow:auto; padding:20px; border:1px solid #EAE4D7; border-radius:18px; background:#FFFFFF; color:#1A1612; box-shadow:0 20px 60px rgb(35 29 21 / .15); text-align:left; }
+.sample-violation-dialog header { display:flex; align-items:center; gap:10px; padding-bottom:15px; border-bottom:1px solid #EAE4D7; }
+.sample-violation-modal-icon { display:grid; place-items:center; width:38px; height:38px; flex-shrink:0; border:1px solid #EEDFC6; border-radius:11px; color:#B88E4F; background:#FBF5EB; }
+.sample-violation-dialog header h2 { margin:0; font-size:16px; font-weight:600; }
+.sample-violation-dialog header p { margin:4px 0 0; font-size:11px; color:#7D715E; }
+.sample-violation-dialog header button { margin-left:auto; border:0; background:#FAF8F5; border-radius:8px; padding:6px; color:#7D715E; cursor:pointer; }
+.sample-violation-explanation { margin:16px 0; padding:12px; border-radius:10px; background:#FBF5EB; color:#7D715E; font-size:12px; line-height:1.7; }
+.sample-violation-dialog label { display:block; margin-bottom:7px; font-size:13px; font-weight:500; }
+.sample-violation-dialog label span { color:#DC2626; }
+.sample-violation-dialog textarea { width:100%; border:1px solid #EAE4D7; border-radius:10px; padding:12px; background:#FFFFFF; color:#1A1612; font-size:13px; line-height:1.6; resize:vertical; outline:none; }
+.sample-violation-dialog textarea:focus { border-color:#C59B58; }
+.sample-deadline-input { width:100%; padding:11px; margin-bottom:16px; border:1px solid #EAE4D7; border-radius:10px; color:#1A1612; background:#FFFFFF; color-scheme:light; }
+.sample-deadline-input:focus { outline:2px solid #EEDFC6; border-color:#C59B58; }
+.sample-deadline-error { color:#DC2626; font-size:12px; margin-bottom:12px; }
+.sample-violation-dialog small { display:block; margin-top:4px; text-align:right; font-size:10px; color:#7D715E; }
+.sample-violation-dialog footer { display:flex; justify-content:flex-end; gap:8px; border-top:1px solid #EAE4D7; padding-top:15px; margin-top:16px; }
+.sample-violation-dialog footer button { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:8px 13px; border:1px solid #EAE4D7; border-radius:9px; background:#FFFFFF; color:#7D715E; font-size:12px; cursor:pointer; }
+.sample-violation-dialog footer button[type="submit"] { background:#C59B58; color:#231D15; border-color:#C59B58; }
+.sample-violation-dialog button:disabled { opacity:.5; cursor:default; }
+.sample-violation-button:focus-visible, .sample-violation-dialog button:focus-visible { outline:2px solid #C59B58; outline-offset:2px; }

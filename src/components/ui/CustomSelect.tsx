@@ -123,7 +123,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
           {/* Quick Search Header if options > 7 */}
           {isSearchable && (
             <div className="relative px-2 py-1.5 border-b border-[#EAE4D7] pb-2">
-              <div className="flex items-center gap-1.5 bg-[#FAF8F5] border border-[#EAE4D7] focus-within:border-[#C59B58] focus-within:bg-white rounded-lg px-2 py-1 transition">
+              <div className="custom-select-search flex items-center gap-1.5 bg-[#FAF8F5] border border-[#EAE4D7] focus-within:border-[#C59B58] focus-within:bg-white rounded-lg px-2 py-1 transition">
                 <Search className="w-3 h-3 text-[#B88E4F] shrink-0" />
                 <input
                   ref={searchInputRef}

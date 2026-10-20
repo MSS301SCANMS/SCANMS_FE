@@ -1,21 +1,21 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import {
   Trophy,
   Crown,
-  Medal,
   Shield,
   TrendingUp,
   TrendingDown,
   Minus,
-  Sparkles,
   Award,
-  Zap,
-  DollarSign,
-  ShoppingBag,
   RefreshCw,
   ChevronRight,
   Filter,
   X,
+  Check,
+  ArrowUpRight,
+  ChevronDown,
 } from 'lucide-react';
 import { leaderboardService } from '../../services/leaderboard.service';
 import type {
@@ -29,6 +29,9 @@ import type {
 import { toast } from '../../utils/toast';
 import api from '../../services/api';
 import { authService } from '../../services/auth.service';
+import { WorkspaceHero, WorkspaceMetrics, workspaceButton, workspaceInput } from '@/components/ui/FeatureWorkspace';
+import { downloadReport } from '@/utils/report-export';
+import { normalizeSearch } from '@/utils/marketplace.utils';
 
 export default function LeaderboardPage({ alignToContainer = false }: { alignToContainer?: boolean } = {}) {
   const [data, setData] = useState<LeaderboardFullResponse | null>(null);
@@ -67,6 +70,27 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
   const [creatorProfile, setCreatorProfile] = useState<CreatorHallOfFameProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
+  const [profileError, setProfileError] = useState('');
+  const [search, setSearch] = useState('');
+  const profileRequest = useRef(0);
+  const profileDialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectedCreatorId) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; profileDialog.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { profileRequest.current += 1; setSelectedCreatorId(null); setCreatorProfile(null); }
+      if (event.key !== 'Tab') return;
+      const controls = profileDialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]');
+      if (!controls?.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === profileDialog.current)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', keydown);
+    return () => { document.body.style.overflow = overflow; window.removeEventListener('keydown', keydown); previousFocus?.focus(); };
+  }, [selectedCreatorId]);
 
   const fetchLeaderboard = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -83,7 +107,7 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
         timeRange,
         scope,
         ...(scope === 'STORE' && isAdmin ? { storeId: selectedStoreId } : {}),
-        limit: 20,
+        limit: 10,
       });
       if (requestId !== requestSequence.current) return;
       setData(res);
@@ -102,19 +126,23 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
   }, [fetchLeaderboard]);
 
   const handleOpenCreatorModal = async (creatorId: string) => {
+    const request = ++profileRequest.current;
     try {
+      setCreatorProfile(null); setProfileError('');
       setSelectedCreatorId(creatorId);
       setLoadingProfile(true);
       const profile = await leaderboardService.getCreatorProfile(creatorId);
+      if (request !== profileRequest.current) return;
       setCreatorProfile(profile);
     } catch (err) {
-      console.error('Lỗi khi tải hồ sơ creator:', err);
+      if (request === profileRequest.current) setProfileError(err instanceof Error ? err.message : 'Không tải được hồ sơ.');
     } finally {
-      setLoadingProfile(false);
+      if (request === profileRequest.current) setLoadingProfile(false);
     }
   };
 
   const handleCloseModal = () => {
+    profileRequest.current += 1;
     setSelectedCreatorId(null);
     setCreatorProfile(null);
   };
@@ -133,10 +161,10 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
     REVENUE: 'Doanh thu',
     ORDERS: 'Đơn hàng',
     CONVERSION_RATE: 'Tỷ lệ chốt',
-    COMMISSION: 'Hoa hồng',
+    COMMISSION: 'Hoa hồng đã duyệt',
   };
   const formatMetricValue = (item?: LeaderboardItem | null) => {
-    if (!item) return '—';
+    if (!item) return 'Chưa có dữ liệu';
     switch (metric) {
       case 'ORDERS': return `${formatNumber(item.totalOrders)} đơn`;
       case 'CONVERSION_RATE': return `${formatNumber(item.conversionRate)}%`;
@@ -148,448 +176,234 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
 
   const podium = data?.podium;
   const rankings = data?.rankings || [];
+  const displayedRankings = rankings.filter(item => normalizeSearch(`${item.fullName} ${item.primaryChannelHandle || ''} ${item.tierName}`).includes(normalizeSearch(search)));
+  const allTop = [data?.podium.rank1, data?.podium.rank2, data?.podium.rank3, ...rankings].filter((item): item is LeaderboardItem => !!item);
+  const exportRankings = () => downloadReport(`SCANMS_Top10_${timeRange}_${metric}.csv`, [
+    ['Hạng', 'Creator', 'Cấp bậc', 'Click', 'Đơn hàng', 'CR (%)', 'Doanh số (VNĐ)', 'Hoa hồng (VNĐ)'],
+    ...allTop.map(item => [item.rank, item.fullName, item.tierName, item.totalClicks, item.totalOrders, item.conversionRate, item.grossRevenue, item.totalCommission]),
+  ]);
   const myRank = data?.myRankStatus;
 
-  return (
-    <div className={`w-full min-w-0 space-y-4 bg-[#FAF8F5] text-[#1A1612] antialiased ${alignToContainer ? 'px-0 pt-3 pb-24' : 'p-4 pb-24 sm:p-5 sm:pb-24 lg:p-6 lg:pb-24'}`}>
-      {/* Gọn phần bộ lọc, bỏ banner giới thiệu để tập trung vào bảng xếp hạng */}
-      <section className="overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-sm">
-        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-1 sm:grid-cols-4 sm:flex-1 sm:max-w-2xl">
-            <button onClick={() => setTimeRange('this_month')} className={`flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition-colors ${timeRange === 'this_month' ? 'bg-[#C59B58] font-semibold text-[#1A1612] shadow-sm' : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'}`}>
-              Tháng này
-            </button>
-            <button onClick={() => setTimeRange('last_month')} className={`flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition-colors ${timeRange === 'last_month' ? 'bg-[#C59B58] font-semibold text-[#1A1612] shadow-sm' : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'}`}>
-              Tháng trước
-            </button>
-            <button onClick={() => setTimeRange('this_quarter')} className={`flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition-colors ${timeRange === 'this_quarter' ? 'bg-[#C59B58] font-semibold text-[#1A1612] shadow-sm' : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'}`}>
-              Quý này
-            </button>
-            <button onClick={() => setTimeRange('all_time')} className={`flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-medium transition-colors ${timeRange === 'all_time' ? 'bg-[#C59B58] font-semibold text-[#1A1612] shadow-sm' : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'}`}>
-              Toàn thời gian
-            </button>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            {loading && <span role="status" aria-live="polite" className="text-[11px] text-[#7D715E]">Đang cập nhật…</span>}
-            <button onClick={fetchLeaderboard} disabled={loading} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#EAE4D7] bg-white px-3 text-xs font-semibold text-[#7D715E] transition-colors hover:bg-[#FBF5EB] hover:text-[#8F682E] disabled:opacity-50 sm:w-auto" title="Làm mới bảng xếp hạng">
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-[#8F682E]' : ''}`} />
-              <span className="sm:hidden">Làm mới</span>
-            </button>
-          </div>
-        </div>
+  const timeOptions: { value: LeaderboardTimeRange; label: string }[] = [
+    { value: 'this_month', label: 'Tháng này' },
+    { value: 'last_month', label: 'Tháng trước' },
+    { value: 'this_quarter', label: 'Quý này' },
+    { value: 'all_time', label: 'Toàn thời gian' },
+  ];
+  const podiumEntries = [
+    { slot: 2, creator: podium?.rank2 },
+    { slot: 1, creator: podium?.rank1 },
+    { slot: 3, creator: podium?.rank3 },
+  ].filter((entry): entry is { slot: number; creator: LeaderboardItem } => Boolean(entry.creator));
+  const scopeLabel = scope === 'GLOBAL' ? 'Toàn sàn' : isAdmin
+    ? (stores.find(store => store.id === selectedStoreId)?.name || 'Gian hàng')
+    : 'Gian hàng của bạn';
 
-        <div className="flex flex-col gap-3 border-t border-[#EAE4D7] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="mr-1 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#7D715E]">
-              <Filter className="h-3.5 w-3.5 text-[#8F682E]" />
-              <span>Xếp hạng theo</span>
-            </span>
-            <button type="button" aria-pressed={metric === 'REVENUE'} onClick={() => setMetric('REVENUE')} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${metric === 'REVENUE' ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8F682E]' : 'border-transparent bg-white text-[#7D715E] hover:border-[#EAE4D7] hover:bg-[#FAF8F5]'}`}>
-              <DollarSign className="h-3.5 w-3.5" /><span>Doanh thu</span>
-            </button>
-            <button type="button" aria-pressed={metric === 'ORDERS'} onClick={() => setMetric('ORDERS')} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${metric === 'ORDERS' ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8F682E]' : 'border-transparent bg-white text-[#7D715E] hover:border-[#EAE4D7] hover:bg-[#FAF8F5]'}`}>
-              <ShoppingBag className="h-3.5 w-3.5" /><span>Đơn hàng</span>
-            </button>
-            <button type="button" aria-pressed={metric === 'CONVERSION_RATE'} onClick={() => setMetric('CONVERSION_RATE')} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${metric === 'CONVERSION_RATE' ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8F682E]' : 'border-transparent bg-white text-[#7D715E] hover:border-[#EAE4D7] hover:bg-[#FAF8F5]'}`}>
-              <Zap className="h-3.5 w-3.5" /><span>Tỷ lệ chốt</span>
-            </button>
-            <button type="button" aria-pressed={metric === 'COMMISSION'} onClick={() => setMetric('COMMISSION')} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${metric === 'COMMISSION' ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8F682E]' : 'border-transparent bg-white text-[#7D715E] hover:border-[#EAE4D7] hover:bg-[#FAF8F5]'}`}>
-              <Award className="h-3.5 w-3.5" /><span>Hoa hồng</span>
-            </button>
+  return (
+    <div className={`flex flex-col gap-3.5 w-full min-w-0 text-[#1A1612] ${alignToContainer ? 'p-0 pb-1 gap-3' : 'p-4 sm:p-5'}`}>
+      <WorkspaceHero eyebrow="SCANMS / Creator hall of fame" title="Top 10 nhà sáng tạo" description="Vinh danh hiệu suất thực tế của các KOL trên sàn đa gian hàng. Cúp Vàng, Bạc, Đồng dành cho ba vị trí dẫn đầu; đổi tiêu chí để khám phá từng thế mạnh." actions={<button className={workspaceButton} disabled={loading || !!loadError || !allTop.length} onClick={exportRankings}>Xuất Top 10 CSV</button>} />
+      {!loading && !loadError && data && <WorkspaceMetrics items={[
+        { label: 'KOL đủ điều kiện', value: formatNumber(data.totalParticipants), detail: data.periodLabel },
+        { label: 'Creator dẫn đầu', value: data.podium.rank1?.fullName || 'Chưa có', detail: formatMetricValue(data.podium.rank1) },
+        { label: 'Doanh số Top 10', value: formatVND(allTop.reduce((sum, item) => sum + item.grossRevenue, 0)), detail: scopeLabel },
+        { label: 'Đơn hàng Top 10', value: formatNumber(allTop.reduce((sum, item) => sum + item.totalOrders, 0)), detail: 'Theo kỳ và phạm vi đang chọn' },
+      ]} />}
+      <section className="p-3.5 sm:p-4 min-w-0 border border-[#EAE4D7] rounded-[15px] bg-white" aria-labelledby="lb-title">
+        <header className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-8 sm:w-9 h-8 sm:h-9 grid place-items-center shrink-0 rounded-[10px] bg-[#FBF5EB] text-[#B88E4F]"><Trophy aria-hidden="true" className="w-[18px] h-[18px]" /></span>
+            <div><h1 id="lb-title" className="m-0 text-base sm:text-lg font-semibold tracking-tight text-[#1A1612]">Bảng vinh danh Top Creator</h1><p className="m-0 mt-0.5 text-xs text-[#7D715E]">{data?.periodLabel || timeOptions.find(option => option.value === timeRange)?.label} · {scopeLabel}</p></div>
           </div>
-          {canChangeScope && (
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-              <button type="button" aria-pressed={scope === 'STORE'} onClick={() => setScope(scope === 'GLOBAL' ? 'STORE' : 'GLOBAL')} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] px-3 text-xs font-medium text-[#7D715E] transition-colors hover:bg-[#FBF5EB] hover:text-[#8F682E]">
-                <Shield className="h-3.5 w-3.5 text-[#8F682E]" />
-                <span>{scope === 'GLOBAL' ? 'Toàn sàn SCANMS' : isAdmin ? 'Theo gian hàng' : 'Gian hàng của tôi'}</span>
-              </button>
-              {scope === 'STORE' && isAdmin && (
-                <select aria-label="Chọn gian hàng để xếp hạng" value={selectedStoreId} onChange={(event) => setSelectedStoreId(event.target.value)} className="h-9 max-w-[220px] rounded-lg border border-[#EAE4D7] bg-white px-3 text-xs text-[#1A1612] outline-none focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/15" disabled={!stores.length}>
-                  {stores.length ? stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>) : <option value="">{storesLoading ? 'Đang tải gian hàng…' : 'Không có gian hàng'}</option>}
-                </select>
-              )}
+          <button type="button" onClick={fetchLeaderboard} disabled={loading} className="inline-flex items-center justify-center gap-1.5 min-h-[34px] sm:min-h-[36px] px-2.5 sm:px-3 py-1.5 border border-[#EAE4D7] rounded-lg bg-white text-[#7D715E] text-xs font-medium hover:bg-[#FBF5EB] disabled:opacity-60 disabled:cursor-wait transition-colors cursor-pointer" title="Làm mới bảng xếp hạng">
+            <RefreshCw aria-hidden="true" className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Đang cập nhật' : 'Làm mới'}</span>
+          </button>
+        </header>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-3 sm:gap-4 mt-3">
+          <div className="min-w-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5]" role="group" aria-label="Khoảng thời gian xếp hạng">
+              {timeOptions.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={timeRange === option.value}
+                  onClick={() => setTimeRange(option.value)}
+                  className={`flex items-center justify-center gap-1.5 min-h-[32px] sm:min-h-[34px] px-2 py-1.5 rounded-md text-xs transition-all cursor-pointer ${
+                    timeRange === option.value
+                      ? 'bg-white border border-[#EEDFC6] text-[#1A1612] font-semibold shadow-xs'
+                      : 'border border-transparent text-[#7D715E] hover:bg-white hover:text-[#1A1612]'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+          <div className="flex items-center gap-2.5">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-[#7D715E] whitespace-nowrap" htmlFor="lb-metric-select"><Filter aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /> Xếp hạng theo</label>
+            <div className="relative shrink-0">
+              <select id="lb-metric-select" value={metric} onChange={event => setMetric(event.target.value as LeaderboardMetric)} className="w-full sm:w-[150px] min-h-[38px] appearance-none pl-3 pr-8 py-2 border border-[#EAE4D7] rounded-lg bg-white text-[#1A1612] text-xs sm:text-[13px] font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#B88E4F]">
+                {Object.entries(metricLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <ChevronDown aria-hidden="true" className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#B88E4F] pointer-events-none" />
+            </div>
+          </div>
         </div>
+        {canChangeScope && (
+          <div className="flex items-center flex-wrap gap-2 mt-3 pt-3 border-t border-[#EAE4D7]">
+            <button type="button" aria-pressed={scope === 'STORE'} onClick={() => setScope(scope === 'GLOBAL' ? 'STORE' : 'GLOBAL')} className="inline-flex items-center gap-1.5 min-h-[32px] px-2.5 py-1.5 border border-[#EAE4D7] rounded-lg bg-white text-[#7D715E] text-xs font-medium hover:bg-[#FBF5EB] cursor-pointer">
+              <Shield aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /><span>{scope === 'GLOBAL' ? 'Toàn sàn SCANMS' : isAdmin ? 'Theo gian hàng' : 'Gian hàng của tôi'}</span>
+            </button>
+            {scope === 'STORE' && isAdmin && (
+              <select aria-label="Chọn gian hàng để xếp hạng" value={selectedStoreId} onChange={event => setSelectedStoreId(event.target.value)} disabled={!stores.length} className="min-h-[34px] max-w-[240px] px-2.5 py-1.5 border border-[#EAE4D7] rounded-lg bg-white text-[#1A1612] text-xs">
+                {stores.length ? stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>) : <option value="">{storesLoading ? 'Đang tải gian hàng…' : 'Không có gian hàng'}</option>}
+              </select>
+            )}
+          </div>
+        )}
+        {loading && <span className="sr-only" role="status" aria-live="polite">Đang cập nhật bảng xếp hạng…</span>}
+        <details className="mt-3 text-xs text-[#7D715E] leading-relaxed group">
+          <summary className="flex items-center gap-1 cursor-pointer font-medium hover:text-[#B88E4F] list-none select-none text-xs">Cách xếp hạng<ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F] group-open:rotate-180 transition-transform" /></summary>
+          <p className="mt-1">Chỉ xếp hạng khi tiêu chí đã chọn lớn hơn 0. Doanh số và đơn hàng ghi nhận theo ngày giao thành công, hoặc ngày hoàn tất nếu thiếu ngày giao (giờ Việt Nam). Cùng doanh số thì xét số đơn; các tiêu chí khác dùng doanh số làm tiêu chí phụ. Cùng cả hai tiêu chí sẽ đồng hạng.</p>
+        </details>
       </section>
 
-      {loadError && <div role="alert" className="rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 text-xs text-[#DC2626]">{loadError}</div>}
+      {loadError && <div role="alert" className="p-3 sm:px-4 border border-[#EEDFC6] rounded-xl bg-white text-xs sm:text-sm text-[#DC2626]">{loadError}</div>}
 
-      {/* ─── 2. BỤC VINH DANH PODIUM TOP 1 - 2 - 3 ──────────────────────── */}
-      <div className="grid grid-cols-1 items-stretch gap-4 pt-1 md:auto-rows-fr md:grid-cols-3">
-        {/* RANK 2: Á QUÂN 1 (SILVER MEDAL) */}
-        <div
-          onClick={() => podium?.rank2 && handleOpenCreatorModal(podium.rank2.collaboratorId)}
-          className={`cursor-pointer group relative bg-white border border-[#EAE4D7] hover:border-[#C59B58] rounded-2xl p-4 text-center space-y-3 shadow-sm transition-colors order-2 md:order-1 ${
-            podium?.rank2?.isCurrentUser ? 'ring-2 ring-[#C59B58] bg-white' : ''
-          }`}
-        >
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center justify-center w-8 h-8 rounded-xl bg-[#F3EFE6] text-[#7D715E] font-bold text-sm border border-[#EAE4D7]">
-            2
-          </div>
-
-          <div className="pt-2">
-            <div className="w-16 h-16 mx-auto rounded-full bg-[#F3EFE6] p-1">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden text-2xl font-bold text-[#1A1612]">
-                {podium?.rank2?.avatarUrl ? (
-                  <img src={podium.rank2.avatarUrl} alt={podium.rank2.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  podium?.rank2?.fullName?.charAt(0) || '2'
-                )}
+      {loading ? <div className="p-8 text-center text-xs sm:text-sm text-[#7D715E] border border-[#EAE4D7] rounded-[15px] bg-white" role="status">Đang tải bảng vinh danh…</div>
+        : loadError ? null : !podiumEntries.length ? <div className="p-8 text-center text-xs sm:text-sm text-[#7D715E] border border-[#EAE4D7] rounded-[15px] bg-white space-y-2"><Trophy aria-hidden="true" className="w-7 h-7 mx-auto text-[#B88E4F]" /><h2 className="text-base font-semibold text-[#1A1612]">Chưa có Creator đủ điều kiện vinh danh</h2><p className="max-w-md mx-auto">Kỳ này chưa có kết quả theo tiêu chí {metricLabels[metric].toLowerCase()}. Chọn khoảng thời gian khác để xem thành tích.</p>{timeRange === 'this_month' && <button type="button" className="inline-flex items-center gap-1 px-3 py-1.5 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB] text-xs font-semibold text-[#1A1612] hover:bg-[#F3EFE6]" onClick={() => setTimeRange('last_month')}>Xem tháng trước<ArrowUpRight aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /></button>}</div>
+        : <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch" aria-label="Các nhà sáng tạo dẫn đầu">
+        {podiumEntries.map(({ slot, creator }) => {
+          const rank = creator.rank;
+          return <article key={creator.collaboratorId} data-podium-rank={slot} data-current={creator?.isCurrentUser || undefined}
+            className={`flex flex-col min-h-[220px] p-4 sm:p-4.5 border rounded-xl bg-white shadow-2xs ${rank === 1 ? 'border-[#EEDFC6] bg-[#FDFBF7] md:order-2' : slot === 2 ? 'border-[#EAE4D7] md:order-1' : 'border-[#EAE4D7] md:order-3'}`}
+          >
+            <button className="flex items-center gap-3 w-full text-left bg-transparent border-0 p-0 cursor-pointer min-h-[64px] disabled:cursor-default" type="button" disabled={!creator}
+              aria-label={creator ? `Xem hồ sơ ${creator.fullName}` : 'Hồ sơ chưa có dữ liệu'}
+              onClick={() => creator && handleOpenCreatorModal(creator.collaboratorId)}
+            >
+              <span className={`relative grid place-items-center w-11 sm:w-12 h-11 sm:h-12 overflow-hidden shrink-0 border rounded-full bg-[#FAF8F5] text-[#B88E4F] text-lg font-semibold ${rank === 1 ? 'border-[#EEDFC6]' : 'border-[#EAE4D7]'}`} aria-hidden="true">
+                {creator?.fullName?.charAt(0) || rank}
+                {creator?.avatarUrl && <img src={creator.avatarUrl} alt="" className="absolute inset-0 w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+              </span>
+              <span className="flex flex-1 flex-col gap-1 min-w-0">
+                <span className="text-sm sm:text-[15px] font-semibold text-[#1A1612] hover:text-[#B88E4F] transition-colors truncate">{creator?.fullName || (loading && !data ? 'Đang tải KOL…' : rank === 1 ? 'Chưa có Quán Quân' : 'Chưa có đối tác')}</span>
+                <span className="text-xs text-[#7D715E] leading-tight">{creator.tierName}</span>
+                <span className="flex items-center flex-wrap gap-1.5 mt-0.5">
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 border rounded text-[11px] font-medium leading-none ${rank === 1 ? 'border-[#EEDFC6] text-[#B88E4F] bg-white' : 'border-[#EAE4D7] text-[#7D715E] bg-white'}`}><Crown aria-hidden="true" className={`w-3.5 h-3.5 text-[#B88E4F] ${rank === 1 ? '' : 'hidden'}`} /> Hạng {rank}</span>
+                  {creator?.isCurrentUser && <span className="inline-flex items-center px-1.5 py-0.5 border border-[#EEDFC6] rounded bg-[#FBF5EB] text-[#B88E4F] text-[10px] font-semibold">Bạn</span>}
+                </span>
+              </span>
+            </button>
+            <div className="flex flex-col gap-1.5 mt-auto pt-3.5 border-t border-[#EAE4D7]">
+              <span className="text-xs text-[#7D715E]">{metric === 'REVENUE' ? 'Doanh số GMV' : metricLabels[metric]}</span>
+              <div className="flex items-baseline justify-between flex-wrap gap-1.5">
+                <strong className="text-xl sm:text-2xl font-bold tabular-nums text-[#1A1612]">{formatMetricValue(creator)}</strong>
+                {rank === 1 && <span className="text-[11px] text-[#7D715E]">{formatNumber(creator?.totalOrders)} đơn đã giao</span>}
               </div>
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="font-bold text-base text-[#1A1612] group-hover:text-[#1A1612] flex items-center justify-center gap-1.5">
-              <span>{podium?.rank2?.fullName || (loading && !data ? 'Đang tải KOL…' : 'Chưa có đối tác')}</span>
-              {podium?.rank2?.isCurrentUser && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FBF5EB] text-[#8F682E] border border-[#EEDFC6]">Bạn</span>
-              )}
-            </h3>
-            <p className="text-xs text-[#7D715E]">{podium?.rank2?.primaryChannelHandle || (loading && !data ? 'Đang tải hồ sơ…' : '@creator • TikTok')}</p>
-          </div>
-
-          <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7] space-y-1">
-            <span className="text-[11px] text-[#7D715E] font-medium">{metricLabels[metric]} · xếp hạng</span>
-            <div className="text-xl font-extrabold text-[#1A1612]">{formatMetricValue(podium?.rank2)}</div>
-            <div className="flex items-center justify-center gap-2 text-[11px] text-[#7D715E] pt-1 border-t border-[#EAE4D7]">
-              <span>{podium?.rank2?.totalOrders || 0} đơn</span>
-              <span>•</span>
-              <span className="text-[#8F682E]">{podium?.rank2?.conversionRate || 0}% CR</span>
-            </div>
-          </div>
-
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#7D715E] border border-[#EAE4D7]">
-            <Medal className="w-3.5 h-3.5 text-[#7D715E]" />
-            <span>{podium?.rank2?.tierName || 'Cấp Bạc'}</span>
-          </div>
-
-          <div className="p-2 bg-[#FBF5EB] rounded-lg border border-[#EEDFC6] text-xs font-medium text-[#7D715E]">
-            🎁 Thưởng nóng: <strong className="text-[#8F682E]">+2.500.000 ₫</strong>
-          </div>
-        </div>
-
-        {/* RANK 1: QUÁN QUÂN (GOLD CROWN / DIAMOND GLOW) */}
-        <div
-          onClick={() => podium?.rank1 && handleOpenCreatorModal(podium.rank1.collaboratorId)}
-          className={`cursor-pointer group relative bg-[#FBF5EB] border border-[#EEDFC6] hover:border-[#C59B58] rounded-2xl p-4 sm:p-5 text-center space-y-3 shadow-sm transition-colors order-1 md:order-2 ${
-            podium?.rank1?.isCurrentUser ? 'ring-4 ring-amber-400/50' : ''
-          }`}
-        >
-          {/* Crown & Floating Badge */}
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex flex-col items-center">
-            <Crown className="w-5 h-5 text-[#8F682E]" />
-            <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-[#C59B58] text-[#1A1612] font-bold text-sm border border-white">
-              1
-            </div>
-          </div>
-
-          <div className="pt-3">
-            <div className="w-20 h-20 mx-auto rounded-full bg-[#C59B58] p-1">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden text-3xl font-extrabold text-[#8F682E]">
-                {podium?.rank1?.avatarUrl ? (
-                  <img src={podium.rank1.avatarUrl} alt={podium.rank1.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  podium?.rank1?.fullName?.charAt(0) || '1'
-                )}
+            <details className="mt-2.5 pt-2 border-t border-[#EAE4D7] text-xs text-[#7D715E] group">
+              <summary className="flex items-center justify-between gap-2 cursor-pointer list-none select-none hover:text-[#B88E4F]"><span>Chi tiết thành tích</span><ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F] group-open:rotate-180 transition-transform" /></summary>
+              <div className="flex flex-col gap-2 pt-2">
+                {creator.primaryChannelHandle && <span className="text-xs text-[#7D715E] truncate" title={creator.primaryChannelHandle}>{creator.primaryChannelHandle}</span>}
+                <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-[#7D715E]">
+                  <span><strong className="text-[#1A1612] font-semibold">{formatNumber(creator?.totalOrders)}</strong> đơn</span>
+                  {rank === 1 && <span><strong className="text-[#1A1612] font-semibold">{formatNumber(creator?.totalClicks)}</strong> clicks</span>}
+                  <span><strong className="text-[#1A1612] font-semibold">{formatNumber(creator?.conversionRate)}%</strong> CR</span>
+                </div>
               </div>
-            </div>
-          </div>
+            </details>
+          </article>;
+        })}
+      </div>}
 
-          <div className="space-y-1">
-            <h3 className="font-extrabold text-lg text-[#1A1612] group-hover:text-[#8F682E] flex items-center justify-center gap-1.5">
-              <span>{podium?.rank1?.fullName || (loading && !data ? 'Đang tải KOL…' : 'Chưa có Quán Quân')}</span>
-              {podium?.rank1?.isCurrentUser && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-[#1A1612] font-bold">BẠN</span>
-              )}
-            </h3>
-            <p className="text-xs text-[#7D715E] font-medium">{podium?.rank1?.primaryChannelHandle || (loading && !data ? 'Đang tải hồ sơ…' : '@top.creator • YouTube/TikTok')}</p>
+      {(loading || loadError || rankings.length > 0) && <section className="border border-[#EAE4D7] rounded-[15px] bg-white overflow-hidden" aria-labelledby="lb-ranking-title">
+        <header className="flex items-center justify-between flex-wrap gap-3 p-4 sm:p-4.5 border-b border-[#EAE4D7]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-8 sm:w-9 h-8 sm:h-9 grid place-items-center shrink-0 rounded-[10px] bg-[#FBF5EB] text-[#B88E4F]"><Award aria-hidden="true" className="w-[18px] h-[18px]" /></span>
+            <div><h2 id="lb-ranking-title" className="m-0 text-sm sm:text-base font-semibold tracking-tight text-[#1A1612]">Bảng xếp hạng Creator</h2><p className="m-0 mt-0.5 text-xs text-[#7D715E]">Vị trí 4–10; ba vị trí đầu được vinh danh trên bục nhận cúp.</p></div>
           </div>
-
-          <div className="p-3 bg-white/80 rounded-xl border border-[#EEDFC6] space-y-1">
-            <span className="text-xs text-[#8F682E] font-semibold uppercase tracking-wider">Đứng đầu theo {metricLabels[metric]}</span>
-            <div className="text-xl sm:text-2xl font-extrabold text-[#8F682E]">
-              {formatMetricValue(podium?.rank1)}
-            </div>
-            <div className="flex items-center justify-center gap-3 text-xs text-[#7D715E] pt-2 border-t border-[#EAE4D7]">
-              <span><strong>{podium?.rank1?.totalOrders || 0}</strong> đơn</span>
-              <span>•</span>
-              <span><strong>{formatNumber(podium?.rank1?.totalClicks)}</strong> clicks</span>
-              <span>•</span>
-              <span className="text-[#8F682E] font-bold">{podium?.rank1?.conversionRate || 0}% CR</span>
-            </div>
-          </div>
-
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white text-[#8F682E] border border-[#EEDFC6]">
-            <Sparkles className="w-3.5 h-3.5 text-[#8F682E]" />
-            <span>{podium?.rank1?.tierName || 'Cấp Kim Cương'}</span>
-          </div>
-
-          <div className="p-2 bg-white/80 rounded-lg border border-[#EEDFC6] text-xs font-semibold text-[#8F682E]">
-            👑 Thưởng nóng: <span className="text-[#1A1612]">+5.000.000 ₫</span> &amp; <span className="text-[#8F682E]">+5% Thưởng VIP</span>
-          </div>
-        </div>
-
-        {/* RANK 3: Á QUÂN 2 (BRONZE SHIELD) */}
-        <div
-          onClick={() => podium?.rank3 && handleOpenCreatorModal(podium.rank3.collaboratorId)}
-          className={`cursor-pointer group relative bg-white border border-[#EAE4D7] hover:border-[#C59B58] rounded-2xl p-4 text-center space-y-3 shadow-sm transition-colors order-3 ${
-            podium?.rank3?.isCurrentUser ? 'ring-2 ring-[#C59B58] bg-white' : ''
-          }`}
-        >
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center justify-center w-8 h-8 rounded-xl bg-[#F3EFE6] text-[#8F682E] font-bold text-sm border border-[#EEDFC6]">
-            3
-          </div>
-
-          <div className="pt-2">
-            <div className="w-16 h-16 mx-auto rounded-full bg-[#EEDFC6] p-1">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden text-2xl font-bold text-[#8F682E]">
-                {podium?.rank3?.avatarUrl ? (
-                  <img src={podium.rank3.avatarUrl} alt={podium.rank3.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  podium?.rank3?.fullName?.charAt(0) || '3'
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <h3 className="font-bold text-base text-[#1A1612] group-hover:text-[#8F682E] flex items-center justify-center gap-1.5">
-              <span>{podium?.rank3?.fullName || (loading && !data ? 'Đang tải KOL…' : 'Chưa có đối tác')}</span>
-              {podium?.rank3?.isCurrentUser && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FBF5EB] text-[#8F682E] border border-[#EEDFC6]">Bạn</span>
-              )}
-            </h3>
-            <p className="text-xs text-[#7D715E]">{podium?.rank3?.primaryChannelHandle || (loading && !data ? 'Đang tải hồ sơ…' : '@creator • Facebook')}</p>
-          </div>
-
-          <div className="p-3 bg-[#FAF8F5] rounded-xl border border-[#EAE4D7] space-y-1">
-            <span className="text-[11px] text-[#7D715E] font-medium">{metricLabels[metric]} · xếp hạng</span>
-            <div className="text-xl font-extrabold text-[#8F682E]">{formatMetricValue(podium?.rank3)}</div>
-            <div className="flex items-center justify-center gap-2 text-[11px] text-[#7D715E] pt-1 border-t border-[#EAE4D7]">
-              <span>{podium?.rank3?.totalOrders || 0} đơn</span>
-              <span>•</span>
-              <span className="text-[#8F682E]">{podium?.rank3?.conversionRate || 0}% CR</span>
-            </div>
-          </div>
-
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#8F682E] border border-[#EEDFC6]">
-            <Shield className="w-3.5 h-3.5 text-amber-500" />
-            <span>{podium?.rank3?.tierName || 'Cấp Đồng'}</span>
-          </div>
-
-          <div className="p-2 bg-[#FBF5EB] rounded-lg border border-[#EEDFC6] text-xs font-medium text-[#7D715E]">
-            🎁 Thưởng nóng: <strong className="text-[#8F682E]">+1.000.000 ₫</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── 3. BẢNG XẾP HẠNG TOP 4 - 20 (RANKING TABLE) ───────────────── */}
-      <div className="bg-white border border-[#EAE4D7] rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-[#EAE4D7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold text-[#1A1612] flex items-center gap-2">
-              <Award className="w-5 h-5 text-[#8F682E]" />
-              <span>Bảng Xếp Hạng Top 4 — Top 20</span>
-            </h2>
-            <p className="text-xs text-[#7D715E]">Danh sách đối tác theo kết quả đã ghi nhận.</p>
-          </div>
-              <span className="text-xs text-[#7D715E]">Xếp hạng theo {metricLabels[metric]} · {scope === 'GLOBAL' ? 'Toàn sàn' : isAdmin ? (stores.find((store) => store.id === selectedStoreId)?.name || 'Gian hàng') : 'Gian hàng của bạn'}</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-[#FAF8F5] text-[#7D715E] border-b border-[#EAE4D7] font-semibold">
-                <th className="py-3 px-4 text-center w-20">Hạng</th>
-                <th className="py-3 px-4">Creator / Đối Tác</th>
-                <th className="py-3 px-4">Cấp Bậc</th>
-                <th className="py-3 px-4 text-right">Lượt Click</th>
-                <th className={`py-3 px-4 text-right ${metric === 'ORDERS' ? 'bg-[#FBF5EB] text-[#8F682E]' : ''}`}>Đơn Hàng</th>
-                <th className={`py-3 px-4 text-right ${metric === 'CONVERSION_RATE' ? 'bg-[#FBF5EB] text-[#8F682E]' : ''}`}>Tỷ Lệ Chốt (CR%)</th>
-                <th className={`py-3 px-4 text-right ${metric === 'REVENUE' ? 'bg-[#FBF5EB] text-[#8F682E]' : ''}`}>Doanh Số (GMV)</th>
-                <th className={`py-3 px-4 text-right ${metric === 'COMMISSION' ? 'bg-[#FBF5EB] text-[#8F682E]' : ''}`}>Hoa Hồng</th>
-                <th className="py-3 px-4 text-center">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EAE4D7]">
-              {rankings.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-10 text-center text-[#7D715E]">
-                    {loading && !data ? 'Đang tải danh sách KOL…' : 'Chưa có thêm đối tác trong khoảng thời gian này.'}
+          <span className="text-xs text-[#7D715E]">{metricLabels[metric]} · {scopeLabel}</span>
+        </header>
+        <div className="p-3"><input className={workspaceInput} aria-label="Tìm Creator trong vị trí 4 đến 10" placeholder="Tìm Creator, kênh, cấp bậc trong vị trí 4–10…" value={search} onChange={event => setSearch(event.target.value)} /></div>
+        <div className="overflow-x-auto" role="region" aria-label="Danh sách Creator tiếp theo" tabIndex={0}>
+          <table className="w-full min-w-[900px] border-collapse text-xs text-[#7D715E] text-left">
+            <thead className="bg-[#FAF8F5]"><tr>
+              <th scope="col" className="text-center px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap">Hạng</th><th scope="col" className="px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap">Creator / Đối tác</th><th scope="col" className="px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap">Cấp bậc</th>
+              <th scope="col" className="text-right px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap">Lượt click</th><th scope="col" className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap ${metric === 'ORDERS' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>Đơn hàng</th>
+              <th scope="col" className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap ${metric === 'CONVERSION_RATE' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>Tỷ lệ chốt</th>
+              <th scope="col" className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap ${metric === 'REVENUE' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>Doanh số GMV</th>
+              <th scope="col" className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap ${metric === 'COMMISSION' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>Hoa hồng đã duyệt</th><th scope="col" className="text-center px-3.5 py-3 border-t border-[#EAE4D7] font-medium text-[11px] whitespace-nowrap">Hồ sơ</th>
+            </tr></thead>
+            <tbody>
+              {loading || loadError || !displayedRankings.length ? <tr><td colSpan={9} className="py-8 px-4 text-center text-xs sm:text-sm text-[#7D715E]">{loading ? 'Đang tải danh sách KOL…' : loadError ? 'Chưa tải được danh sách. Vui lòng làm mới.' : 'Không có Creator phù hợp.'}</td></tr> : displayedRankings.map(item => (
+                <tr key={item.collaboratorId} className={`hover:bg-[#FDFBF7] transition-colors ${item.isCurrentUser ? 'bg-[#FDFAF4]' : ''}`}>
+                  <td className="text-center px-3.5 py-3 border-t border-[#EAE4D7]">
+                    <div className="inline-flex items-center justify-center gap-1.5"><strong className="text-xs sm:text-[13px] font-semibold text-[#1A1612]">#{item.rank < 10 ? `0${item.rank}` : item.rank}</strong>
+                      {metric === 'REVENUE' && (item.rankDelta > 0
+                        ? <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#B88E4F]" title={`Tăng ${item.rankDelta} bậc`}><TrendingUp aria-hidden="true" className="w-3 h-3" />{item.rankDelta}</span>
+                        : item.rankDelta < 0 ? <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#DC2626]" title={`Giảm ${Math.abs(item.rankDelta)} bậc`}><TrendingDown aria-hidden="true" className="w-3 h-3" />{Math.abs(item.rankDelta)}</span>
+                        : <Minus className="w-3 h-3 text-[#7D715E]" aria-label="Không đổi hạng" />)}
+                    </div>
                   </td>
+                  <td className="px-3.5 py-3 border-t border-[#EAE4D7]"><div className="flex items-center gap-2.5 max-w-[245px]">
+                    <span className="relative grid place-items-center w-8 h-8 rounded-full overflow-hidden shrink-0 bg-[#FAF8F5] border border-[#EAE4D7] text-[#B88E4F] text-xs font-semibold" aria-hidden="true">{item.fullName?.charAt(0) || 'K'}{item.avatarUrl && <img src={item.avatarUrl} alt="" className="absolute inset-0 w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}</span>
+                    <div className="min-w-0"><div className="flex items-center flex-wrap gap-1"><strong className="text-xs font-semibold text-[#1A1612] truncate">{item.fullName}</strong>{item.isCurrentUser && <span className="inline-flex items-center px-1.5 py-0.5 border border-[#EEDFC6] rounded bg-[#FBF5EB] text-[#B88E4F] text-[10px] font-semibold">Bạn</span>}</div><p className="m-0 mt-0.5 text-[11px] text-[#7D715E] truncate" title={item.primaryChannelHandle || undefined}>{item.primaryChannelHandle || 'Chưa cập nhật kênh'}</p></div>
+                  </div></td>
+                  <td className="px-3.5 py-3 border-t border-[#EAE4D7]"><span className="inline-flex items-center px-2 py-0.5 border border-[#EAE4D7] rounded-md bg-white text-[11px] font-medium text-[#7D715E]">{item.tierName}</span></td>
+                  <td className="text-right px-3.5 py-3 border-t border-[#EAE4D7] tabular-nums whitespace-nowrap">{formatNumber(item.totalClicks)}</td>
+                  <td className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] tabular-nums whitespace-nowrap ${metric === 'ORDERS' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>{formatNumber(item.totalOrders)} đơn</td>
+                  <td className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] tabular-nums whitespace-nowrap ${metric === 'CONVERSION_RATE' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>{formatNumber(item.conversionRate)}%</td>
+                  <td className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] tabular-nums whitespace-nowrap ${metric === 'REVENUE' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>{formatVND(item.grossRevenue)}</td>
+                  <td className={`text-right px-3.5 py-3 border-t border-[#EAE4D7] tabular-nums whitespace-nowrap ${metric === 'COMMISSION' ? 'bg-[#FBF5EB] text-[#1A1612] font-semibold' : ''}`}>{formatVND(item.totalCommission)}</td>
+                  <td className="text-center px-3.5 py-3 border-t border-[#EAE4D7]"><button className="inline-flex items-center justify-center gap-1 px-2.5 py-1 border border-[#EAE4D7] rounded-md bg-white text-[#7D715E] text-xs hover:bg-[#FBF5EB] hover:text-[#1A1612] transition-colors cursor-pointer" onClick={() => handleOpenCreatorModal(item.collaboratorId)}>Xem <ChevronRight aria-hidden="true" className="w-3.5 h-3.5" /></button></td>
                 </tr>
-              ) : (
-                rankings.map((item) => (
-                  <tr
-                    key={item.collaboratorId}
-                    className={`hover:bg-[#FAF8F5] transition-colors group ${
-                      item.isCurrentUser ? 'bg-[#FBF5EB] hover:bg-amber-500/15' : ''
-                    }`}
-                  >
-                    {/* Rank Number & Delta */}
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center space-x-1.5">
-                        <span className="font-extrabold text-sm text-[#7D715E]">
-                          #{item.rank < 10 ? `0${item.rank}` : item.rank}
-                        </span>
-                        {metric === 'REVENUE' && item.rankDelta > 0 && (
-                          <span className="flex items-center text-[10px] text-[#8F682E] font-bold" title={`Tăng ${item.rankDelta} bậc`}>
-                            <TrendingUp className="w-3 h-3" />
-                            <span>{item.rankDelta}</span>
-                          </span>
-                        )}
-                        {metric === 'REVENUE' && item.rankDelta < 0 && (
-                          <span className="flex items-center text-[10px] text-[#DC2626] font-bold" title={`Giảm ${Math.abs(item.rankDelta)} bậc`}>
-                            <TrendingDown className="w-3 h-3" />
-                            <span>{Math.abs(item.rankDelta)}</span>
-                          </span>
-                        )}
-                        {metric === 'REVENUE' && item.rankDelta === 0 && (
-                          <span className="text-[#7D715E] text-[10px]">
-                            <Minus className="w-3 h-3" />
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Creator Info */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-full bg-[#F3EFE6] flex items-center justify-center text-xs font-bold text-[#7D715E] border border-[#EAE4D7] overflow-hidden flex-shrink-0">
-                          {item.avatarUrl ? (
-                            <img src={item.avatarUrl} alt={item.fullName} className="w-full h-full object-cover" />
-                          ) : (
-                            item.fullName?.charAt(0) || 'K'
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-bold text-[#1A1612] group-hover:text-[#8F682E] transition-colors flex items-center gap-1.5">
-                            <span>{item.fullName}</span>
-                            {item.isCurrentUser && (
-                              <span className="px-1.5 py-0.5 rounded bg-amber-500 text-[#1A1612] text-[10px] font-bold">Bạn</span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-[#7D715E]">{item.primaryChannelHandle || '@creator'}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Tier */}
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]">
-                        {item.tierName}
-                      </span>
-                    </td>
-
-                    {/* Clicks */}
-                    <td className="py-3 px-4 text-right font-medium text-[#7D715E]">
-                      {formatNumber(item.totalClicks)}
-                    </td>
-
-                    {/* Orders */}
-                    <td className={`py-3 px-4 text-right ${metric === 'ORDERS' ? 'bg-[#FBF5EB] font-bold text-[#8F682E]' : 'font-medium text-[#7D715E]'}`}>
-                      {item.totalOrders} đơn
-                    </td>
-
-                    {/* Conversion Rate */}
-                    <td className={`py-3 px-4 text-right ${metric === 'CONVERSION_RATE' ? 'bg-[#FBF5EB]' : ''}`}>
-                      <span className={`font-bold ${metric === 'CONVERSION_RATE' ? 'text-[#8F682E]' : 'text-[#7D715E]'}`}>{item.conversionRate}%</span>
-                    </td>
-
-                    {/* GMV */}
-                    <td className={`py-3 px-4 text-right text-sm ${metric === 'REVENUE' ? 'bg-[#FBF5EB] font-extrabold text-[#8F682E]' : 'font-semibold text-[#7D715E]'}`}>
-                      {formatVND(item.grossRevenue)}
-                    </td>
-
-                    {/* Commission */}
-                    <td className={`py-3 px-4 text-right ${metric === 'COMMISSION' ? 'bg-[#FBF5EB] font-bold text-[#8F682E]' : 'font-semibold text-[#7D715E]'}`}>
-                      {formatVND(item.totalCommission)}
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleOpenCreatorModal(item.collaboratorId)}
-                        className="px-3 py-1.5 bg-[#F3EFE6] hover:bg-amber-500 hover:text-[#1A1612] text-[#7D715E] font-semibold rounded-xl text-xs transition-all flex items-center space-x-1 mx-auto"
-                      >
-                        <span>Hồ sơ</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>}
 
-      {/* ─── 4. THANH VỊ TRÍ CỦA TÔI (MY RANK STICKY BAR) ──────────────── */}
-      {myRank && (
-        <div className="fixed bottom-4 left-4 right-4 max-w-5xl mx-auto z-40">
-          <div className="bg-white border border-[#EEDFC6] rounded-2xl p-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#8F682E] font-bold text-base flex-shrink-0">
-                #{myRank.myRank}
+      {!loading && !loadError && myRank && (
+        <section className="flex items-center justify-between flex-wrap gap-4 p-4 border border-[#EAE4D7] rounded-[15px] bg-white" aria-label="Vị trí của bạn trên bảng xếp hạng">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="grid place-items-center w-10 h-10 shrink-0 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB] text-[#B88E4F] text-base font-bold">{myRank.myRank === null ? <Award aria-hidden="true" className="w-5 h-5" /> : `#${myRank.myRank}`}</span>
+            <div>
+              <div className="flex items-center flex-wrap gap-2"><h2 className="m-0 text-sm font-semibold text-[#1A1612]">{myRank.myRank === null ? 'Bạn chưa được xếp hạng trong kỳ' : `Hạng của bạn theo ${metricLabels[metric]}`}</h2>
+                {metric === 'REVENUE' && myRank.rankDelta > 0 && <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#B88E4F]"><TrendingUp aria-hidden="true" className="w-3.5 h-3.5" /> Tăng {myRank.rankDelta} bậc</span>}
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-[#1A1612] text-sm">Hạng của bạn theo {metricLabels[metric]} · {myRank.currentPeriodLabel}</h4>
-                  {metric === 'REVENUE' && myRank.rankDelta > 0 && (
-                    <span className="text-[#8F682E] text-xs font-semibold">↑ Tăng {myRank.rankDelta} bậc</span>
-                  )}
-                </div>
-                <p className="text-xs text-[#7D715E]">
-                  {metricLabels[metric]} hiện tại: <strong className="text-[#8F682E] font-bold">{metric === 'REVENUE' ? formatVND(myRank.myRevenue) : metric === 'ORDERS' ? `${formatNumber(myRank.myOrders)} đơn` : metric === 'CONVERSION_RATE' ? `${formatNumber(myRank.myConversionRate)}%` : formatVND(myRank.myCommission)}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              {metric === 'REVENUE' && myRank.myRank > 10 ? (
-                <div className="text-right">
-                  <span className="text-[11px] text-[#7D715E]">Cần thêm để vào Top 10:</span>
-                  <div className="text-sm font-bold text-[#8F682E]">+{formatVND(myRank.gapToTop10Revenue)}</div>
-                </div>
-              ) : metric === 'REVENUE' ? (
-                <div className="px-3 py-1 bg-[#FBF5EB] text-[#8F682E] border border-[#EEDFC6] rounded-lg text-xs font-semibold">
-                  ✓ ĐANG NẰM TRONG TOP 10
-                </div>
-              ) : null}
-
-              <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="px-3 py-2 bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] font-semibold rounded-lg text-xs transition-colors"
-              >
-                Đua Top Ngay
-              </button>
+              <p className="m-0 mt-0.5 text-xs text-[#7D715E]">{myRank.currentPeriodLabel} · {metricLabels[metric]} hiện tại: <strong className="text-[#1A1612] font-semibold">{metric === 'REVENUE' ? formatVND(myRank.myRevenue) : metric === 'ORDERS' ? `${formatNumber(myRank.myOrders)} đơn` : metric === 'CONVERSION_RATE' ? `${formatNumber(myRank.myConversionRate)}%` : formatVND(myRank.myCommission)}</strong></p>
             </div>
           </div>
-        </div>
+          <div className="flex items-center justify-end flex-wrap gap-2.5">
+            {metric === 'REVENUE' && myRank.myRank !== null && (myRank.myRank > 10
+              ? <div className="flex flex-col gap-0.5 text-right"><span className="text-[11px] text-[#7D715E]">Chênh lệch doanh số với Top 10</span><strong className="text-xs font-semibold text-[#1A1612]">{formatVND(myRank.gapToTop10Revenue)}</strong></div>
+              : <span className="inline-flex items-center gap-1 text-xs text-[#7D715E]"><Check aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /> Đang trong Top 10</span>)}
+            {currentUser?.role === 'COLLABORATOR' ? <Link className="inline-flex items-center gap-1.5 min-h-[34px] px-3 py-1.5 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:bg-[#F3EFE6] transition-colors" to="/collaborator/marketing">Tạo link tiếp thị<ArrowUpRight aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /></Link>
+              : <button className="inline-flex items-center gap-1.5 min-h-[34px] px-3 py-1.5 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:bg-[#F3EFE6] transition-colors cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Xem bộ lọc<ArrowUpRight aria-hidden="true" className="w-3.5 h-3.5 text-[#B88E4F]" /></button>}
+          </div>
+        </section>
       )}
 
       {/* ─── 5. MODAL HỒ SƠ VINH DANH CREATOR (CREATOR HALL OF FAME) ─────── */}
-      {selectedCreatorId && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-[#EEDFC6] rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-xl max-h-[90vh] overflow-y-auto">
+      {selectedCreatorId && createPortal(
+        <div role="dialog" aria-modal="true" aria-labelledby="creator-hall-profile-title" className="creator-hall-overlay fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div ref={profileDialog} tabIndex={-1} className="creator-hall-modal bg-white border border-[#EAE4D7] rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-5 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-4">
               <div className="flex items-center space-x-2">
                 <Trophy className="w-6 h-6 text-[#8F682E]" />
-                <h3 className="text-lg font-bold text-[#1A1612]">Hồ Sơ Vinh Danh Creator (Hall of Fame)</h3>
+                <h3 id="creator-hall-profile-title" className="text-lg font-bold text-[#1A1612]">Hồ sơ vinh danh Creator</h3>
               </div>
               <button
                 onClick={handleCloseModal}
+                aria-label="Đóng hồ sơ Creator"
                 className="p-1.5 rounded-xl text-[#7D715E] hover:text-[#1A1612] hover:bg-[#F3EFE6] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {loadingProfile || !creatorProfile ? (
+            {profileError ? <div role="alert" className="py-8 text-center text-xs text-[#DC2626]">{profileError}<button className={`${workspaceButton} ml-2`} onClick={() => void handleOpenCreatorModal(selectedCreatorId)}>Thử lại</button></div> : loadingProfile || !creatorProfile ? (
               <div className="py-12 text-center text-[#7D715E] space-y-2">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#8F682E]" />
                 <p className="text-xs">Đang tải hồ sơ thành tích...</p>
@@ -598,7 +412,7 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
               <div className="space-y-6">
                 {/* Creator Header Info */}
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 p-1 flex-shrink-0 shadow-lg">
+                  <div className="w-20 h-20 rounded-full bg-[#FBF5EB] border border-[#EEDFC6] p-1 flex-shrink-0 shadow-lg">
                     <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-2xl font-bold text-[#8F682E] overflow-hidden">
                       {creatorProfile.avatarUrl ? (
                         <img src={creatorProfile.avatarUrl} alt={creatorProfile.fullName} className="w-full h-full object-cover" />
@@ -635,12 +449,12 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
                   </div>
                   <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#EAE4D7] text-center">
                     <span className="text-[11px] text-[#7D715E]">Mẫu Thử Đã Nhận</span>
-                    <div className="text-base font-bold text-blue-400">{creatorProfile.lifetimeStats.totalSamplesReceived} mẫu</div>
+                    <div className="text-base font-bold text-[#1A1612]">{creatorProfile.lifetimeStats.totalSamplesReceived} mẫu</div>
                   </div>
                 </div>
 
                 {/* Badges */}
-                <div className="space-y-2">
+                {creatorProfile.badges.length > 0 && <div className="space-y-2">
                   <h5 className="text-xs font-bold text-[#7D715E] uppercase tracking-wider">Huy Hiệu Danh Dự</h5>
                   <div className="flex flex-wrap gap-2">
                     {creatorProfile.badges.map((b) => (
@@ -653,7 +467,7 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
                       </span>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* Social Channels */}
                 {creatorProfile.socialChannels.length > 0 && (
@@ -681,22 +495,12 @@ export default function LeaderboardPage({ alignToContainer = false }: { alignToC
                   >
                     Đóng
                   </button>
-                  <button
-                    onClick={() => {
-                      toast.success(`Đã gửi lời mời hợp tác độc quyền tới Creator ${creatorProfile.fullName}!`, {
-                        description: 'Hệ thống đã chuyển lời mời và kích hoạt đặc quyền chiến dịch VIP.',
-                      });
-                      handleCloseModal();
-                    }}
-                    className="px-5 py-2 bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                  >
-                    👑 Mời Vào Chiến Dịch VIP (FR-27)
-                  </button>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

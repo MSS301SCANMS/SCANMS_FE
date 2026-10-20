@@ -1,5 +1,5 @@
 import type { ReturnDetail, ReturnStatus } from '../../services/return.service';
-import { returnStatusLabel } from '../../utils/return-status';
+import { returnStatusLabel } from '@/utils/return-status.utils';
 
 const eventLabels: Record<string, string> = {
   REQUEST_CREATED: 'Khách đã gửi yêu cầu đổi trả',

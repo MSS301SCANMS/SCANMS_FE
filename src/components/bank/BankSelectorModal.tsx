@@ -1,15 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Search,
-  X,
-  Check,
-  Landmark,
-  Settings,
-  ShieldCheck,
-  RefreshCw,
-} from 'lucide-react';
-import { type VietQrBank, findBankByQuery } from '../../constants/vietnamBanks';
-import { VietQrBankService } from '../../services/vietqrBank.service';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
+import { createPortal } from 'react-dom';
+import { Search, X, Check, Landmark, Settings, ShieldCheck, RefreshCw, ChevronDown } from 'lucide-react';
+import { type VietQrBank, findBankByQuery } from '@/config/banks.config';
+import { VietQrBankService } from '@/services/vietqr-bank.service';
 
 export interface BankSelectorModalProps {
   isOpen: boolean;
@@ -20,344 +13,271 @@ export interface BankSelectorModalProps {
 }
 
 type TabType = 'ALL' | 'POPULAR' | 'BIG4';
+const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
 
 export const BankSelectorModal: React.FC<BankSelectorModalProps> = ({
-  isOpen,
-  onClose,
-  onSelectBank,
-  selectedBankBin,
-  selectedBankName,
+  isOpen, onClose, onSelectBank, selectedBankBin, selectedBankName,
 }) => {
   const [banks, setBanks] = useState<VietQrBank[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('ALL');
   const [showManualInput, setShowManualInput] = useState(false);
-
-  // Manual input state
   const [manualName, setManualName] = useState('');
   const [manualBin, setManualBin] = useState('');
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const manualNameRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const manualFormId = useId();
 
-  // Load banks list
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
     setLoading(true);
     VietQrBankService.getBanks()
-      .then((data) => {
-        if (isMounted) {
-          setBanks(data);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setLoading(false);
-      });
+      .then((data) => { if (isMounted) setBanks(data); })
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading(false); });
+    return () => { isMounted = false; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const dialog = dialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    if (dialog && !dialog.open) dialog.showModal();
     return () => {
-      isMounted = false;
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
-  // Determine current active selection
+  useEffect(() => {
+    if (isOpen && showManualInput) manualNameRef.current?.focus();
+  }, [isOpen, showManualInput]);
+
   const currentBank = useMemo(() => {
-    if (selectedBankBin) {
-      return banks.find((b) => b.bin === selectedBankBin);
-    }
-    if (selectedBankName) {
-      return findBankByQuery(selectedBankName);
-    }
+    if (selectedBankBin) return banks.find((bank) => bank.bin === selectedBankBin);
+    if (selectedBankName) return findBankByQuery(selectedBankName);
     return undefined;
   }, [banks, selectedBankBin, selectedBankName]);
 
-  // Filter banks by tab and search query
   const filteredBanks = useMemo(() => {
-    let list = banks;
-    if (activeTab === 'POPULAR') {
-      list = list.filter((b) => b.isPopular);
-    } else if (activeTab === 'BIG4') {
-      list = list.filter((b) => b.isBig4);
-    }
-
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return list;
-
-    return list.filter(
-      (b) =>
-        b.shortName.toLowerCase().includes(query) ||
-        b.name.toLowerCase().includes(query) ||
-        b.bin.includes(query) ||
-        b.code.toLowerCase().includes(query)
-    );
+    const list = activeTab === 'POPULAR' ? banks.filter((bank) => bank.isPopular)
+      : activeTab === 'BIG4' ? banks.filter((bank) => bank.isBig4) : banks;
+    const query = normalizeSearch(searchQuery.trim());
+    return query ? list.filter((bank) => normalizeSearch(`${bank.shortName} ${bank.name} ${bank.bin} ${bank.code}`).includes(query)) : list;
   }, [banks, activeTab, searchQuery]);
-
-  if (!isOpen) return null;
 
   const handleSelect = (bank: VietQrBank) => {
     onSelectBank(bank);
     onClose();
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (!manualName.trim()) return;
-    const manualBank: VietQrBank = {
-      id: Date.now(),
-      name: manualName.trim(),
-      code: manualName.trim().toUpperCase().slice(0, 8),
-      bin: manualBin.trim() || '970400',
-      shortName: manualName.trim(),
-      logo: 'https://cdn.vietqr.io/img/ICB.png',
-    };
-    onSelectBank(manualBank);
-    onClose();
+    handleSelect({
+      id: Date.now(), name: manualName.trim(), code: manualName.trim().toUpperCase().slice(0, 8),
+      bin: manualBin.trim() || '970400', shortName: manualName.trim(), logo: 'https://cdn.vietqr.io/img/ICB.png',
+    });
   };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 overflow-y-auto p-2 sm:p-4 bg-black/40 backdrop-blur-xs flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
+  if (!isOpen) return null;
+
+  return createPortal(
+    <dialog
+      ref={dialogRef}
+      className="w-[min(520px,calc(100vw-32px))] max-w-none max-h-[calc(100dvh-32px)] m-auto p-0 overflow-hidden border border-[#EAE4D7] rounded-2xl bg-white text-[#1A1612] shadow-[0_18px_60px_rgba(35,29,21,0.16)] text-left backdrop:bg-[#231D15]/30 backdrop:backdrop-blur-xs flex flex-col outline-none"
+      aria-labelledby={titleId}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onKeyDown={(event) => { if (event.key === 'Escape') event.stopPropagation(); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (event.target !== event.currentTarget) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+      }}
     >
-      <div
-        className="w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] bg-white border border-[#EEDFC6] rounded-3xl shadow-2xl p-4 sm:p-6 flex flex-col text-left animate-in zoom-in-95 duration-200 my-auto"
-        style={{ colorScheme: 'light' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header (Khớp chuẩn 100% Ảnh 2) - Cố định ở đầu không bị che */}
-        <div className="flex items-start justify-between gap-3 shrink-0 pb-3 border-b border-[#EAE4D7]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#EAE4D7] flex items-center justify-center text-[#B88E4F] shrink-0 shadow-2xs">
-              <Landmark className="w-5 h-5 text-[#B88E4F]" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-[#1A1612] m-0">
-                Danh Sách Ngân Hàng Việt Nam
-              </h3>
-              <p className="text-xs text-[#7D715E] m-0 mt-0.5">
-                Hỗ trợ 65+ ngân hàng chuyển tiền nhanh VietQR / Napas247
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full border border-[#EAE4D7] bg-[#FAF8F5] hover:bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] flex items-center justify-center transition cursor-pointer"
-            aria-label="Đóng"
-          >
-            <X className="w-4 h-4" />
-          </button>
+      <div className="flex items-center gap-2.5 p-4 shrink-0">
+        <span className="grid place-items-center w-[34px] h-[34px] rounded-[10px] bg-[#FBF5EB] text-[#B88E4F] shrink-0">
+          <Landmark size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 id={titleId} className="m-0 text-lg font-semibold leading-snug tracking-tight text-[#1A1612]">Chọn ngân hàng</h2>
+          <p className="m-0 mt-1 text-[11px] text-[#7D715E]">Ngân hàng nhận tiền · VietQR / Napas247</p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid place-items-center w-7 h-7 shrink-0 border border-[#EAE4D7] rounded-lg bg-white text-[#7D715E] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
+          aria-label="Đóng danh sách ngân hàng"
+        >
+          <X size={17} />
+        </button>
+      </div>
 
-        {/* Thanh tìm kiếm & Tabs chọn nhóm ngân hàng - Cố định */}
-        <div className="shrink-0 pt-3 pb-2 space-y-2.5">
-          {/* Search Box */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-[#7D715E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm theo tên (MB, VCB, ACB, Techcombank...) hoặc mã BIN"
-              className="w-full h-11 bg-white border border-[#EAE4D7] rounded-xl pl-10 pr-9 text-xs sm:text-sm text-[#1A1612] placeholder-[#7D715E] outline-none hover:border-[#C59B58]/60 focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 transition shadow-2xs"
-              autoFocus
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612]"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+      {currentBank && (
+        <details className="mx-4 mb-3 p-2 px-2.5 rounded-lg bg-[#FBF5EB] text-[#7D715E] text-xs shrink-0 group">
+          <summary className="flex items-center gap-1.5 cursor-pointer list-none select-none text-[#7D715E]">
+            <Check size={13} className="text-[#B88E4F] shrink-0" />
+            <span>Đang chọn <strong className="ml-1 text-[#1A1612] font-semibold">{currentBank.shortName}</strong></span>
+            <ChevronDown size={13} className="ml-auto text-[#B88E4F] group-open:rotate-180 transition-transform" />
+          </summary>
+          <p className="m-0 mt-2 ml-5 leading-relaxed text-[11px] text-[#7D715E]">
+            {currentBank.name}
+            <span className="block mt-0.5">BIN {currentBank.bin}</span>
+          </p>
+        </details>
+      )}
 
-          {/* Filter Pills (Tất cả, Phổ biến nhất, Big 4) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ALL')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 select-none ${
-                activeTab === 'ALL'
-                  ? 'bg-[#C59B58] text-white shadow-xs'
-                  : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#FAF8F5] hover:text-[#1A1612]'
-              }`}
-            >
-              Tất cả ({banks.length || 65})
+      <div className="px-4 pb-3 shrink-0">
+        <div className="flex items-center gap-2 h-10 px-2.5 border border-[#EAE4D7] focus-within:border-[#C59B58] focus-within:ring-2 focus-within:ring-[#C59B58]/10 rounded-[9px] bg-white text-[#7D715E] transition-all">
+          <Search size={16} className="shrink-0 text-[#7D715E]" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Tìm tên ngân hàng hoặc mã BIN…"
+            aria-label="Tìm ngân hàng theo tên hoặc mã BIN"
+            className="w-full min-w-0 h-full p-0 border-0 bg-transparent outline-none text-[#1A1612] text-[13px] placeholder:text-[#7D715E]"
+            autoFocus
+          />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} aria-label="Xóa tìm kiếm" className="grid place-items-center p-0.5 text-[#7D715E] hover:text-[#1A1612]">
+              <X size={15} />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('POPULAR')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 select-none ${
-                activeTab === 'POPULAR'
-                  ? 'bg-[#C59B58] text-white shadow-xs'
-                  : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#FAF8F5] hover:text-[#1A1612]'
-              }`}
-            >
-              Phổ biến nhất
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('BIG4')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 select-none ${
-                activeTab === 'BIG4'
-                  ? 'bg-[#C59B58] text-white shadow-xs'
-                  : 'bg-white text-[#7D715E] border border-[#EAE4D7] hover:bg-[#FAF8F5] hover:text-[#1A1612]'
-              }`}
-            >
-              Big 4 Nhà Nước
-            </button>
-          </div>
-        </div>
-
-        {/* Khung cuộn nội dung chính (Bao gồm Nhập thủ công + Lưới 65 ngân hàng) */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 overscroll-contain">
-          {/* Manual BIN Fallback Form */}
-          {showManualInput && (
-            <form
-              onSubmit={handleManualSubmit}
-              className="p-3.5 bg-[#FAF8F5] border border-[#EEDFC6] rounded-2xl flex flex-col gap-2.5 animate-in fade-in"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#1A1612]">
-                  Nhập ngân hàng &amp; mã BIN thủ công
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowManualInput(false)}
-                  className="text-[11px] text-[#7D715E] hover:text-[#1A1612]"
-                >
-                  Hủy
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder="Tên ngân hàng (VD: Woori Bank, Kookmin...)"
-                  required
-                  className="h-9 px-3 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none focus:border-[#C59B58]"
-                />
-                <input
-                  type="text"
-                  value={manualBin}
-                  onChange={(e) => setManualBin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Mã BIN 6 số (VD: 970457)"
-                  className="h-9 px-3 bg-white border border-[#EAE4D7] rounded-xl text-xs text-[#1A1612] outline-none focus:border-[#C59B58]"
-                />
-              </div>
-              <button
-                type="submit"
-                className="self-end px-4 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] text-white rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Áp dụng ngân hàng này
-              </button>
-            </form>
           )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-2.5" role="group" aria-label="Nhóm ngân hàng">
+          {([{ value: 'ALL', label: `Tất cả${banks.length ? ` (${banks.length})` : ''}` }, { value: 'POPULAR', label: 'Phổ biến' }, { value: 'BIG4', label: 'Big 4' }] as const).map((tab) => {
+            const isTabActive = activeTab === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                aria-pressed={isTabActive}
+                onClick={() => setActiveTab(tab.value)}
+                className={`min-h-[30px] px-2.5 py-1 border rounded-[7px] text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  isTabActive
+                    ? 'bg-[#FBF5EB] border-[#EEDFC6] text-[#1A1612]'
+                    : 'bg-[#FAF8F5] border-transparent text-[#7D715E] hover:bg-[#FBF5EB]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+          <span className="ml-auto text-[10px] text-[#7D715E] whitespace-nowrap hidden sm:inline">
+            {loading ? 'Đang tải…' : `${filteredBanks.length} ngân hàng`}
+          </span>
+        </div>
+      </div>
 
-          {/* 2-Column Grid of Banks (Khớp chuẩn 100% Ảnh 2) */}
-          <div>
-            {loading && banks.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#7D715E] flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-[#B88E4F]" />
-                <span>Đang tải danh sách ngân hàng Việt Nam từ VietQR...</span>
-              </div>
-            ) : filteredBanks.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#7D715E]">
-                Không tìm thấy ngân hàng khớp với &quot;{searchQuery}&quot;.
-                <div className="mt-2">
+      <div className="max-h-[300px] min-h-0 overflow-y-auto overscroll-contain px-4 pb-3 [scrollbar-width:thin]" aria-busy={loading}>
+        {showManualInput && (
+          <form id={manualFormId} className="grid grid-cols-2 gap-2.5 p-3 border border-[#EEDFC6] rounded-[10px] mb-3 bg-[#FBF5EB]" onSubmit={handleManualSubmit}>
+            <div className="col-span-2 flex items-center justify-between text-xs">
+              <strong className="font-semibold text-[#1A1612]">Nhập ngân hàng khác</strong>
+              <button type="button" onClick={() => setShowManualInput(false)} className="text-[11px] text-[#7D715E] hover:text-[#1A1612]">Hủy</button>
+            </div>
+            <label className="flex flex-col gap-1 min-w-0 text-[11px] text-[#7D715E]">
+              Tên ngân hàng
+              <input
+                ref={manualNameRef}
+                value={manualName}
+                onChange={(event) => setManualName(event.target.value)}
+                placeholder="Ví dụ: Woori Bank"
+                className="w-full min-w-0 h-9 px-2.5 py-1.5 border border-[#EAE4D7] rounded-[7px] bg-white text-xs text-[#1A1612] outline-none focus:border-[#C59B58]"
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 min-w-0 text-[11px] text-[#7D715E]">
+              Mã BIN
+              <input
+                value={manualBin}
+                onChange={(event) => setManualBin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="Mã BIN 6 số"
+                inputMode="numeric"
+                maxLength={6}
+                className="w-full min-w-0 h-9 px-2.5 py-1.5 border border-[#EAE4D7] rounded-[7px] bg-white text-xs text-[#1A1612] outline-none focus:border-[#C59B58]"
+              />
+            </label>
+            <button type="submit" className="col-span-2 justify-self-end px-3 py-2 border border-[#EEDFC6] rounded-[7px] bg-[#F3E8D5] text-[#1A1612] text-xs font-semibold hover:bg-[#EEDFC6] cursor-pointer">
+              Áp dụng ngân hàng
+            </button>
+          </form>
+        )}
+
+        {loading && banks.length === 0 ? (
+          <div className="flex items-center justify-center flex-col gap-2 min-h-[150px] py-5 px-2 text-[#7D715E] text-center text-xs">
+            <RefreshCw size={18} className="animate-spin text-[#B88E4F]" />
+            <p className="m-0 text-[11px]">Đang tải danh sách ngân hàng…</p>
+          </div>
+        ) : filteredBanks.length === 0 ? (
+          <div className="flex items-center justify-center flex-col gap-2 min-h-[150px] py-5 px-2 text-[#7D715E] text-center text-xs">
+            <Search size={20} className="text-[#B88E4F]" />
+            <strong className="text-[#1A1612] font-semibold">Không tìm thấy ngân hàng</strong>
+            <p className="m-0 text-[11px]">Thử tên viết tắt, tên đầy đủ hoặc mã BIN.</p>
+            <button type="button" onClick={() => setShowManualInput(true)} className="text-[#B88E4F] underline text-xs cursor-pointer">
+              Nhập ngân hàng thủ công
+            </button>
+          </div>
+        ) : (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 list-none p-0 m-0" aria-label="Danh sách ngân hàng">
+            {filteredBanks.map((bank) => {
+              const isSelected = Boolean(currentBank?.bin === bank.bin || selectedBankBin === bank.bin || (selectedBankName && (selectedBankName.toLowerCase().includes(bank.shortName.toLowerCase()) || selectedBankName.includes(bank.bin))));
+              return (
+                <li key={`${bank.code}-${bank.bin}`} className="min-w-0">
                   <button
                     type="button"
-                    onClick={() => setShowManualInput(true)}
-                    className="text-xs font-bold text-[#B88E4F] underline cursor-pointer"
-                  >
-                    Bấm vào đây để nhập thủ công
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {filteredBanks.map((b) => {
-                const isSelected =
-                  (currentBank && currentBank.bin === b.bin) ||
-                  selectedBankBin === b.bin ||
-                  (selectedBankName &&
-                    (selectedBankName.toLowerCase().includes(b.shortName.toLowerCase()) ||
-                      selectedBankName.includes(b.bin)));
-
-                return (
-                  <button
-                    key={`${b.code}-${b.bin}`}
-                    type="button"
-                    onClick={() => handleSelect(b)}
-                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2.5 text-left cursor-pointer group ${
+                    onClick={() => handleSelect(bank)}
+                    aria-pressed={isSelected}
+                    aria-label={`${bank.shortName}, ${bank.name}, BIN ${bank.bin}`}
+                    title={`${bank.name} · BIN ${bank.bin}`}
+                    className={`flex items-center gap-2.5 w-full min-h-[56px] p-2.5 border rounded-[9px] text-left transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-[#FBF5EB] border-2 border-[#C59B58] shadow-2xs'
-                        : 'bg-white border-[#EAE4D7] hover:border-[#C59B58]/70 hover:bg-[#FAF8F5]'
+                        ? 'border-[#C59B58] bg-[#FBF5EB]'
+                        : 'border-[#EAE4D7] bg-white hover:border-[#EEDFC6] hover:bg-[#FAF8F5]'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Logo Container */}
-                      <div className="w-12 h-10 rounded-xl bg-white border border-[#EAE4D7] p-1 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-102 transition">
-                        <img
-                          src={b.logo}
-                          alt={b.shortName}
-                          loading="lazy"
-                          onError={(e) => {
-                            // Fallback nếu logo CDN gặp sự cố
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                          className="max-w-full max-h-full object-contain"
-                        />
-                      </div>
-
-                      {/* Info: ShortName & FullName */}
-                      <div className="min-w-0 flex-1">
-                        <strong className="text-xs sm:text-[13px] font-black text-[#1A1612] block truncate">
-                          {b.shortName}
-                        </strong>
-                        <p className="text-[11px] text-[#7D715E] line-clamp-1 leading-snug mt-0.5" title={b.name}>
-                          {b.name}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Selected Checkmark (Khớp tròn vàng ở Ảnh 2) */}
+                    <span className="relative grid place-items-center w-[34px] h-[30px] shrink-0 rounded-md bg-white text-[#B88E4F] overflow-hidden">
+                      <Landmark size={17} />
+                      <img src={bank.logo} alt="" loading="lazy" className="absolute inset-0 w-full h-full p-0.5 object-contain bg-white" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <strong className="block truncate text-[#1A1612] text-[13px] leading-snug font-semibold">{bank.shortName}</strong>
+                      <span className="block mt-0.5 text-[10px] leading-snug text-[#7D715E]">BIN {bank.bin}</span>
+                    </span>
                     {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-[#B88E4F] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
+                      <span className="grid place-items-center w-[18px] h-[18px] rounded-[5px] bg-[#EEDFC6] text-[#B88E4F] shrink-0">
+                        <Check size={13} />
+                      </span>
                     )}
                   </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
-      {/* Modal Footer (Khớp chuẩn Ảnh 2) */}
-      <div className="pt-2 border-t border-[#EAE4D7] flex items-center justify-between text-xs text-[#7D715E]">
-          <button
-            type="button"
-            onClick={() => setShowManualInput(!showManualInput)}
-            className="flex items-center gap-1.5 font-semibold hover:text-[#B88E4F] transition cursor-pointer"
-          >
-            <Settings className="w-3.5 h-3.5 text-[#B88E4F]" />
-            <span>Ngân hàng khác? Nhập mã BIN thủ công</span>
-          </button>
-
-          <div className="flex items-center gap-1 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#059669]" />
-            <span>Dữ liệu chính thức từ VietQR</span>
-          </div>
-        </div>
+      <div className="flex items-center justify-between gap-2.5 py-3 px-4 border-t border-[#EAE4D7] shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowManualInput((current) => !current)}
+          aria-expanded={showManualInput}
+          aria-controls={manualFormId}
+          className="flex items-center gap-1.5 p-0 border-0 bg-transparent text-[#B88E4F] text-xs font-medium cursor-pointer hover:underline"
+        >
+          <Settings size={14} /> Nhập BIN thủ công
+        </button>
+        <span className="flex items-center gap-1 text-[#7D715E] text-[10px]">
+          <ShieldCheck size={13} className="text-[#B88E4F]" /> Danh sách VietQR
+        </span>
       </div>
-    </div>
+    </dialog>, document.body,
   );
 };

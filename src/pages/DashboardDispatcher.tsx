@@ -1,8 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
-import HomePage from './HomePage';
+import KolDashboardPage from './collaborator/KolDashboardPage';
 import ShopDashboardPage from './merchant/ShopDashboardPage';
-import KycApprovalPage from './merchant/KycApprovalPage';
+import KycApprovalPage from './admin/KycApprovalPage';
 
 export default function DashboardDispatcher() {
   const user = authService.getCurrentUser();
@@ -13,26 +13,28 @@ export default function DashboardDispatcher() {
 
   const activeWs = authService.getActiveWorkspace();
 
-  if (activeWs === 'shop' && (user.role === 'SHOP_MANAGER' || user.stores?.length || user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER')) {
+  const available = authService.getUserAvailableWorkspaces(user).map((w) => w.key);
+
+  if (activeWs === 'shop' && available.includes('shop')) {
     return <ShopDashboardPage />;
   }
 
-  if (activeWs === 'admin') {
+  if (activeWs === 'admin' && available.includes('admin')) {
     if (user.role === 'SYSTEM_ADMIN') {
       return <Navigate to="/admin/analytics" replace />;
     }
     return <KycApprovalPage />;
   }
 
+  if (activeWs === 'kol' && available.includes('kol')) {
+    return <KolDashboardPage />;
+  }
+
   if (activeWs === 'customer') {
     return <Navigate to="/customer/orders" replace />;
   }
 
-  if (activeWs === 'kol') {
-    return <HomePage />;
-  }
-
-  if (user.role === 'SHOP_MANAGER') {
+  if (user.role === 'SHOP_MANAGER' && available.includes('shop')) {
     return <ShopDashboardPage />;
   }
 
@@ -44,9 +46,9 @@ export default function DashboardDispatcher() {
     return <KycApprovalPage />;
   }
 
-  if (user.role === 'CUSTOMER') {
-    return <Navigate to="/customer/orders" replace />;
+  if (user.role === 'COLLABORATOR' && available.includes('kol')) {
+    return <KolDashboardPage />;
   }
 
-  return <HomePage />;
+  return <Navigate to="/customer/orders" replace />;
 }

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Download,
   Copy,
@@ -17,6 +18,7 @@ import {
   Clock,
   XCircle,
   Trash2,
+  FileText,
 } from 'lucide-react';
 import { authService } from '../../services/auth.service';
 import { couponService, type CouponItem } from '../../services/coupon.service';
@@ -27,7 +29,8 @@ import { Select } from '../../components/ui/Select';
 import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { toast } from '../../utils/toast';
-import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { buildMediaPack, saveMediaPack, MEDIA_USAGE_GUIDE } from '../../utils/media-pack.utils';
 
 export default function MediaHubBrowserPage() {
   const currentUser = authService.getCurrentUser();
@@ -88,6 +91,12 @@ export default function MediaHubBrowserPage() {
 
   useEffect(() => {
     void fetchMedia();
+    const refreshMedia = () => {
+      void fetchMedia();
+      setViewMode('MY_SUBMISSIONS');
+    };
+    window.addEventListener('scanms_media_updated', refreshMedia);
+    return () => window.removeEventListener('scanms_media_updated', refreshMedia);
   }, []);
 
   const [search, setSearch] = useState('');
@@ -105,6 +114,24 @@ export default function MediaHubBrowserPage() {
   const [activeCaptionTab, setActiveCaptionTab] = useState<'short' | 'review' | 'offer' | 'livestream'>('review');
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [packProgress, setPackProgress] = useState<{ completed: number; total: number } | null>(null);
+  const packController = useRef<AbortController | null>(null);
+  const [showUsageGuide, setShowUsageGuide] = useState(false);
+  const usageDialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => () => packController.current?.abort(), []);
+
+  useEffect(() => {
+    const dialog = usageDialog.current;
+    if (!showUsageGuide || !dialog) return;
+    dialog.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showUsageGuide]);
 
   const mySubmissionsCount = useMemo(() => {
     return mediaList.filter((m) => m.collaboratorId === currentUser?.id).length;
@@ -176,6 +203,36 @@ export default function MediaHubBrowserPage() {
     });
   }, [mediaList, viewMode, currentUser?.id, search, selectedProduct, selectedType]);
 
+  const handleDownloadPack = async () => {
+    if (packController.current || loading) return;
+    if (!filteredMedia.length) {
+      toast.info('Không có tài nguyên trong bộ lọc hiện tại.');
+      return;
+    }
+    const controller = new AbortController();
+    packController.current = controller;
+    setPackProgress({ completed: 0, total: filteredMedia.length });
+    try {
+      const { blob, downloadedCount, linkedCount, failedCount } = await buildMediaPack(filteredMedia, {
+        baseUrl: window.location.href,
+        signal: controller.signal,
+        onProgress: (completed, total) => setPackProgress({ completed, total }),
+      });
+      const date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+      saveMediaPack(blob, `SCANMS-Tai-nguyen-${date}.zip`);
+      if (linkedCount || failedCount) {
+        toast.info(`Gói ZIP gồm ${downloadedCount} tệp và ${linkedCount} liên kết nguồn.${failedCount ? ` ${failedCount} tài nguyên có URL không hợp lệ.` : ''} Xem DANH-SACH.txt để biết chi tiết.`);
+      } else {
+        toast.success(`Đã chuẩn bị gói ZIP với ${downloadedCount} tài nguyên.`);
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) toast.error(error instanceof Error ? error.message : 'Không thể tạo gói tài nguyên. Vui lòng thử lại.');
+    } finally {
+      packController.current = null;
+      if (!controller.signal.aborted) setPackProgress(null);
+    }
+  };
+
 
   const targetProductName = previewAsset?.product?.title || 'Sản phẩm chính hãng';
   const targetStoreName = previewAsset?.store?.name || 'Gian hàng đối tác';
@@ -204,7 +261,7 @@ export default function MediaHubBrowserPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 text-left">
+    <div className="kol-media-browser flex flex-col gap-6 text-left">
       {toastMsg && (
         <div className="fixed top-5 right-5 z-50 bg-white text-[#1A1612] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 border border-[#EEDFC6]">
           <Sparkles className="w-4 h-4 text-[#B88E4F]" />
@@ -212,135 +269,106 @@ export default function MediaHubBrowserPage() {
         </div>
       )}
 
-
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex-1" />
-
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {!isShopOrAdmin && (
+      <div className="kol-media-library-toolbar">
+        {!isShopOrAdmin && (
+          <div className="kol-media-tabs flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('ALL')}
+              aria-pressed={viewMode === 'ALL'}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                viewMode === 'ALL'
+                  ? 'bg-[#FBF5EB] text-[#1A1612] shadow-none'
+                  : 'bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
+              }`}
+            >
+              <span>Kho tài nguyên sàn</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10">
+                {mediaList.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('MY_SUBMISSIONS')}
+              aria-pressed={viewMode === 'MY_SUBMISSIONS'}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                viewMode === 'MY_SUBMISSIONS'
+                  ? 'bg-[#FBF5EB] text-[#1A1612] shadow-none'
+                  : 'bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
+              }`}
+            >
+              <Video className="w-3.5 h-3.5" />
+              <span>Video review của tôi</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  viewMode === 'MY_SUBMISSIONS'
+                    ? 'bg-black/10 text-white'
+                    : 'bg-[#EAE4D7] text-[#1A1612]'
+                }`}
+              >
+                {mySubmissionsCount}
+              </span>
+            </button>
+          </div>
+        )}
+        <div className="kol-media-heading-tools">
+          <div className="kol-media-heading-meta">
+            <span>Mạng lưới: <strong>Toàn sàn</strong></span>
+            <span aria-hidden="true">•</span>
+            <span>Tổng số: <strong>{filteredMedia.length} tài nguyên</strong></span>
+          </div>
+          <div className="kol-media-heading-actions">
+            {!isShopOrAdmin && (
+              <Button
+                className="kol-media-submit"
+                variant="gold"
+                size="sm"
+                icon={<Video className="w-3.5 h-3.5" />}
+                onClick={() => setShowSubmitModal(true)}
+              >
+                Nộp video review
+              </Button>
+            )}
+            {isShopOrAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Upload className="w-3.5 h-3.5" />}
+                onClick={() => toast.info('Vui lòng vào Quản lý sản phẩm > Chi tiết để tải lên hình ảnh hoặc video cho sản phẩm của bạn.')}
+              >
+                Tải tài nguyên mới
+              </Button>
+            )}
             <Button
+              className="kol-media-pack"
+              type="button"
               variant="gold"
               size="sm"
-              icon={<Video className="w-3.5 h-3.5" />}
-              onClick={() => setShowSubmitModal(true)}
+              icon={<Download className="w-3.5 h-3.5" />}
+              loading={Boolean(packProgress)}
+              disabled={loading || !filteredMedia.length}
+              aria-busy={Boolean(packProgress)}
+              title="Tải gói ZIP gồm tài nguyên theo bộ lọc hiện tại"
+              onClick={() => void handleDownloadPack()}
             >
-              Nộp video review (FR-15)
+              {packProgress ? `Đang gom ${packProgress.completed}/${packProgress.total}…` : 'Tải trọn bộ Pack'}
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.location.assign('/products/serum-vitamin-c')}
-          >
-            Xem Landing Page FR-15
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.location.assign('/#media')}
-          >
-            Quay lại Bản vẽ
-          </Button>
-          {isShopOrAdmin && (
             <Button
               variant="outline"
               size="sm"
-              icon={<Upload className="w-3.5 h-3.5" />}
-              onClick={() => toast.info('Vui lòng vào Quản lý sản phẩm > Chi tiết để tải lên hình ảnh hoặc video cho sản phẩm của bạn.')}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={showUsageGuide}
+              onClick={() => setShowUsageGuide(true)}
             >
-              Tải tài nguyên mới
+              Quy định sử dụng
             </Button>
-          )}
-          <Button
-            variant="gold"
-            size="sm"
-            icon={<Download className="w-3.5 h-3.5" />}
-            onClick={() => toast.info(`Đang chuẩn bị gói tài nguyên (${filteredMedia.length} tệp)...`)}
-          >
-            Tải trọn bộ Pack
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              toast.info(
-                'Quy định sử dụng: Tài nguyên được cấp quyền thương mại cho các Nhà sáng tạo & Đối tác tiếp thị thuộc mạng lưới SCANMS để quảng bá sản phẩm chính hãng.'
-              )
-            }
-          >
-            Quy định sử dụng
-          </Button>
-        </div>
-      </header>
-
-
-      <Card className="p-4 bg-[#FAF8F5] border border-[#EAE4D7] flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#EAE4D7] text-[#B88E4F] font-black flex items-center justify-center text-lg shadow-xs">
-            S
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <strong className="text-sm sm:text-base font-extrabold text-[#1A1612]">
-                Kho tài nguyên tiếp thị đa gian hàng SCANMS
-              </strong>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
-                Dữ liệu chính hãng đã kiểm duyệt
-              </span>
-            </div>
           </div>
         </div>
-
-        <div className="flex items-center gap-4 text-xs text-[#7D715E]">
-          <span>Mạng lưới: <strong className="text-[#1A1612]">Toàn sàn</strong></span>
-          <span>•</span>
-          <span>Tổng số: <strong className="text-[#B88E4F]">{filteredMedia.length} tài nguyên</strong></span>
-        </div>
-      </Card>
+      </div>
 
 
-      {!isShopOrAdmin && (
-        <div className="flex items-center gap-2 border-b border-[#EAE4D7] pb-2">
-          <button
-            type="button"
-            onClick={() => setViewMode('ALL')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-              viewMode === 'ALL'
-                ? 'bg-[#EBD08C] text-white shadow-xs'
-                : 'bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
-            }`}
-          >
-            <span>Kho tài nguyên sàn</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10">
-              {mediaList.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('MY_SUBMISSIONS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-              viewMode === 'MY_SUBMISSIONS'
-                ? 'bg-[#EBD08C] text-white shadow-xs'
-                : 'bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#EAE4D7]'
-            }`}
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span>Video review của tôi</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                viewMode === 'MY_SUBMISSIONS'
-                  ? 'bg-black/10 text-white'
-                  : 'bg-[#EAE4D7] text-[#1A1612]'
-              }`}
-            >
-              {mySubmissionsCount}
-            </span>
-          </button>
-        </div>
-      )}
-
-
-      <Card className="p-3.5 bg-white border border-[#EAE4D7] flex flex-wrap gap-3 items-center">
+      <Card className="kol-media-filters p-3.5 bg-white border border-[#EAE4D7] flex flex-wrap gap-3 items-center">
         <div className="flex-1 min-w-[240px] relative">
           <Search className="w-4 h-4 text-[#7D715E] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -421,7 +449,7 @@ export default function MediaHubBrowserPage() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="kol-media-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredMedia.map((m) => {
             const isVideo = m.assetType === 'VIDEO';
             const isText = m.assetType === 'COPYWRITE_TEXT';
@@ -446,11 +474,11 @@ export default function MediaHubBrowserPage() {
             return (
               <Card
                 key={m.id}
-                className="bg-white border border-[#EAE4D7] overflow-hidden flex flex-col justify-between"
+                className="kol-media-card bg-white border border-[#EAE4D7] overflow-hidden flex flex-col justify-between"
               >
 
                 <div
-                  className="relative h-52 bg-[#F3EFE6] cursor-pointer overflow-hidden group"
+                  className="kol-media-preview relative h-52 bg-[#F3EFE6] cursor-pointer overflow-hidden group"
                   onClick={() => setPreviewAsset(m)}
                 >
                   {isText ? (
@@ -477,7 +505,7 @@ export default function MediaHubBrowserPage() {
 
 
                   <div className="absolute top-2.5 left-2.5 flex gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md text-white ${badgeBg}`}>
+                    <span className={`kol-media-type text-[10px] font-bold px-2 py-0.5 rounded-md text-white ${badgeBg}`}>
                       {displayBadge}
                     </span>
                   </div>
@@ -513,7 +541,7 @@ export default function MediaHubBrowserPage() {
                 </div>
 
 
-                <div className="p-4 flex flex-col gap-2.5 flex-1">
+                <div className="kol-media-card-body p-4 flex flex-col gap-2.5 flex-1">
                   <h3 className="text-xs sm:text-sm font-bold text-[#1A1612] m-0 line-clamp-2 leading-snug">
                     {m.title}
                   </h3>
@@ -788,6 +816,37 @@ export default function MediaHubBrowserPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {createPortal(
+        <dialog
+          ref={usageDialog}
+          className="kol-media-usage-dialog"
+          aria-labelledby="media-usage-title"
+          aria-describedby="media-usage-subtitle"
+          onCancel={(event) => { event.preventDefault(); setShowUsageGuide(false); }}
+          onClose={() => setShowUsageGuide(false)}
+          onClick={(event) => { if (event.target === event.currentTarget) setShowUsageGuide(false); }}
+        >
+          <div className="kol-media-usage-heading">
+            <span className="kol-media-usage-icon"><FileText size={19} aria-hidden="true" /></span>
+            <div>
+              <h3 id="media-usage-title">Quy định sử dụng tài nguyên</h3>
+              <p id="media-usage-subtitle">Hướng dẫn dành cho đối tác tiếp thị SCANMS.</p>
+            </div>
+            <button type="button" aria-label="Đóng hướng dẫn" onClick={() => setShowUsageGuide(false)}><X size={18} /></button>
+          </div>
+          <div className="kol-media-usage-content">
+            {MEDIA_USAGE_GUIDE.map(({ title, content }, index) => (
+              <section key={title}>
+                <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <div><h4>{title}</h4><p>{content}</p></div>
+              </section>
+            ))}
+          </div>
+          <div className="kol-media-usage-footer"><Button variant="outline" size="sm" onClick={() => setShowUsageGuide(false)}>Đã hiểu</Button></div>
+        </dialog>,
+        document.body,
       )}
 
       <SubmitKolVideoModal

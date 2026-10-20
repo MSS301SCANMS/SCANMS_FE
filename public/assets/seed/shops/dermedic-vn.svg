@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" role="img" aria-label="Dermedic VN — logo minh họa">
+  <rect width="400" height="200" rx="20" fill="#FAF8F5"/>
+  <rect x="10" y="10" width="380" height="180" rx="16" fill="#FFFFFF" stroke="#EAE4D7" stroke-width="2"/>
+  <circle cx="200" cy="50" r="14" fill="#C59B58"/>
+  <path d="M194 50h12M200 44v12" stroke="#FFFFFF" stroke-width="2"/>
+  <text x="200" y="108" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="600" fill="#1A1612">Dermedic VN</text>
+  <text x="200" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" letter-spacing="2" fill="#7D715E">SCANMS · DEMO</text>
+</svg>

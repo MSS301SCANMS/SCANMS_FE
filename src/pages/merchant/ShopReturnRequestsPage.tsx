@@ -21,6 +21,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from '../../utils/toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DisputeRecord {
@@ -65,7 +66,7 @@ function daysSinceOpened(openedAt: string) {
 function statusLabel(s: string) {
   if (s === 'OPENED') return { text: 'Chờ giải trình', color: 'bg-amber-100 text-amber-700 border-amber-200' };
   if (s === 'RESOLVED_REFUND') return { text: 'Hoàn tiền khách', color: 'bg-rose-100 text-rose-700 border-rose-200' };
-  if (s === 'RESOLVED_REJECTED') return { text: 'Từ chối đổi trả', color: 'bg-green-100 text-green-700 border-green-200' };
+  if (s === 'RESOLVED_REJECTED') return { text: 'Từ chối đổi trả', color: 'bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]' };
   return { text: s, color: 'bg-gray-100 text-gray-600 border-gray-200' };
 }
 
@@ -179,7 +180,7 @@ function Timeline({ dispute, orderDate }: { dispute: DisputeRecord['dispute']; o
     {
       date: dispute.arbitration?.ruledAt || '',
       label: 'Trọng tài ban hành phán quyết',
-      color: dispute.arbitration ? (dispute.arbitration.ruling === 'REFUND_BUYER' ? 'bg-rose-400' : 'bg-green-400') : 'bg-gray-200',
+      color: dispute.arbitration ? (dispute.arbitration.ruling === 'REFUND_BUYER' ? 'bg-rose-400' : 'bg-[#C59B58]') : 'bg-gray-200',
       done: !!dispute.arbitration,
     },
   ];
@@ -251,7 +252,7 @@ export const ShopReturnRequestsPage: React.FC = () => {
   const handleRespond = async () => {
     if (!selected) return;
     if (!storeResponse.trim()) {
-      alert('Vui lòng nhập nội dung giải trình của gian hàng!');
+      toast.error('Vui lòng nhập nội dung giải trình của gian hàng!');
       return;
     }
     setSubmitting(true);
@@ -267,9 +268,9 @@ export const ShopReturnRequestsPage: React.FC = () => {
       setStoreResponse('');
       setStoreProofImages('');
       await fetchDisputes();
-      alert('✅ Đã gửi giải trình thành công! Trọng tài SCANMS sẽ xem xét trong 24h.');
+      toast.success('Đã gửi giải trình thành công! Trọng tài SCANMS sẽ xem xét trong 24h.');
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Gửi giải trình thất bại. Thử lại.');
+      toast.error(err?.response?.data?.message || err?.message || 'Gửi giải trình thất bại. Thử lại.');
     } finally {
       setSubmitting(false);
     }

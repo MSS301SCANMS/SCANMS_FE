@@ -3,7 +3,7 @@ import { MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { getChatSocket } from '../../services/chat-socket.service';
-import type { ChatMessage, Conversation } from '../../types/chat';
+import type { ChatMessage, Conversation } from '@/types/chat.types';
 
 const unwrap = (response: any) => response?.data?.data ?? response?.data ?? response;
 

@@ -4,7 +4,7 @@ import { CheckCircle2, LoaderCircle, ShoppingBag, X } from "lucide-react";
 import { RatingStars } from "./RatingStars";
 import { ReviewMediaUpload, type ReviewAttachment } from "./ReviewMediaUpload";
 import { Select } from "../ui/Select";
-import { MAX_REVIEW_LENGTH, validateReviewComment } from "./reviewValidation";
+import { MAX_REVIEW_LENGTH, validateReviewComment } from "@/validations/review.validation";
 import {
   reviewService,
   type ReviewProduct,

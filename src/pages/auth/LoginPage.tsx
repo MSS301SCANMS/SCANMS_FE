@@ -6,19 +6,22 @@ import {
   ShoppingBag,
   ShieldCheck,
   Crown,
-  Eye,
-  EyeOff,
   ChevronDown,
   Check,
   ArrowLeft,
-  Mail,
-  Lock,
+  UserRound,
 } from 'lucide-react';
 import { authService } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 import { GoogleOfficialButton } from '../../components/auth/GoogleOfficialButton';
 import { ScanMSLogo } from '../../components/common/ScanMSLogo';
+import { ShoppingScene } from '../../components/auth/ShoppingScene';
+import { AnimatedPasswordField, type PasswordAuthState } from '../../components/auth/AnimatedPasswordField';
+import './LoginPage.css';
+import { getDemoLogin } from '../../utils/demo-login';
+import { getRememberedIdentifier, getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
+import { safeLoginReturn } from '../../utils/login-return';
 
 type RoleType = 'customer' | 'kol' | 'shop' | 'manager' | 'admin';
 
@@ -27,18 +30,15 @@ interface RoleOption {
   label: string;
   icon: any;
   email: string;
-  password: string;
   badge: string;
 }
 
-// Email/mật khẩu khớp đúng với 4 tài khoản đã seed trong realm-export.json (Keycloak).
-// Vai trò "Khách" chưa có tài khoản mẫu được seed sẵn -> để trống, dùng để chọn vai trò khi đăng ký qua Google.
 const ROLES: RoleOption[] = [
-  { id: 'customer', label: 'Khách', icon: ShoppingBag, email: '', password: '', badge: 'Khách mua hàng (chưa có tài khoản mẫu, vui lòng đăng ký)' },
-  { id: 'kol', label: 'KOL/CTV', icon: Sparkles, email: 'kolctv01@scanms.com', password: '123456', badge: 'KOL / CTV Tiếp thị' },
-  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shopowner01@scanms.com', password: '123456', badge: 'Chủ Gian Hàng' },
-  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager01@scanms.com', password: '123456', badge: 'Vận hành (System Manager)' },
-  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@scanms.com', password: '123456', badge: 'Quản trị viên (Admin)' },
+  { id: 'customer', label: 'Khách mua', icon: ShoppingBag, email: 'customer01@seed.scanms.test', badge: 'Nguyễn Văn An (Có 2 đơn hàng)' },
+  { id: 'kol', label: 'KOL/KOC', icon: Sparkles, email: 'kol01@seed.scanms.test', badge: 'Hà My Skincare (Kênh TikTok, Bạc)' },
+  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shop01@seed.scanms.test', badge: 'Cỏ Mềm Official (Kho GHN, 2 SP)' },
+  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager@scanms.vn', badge: 'Ban Vận Hành & Tuân Thủ (Manager)' },
+  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@seed.scanms.test', badge: 'Quản Trị Viên Toàn Hệ Thống (Admin)' },
 ];
 
 export default function LoginPage() {
@@ -49,17 +49,19 @@ export default function LoginPage() {
   const requestedRedirect = searchParams.get('redirect');
   const registeredProvider = searchParams.get('registered');
   const registeredEmail = searchParams.get('email');
-  const returnTo =
-    requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') && !requestedRedirect.includes('\\')
-      ? requestedRedirect
-      : null;
+  const returnTo = safeLoginReturn(requestedRedirect);
   const registerUrl = returnTo ? `/register?redirect=${encodeURIComponent(returnTo)}` : '/register';
 
-  const [role, setRole] = useState<RoleType>('customer');
+  const [role, setRole] = useState<RoleType>(() => {
+    const requestedRole = searchParams.get('role')?.toLowerCase();
+    const normalizedRole = requestedRole === 'collaborator' ? 'kol' : requestedRole;
+    if (ROLES.some(option => option.id === normalizedRole)) return normalizedRole as RoleType;
+    return registeredEmail ? 'customer' : getRememberedLoginRole();
+  });
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
-  const [email, setEmail] = useState(registeredEmail || '');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [identifier, setIdentifier] = useState(() => registeredEmail || getRememberedIdentifier(role) || getDemoLogin(role)?.identifier || '');
+  const [password, setPassword] = useState(() => registeredEmail || getRememberedIdentifier(role) ? '' : getDemoLogin(role)?.password || '');
+  const [passwordAuthState, setPasswordAuthState] = useState<PasswordAuthState>('idle');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (registeredProvider === 'email' && registeredEmail) {
-      setEmail(registeredEmail);
+      setIdentifier(registeredEmail);
       setPassword('');
       toast.success(`Đăng ký tài khoản ${registeredEmail} thành công! Vui lòng nhập mật khẩu để đăng nhập.`);
     }
@@ -75,15 +77,18 @@ export default function LoginPage() {
 
   const activeRole = ROLES.find((x) => x.id === role) || ROLES[0];
   const ActiveRoleIcon = activeRole.icon;
+  const demoLogin = Boolean(getDemoLogin(role)?.identifier && identifier === getDemoLogin(role)?.identifier);
 
   const handleRoleSelect = (selectedRole: RoleType) => {
-    setRole(selectedRole);
-    const r = ROLES.find((x) => x.id === selectedRole);
-    if (r) {
-      // Vai trò "Khách" chưa có tài khoản mẫu -> chỉ chọn vai trò (dùng cho đăng ký Google), không điền sẵn email/mật khẩu sai
-      setEmail(r.email);
-      setPassword(r.password);
+    if (loading || passwordAuthState === 'success') return;
+    if (selectedRole !== role) {
+      const account = getDemoLogin(selectedRole);
+      const remembered = getRememberedIdentifier(selectedRole);
+      setIdentifier(remembered || account?.identifier || '');
+      setPassword(remembered ? '' : account?.password || '');
     }
+    setPasswordAuthState('idle');
+    setRole(selectedRole);
     setError(null);
     setIsRoleDropdownOpen(false);
   };
@@ -108,23 +113,32 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading || passwordAuthState === 'success') return;
     setError(null);
     setLoading(true);
+    setPasswordAuthState('checking');
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const submittedIdentifier = String(formData.get('username') || identifier).trim();
+    const submittedPassword = String(formData.get('password') || password);
 
     try {
-      const res: any = await authService.login(email, password);
+      const res: any = await authService.login(submittedIdentifier, submittedPassword);
       const user = res?.data?.user || res?.user;
+      const loginRole: RoleType = ({ CUSTOMER: 'customer', COLLABORATOR: 'kol', SHOP_MANAGER: 'shop', SYSTEM_MANAGER: 'manager', SYSTEM_ADMIN: 'admin' } as Record<string, RoleType>)[user?.role] || role;
+      rememberLoginIdentifier(loginRole, submittedIdentifier, rememberMe);
+      setPasswordAuthState('success');
       toast.success(`Đăng nhập thành công! Chào mừng ${user?.fullName || user?.email}`);
 
       setTimeout(() => {
         navigateAfterLogin(user?.role);
       }, 350);
     } catch (err: any) {
+      setPasswordAuthState('error');
       const errorMsg =
         err?.response?.data?.message ||
         (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
           ? 'Không thể kết nối đến máy chủ Backend.'
-          : err?.message || 'Email hoặc mật khẩu không chính xác.');
+          : err?.message || 'Email, số điện thoại hoặc mật khẩu không chính xác.');
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -157,8 +171,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#FAF8F5] text-[#1A1612] flex flex-col justify-between py-4 px-4 sm:px-8 lg:px-14 selection:bg-[#EEDFC6] selection:text-[#1A1612]">
-      <header className="max-w-[1240px] mx-auto w-full flex justify-between items-center py-2">
+    <div className="scanms-login-page selection:bg-[#EEDFC6] selection:text-[#1A1612]">
+      <header className="login-page-header">
         <Link to="/marketplace" className="hover:opacity-95 transition-opacity">
           <ScanMSLogo size="md" showSubtitle={true} />
         </Link>
@@ -172,54 +186,33 @@ export default function LoginPage() {
         </Link>
       </header>
 
-      <main className="max-w-[1180px] mx-auto w-full my-auto py-2 sm:py-3">
-        <div
-          className="w-full rounded-[28px] sm:rounded-[32px] border-2 border-[#EEDFC6] shadow-[0_24px_70px_rgba(197,155,88,0.16),0_10px_30px_rgba(26,22,18,0.06)] ring-1 ring-[#C59B58]/20 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px] lg:h-[620px] relative bg-[#FAF8F5]"
-          style={{
-            backgroundImage: "url('/assets/auth_luxury_card_inner.jpg')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        >
-          {/* CỘT TRÁI: MỞ RỘNG (7 COLS = ~58%) - KHÔNG GIAN SẢN PHẨM & SLOGAN HOÀNG GIA */}
-          <div className="relative w-full h-[280px] sm:h-[340px] lg:h-full lg:col-span-7 overflow-hidden flex flex-col justify-between p-6 sm:p-8 lg:p-12">
-            {/* Top-Left Section: Glassmorphic Badge & Slogan */}
-            <div className="relative z-20 space-y-3.5 max-w-md">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/85 backdrop-blur-md border border-[#EEDFC6] text-[#1A1612] text-xs font-bold shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-[#C59B58]" />
-                <span>Sàn Thương Mại Đối Tác</span>
-              </div>
-
-              <h1 className="font-display italic text-2xl sm:text-3xl lg:text-[36px] leading-[1.18] tracking-tight drop-shadow-xs text-[#1A1612]">
-                Kết nối gian hàng,<br />
-                <span className="font-display italic text-[#B88E4F]">
-                  lan tỏa giá trị.
-                </span>
-              </h1>
+      <main className="login-page-main">
+        <div className="login-experience">
+          <section className="login-showcase" aria-label="Kết nối mua sắm cùng SCANMS">
+            <div className="login-showcase-copy">
+              <div className="login-showcase-eyebrow"><Sparkles size={14} /><span>Sàn Thương Mại Đối Tác</span></div>
+              <h1 className="font-display">Kết nối gian hàng,<br /><span>lan tỏa giá trị.</span></h1>
             </div>
+            <ShoppingScene quiet={isForgotPasswordOpen} />
+          </section>
 
-            {/* Dưới chân để thoáng cho các sản phẩm và hộp quà travertine */}
-            <div className="relative z-20" />
-          </div>
-
-          {/* CỘT PHẢI: FORM ĐĂNG NHẬP GIAO DIỆN SANG TRỌNG (5 COLS = ~42%) */}
-          <div className="relative w-full h-full lg:col-span-5 p-6 sm:p-8 lg:py-7 lg:pr-8 lg:pl-10 xl:pl-12 flex flex-col justify-between text-left">
-            {/* Header: Tiêu đề căn giữa, phong cách hoàng gia như mockup */}
-            <div className="relative z-20 text-center">
-              <h2 className="font-display text-3xl sm:text-[34px] font-black tracking-tight text-[#1A1612]">
-                Đăng <span className="font-display text-[#B88E4F]">nhập</span>
-              </h2>
+          <div className="login-form-panel">
+            <div className="login-form-heading">
+              <h2 className="font-display">Đăng <span>nhập</span></h2>
             </div>
 
             {/* Role Dropdown */}
             <div className="relative">
-              <label className="block text-xs font-bold text-[#1A1612] mb-1">
+              <label id="login-role-label" className="block text-xs font-bold text-[#1A1612] mb-1">
                 Vai trò đăng nhập:
               </label>
               <button
                 type="button"
+                aria-labelledby="login-role-label login-role-value"
+                aria-expanded={isRoleDropdownOpen}
+                aria-controls="login-role-options"
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setIsRoleDropdownOpen(false); }}
                 className="w-full h-11 px-3.5 bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58]/60 focus:border-[#C59B58] focus:ring-3 focus:ring-[#C59B58]/12 rounded-xl flex items-center justify-between transition shadow-2xs cursor-pointer text-left"
               >
                 <div className="flex items-center gap-2.5">
@@ -227,7 +220,7 @@ export default function LoginPage() {
                     <ActiveRoleIcon className="w-3.5 h-3.5" />
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-black text-[#1A1612]">
+                    <span id="login-role-value" className="text-xs font-black text-[#1A1612]">
                       {activeRole.label}
                     </span>
                     <span className="text-[11px] text-[#7D715E] font-medium hidden sm:inline">
@@ -248,7 +241,7 @@ export default function LoginPage() {
                     className="fixed inset-0 z-40"
                     onClick={() => setIsRoleDropdownOpen(false)}
                   />
-                  <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-white border border-[#EAE4D7] rounded-xl shadow-[0_16px_40px_rgba(26,22,18,0.12)] p-1.5 space-y-1">
+                  <div id="login-role-options" onKeyDown={(e) => { if (e.key === 'Escape') { setIsRoleDropdownOpen(false); document.querySelector<HTMLButtonElement>('[aria-controls="login-role-options"]')?.focus(); } }} className="login-role-options absolute top-full left-0 right-0 mt-1.5 z-50 bg-white border border-[#EAE4D7] rounded-xl shadow-[0_16px_40px_rgba(26,22,18,0.12)] p-1.5 space-y-1">
                     {ROLES.map((r) => {
                       const isSelected = role === r.id;
                       const Icon = r.icon;
@@ -275,7 +268,7 @@ export default function LoginPage() {
                             </div>
                             <div>
                               <div className="text-xs font-bold leading-tight">
-                                {r.label} — <span className="text-[#7D715E] font-normal">{r.badge}</span>
+                                {r.label} · <span className="text-[#7D715E] font-normal">{r.badge}</span>
                               </div>
                               <div className="text-[10px] text-[#7D715E] font-mono">
                                 {r.email}
@@ -306,48 +299,49 @@ export default function LoginPage() {
             <div className="relative flex items-center justify-center my-0.5">
               <div className="border-t border-[#EAE4D7] w-full" />
               <span className="bg-white px-3 text-[11px] font-medium text-[#7D715E] uppercase tracking-wider absolute">
-                hoặc email
+                hoặc email / số điện thoại
               </span>
             </div>
 
             {error && (
-              <div className="p-2.5 rounded-xl bg-[#DC2626]/10 border border-[#DC2626]/20 text-xs text-[#DC2626] font-medium">
+              <div role="alert" className="p-2.5 rounded-xl bg-[#DC2626]/10 border border-[#DC2626]/20 text-xs text-[#DC2626] font-medium">
                 {error}
               </div>
             )}
 
             {/* Form inputs */}
-            <form onSubmit={handleSubmit} className="space-y-3">
+            {searchParams.get('sessionChanged') === '1' && <p role="status" className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2.5 text-xs leading-relaxed text-[#7D715E]">
+              Tài khoản đã được thay đổi ở tab khác. Đăng nhập tài khoản {activeRole.label} để tiếp tục trang vừa mở.
+            </p>}
+            <form key={role} name="scanms-login" autoComplete="on" onSubmit={handleSubmit} className="space-y-3">
               <div className="relative flex items-center">
+                <label htmlFor="login-identifier" className="sr-only">Email hoặc số điện thoại đã đăng ký</label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="login-identifier"
+                  name="username"
+                  type="text"
+                  autoComplete={demoLogin ? 'off' : `section-${role} username`}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={254}
+                  value={identifier}
+                  onChange={(e) => { setIdentifier(e.target.value); setPasswordAuthState('idle'); }}
                   required
-                  placeholder="Email tài khoản"
+                  placeholder="Email hoặc số điện thoại đã đăng ký"
                   className="w-full h-11 bg-white border border-[#EAE4D7] hover:border-[#C59B58]/60 focus:border-[#C59B58] focus:ring-4 focus:ring-[#C59B58]/12 rounded-xl pl-10 pr-4 text-xs font-medium text-[#1A1612] outline-hidden transition placeholder:text-[#A69986]"
                 />
-                <Mail className="w-4 h-4 text-[#A69986] absolute left-3.5 pointer-events-none" />
+                <UserRound className="w-4 h-4 text-[#A69986] absolute left-3.5 pointer-events-none" />
               </div>
 
-              <div className="relative flex items-center">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="Mật khẩu"
-                  className="w-full h-11 bg-white border border-[#EAE4D7] hover:border-[#C59B58]/60 focus:border-[#C59B58] focus:ring-4 focus:ring-[#C59B58]/12 rounded-xl pl-10 pr-11 text-xs font-medium text-[#1A1612] outline-hidden transition placeholder:text-[#A69986]"
-                />
-                <Lock className="w-4 h-4 text-[#A69986] absolute left-3.5 pointer-events-none" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 text-[#A69986] hover:text-[#1A1612] p-1 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <label className="sr-only" htmlFor="login-password">Mật khẩu</label>
+              <AnimatedPasswordField
+                autoComplete="current-password"
+                name="password"
+                value={password}
+                state={passwordAuthState}
+                onChange={(value) => { setPassword(value); setPasswordAuthState('idle'); }}
+              />
 
               <div className="flex items-center justify-between text-xs pt-0.5">
                 <label className="flex items-center gap-2 cursor-pointer text-[#7D715E] hover:text-[#1A1612]">
@@ -368,18 +362,17 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Submit button: Exact match to user mockup */}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full h-11 btn-gold-glossy disabled:opacity-50"
+                disabled={loading || passwordAuthState === 'success'}
+                className="login-submit disabled:opacity-50"
               >
                 <span>{loading ? 'Đang xác thực...' : 'Đăng nhập an toàn'}</span>
               </button>
             </form>
 
             {/* Bottom switch link */}
-            <div className="text-center pt-2 border-t border-[#EAE4D7] text-xs text-[#7D715E]">
+            <div className="login-register-link">
               Chưa có tài khoản đối tác?{' '}
               <Link to={registerUrl} className="font-bold text-[#B88E4F] hover:underline">
                 Đăng ký ngay →

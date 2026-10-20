@@ -1,0 +1,22 @@
+.product-shopping-policies { margin-top:14px; border:1px solid #EAE4D7; border-radius:12px; padding:13px 14px; background:#fff; color:#1A1612; }
+.psp-heading { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+.psp-heading-icon { display:grid; place-items:center; flex-shrink:0; width:33px; height:33px; background:#FBF5EB; border-radius:9px; color:#B88E4F; border:1px solid #EEDFC6; }
+.psp-heading>div { min-width:0; flex:1; }
+.psp-heading h3 { margin:0; font-size:13px; font-weight:700; line-height:1.5; }
+.psp-heading p { margin:2px 0 0; color:#7D715E; font-size:10px; line-height:1.5; overflow-wrap:anywhere; }
+.psp-toggle { border:0; background:transparent; color:#8A642C; font-size:11px; font-weight:600; white-space:nowrap; cursor:pointer; padding:7px 0 7px 6px; }
+.psp-toggle:hover { text-decoration:underline; }
+.psp-options { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+.psp-option { display:flex; align-items:center; gap:7px; min-width:0; min-height:38px; padding:8px 10px; border:1px solid #EAE4D7; border-radius:8px; background:#FAF8F5; color:#7D715E; cursor:pointer; font-size:11px; font-weight:500; text-align:left; }
+.psp-option>svg { flex-shrink:0; color:#B88E4F; }
+.psp-option>span { flex:1; color:#1A1612; }
+.psp-option .psp-chevron { color:#7D715E; transition:transform .15s; }
+.psp-option:hover,.psp-option.is-selected { border-color:#C59B58; background:#FBF5EB; }
+.psp-option.is-selected .psp-chevron { transform:rotate(180deg); }
+.psp-option:focus-visible,.psp-toggle:focus-visible { outline:2px solid #C59B58; outline-offset:2px; }
+.psp-details { margin-top:10px; padding:11px 12px; border:1px solid #EEDFC6; border-radius:9px; background:#FBF5EB; }
+.psp-details[hidden] { display:none; }
+.psp-details h4 { margin:0 0 5px; font-size:12px; line-height:1.5; font-weight:600; }
+.psp-details p { margin:0; color:#7D715E; font-size:11px; line-height:1.75; white-space:pre-line; overflow-wrap:anywhere; }
+@media(max-width:700px) { .psp-options { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(prefers-reduced-motion:reduce) { .psp-chevron { transition:none; } }

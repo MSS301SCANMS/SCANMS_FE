@@ -20,10 +20,12 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { PublicHeader } from '../../components/layout/PublicHeader';
+import { StoreActivityStatus } from '../../components/store/StoreActivityStatus';
 import { useScanmsChat } from '../../context/ScanmsChatContext';
 import { toast } from '../../utils/toast';
 import api from '../../services/api';
-import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { sortCatalogProducts } from '@/utils/product-sort.utils';
 import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
 
 function getPublicWebsiteUrl(value: unknown): URL | null {
@@ -91,7 +93,7 @@ export default function ShopStorefrontPage() {
           id: 'a7e7bd20-bebc-44c9-a98b-004de44cf773',
           name: 'Sora Skin Official Store',
           slug: 'sora-skin',
-          logoUrl: '',
+          logoUrl: '/assets/shops/shop-sora-skin.png',
           description: 'Gian hàng chính hãng phân phối dược mỹ phẩm phục hồi da thế hệ mới.',
           isVerified: true,
         };
@@ -107,9 +109,17 @@ export default function ShopStorefrontPage() {
     queryKey: ['public-store-products', effectiveSlug],
     queryFn: async () => {
       try {
-        const res: any = await api.get('/public/products', { params: { limit: 100 } });
-        const payload = res?.data !== undefined ? (res.data?.data || res.data) : res;
-        const items = Array.isArray(payload) ? payload : (payload?.items || []);
+        const items: any[] = [];
+        let page = 1, totalPages = 1;
+        do {
+          const res: any = await api.get('/public/products', { params: { limit: 48, page, sortBy: 'newest' } });
+          const payload = res?.data !== undefined ? (res.data?.data || res.data) : res;
+          const batch = Array.isArray(payload) ? payload : (payload?.items || []);
+          items.push(...batch);
+          if (!batch.length) break;
+          totalPages = Number(payload?.pagination?.totalPages) || 1;
+          page++;
+        } while (page <= totalPages);
         const storeFiltered = items.filter((p: any) =>
           p.store?.slug === effectiveSlug ||
           p.store?.id === storeData?.id ||
@@ -133,7 +143,9 @@ export default function ShopStorefrontPage() {
           ),
           categoryName: p.categoryName || '',
           rating: 4.9,
-          soldCount: (p as any).soldCount || 148,
+          soldCount: Number(p.soldCount ?? 0),
+          viewCount: Number(p.viewCount ?? 0),
+          createdAt: p.createdAt,
           discountPercent: p.originalPrice ? Math.round((1 - p.price / p.originalPrice) * 100) : 20,
         }));
       } catch {
@@ -392,18 +404,7 @@ export default function ShopStorefrontPage() {
     }
 
     // Sort order
-    const sorted = [...result];
-    if (sortBy === 'popular') {
-      sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    } else if (sortBy === 'newest') {
-      sorted.sort((a, b) => b.id.localeCompare(a.id));
-    } else if (sortBy === 'sales') {
-      sorted.sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0));
-    } else if (sortBy === 'price-asc') {
-      sorted.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'price-desc') {
-      sorted.sort((a, b) => b.price - a.price);
-    }
+    const sorted = sortCatalogProducts(result, sortBy);
 
     return sorted;
   }, [rawProducts, activeTab, shopCategories, appliedMinPrice, appliedMaxPrice, sortBy]);
@@ -475,6 +476,9 @@ export default function ShopStorefrontPage() {
                         src={storeData.logoUrl}
                         alt={storeData.name}
                         className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl object-cover border-2 border-[#EEDFC6] shadow-xs"
+                        onError={(e) => {
+                          e.currentTarget.src = '/assets/shops/shop-sora-skin.png';
+                        }}
                       />
                     ) : (
                       <div className="w-16 h-16 sm:w-18 sm:h-18 shrink-0 rounded-xl bg-white text-[#B88E4F] flex items-center justify-center font-black text-2xl sm:text-3xl border-2 border-[#EEDFC6] shadow-xs">
@@ -488,10 +492,7 @@ export default function ShopStorefrontPage() {
                     <h1 className="m-0 text-base sm:text-lg font-bold text-[#1A1612] uppercase tracking-tight leading-snug truncate">
                       {storeData?.name || 'SORA SKIN OFFICIAL STORE'}
                     </h1>
-                    <div className="flex items-center gap-1.5 text-xs text-[#059669] font-medium mt-1">
-                      <span className="w-2 h-2 rounded-full bg-[#059669] inline-block animate-pulse" />
-                      <span className="text-[#059669] text-[11px] font-medium">Online</span>
-                    </div>
+                    <StoreActivityStatus storeId={storeData?.id} className="mt-1" />
                     {publicWebsiteUrl && (
                       <a
                         href={publicWebsiteUrl.href}
@@ -780,7 +781,7 @@ export default function ShopStorefrontPage() {
                           <Star className="w-2.5 h-2.5 fill-current" />
                           <span>{prod.rating}</span>
                         </div>
-                        <span>Đã bán {prod.soldCount}+</span>
+                        <span>Đã bán {prod.soldCount}</span>
                       </div>
                     </div>
                   </div>

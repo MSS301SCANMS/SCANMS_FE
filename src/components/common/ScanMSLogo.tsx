@@ -102,17 +102,17 @@ export const ScanMSLogo: React.FC<ScanMSLogoProps> = ({
 
             {/* 
               CÁC ĐẢO & QUẦN ĐẢO TIỀN TIÊU PHÍA NAM (Tỉ lệ chuẩn xác & đúng tọa độ thực địa)
-              - Đảo Phú Quốc: Vịnh Thái Lan, ngoài khơi Kiên Giang
+              - Đảo Phú Quốc: Vịnh Thái Lan, ngoài khơi Kiên Giang (Tây Nam Hà Tiên)
               - Quần đảo Thổ Chu: Cực Tây Nam của Tổ quốc
               - Quần đảo Côn Đảo: Ngoài khơi biển Đông Nam Bộ
             */}
-            {/* Đảo Phú Quốc (Chuẩn kích thước nhỏ gọn theo tỉ lệ đất liền, thon dài hình giọt nước) */}
+            {/* Đảo Phú Quốc (Chuẩn kích thước nhỏ gọn theo tỉ lệ đất liền, thon dài nằm trong Vịnh Kiên Giang) */}
             <ellipse
-              cx="11.2"
-              cy="42.0"
-              rx="0.5"
-              ry="1.0"
-              transform="rotate(-15 11.2 42.0)"
+              cx="11.8"
+              cy="45.5"
+              rx="0.55"
+              ry="1.1"
+              transform="rotate(-15 11.8 45.5)"
               fill="url(#scanms-vn-gold)"
               stroke="url(#scanms-stroke-gold)"
               strokeWidth="0.3"
@@ -120,8 +120,8 @@ export const ScanMSLogo: React.FC<ScanMSLogoProps> = ({
 
             {/* Quần đảo Thổ Chu (Cực Tây Nam - Vịnh Thái Lan) */}
             <circle
-              cx="8.6"
-              cy="46.2"
+              cx="9.5"
+              cy="48.5"
               r="0.4"
               fill="url(#scanms-vn-gold)"
               stroke="url(#scanms-stroke-gold)"
@@ -213,7 +213,7 @@ export const ScanMSLogo: React.FC<ScanMSLogoProps> = ({
 
           {showSubtitle && (
             <span
-              className={`text-[#7D715E] font-bold uppercase tracking-widest mt-1 ${iconDimensions.textSub}`}
+              className={`scanms-logo-subtitle text-[#7D715E] font-bold uppercase tracking-widest mt-1 ${iconDimensions.textSub}`}
             >
               Affiliate Commerce Network
             </span>

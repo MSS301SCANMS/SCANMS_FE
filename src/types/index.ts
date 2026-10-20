@@ -10,3 +10,10 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+export * from './marketplace.types';
+export * from './campaigns.types';
+export * from './chat.types';
+export * from './cart.types';
+export * from './wallet.types';
+export * from './samples.types';

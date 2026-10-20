@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export type LeaderboardMetric = 'REVENUE' | 'ORDERS' | 'CONVERSION_RATE' | 'COMMISSION';
 export type LeaderboardTimeRange = 'this_month' | 'last_month' | 'this_quarter' | 'all_time' | 'custom';
@@ -30,7 +30,7 @@ export interface LeaderboardPodium {
 }
 
 export interface MyRankStatus {
-  myRank: number;
+  myRank: number | null;
   rankDelta: number;
   myRevenue: number;
   myOrders: number;
@@ -101,7 +101,7 @@ export const leaderboardService = {
   getLeaderboard: async (params?: LeaderboardQueryParams): Promise<LeaderboardFullResponse> => {
     const res = await api.get<{ data?: LeaderboardFullResponse } | LeaderboardFullResponse>(
       '/leaderboard',
-      { params },
+      { params, headers: { 'x-skip-cache': '1' } },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -129,4 +129,3 @@ export const leaderboardService = {
     return (res.data as any)?.data || res.data;
   },
 };
-

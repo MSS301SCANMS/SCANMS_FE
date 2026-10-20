@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import ts from 'typescript';
 
-const source = readFileSync(new URL('../src/utils/checkoutAddress.ts', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../src/utils/checkout-address.utils.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { formatSavedAddressOption, resolveSavedShippingAddress } = await import(
+const { formatSavedAddressOption, resolveSavedShippingAddress, resolveMapShippingAddress } = await import(
   `data:text/javascript;charset=utf-8,${encodeURIComponent(compiled)}`
 );
 
@@ -23,6 +23,22 @@ const provinces = [{
     },
   ],
 }];
+
+test('map names resolve Vietnamese administrative prefixes without guessing a district from street numbers', () => {
+  assert.deepEqual(resolveMapShippingAddress({ provinceName: 'Hồ Chí Minh', districtName: 'Thủ Đức', wardName: 'Tăng Nhơn Phú B' }, provinces),
+    { provinceCode: '79', districtCode: '769', wardCode: '26845' });
+  assert.deepEqual(resolveMapShippingAddress({ provinceName: 'Hồ Chí Minh', districtName: 'Địa danh chưa khớp', wardName: 'Phường 1' }, provinces),
+    { provinceCode: '79', districtCode: '', wardCode: '' });
+  assert.deepEqual(resolveMapShippingAddress({ provinceName: 'Địa danh mới chưa có trong danh mục', districtName: 'Thủ Đức', wardName: 'Tăng Nhơn Phú B' }, provinces),
+    { provinceCode: '', districtCode: '', wardCode: '' });
+});
+
+test('missing district is inferred only when the ward uniquely identifies it in the province', () => {
+  const location = { provinceName: 'Hồ Chí Minh', districtName: '', wardName: 'Tăng Nhơn Phú B' };
+  assert.deepEqual(resolveMapShippingAddress(location, provinces), { provinceCode: '79', districtCode: '769', wardCode: '26845' });
+  const ambiguous = [{ ...provinces[0], districts: [...provinces[0].districts, { code: 999, name: 'Quận khác', wards: [{ code: 999, name: 'Phường Tăng Nhơn Phú B' }] }] }];
+  assert.deepEqual(resolveMapShippingAddress(location, ambiguous), { provinceCode: '79', districtCode: '', wardCode: '' });
+});
 
 test('legacy full address resolves the correct district and ward, never Quận 1 from house number 15A', () => {
   const result = resolveSavedShippingAddress({

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import api from '../../services/api';
-import type { SampleRequest, SampleRequestStatus, ShopStats } from '../../types/samples';
+import type { SampleRequest, SampleRequestStatus, ShopStats } from '@/types/samples.types';
 import { Select } from '../../components/ui/Select';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -47,7 +47,7 @@ function TrackingModal({
   onSuccess: () => void;
 }) {
   const [trackingNumber, setTrackingNumber] = useState('');
-  const [carrier, setCarrier] = useState('GHTK');
+  const [carrier, setCarrier] = useState('GHN');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -112,11 +112,7 @@ function TrackingModal({
               onChange={(e) => setCarrier(e.target.value)}
               className="w-full text-xs"
             >
-              <option value="GHTK">GHTK — Giao Hàng Tiết Kiệm</option>
-              <option value="GHN">GHN — Giao Hàng Nhanh</option>
-              <option value="VNPOST">VN Post</option>
-              <option value="VIETTELPOST">Viettel Post</option>
-              <option value="OTHER">Khác</option>
+              <option value="GHN">Giao Hàng Nhanh (GHN)</option>
             </Select>
           </div>
 

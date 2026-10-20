@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface SocialChannel {
   id: string;
@@ -11,8 +11,10 @@ export interface SocialChannel {
 }
 
 export const socialService = {
-  async getMyChannels(): Promise<SocialChannel[]> {
-    const res: any = await api.get('/social-channels');
+  async getMyChannels(options: { forceRefresh?: boolean } = {}): Promise<SocialChannel[]> {
+    const res: any = await api.get('/social-channels', options.forceRefresh
+      ? { headers: { 'x-skip-cache': 'true' } }
+      : undefined);
     return res.data;
   },
 
@@ -37,4 +39,3 @@ export const socialService = {
     return res.data;
   },
 };
-

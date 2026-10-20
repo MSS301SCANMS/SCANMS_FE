@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface EligibleProduct {
   id: string;
@@ -130,6 +130,7 @@ export const referralLinksService = {
   },
 
   async createExclusiveDeal(payload: {
+    videoReviewCommitment: boolean;
     productId: string;
     proposedCommissionRate: number;
     salesCommitment: string;
@@ -144,8 +145,8 @@ export const referralLinksService = {
     return Array.isArray(payload) ? payload : payload?.data || [];
   },
 
-  async approveExclusiveDeal(id: string) {
-    const res: any = await api.patch(`/affiliate-deals/${id}/approve`, {});
+  async approveExclusiveDeal(id: string, voucher?: { discountPercent: number; minimumOrderAmount: number; maximumDiscountAmount: number; usageLimitTotal: number; budgetTotal: number; validDays: number }) {
+    const res: any = await api.patch(`/affiliate-deals/${id}/approve`, voucher || {});
     return res?.data?.data || res?.data || res;
   },
 
@@ -287,4 +288,3 @@ export const referralLinksService = {
 };
 
 export default referralLinksService;
-

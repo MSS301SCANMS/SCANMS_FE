@@ -3,10 +3,11 @@ import React, {
   useState,
   useRef,
   useEffect,
+  useMemo,
   type ReactNode,
   type CSSProperties,
 } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Search } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export interface SelectOption {
@@ -29,6 +30,9 @@ export interface SelectProps {
   style?: CSSProperties;
   'aria-label'?: string;
   children?: ReactNode;
+  searchable?: boolean;
+  placement?: 'bottom' | 'top' | 'auto';
+  align?: 'left' | 'right';
 }
 
 function getLabelFromNode(node: ReactNode): string {
@@ -85,6 +89,9 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
       className,
       style,
       'aria-label': ariaLabel,
+      searchable,
+      placement = 'auto',
+      align = 'left',
       children,
     },
     ref
@@ -92,6 +99,12 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
     const options = optionsProp || (children ? extractOptions(children) : []);
 
     const [isOpen, setIsOpen] = useState(false);
+    const [openDirection, setOpenDirection] = useState<'down' | 'up'>(
+      placement === 'top' ? 'up' : 'down'
+    );
+    const [searchQuery, setSearchQuery] = useState('');
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
     const [internalValue, setInternalValue] = useState<string>(() => {
       if (value !== undefined) return String(value);
       if (defaultValue !== undefined) return String(defaultValue);
@@ -102,6 +115,47 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
 
     const containerRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
+
+    // Detect open direction (upwards or downwards)
+    useEffect(() => {
+      if (!isOpen || !containerRef.current) return;
+      if (placement === 'top') {
+        setOpenDirection('up');
+        return;
+      }
+      if (placement === 'bottom') {
+        setOpenDirection('down');
+        return;
+      }
+      try {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+          setOpenDirection('up');
+        } else {
+          setOpenDirection('down');
+        }
+      } catch {
+        setOpenDirection('down');
+      }
+    }, [isOpen, placement]);
+
+    // Filter options based on search query
+    const filteredOptions = useMemo(() => {
+      if (!searchQuery.trim()) return options;
+      const q = searchQuery.toLowerCase().trim();
+      return options.filter((opt) => opt.label.toLowerCase().includes(q));
+    }, [options, searchQuery]);
+
+    useEffect(() => {
+      if (isOpen) {
+        setSearchQuery('');
+        if (searchable || options.length > 7) {
+          setTimeout(() => searchInputRef.current?.focus(), 50);
+        }
+      }
+    }, [isOpen, searchable, options.length]);
 
     // Sync external value when controlled
     useEffect(() => {
@@ -207,7 +261,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
           <ChevronDown
             className={cn(
               'w-4 h-4 text-[#7D715E] shrink-0 transition-transform duration-200',
-              isOpen && 'rotate-180 text-[#B88E4F]'
+              isOpen && (openDirection === 'up' ? '-rotate-180 text-[#B88E4F]' : 'rotate-180 text-[#B88E4F]')
             )}
           />
         </button>
@@ -218,40 +272,72 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
             ref={listRef}
             role="listbox"
             tabIndex={-1}
-            className="absolute z-50 left-0 right-0 mt-1.5 min-w-[200px] w-full bg-white border border-[#EEDFC6] rounded-2xl shadow-xl py-1.5 max-h-60 overflow-y-auto overscroll-contain animate-in fade-in zoom-in-95 duration-150"
+            className={cn(
+              'absolute z-50 min-w-[200px] w-full bg-white border border-[#EEDFC6] rounded-2xl shadow-xl py-1.5 max-h-60 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150',
+              align === 'right' ? 'right-0' : 'left-0',
+              openDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+            )}
             style={{ colorScheme: 'light' }}
           >
-            {options.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-[#7D715E] text-center">
-                Không có lựa chọn nào
+            {(searchable || options.length > 7) && (
+              <div className="p-2 border-b border-[#EAE4D7] bg-[#FAF8F5]/90 shrink-0">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm nhanh..."
+                    className="w-full pl-8 pr-6 py-1.5 text-xs bg-white border border-[#EAE4D7] rounded-xl text-[#1A1612] placeholder:text-[#A99D8A] focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[#7D715E] hover:text-[#1A1612] cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
-            ) : (
-              options.map((opt) => {
-                const isSelected = opt.value === currentValue;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    disabled={opt.disabled}
-                    onClick={() => handleSelect(opt)}
-                    className={cn(
-                      'w-full text-left px-3.5 py-2.5 text-xs sm:text-sm transition flex items-center justify-between cursor-pointer select-none',
-                      isSelected
-                        ? 'bg-[#FBF5EB] text-[#B88E4F] font-bold hover:bg-[#F3EFE6]'
-                        : 'text-[#1A1612] hover:bg-[#F3EFE6] font-normal',
-                      opt.disabled && 'opacity-40 cursor-not-allowed bg-transparent text-[#7D715E]'
-                    )}
-                  >
-                    <span className="truncate pr-2">{opt.label}</span>
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-[#C59B58] shrink-0 ml-auto" />
-                    )}
-                  </button>
-                );
-              })
             )}
+            <div className="overflow-y-auto overscroll-contain flex-1 max-h-52 [scrollbar-width:thin] [scrollbar-color:#EEDFC6_transparent]">
+              {filteredOptions.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-[#7D715E] text-center">
+                  Không tìm thấy kết quả phù hợp
+                </div>
+              ) : (
+                filteredOptions.map((opt) => {
+                  const isSelected = opt.value === currentValue;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      disabled={opt.disabled}
+                      onClick={() => handleSelect(opt)}
+                      className={cn(
+                        'w-full text-left px-3.5 py-2.5 text-xs sm:text-sm transition flex items-center justify-between cursor-pointer select-none',
+                        isSelected
+                          ? 'bg-[#FBF5EB] text-[#B88E4F] font-bold hover:bg-[#F3EFE6]'
+                          : 'text-[#1A1612] hover:bg-[#F3EFE6] hover:text-[#B88E4F] font-normal',
+                        opt.disabled && 'opacity-40 cursor-not-allowed bg-transparent text-[#7D715E]'
+                      )}
+                    >
+                      <span className="truncate pr-2">{opt.label}</span>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-[#C59B58] shrink-0 ml-auto" />
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
       </div>

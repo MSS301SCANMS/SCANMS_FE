@@ -11,8 +11,8 @@ async function loadTypeScript(relativePath) {
   const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`);
 }
-const { marketplaceProducts: products, marketplaceKOLs: creators, marketplaceVideos: videos } = await loadTypeScript('../src/features/marketplace/marketplaceData.ts');
-const { calculateCart, normalizeSearch, formatMoney } = await loadTypeScript('../src/features/marketplace/marketplaceUtils.ts');
+const { marketplaceProducts: products, marketplaceKOLs: creators, marketplaceVideos: videos } = await loadTypeScript('./fixtures/marketplaceData.ts');
+const { calculateCart, normalizeSearch, formatMoney } = await loadTypeScript('../src/utils/marketplace.utils.ts');
 
 test('Vietnamese search ignores case, diacritics and đ', () => {
   assert.equal(normalizeSearch('  Nguyễn Đình Tuấn  '), 'nguyen dinh tuan');
@@ -96,23 +96,52 @@ test('Marketplace uses real stock and cart integration', () => {
   assert.match(source, /openCart/);
 });
 
-test('global sidebar uses production role-switching component instead of Demo wording', () => {
-  const sidebar = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
-  assert.match(sidebar, /<WorkspaceSwitcher variant="sidebar" \/>/);
-  assert.doesNotMatch(sidebar, /Đổi vai trò Demo/i);
-  const switcher = readFileSync(new URL('../src/components/common/WorkspaceSwitcher.tsx', import.meta.url), 'utf8');
-  assert.match(switcher, /Chuyển đổi không gian làm việc/);
-  assert.match(switcher, /Không gian hiện tại/);
+test('topbar uses the accessible account menu with the active workspace role', () => {
+  const topbar = readFileSync(new URL('../src/components/layout/Topbar.tsx', import.meta.url), 'utf8');
+  assert.match(topbar, /<HeaderAccountButton\s/);
+  assert.match(topbar, /role=\{role\}/);
+  assert.match(topbar, /menuId="topbar-account-menu"/);
+  assert.match(topbar, /scanms_workspace_changed/);
+  const account = readFileSync(new URL('../src/components/layout/HeaderAccountButton.tsx', import.meta.url), 'utf8');
+  for (const role of ['CUSTOMER', 'COLLABORATOR', 'SHOP_MANAGER', 'SYSTEM_MANAGER', 'SYSTEM_ADMIN']) {
+    assert.ok(account.includes(`${role}:`), `Account menu must display role ${role}`);
+  }
+  assert.match(account, /aria-expanded=\{expanded\}/);
+  assert.match(account, /aria-controls=\{menuId\}/);
+  assert.doesNotMatch(account, /Demo/);
 });
 
-test('every sidebar navigation function renders its link with warm gold styling', () => {
+// Inspect the actual navigation Link; padding changes and class order are not behavior.
+function sidebarNavigationAttributes() {
   const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
-  assert.match(source, /group flex items-center gap-3 px-3 py-2\.5 rounded-xl/);
-  assert.match(source, /bg-\[#FAF5EB\] text-\[#B88E4F\]/);
+  const tree = ts.createSourceFile('Sidebar.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let attributes;
+  function visit(node) {
+    if (ts.isJsxOpeningElement(node) && node.tagName.getText(tree) === 'Link') {
+      const props = node.attributes.properties.filter(ts.isJsxAttribute);
+      if (props.some(prop => prop.name.getText(tree) === 'to' && prop.initializer?.getText(tree) === '{item.path}')) {
+        attributes = new Map(props.map(prop => [prop.name.getText(tree), prop.initializer?.getText(tree) ?? '']));
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(attributes, 'Sidebar must render each navigation item as a real Link');
+  return attributes;
+}
+
+test('every sidebar navigation function renders its link with warm gold styling', () => {
+  const classes = sidebarNavigationAttributes().get('className');
+  for (const token of ['group', 'flex', 'items-center', 'rounded-xl', 'bg-[#FAF5EB]', 'text-[#B88E4F]']) {
+    assert.ok(classes?.includes(token), `Missing navigation token: ${token}`);
+  }
 });
 
 test('sidebar navigation rows use clean layout and active indicators', () => {
-  const source = readFileSync(new URL('../src/components/layout/Sidebar.tsx', import.meta.url), 'utf8');
-  assert.match(source, /group flex items-center gap-3 px-3 py-2\.5 rounded-xl/);
-  assert.match(source, /text-\[#1A1612\] hover:bg-white hover:text-\[#B88E4F\]/);
+  const attributes = sidebarNavigationAttributes();
+  assert.equal(attributes.get('aria-current'), "{active ? 'page' : undefined}");
+  for (const token of ['hover:bg-[#FAF8F5]', 'hover:text-[#B88E4F]', 'min-h-[40px]']) {
+    assert.ok(attributes.get('className')?.includes(token), `Missing navigation token: ${token}`);
+  }
 });
+

@@ -1,0 +1,36 @@
+.scanms-notifications { position:fixed; z-index:100; display:flex; flex-direction:column; width:380px; max-width:calc(100vw - 20px); min-height:0; overflow:hidden; border:1px solid #EAE4D7; border-radius:14px; background:#FFFFFF; color:#1A1612; box-shadow:0 10px 32px rgb(35 29 21 / 12%); text-align:left; outline:none; }
+.scanms-notifications-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; flex-shrink:0; gap:4px 6px; padding:8px 12px; background:#FFFFFF; }
+.scanms-notifications-header button { min-height:32px; cursor:pointer; }
+.scanms-notifications-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; flex-shrink:0; padding:0 10px 8px; border-bottom:1px solid #EAE4D7; background:#FFFFFF; }
+.scanms-notifications-tabs > button { min-width:0; min-height:32px; }
+.scanms-notifications-list { flex:1 1 auto; min-height:0; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#D9C5A3 #FAF8F5; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
+.scanms-notifications-list::-webkit-scrollbar { width:5px; }
+.scanms-notifications-list::-webkit-scrollbar-thumb { border-radius:8px; background:#D9C5A3; }
+.scanms-notification-item { min-width:0; padding:10px 12px 8px; border-bottom:1px solid #F3EFE6; background:#FFFFFF; }
+.scanms-notification-item:last-child { border-bottom:0; }
+.scanms-notification-item[data-read="false"] { background:#FDFAF5; }
+.scanms-notification-item:hover { background:#FAF8F5; }
+.scanms-notification-open { display:flex; align-items:flex-start; gap:9px; width:100%; min-width:0; padding:0; border:0; border-radius:5px; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.scanms-notification-icon { display:grid; place-items:center; flex-shrink:0; width:29px; height:29px; margin-top:1px; border:1px solid #EEDFC6; border-radius:8px; background:#FFFFFF; color:#B88E4F; }
+.scanms-notification-title { display:block; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1A1612; font-size:12px; font-weight:600; line-height:1.5; }
+.scanms-notification-item[data-read="true"] .scanms-notification-title { font-weight:500; }
+.scanms-notification-message { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; margin-top:3px; color:#7D715E; font-size:11px; line-height:1.55; }
+.scanms-notification-message[data-expanded="true"] { display:block; }
+.scanms-notification-item:has(.scanms-notification-message[data-expanded="true"]) .scanms-notification-title { white-space:normal; overflow-wrap:anywhere; }
+.scanms-notification-meta { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:3px 8px; min-height:20px; margin:3px 0 0 38px; color:#8A642C; font-size:10px; line-height:1.5; }
+.scanms-notification-meta > time { display:inline-flex; align-items:center; gap:4px; color:#7D715E; }
+.scanms-notification-meta > time > svg { flex-shrink:0; }
+.scanms-notification-expand { min-height:22px; margin-left:auto; padding:2px 0 2px 8px; border:0; border-radius:4px; background:transparent; color:#8A642C; font:inherit; font-size:10px; line-height:1.5; cursor:pointer; }
+.scanms-notification-expand:hover { text-decoration:underline; text-underline-offset:3px; }
+.scanms-notifications-footer { display:flex; align-items:center; justify-content:center; flex-shrink:0; min-height:40px; border-top:1px solid #EAE4D7; background:#FFFFFF; }
+.scanms-notifications-footer > button { display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:40px; padding:10px 12px; border:0; background:#FFFFFF; color:#8A642C; font:inherit; font-size:11px; font-weight:550; cursor:pointer; }
+.scanms-notifications-footer > button:hover { background:#FBF5EB; }
+.scanms-notifications-footer > span { padding:10px; color:#7D715E; font-size:10px; }
+.scanms-notifications :is(button,[tabindex="0"]):focus-visible { outline:2px solid #B88E4F; outline-offset:-2px; }
+@media (max-width:359px) {
+ .scanms-notifications-header { padding:6px 10px; }
+ .scanms-notifications-header h3 { font-size:13px; }
+ .scanms-notifications-header > div:first-child { gap:5px; }
+ .scanms-notifications-header > div:last-child { gap:1px; }
+ .scanms-notification-item { padding-left:10px; padding-right:10px; }
+}

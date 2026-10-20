@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface StoreSettings {
   id: string;
@@ -50,14 +50,9 @@ export interface StoreSettings {
 }
 
 export const storeService = {
-  async getMyStore(): Promise<StoreSettings> {
-    const res: any = await api.get('/stores/my-store');
+  async getMyStore(fresh = false): Promise<StoreSettings> {
+    const res: any = await api.get('/stores/my-store', { headers: fresh ? { 'x-skip-cache': 'true' } : undefined });
     return res?.data || res;
-  },
-
-  async getMyStores(): Promise<StoreSettings[]> {
-    const res: any = await api.get('/stores/my-stores');
-    return res?.data || res || [];
   },
 
   async updateMyStore(data: Partial<StoreSettings>) {
@@ -70,4 +65,3 @@ export const storeService = {
     return res?.data || res;
   },
 };
-

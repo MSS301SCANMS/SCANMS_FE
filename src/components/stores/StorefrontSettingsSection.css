@@ -1,0 +1,38 @@
+.sf-settings { margin-top:4px; border:1px solid #EAE4D7; border-radius:14px; background:#fff; color:#1A1612; }
+.sf-settings-heading { display:flex; align-items:center; gap:11px; list-style:none; padding:15px 16px; cursor:pointer; border-radius:14px; transition:background .15s; }
+.sf-settings-heading::-webkit-details-marker { display:none; }
+.sf-settings-heading::marker { content:''; }
+.sf-settings-heading:hover { background:#FAF8F5; }
+.sf-settings-heading:focus-visible { outline:2px solid #C59B58; outline-offset:3px; }
+.sf-settings-icon { width:37px; height:37px; display:grid; place-items:center; background:#FBF5EB; border:1px solid #EEDFC6; color:#B88E4F; border-radius:10px; flex-shrink:0; }
+.sf-settings-title { display:grid; gap:4px; flex:1; min-width:0; }
+.sf-settings-title strong { font-size:14px; font-weight:700; line-height:1.4; }
+.sf-settings-title small { font-size:11px; line-height:1.5; color:#7D715E; }
+.sf-settings-chevron { flex-shrink:0; color:#B88E4F; transition:transform .15s; }
+.sf-settings[open] .sf-settings-chevron { transform:rotate(180deg); }
+.sf-settings-body { padding:18px 16px 16px; border-top:1px solid #EAE4D7; }
+.sf-settings-link-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.sf-settings-link-heading>span { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; }
+.sf-settings-link-heading svg { color:#B88E4F; }
+.sf-settings-link-heading small { font-size:10px; font-weight:600; border:1px solid #EEDFC6; border-radius:5px; padding:3px 7px; background:#FBF5EB; color:#7D715E; }
+.sf-settings-url { display:flex; align-items:center; gap:6px; border:1px solid #EAE4D7; background:#FAF8F5; border-radius:10px; padding:5px; }
+.sf-settings-url:focus-within { border-color:#C59B58; }
+.sf-settings-url input { flex:1; min-width:0; border:0; background:transparent; padding:7px; color:#1A1612; outline:0; font-size:12px; text-overflow:ellipsis; }
+.sf-settings-url button { width:34px; height:34px; border:1px solid #EAE4D7; border-radius:7px; display:grid; place-items:center; color:#B88E4F; background:#fff; flex-shrink:0; cursor:pointer; }
+.sf-settings-url button:hover { background:#FBF5EB; border-color:#C59B58; }
+.sf-settings-url button:disabled { opacity:.5; cursor:not-allowed; }
+.sf-settings-url button:focus-visible,.sf-settings-link-footer a:focus-visible { outline:2px solid #C59B58; outline-offset:2px; }
+.sf-settings-link-footer { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:7px; margin-top:9px; }
+.sf-settings-link-footer p { font-size:11px; color:#7D715E; margin:0; line-height:1.5; }
+.sf-settings-link-footer a { display:inline-flex; align-items:center; gap:5px; color:#8A642C; font-size:11px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.sf-settings-link-footer a:hover { text-decoration:underline; }
+.sf-settings-description { margin-top:20px; padding-top:17px; border-top:1px solid #EAE4D7; }
+.sf-settings-description label { display:block; font-weight:600; font-size:12px; margin-bottom:5px; }
+.sf-settings-description p { color:#7D715E; margin:0 0 11px; font-size:11px; line-height:1.6; }
+.sf-settings-description textarea { display:block; box-sizing:border-box; width:100%; min-height:108px; border:1px solid #EAE4D7; border-radius:10px; padding:12px; font-size:13px; line-height:1.7; background:#fff; color:#1A1612; resize:vertical; }
+.sf-settings-description textarea:focus-visible { outline:2px solid #C59B58; outline-offset:2px; }
+.sf-settings-description textarea::placeholder { color:#A39784; }
+.sf-settings-description-footer { display:flex; justify-content:space-between; gap:12px; font-size:10px; color:#7D715E; margin-top:8px; line-height:1.5; }
+.sf-settings-description-footer>span:last-child { white-space:nowrap; }
+@media(prefers-reduced-motion:reduce) { .sf-settings-chevron,.sf-settings-heading { transition:none; } }
+@media(max-width:420px) { .sf-settings-heading { padding:13px; gap:9px; } .sf-settings-body { padding:15px 13px; } .sf-settings-description-footer { flex-wrap:wrap; gap:4px; } }

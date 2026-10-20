@@ -1,4 +1,11 @@
-import api from '../lib/api';
+import api from './api';
+import { authService } from './auth.service';
+
+function notifyWishlistChanged(userId: string | undefined, token: string | null) {
+  if (userId && token === localStorage.getItem('token')) {
+    window.dispatchEvent(new CustomEvent('customer-wishlist-changed', { detail: { userId } }));
+  }
+}
 
 export interface CustomerStats {
   totalOrders: number;
@@ -12,13 +19,8 @@ export interface CustomerProfileResponse {
     id: string;
     email: string;
     fullName: string;
-    username?: string | null;
     phoneNumber?: string | null;
-    dateOfBirth?: string | null;
-    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
-    address?: string | null;
     avatarUrl?: string | null;
-    bio?: string | null;
     role: string;
     createdAt: string;
   };
@@ -133,6 +135,11 @@ export interface SyncedCartItem {
   }>;
 }
 
+export interface CartSessionRequest {
+  token: string;
+  signal: AbortSignal;
+}
+
 export interface CustomerAddress {
   id: string;
   userId: string;
@@ -178,40 +185,13 @@ export interface CustomerWishlistItem {
 export const customerService = {
   // 1. Profile & Settings
   async getProfile(): Promise<CustomerProfileResponse> {
-    const res: any = await api.get('/users/me');
-    const u = res?.result || res?.data || res;
-    const roleMap: Record<string, string> = { ADMIN: 'SYSTEM_ADMIN', MANAGER: 'SYSTEM_MANAGER' };
-    const beRole = Array.isArray(u.roles) ? (u.roles[0] || 'USER') : (u.role || 'USER');
-    return {
-      user: {
-        id: u.userId || u.id,
-        email: u.email,
-        fullName: u.fullName || '',
-        username: u.username || null,
-        phoneNumber: u.phoneNumber || null,
-        dateOfBirth: u.dateOfBirth || null,
-        gender: u.gender || null,
-        address: u.address || null,
-        avatarUrl: u.avatarUrl || null,
-        bio: u.bio || null,
-        role: roleMap[beRole] || beRole,
-        createdAt: u.createdAt,
-      },
-      stats: { totalOrders: 0, pendingOrders: 0, totalSpending: 0, wishlistCount: 0 },
-    };
+    const res: any = await api.get('/customer/profile');
+    return res?.data?.data || res?.data || res;
   },
 
-  async updateProfile(data: {
-    fullName?: string;
-    phoneNumber?: string;
-    avatarUrl?: string;
-    dateOfBirth?: string | null;
-    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
-    address?: string | null;
-    bio?: string | null;
-  }): Promise<any> {
-    const res: any = await api.patch('/users/me', data);
-    return res?.result || res?.data || res;
+  async updateProfile(data: { fullName?: string; phoneNumber?: string; avatarUrl?: string }): Promise<any> {
+    const res: any = await api.put('/customer/profile', data);
+    return res?.data?.data || res?.data || res;
   },
 
   async changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
@@ -246,7 +226,7 @@ export const customerService = {
 
   // 2. Orders
   async getOrders(params?: { status?: string; search?: string }): Promise<{ total: number; orders: CustomerOrder[] }> {
-    const res: any = await api.get('/customer/orders', { params });
+    const res: any = await api.get('/customer/orders', { params, headers: { 'x-skip-cache': 'true' } });
     const payload = res?.data?.data || res?.data || res;
     return {
       total: payload?.total || (payload?.orders?.length ?? 0),
@@ -255,7 +235,7 @@ export const customerService = {
   },
 
   async getOrderDetails(orderId: string): Promise<CustomerOrder> {
-    const res: any = await api.get(`/customer/orders/${orderId}`);
+    const res: any = await api.get(`/customer/orders/${orderId}`, { headers: { 'x-skip-cache': 'true' } });
     return res?.data?.data || res?.data || res;
   },
 
@@ -298,15 +278,22 @@ export const customerService = {
     return res?.data?.data || res?.data || res;
   },
 
-  async getCart(): Promise<{ items: SyncedCartItem[]; syncedAt: string }> {
-    const res: any = await api.get('/customer/cart', { headers: { 'x-skip-cache': 'true' } });
+  async getCart(session?: CartSessionRequest): Promise<{ items: SyncedCartItem[]; syncedAt: string }> {
+    const res: any = await api.get('/customer/cart', {
+      signal: session?.signal,
+      headers: { 'x-skip-cache': 'true', ...(session ? { Authorization: `Bearer ${session.token}` } : {}) },
+    });
     return res?.data?.data || res?.data || res;
   },
 
   async syncCart(
     items: Array<{ productId: string; variantId?: string; quantity: number }>,
+    session?: CartSessionRequest,
   ): Promise<{ items: SyncedCartItem[]; warnings?: string[]; syncedAt: string }> {
-    const res: any = await api.put('/customer/cart', { items });
+    const res: any = await api.put('/customer/cart', { items }, {
+      signal: session?.signal,
+      ...(session ? { headers: { Authorization: `Bearer ${session.token}` } } : {}),
+    });
     return res?.data?.data || res?.data || res;
   },
 
@@ -338,20 +325,28 @@ export const customerService = {
   },
 
   // 4. Wishlist
-  async getWishlist(): Promise<CustomerWishlistItem[]> {
-    const res: any = await api.get('/customer/wishlist');
+  async getWishlist(signal?: AbortSignal): Promise<CustomerWishlistItem[]> {
+    const token = localStorage.getItem('token');
+    const res: any = await api.get('/customer/wishlist', { signal,
+      headers: { 'x-skip-cache': 'true', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
     const payload = res?.data?.data || res?.data || res;
     return Array.isArray(payload) ? payload : [];
   },
 
   async toggleWishlist(productId: string): Promise<{ wishlisted: boolean; message: string }> {
+    const userId = authService.getCurrentUser()?.id;
+    const token = localStorage.getItem('token');
     const res: any = await api.post(`/customer/wishlist/${productId}/toggle`);
+    notifyWishlistChanged(userId, token);
     return res?.data?.data || res?.data || res;
   },
 
   async removeFromWishlist(productId: string): Promise<any> {
+    const userId = authService.getCurrentUser()?.id;
+    const token = localStorage.getItem('token');
     const res: any = await api.delete(`/customer/wishlist/${productId}`);
+    notifyWishlistChanged(userId, token);
     return res?.data?.data || res?.data || res;
   },
 };
-

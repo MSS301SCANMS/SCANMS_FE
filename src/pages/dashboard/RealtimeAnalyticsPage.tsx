@@ -40,6 +40,9 @@ import type {
   CampaignPerformanceItem,
 } from '../../services/analytics.service';
 import { authService } from '../../services/auth.service';
+import { useRef } from 'react';
+import { WorkspaceHero } from '@/components/ui/FeatureWorkspace';
+import { downloadReport, vietnamDateRange } from '@/utils/report-export';
 
 export const RealtimeAnalyticsPage: React.FC = () => {
   const user = authService.getCurrentUser();
@@ -50,7 +53,9 @@ export const RealtimeAnalyticsPage: React.FC = () => {
   const [activeChartTab, setActiveChartTab] = useState<'traffic' | 'financial'>('traffic');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [appliedDates, setAppliedDates] = useState<{ startDate: string; endDate: string } | null>(null);
+  const requestSequence = useRef(0);
 
 
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
@@ -64,25 +69,20 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
 
   const fetchData = useCallback(async (showIndicator = false) => {
+    const request = ++requestSequence.current;
     try {
       if (showIndicator) setIsRefreshing(true);
       setError(null);
-
-      const params: any = { range };
-      if (range === 'custom' && customStartDate && customEndDate) {
-        params.startDate = new Date(customStartDate).toISOString();
-        params.endDate = new Date(customEndDate).toISOString();
-      }
-
+      const params = { range, ...(range === 'custom' && appliedDates ? appliedDates : {}) };
       const [ovData, tsData, prodData, chanData, funData, campData] = await Promise.all([
-        analyticsService.getRealtimeOverview(params).catch(() => null),
-        analyticsService.getTimeSeries(params).catch(() => []),
-        analyticsService.getTopProducts({ ...params, limit: 5 }).catch(() => []),
-        analyticsService.getTopChannels({ ...params, limit: 6 }).catch(() => []),
-        analyticsService.getConversionFunnel(params).catch(() => null),
-        analyticsService.getCampaignPerformance(params).catch(() => []),
+        analyticsService.getRealtimeOverview(params, true),
+        analyticsService.getTimeSeries(params, true),
+        analyticsService.getTopProducts({ ...params, limit: 5 }),
+        analyticsService.getTopChannels({ ...params, limit: 6 }),
+        analyticsService.getConversionFunnel(params),
+        analyticsService.getCampaignPerformance(params),
       ]);
-
+      if (request !== requestSequence.current) return;
       setOverview(ovData);
       setTimeSeries(Array.isArray(tsData) ? tsData : []);
       setTopProducts(Array.isArray(prodData) ? prodData : []);
@@ -90,29 +90,28 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       setFunnel(funData);
       setCampaigns(Array.isArray(campData) ? campData : []);
       setLastUpdated(new Date());
-    } catch (err: any) {
-      console.error('Failed to load realtime analytics:', err);
-      setError(err?.response?.data?.message || 'Không thể tải dữ liệu phân tích thời gian thực.');
+    } catch (cause) {
+      if (request === requestSequence.current) setError(cause instanceof Error ? cause.message : 'Không tải được báo cáo. Dữ liệu cũ chưa được đồng bộ.');
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (request === requestSequence.current) { setLoading(false); setIsRefreshing(false); }
     }
-  }, [range, customStartDate, customEndDate]);
-
+  }, [range, appliedDates]);
 
   useEffect(() => {
-    fetchData();
+    setLoading(true);
+    // Do not show metrics from the previous period under the new filter.
+    setOverview(null); setTimeSeries([]); setTopProducts([]); setTopChannels([]); setFunnel(null); setCampaigns([]); setLastUpdated(null);
+    void fetchData();
+    return () => { requestSequence.current += 1; };
   }, [fetchData]);
-
 
   useEffect(() => {
     if (autoRefreshInterval <= 0) return;
     const timer = setInterval(() => {
-      fetchData(true);
+      if (document.visibilityState === 'visible' && !isRefreshing && !loading) void fetchData(true);
     }, autoRefreshInterval * 1000);
-
     return () => clearInterval(timer);
-  }, [autoRefreshInterval, fetchData]);
+  }, [autoRefreshInterval, fetchData, isRefreshing, loading]);
 
 
   const formatCurrency = (amount: number) => {
@@ -124,35 +123,18 @@ export const RealtimeAnalyticsPage: React.FC = () => {
   };
 
   const handleApplyCustomRange = () => {
-    if (customStartDate && customEndDate) {
-      setRange('custom');
-      setIsCustomOpen(false);
-      fetchData();
-    }
+    try {
+      setAppliedDates(vietnamDateRange(customStartDate, customEndDate));
+      setRange('custom'); setIsCustomOpen(false);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Khoảng ngày không hợp lệ.'); }
   };
 
-
   const handleExportCsv = () => {
-    if (!timeSeries.length) return;
-    const headers = ['Thời gian', 'Lượt Click', 'Số Đơn Hàng', 'Doanh Thu (VNĐ)', 'Hoa Hồng (VNĐ)', 'CR (%)'];
-    const rows = timeSeries.map(p => [
-      p.label || p.date || '',
-      p.clicks,
-      p.orders,
-      p.revenue,
-      p.commission,
-      p.conversionRate,
+    if (!timeSeries.length || loading || error) return;
+    downloadReport(`SCANMS_Analytics_${range}_${new Date().toISOString().slice(0, 10)}.csv`, [
+      ['Thời gian', 'Lượt Click', 'Số Đơn Hàng', 'Doanh Thu (VNĐ)', 'Hoa Hồng (VNĐ)', 'CR (%)'],
+      ...timeSeries.map(point => [point.label || point.date || '', point.clicks, point.orders, point.revenue, point.commission, point.conversionRate]),
     ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF'
-      + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `SCANMS_Analytics_${range}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
 
@@ -162,7 +144,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
   }, [topProducts]);
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="realtime-analytics-page space-y-4 pb-8">
+      <WorkspaceHero eyebrow="SCANMS / Performance intelligence" title="Hiệu suất kinh doanh" description="Theo dõi lượt click, đơn hàng, chuyển đổi và doanh thu thực tế. Tự cập nhật khi bật lịch làm mới; tạm ngưng khi tab bị ẩn. Khoảng ngày tùy chọn sử dụng giờ Việt Nam." />
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
           {error}
@@ -183,6 +166,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             ].map(tab => (
               <button
                 key={tab.key}
+                aria-pressed={range === tab.key}
                 onClick={() => {
                   setRange(tab.key);
                   setIsCustomOpen(false);
@@ -197,6 +181,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
               </button>
             ))}
             <button
+              aria-pressed={range === 'custom' || isCustomOpen}
               onClick={() => setIsCustomOpen(!isCustomOpen)}
               className={`flex items-center space-x-1 whitespace-nowrap rounded-lg px-2.5 py-2 transition-all cursor-pointer ${
                 range === 'custom'
@@ -243,6 +228,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             {/* Export CSV button */}
             <button
               onClick={handleExportCsv}
+              disabled={loading || !!error || !timeSeries.length}
               className="inline-flex h-10 shrink-0 items-center space-x-1.5 whitespace-nowrap rounded-xl border border-[#EAE4D7] bg-[#F3EFE6] px-3 text-xs font-semibold text-[#1A1612] transition-all hover:bg-[#EAE4D7] active:scale-95 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-[#B88E4F]" />
@@ -284,7 +270,9 @@ export const RealtimeAnalyticsPage: React.FC = () => {
       )}
 
       {/* 2. Top Summary KPI Cards (5 metrics) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {!overview && <div role="status" className="rounded-2xl border border-dashed border-[#EEDFC6] bg-white p-8 text-center text-sm text-[#7D715E]">{loading ? 'Đang tải báo cáo…' : 'Chưa có báo cáo để hiển thị. Hãy thử làm mới.'}</div>}
+      <div className={`space-y-4 ${!overview ? 'hidden' : ''}`} aria-busy={isRefreshing}>
+      <div className="analytics-kpis grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {/* Clicks */}
         <div className="group space-y-2 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs transition-colors hover:border-[#C59B58]/50">
           <div className="flex items-center justify-between">
@@ -443,7 +431,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             <div>
               <h2 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
                 <Flame className="h-4 w-4 text-[#B88E4F]" />
-                <span>Biểu Đồ Diễn Biến Hiệu Suất Theo Thời Gian</span>
+                <span>Hiệu suất theo thời gian</span>
               </h2>
               <p className="text-xs text-[#7D715E] mt-0.5">
                 {range === 'today' ? 'Thống kê chi tiết theo 24 khung giờ trong ngày' : 'Thống kê xu hướng biến động theo ngày'}
@@ -453,6 +441,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             {/* Sub-tabs for switching metrics displayed in Chart */}
             <div className="flex items-center rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] p-1 text-xs font-semibold">
               <button
+                aria-pressed={activeChartTab === 'traffic'}
                 onClick={() => setActiveChartTab('traffic')}
                 className={`rounded-md px-2.5 py-1.5 transition-colors cursor-pointer ${
                   activeChartTab === 'traffic'
@@ -460,9 +449,10 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'
                 }`}
               >
-                Traffic & Đơn Hàng
+                Lượt nhấp & đơn hàng
               </button>
               <button
+                aria-pressed={activeChartTab === 'financial'}
                 onClick={() => setActiveChartTab('financial')}
                 className={`rounded-md px-2.5 py-1.5 transition-colors cursor-pointer ${
                   activeChartTab === 'financial'
@@ -470,13 +460,13 @@ export const RealtimeAnalyticsPage: React.FC = () => {
                     : 'text-[#7D715E] hover:bg-white hover:text-[#1A1612]'
                 }`}
               >
-                Doanh Thu & Hoa Hồng
+                Doanh thu & hoa hồng
               </button>
             </div>
           </div>
 
           {/* Chart Canvas */}
-          <div className="h-64 w-full sm:h-72">
+          <div className="analytics-chart-canvas h-64 w-full sm:h-72">
             {loading ? (
               <div className="h-full flex items-center justify-center text-[#7D715E] text-xs animate-pulse">
                 Đang nạp dữ liệu biểu đồ thời gian thực...
@@ -559,11 +549,11 @@ export const RealtimeAnalyticsPage: React.FC = () => {
         </div>
 
         {/* Conversion Funnel */}
-        <div className="flex flex-col justify-between space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs">
+        <div className="analytics-funnel flex flex-col justify-between space-y-4 rounded-xl border border-[#EAE4D7] bg-white p-4 shadow-xs">
           <div>
             <h2 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
               <Layers className="h-4 w-4 text-[#B88E4F]" />
-              <span>Phễu Chuyển Đổi (Funnel)</span>
+              <span>Phễu chuyển đổi</span>
             </h2>
             <p className="text-xs text-[#7D715E] mt-0.5">
               Đo lường độ thất thoát traffic từ lúc click link tới khi đơn giao hoàn tất.
@@ -617,7 +607,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
             <div>
               <h3 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
                 <Package className="h-4 w-4 text-[#B88E4F]" />
-                <span>Top Sản Phẩm Mang Lại Doanh Số Cao Nhất</span>
+                <span>Sản phẩm có doanh số cao</span>
               </h3>
               <p className="text-xs text-[#7D715E] mt-0.5">Xếp hạng theo tổng giá trị đơn hàng thực tế phát sinh.</p>
             </div>
@@ -670,7 +660,7 @@ export const RealtimeAnalyticsPage: React.FC = () => {
           <div>
             <h3 className="flex items-center gap-2 text-base font-bold text-[#1A1612]">
               <Share2 className="h-4 w-4 text-[#B88E4F]" />
-              <span>Phân Bổ Kênh Tiếp Thị</span>
+              <span>Hiệu quả kênh tiếp thị</span>
             </h3>
             <p className="text-xs text-[#7D715E] mt-0.5">Tỷ trọng lưu lượng và đơn hàng theo từng mạng xã hội.</p>
           </div>
@@ -757,7 +747,8 @@ export const RealtimeAnalyticsPage: React.FC = () => {
 
 
       <div className="pt-2 text-center text-[11px] text-[#7D715E]">
-        Dữ liệu cập nhật lúc {lastUpdated.toLocaleTimeString('vi-VN')}
+        {lastUpdated ? `Đồng bộ thành công lúc ${lastUpdated.toLocaleTimeString('vi-VN')}` : loading ? 'Đang đồng bộ dữ liệu…' : 'Chưa có lần đồng bộ thành công'}
+      </div>
       </div>
     </div>
   );

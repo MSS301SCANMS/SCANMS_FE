@@ -1,11 +1,12 @@
 import { useSearchParams, Navigate } from 'react-router-dom';
-import { Link2, Tag, Radio } from 'lucide-react';
+import { Link2, Tag, Radio, Store } from 'lucide-react';
+import { SponsoredPlacementsPanel } from '../../components/stores/SponsoredPlacementsPanel';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { authService } from '../../services/auth.service';
 import AdminReferralLinksPage from './AdminReferralLinksPage';
 import AdminCouponsPage from './AdminCouponsPage';
 import AdminLiveSessionsPage from './AdminLiveSessionsPage';
-
 export default function AdminOversightHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'links';
@@ -29,6 +30,7 @@ export default function AdminOversightHubPage() {
   };
 
   const tabs: HubTabItem[] = [
+    { id: 'sponsorship', label: 'Gian hàng tài trợ', icon: Store },
     {
       id: 'links',
       label: 'Quản trị Link Tiếp thị Sàn',
@@ -47,13 +49,22 @@ export default function AdminOversightHubPage() {
   ];
 
   return (
-    <div className="w-full min-w-0 flex flex-col pt-4 text-[#1A1612] sm:pt-5" id="admin-oversight-hub">
+    <div className="w-full min-w-0 flex flex-col gap-4 text-[#1A1612]" id="admin-oversight-hub">
+      {/* 1. Page Header Chuẩn Hóa */}
+      <PageHeader
+        title="Tiếp thị & Dòng tiền Sàn"
+        description="Giám sát mạng lưới link liên kết, mã giảm giá và các phiên livestream bán hàng toàn hệ thống"
+        icon={<Link2 className="w-5 h-5" />}
+      />
+
       <HubTabs
+        className="mb-2 shadow-none"
+        compact
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
         stretchTabs
-        stretchTabColumns={3}
+        stretchTabColumns={4}
         tone="white"
       />
 
@@ -71,6 +82,7 @@ export default function AdminOversightHubPage() {
         )}
 
         {activeTab === 'live-sessions' && <AdminLiveSessionsPage />}
+        {activeTab === 'sponsorship' && <SponsoredPlacementsPanel admin />}
       </div>
     </div>
   );

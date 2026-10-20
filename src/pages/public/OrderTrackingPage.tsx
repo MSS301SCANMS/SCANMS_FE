@@ -23,7 +23,10 @@ import api from "../../services/api";
 import { Button } from "../../components/ui/Button";
 import { PublicHeader } from "../../components/layout/PublicHeader";
 import { Card } from "../../components/ui/Card";
-import { getSafeProductImageUrl } from "../../features/marketplace/marketplaceUtils";
+import { getSafeProductImageUrl } from "@/utils/marketplace.utils";
+import { GhnTrackingTimeline } from '../../components/shipping/GhnTrackingTimeline';
+import { getGhnTrackingCode } from '../../utils/ghn-tracking';
+import { isGeneratedGhnTestTrackingCode } from '../../utils/ghn-tracking-code';
 
 interface OrderItem {
   id: string;
@@ -48,6 +51,9 @@ interface OrderReview {
 }
 
 interface OrderData {
+  trackingNumber?: string | null;
+  carrierName?: string | null;
+  ghnEnvironment?: 'LIVE' | 'TEST' | null;
   reviewToken?: string;
   id: string;
   externalOrderSn: string;
@@ -77,7 +83,7 @@ interface OrderData {
   reviews?: OrderReview[];
 }
 
-export default function OrderTrackingPage() {
+export default function OrderTrackingPage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const validParam = (value: string | null) => {
     const normalized = value?.trim() || "";
@@ -94,9 +100,9 @@ export default function OrderTrackingPage() {
       return "";
     }
   };
-  const initialPhone = validParam(searchParams.get("phone"));
+  const initialPhone = embedded ? '' : validParam(searchParams.get("phone"));
   // `orderSn` được giữ để các liên kết cũ vẫn hoạt động.
-  const initialSn =
+  const initialSn = embedded ? '' :
     validParam(searchParams.get("sn")) ||
     validParam(searchParams.get("orderSn")) ||
     getRecentOrderCode();
@@ -125,17 +131,17 @@ export default function OrderTrackingPage() {
 
 
   useEffect(() => {
-    if (initialPhone || initialSn) {
+    if (initialPhone && initialSn) {
       handleSearchRef.current(initialPhone, initialSn);
     }
   }, [initialPhone, initialSn]);
 
   const handleSearch = async (phoneValue?: string, orderSnValue?: string) => {
     const phone = (phoneValue !== undefined ? phoneValue : phoneInput).trim();
-    const orderSn = (orderSnValue !== undefined ? orderSnValue : orderSnInput).trim();
-    if (!phone && !orderSn) {
+    const orderSn = (orderSnValue !== undefined ? orderSnValue : orderSnInput).trim().replace(/^#+\s*/, '');
+    if (embedded ? !orderSn && !phone : !orderSn || !phone) {
       setErrorMessage(
-        "Vui lòng nhập số điện thoại hoặc mã đơn hàng để tra cứu.",
+        embedded ? "Vui lòng nhập mã đơn hàng hoặc số điện thoại nhận hàng để tra cứu." : "Vui lòng nhập đầy đủ số điện thoại đặt hàng và mã đơn hàng để tra cứu.",
       );
       return;
     }
@@ -149,9 +155,9 @@ export default function OrderTrackingPage() {
       const params: Record<string, string> = {};
       if (phone) params.phone = phone;
       if (orderSn) params.orderSn = orderSn;
-      setSearchParams(params);
+      if (!embedded) setSearchParams(params);
 
-      const res: any = await api.get("/orders/track", { params });
+      const res: any = await api.get(embedded ? "/orders/track/mine" : "/orders/track", { params, headers: { 'x-skip-cache': 'true' } });
       if (sequence !== searchSequence.current) return;
       if (res?.orders) {
         setOrders(res.orders);
@@ -261,7 +267,7 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-left flex flex-col font-sans overflow-x-clip relative">
+    <div className={`${embedded ? 'rounded-xl border border-[#EAE4D7] bg-white' : 'min-h-screen bg-[#FAF8F5]'} text-left flex flex-col font-sans overflow-x-clip relative`}>
       {/* Toast alert */}
       {toastMsg && (
         <div className="fixed top-5 right-5 z-50 bg-white text-[#1A1612] px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-[#EEDFC6]">
@@ -271,47 +277,51 @@ export default function OrderTrackingPage() {
       )}
 
       {/* 1. TOP HEADER - SCANMS OFFICIAL TRACKING HEADER */}
-      <PublicHeader />
+      {!embedded && <PublicHeader />}
 
       {/* 2. HERO & SEARCH SECTION */}
-      <section className="bg-gradient-to-b from-white to-[#F3EFE6]/60 border-b border-[#EAE4D7] px-4 sm:px-8 py-8 sm:py-10">
+      <section className={`border-b border-[#EAE4D7] px-4 ${embedded ? 'bg-white py-3' : 'bg-gradient-to-b from-white to-[#F3EFE6]/60 sm:px-8 py-8 sm:py-10'}`}>
         <div className="max-w-3xl mx-auto text-center flex flex-col items-center gap-3 sm:gap-4">
           {/* Breadcrumb Navigation */}
-          <nav aria-label="Breadcrumb" className="flex items-center justify-center gap-2 text-xs text-[#7D715E] mb-1">
+          {!embedded && <nav aria-label="Breadcrumb" className="flex items-center justify-center gap-2 text-xs text-[#7D715E] mb-1">
             <Link to="/marketplace" className="hover:text-[#B88E4F] font-bold flex items-center gap-1 transition">
               <ArrowLeft className="w-3 h-3 text-[#B88E4F]" />
               <span>Trang chủ Sàn SCANMS</span>
             </Link>
             <span className="text-[#D8D0C3]">/</span>
             <span className="text-[#1A1612] font-extrabold">Theo dõi hành trình đơn hàng</span>
-          </nav>
+          </nav>}
+          {!embedded && <>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide text-[#B88E4F] bg-[#FBF5EB] border border-[#EAE4D7]">
             <Truck className="w-3.5 h-3.5 text-[#B88E4F]" />
-            HỆ THỐNG TRA CỨU ĐƠN HÀNG & ĐÁNH GIÁ 5 SAO (FR-17 & FR-18)
+            HỆ THỐNG TRA CỨU ĐƠN HÀNG & ĐÁNH GIÁ 5 SAO
           </span>
 
-          <h1 className="text-2xl sm:text-3xl font-black text-[#1A1612] tracking-tight leading-tight m-0">
+          <h1 className={`${embedded ? 'text-base' : 'text-2xl sm:text-3xl'} font-bold text-[#1A1612] tracking-tight leading-tight m-0`}>
             Theo Dõi Hành Trình Đơn Hàng Của Bạn
           </h1>
           <p className="text-xs sm:text-sm text-[#7D715E] max-w-xl m-0 leading-relaxed">
             Nhập{" "}
             <strong className="text-[#1A1612]">Số điện thoại đặt hàng</strong>{" "}
-            hoặc <strong className="text-[#1A1612]">Mã đơn hàng</strong> để kiểm
+            và <strong className="text-[#1A1612]">Mã đơn hàng</strong> để kiểm
             tra tiến trình đóng gói, giao hàng và gửi đánh giá nhận quà ưu đãi.
           </p>
 
 
+          </>}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSearch();
             }}
-            className="w-full max-w-2xl mt-2 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2"
+            className={`w-full ${embedded ? '' : 'max-w-2xl mt-2'} grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2`}
           >
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-[#7D715E] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
+                inputMode="tel"
+                aria-label="Số điện thoại nhận hàng cần tra cứu"
                 value={phoneInput}
                 onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="Số điện thoại: 0933888999"
@@ -325,6 +335,7 @@ export default function OrderTrackingPage() {
                 value={orderSnInput}
                 onChange={(e) => setOrderSnInput(e.target.value.toUpperCase())}
                 placeholder="Mã đơn: DH-2026-XXXXXXXX"
+                aria-label="Mã đơn hàng cần tra cứu"
                 className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white border-2 border-[#EAE4D7] text-xs sm:text-sm text-[#1A1612] outline-none focus:border-[#C59B58] shadow-xs transition"
               />
             </div>
@@ -351,14 +362,14 @@ export default function OrderTrackingPage() {
 
           {initialSn && (
             <p className="text-[11px] font-semibold text-[#B88E4F] bg-[#FBF5EB] border border-[#EAE4D7] px-3 py-1.5 rounded-xl m-0">
-              Mã đơn gần nhất đã được tự động điền và tra cứu. Bạn không cần nhớ hoặc nhập lại.
+              Mã đơn gần nhất đã được điền sẵn. Nhập số điện thoại đặt hàng để xác minh và tra cứu.
             </p>
           )}
         </div>
       </section>
 
 
-      <main className="flex-1 max-w-5xl xl:max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      {(!embedded || hasSearched || errorMessage) && <main className="flex-1 max-w-5xl xl:max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
         {errorMessage && (
           <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
@@ -376,8 +387,7 @@ export default function OrderTrackingPage() {
               Sẵn sàng tra cứu đơn hàng
             </strong>
             <p className="text-xs text-[#7D715E] max-w-md m-0">
-              Vui lòng nhập số điện thoại hoặc mã đơn hàng ở thanh tìm kiếm phía
-              trên để hiển thị trạng thái vận chuyển chi tiết.
+              {embedded ? 'Nhập mã đơn hàng hoặc số điện thoại nhận hàng để xem tiến trình đơn mua của bạn.' : 'Vui lòng nhập số điện thoại và mã đơn hàng ở thanh tìm kiếm phía trên để hiển thị trạng thái vận chuyển chi tiết.'}
             </p>
           </div>
         )}
@@ -392,8 +402,7 @@ export default function OrderTrackingPage() {
               Không tìm thấy đơn hàng
             </strong>
             <p className="text-xs text-[#7D715E] max-w-md m-0">
-              Không tìm thấy đơn hàng khớp với số điện thoại hoặc mã đơn đã nhập. Vui lòng
-              kiểm tra lại số điện thoại hoặc mã đơn.
+              {embedded ? 'Không tìm thấy đơn hàng khớp với thông tin đã nhập trong tài khoản của bạn. Vui lòng kiểm tra lại mã đơn hoặc số điện thoại.' : 'Không tìm thấy đơn hàng khớp với số điện thoại và mã đơn đã nhập. Vui lòng kiểm tra lại cả hai thông tin.'}
             </p>
           </div>
         )}
@@ -469,6 +478,9 @@ export default function OrderTrackingPage() {
                     </div>
                   ))}
                 </div>
+                {getGhnTrackingCode(order) && <div className="mt-6">{isGeneratedGhnTestTrackingCode(getGhnTrackingCode(order))
+                  ? <p className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-xs text-[#7D715E]">Shop chưa có mã vận đơn GHN thật. Mã thử nội bộ không tra cứu được trên GHN.</p>
+                  : <GhnTrackingTimeline orderCode={getGhnTrackingCode(order)!} environment={order.ghnEnvironment || undefined} />}</div>}
               </div>
 
 
@@ -707,7 +719,7 @@ export default function OrderTrackingPage() {
             </Card>
           );
         })}
-      </main>
+      </main>}
 
       {reviewTarget && (
         <ProductReviewModal

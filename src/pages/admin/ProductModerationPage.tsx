@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, ClipboardCheck, ExternalLink, Eye, Image as ImageIcon, RefreshCw, Search, XCircle } from 'lucide-react';
+import { BadgeCheck, ClipboardCheck, ExternalLink, Eye, Image as ImageIcon, Package, RefreshCw, Search, Store, XCircle } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
 import { productService, type Product } from '../../services/product.service';
 import { toast } from '../../utils/toast';
-import './ProductModerationPage.css';
 
 type ModerationProduct = Product & {
   createdAt?: string;
@@ -53,6 +51,9 @@ export default function ProductModerationPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [reviewTab, setReviewTab] = useState<'INFO' | 'EVIDENCE' | 'DESCRIPTION' | 'VARIANTS'>('INFO');
+  useEffect(() => { setGalleryIndex(0); setReviewTab('INFO'); }, [selected?.id]);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -109,20 +110,19 @@ export default function ProductModerationPage() {
     : [];
 
   return (
-    <main className="product-moderation min-h-[calc(100vh-80px)] bg-[#FAF8F5] px-0 py-5 text-[#1A1612]">
+    <main className="min-h-[calc(100vh-80px)] bg-[#FAF8F5] px-0 py-5 text-[#1A1612]">
       <div className="mx-0 w-full min-w-0 max-w-none space-y-4">
-        <section className="rounded-xl border border-[#EAE4D7] bg-white p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Lọc trạng thái kiểm duyệt">
+        <section className="moderation-toolbar rounded-xl border border-[#EAE4D7] bg-white p-3">
+          <div className="moderation-toolbar-row">
+            <div className="moderation-tabs" role="group" aria-label="Lọc trạng thái kiểm duyệt">
               {FILTERS.map((item) => (
-                <button key={item.value} type="button" role="tab" aria-selected={filter === item.value} onClick={() => setFilter(item.value)}
-                  className={'rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer ' + (filter === item.value ? 'bg-[#FBF5EB] text-[#8C6226] ring-1 ring-[#EEDFC6]' : 'text-[#7D715E] hover:bg-[#FAF8F5]')}>
+                <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>
                   {item.label}
                 </button>
               ))}
             </div>
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 sm:w-auto sm:justify-end">
-              <label className="relative w-full min-w-0 sm:w-72 sm:shrink-0">
+            <div className="moderation-filter-controls">
+              <label className="moderation-search relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7D715E]" />
                 <input aria-label="Tìm sản phẩm, SKU hoặc Shop" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm sản phẩm, SKU, Shop…" className="h-9 w-full rounded-lg border border-[#EAE4D7] bg-white py-2 pl-9 pr-3 text-xs outline-none focus:border-[#C59B58]" />
               </label>
@@ -131,7 +131,7 @@ export default function ProductModerationPage() {
                 onClick={() => void loadProducts()}
                 disabled={loading}
                 aria-label={loading ? 'Đang tải danh sách sản phẩm' : 'Làm mới danh sách sản phẩm'}
-                className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-[#7D715E] transition hover:text-[#8C6226] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C59B58]/40 disabled:cursor-wait disabled:opacity-50"
+                className="moderation-refresh"
               >
                 <RefreshCw className={'h-3.5 w-3.5 text-[#B88E4F]' + (loading ? ' animate-spin' : '')} />
                 <span>{loading ? 'Đang tải…' : 'Làm mới'}</span>
@@ -139,7 +139,6 @@ export default function ProductModerationPage() {
             </div>
           </div>
         </section>
-        <p role="status" className="text-xs text-[#7D715E]">{loading ? 'Đang tải danh sách…' : filteredProducts.length + ' sản phẩm'}</p>
 
         {loading ? (
           <div className="rounded-2xl border border-[#EAE4D7] bg-white p-12 text-center text-sm text-[#7D715E]">Đang tải hồ sơ sản phẩm...</div>
@@ -150,36 +149,36 @@ export default function ProductModerationPage() {
             <p className="mt-1 text-sm text-[#7D715E]">Sản phẩm Shop vừa tạo sẽ xuất hiện ở mục “Chờ duyệt”.</p>
           </div>
         ) : (
-          <div className="moderation-grid">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {filteredProducts.map((product) => {
               const pending = product.moderationStatus === 'DRAFT';
               const rejected = product.moderationStatus === 'REJECTED';
               return (
-                <article key={product.id} className="moderation-card min-w-0 rounded-xl border border-[#EAE4D7] bg-white shadow-[0_2px_8px_rgba(35,29,21,0.025)]">
+                <article key={product.id} className="flex flex-col min-w-0 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
                   <div className="flex gap-3 p-4">
                     <div className="grid h-[72px] w-[72px] shrink-0 place-items-center overflow-hidden rounded-lg border border-[#EAE4D7] bg-white">
                       {imageUrl(product) ? <img src={imageUrl(product)} alt={product.title} className="h-full w-full object-contain" /> : <ImageIcon className="h-6 w-6 text-[#B88E4F]" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={pending ? 'warning' : rejected ? 'danger' : 'amber'}>{pending ? 'Chờ duyệt' : rejected ? 'Đã từ chối' : 'Đã duyệt'}</Badge>
-                        <span className="break-all text-[11px] text-[#7D715E]">SKU: {product.sku || '—'}</span>
-                        {product.variants?.length ? <span className="rounded-full bg-[#FBF5EB] px-2 py-0.5 text-[10px] font-semibold text-[#8C6226]">{product.variants.length} SKU</span> : null}
+                      <div className="moderation-product-meta">
+                        <span className="moderation-status">{pending ? <ClipboardCheck size={12} /> : rejected ? <XCircle size={12} /> : <BadgeCheck size={12} />}{pending ? 'Chờ duyệt' : rejected ? 'Đã từ chối' : 'Đã duyệt'}</span>
+                        <span className="moderation-sku" title={`SKU: ${product.sku || '—'}`}>SKU: {product.sku || '—'}</span>
+                        {product.variants?.length ? <span className="moderation-variant-count">{product.variants.length} SKU</span> : null}
                       </div>
-                      <h2 title={product.title} className="mt-2 line-clamp-2 break-words text-sm font-semibold leading-5">{product.title}</h2>
-                      <p title={product.store?.name} className="mt-1 truncate text-xs text-[#7D715E]">{product.store?.name || 'Chưa có thông tin Shop'}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="text-sm font-semibold tabular-nums text-[#1A1612]">{money(product.price)}</span>
-                        <span className="text-[#7D715E]">Tồn: {Number(product.stockQuantity || 0).toLocaleString('vi-VN')}</span>
-                        {product.createdAt && <span className="text-[11px] text-[#7D715E]">Gửi {new Date(product.createdAt).toLocaleDateString('vi-VN')}</span>}
-                      </div>
+                      <h2 className="moderation-product-title" title={product.title}>{product.title}</h2>
+                      <p className="moderation-store" title={product.store?.name}><Store size={13} /><span>{product.store?.name || 'Chưa có thông tin Shop'}</span></p>
                     </div>
                   </div>
+                  <dl className="grid grid-cols-3 gap-2 px-4 py-2 border-t border-[#EAE4D7] text-xs">
+                    <div><dt className="text-[#7D715E]">Giá bán</dt><dd className="font-semibold text-[#1A1612]">{money(product.price)}</dd></div>
+                    <div><dt className="text-[#7D715E]">Tồn kho</dt><dd className="font-semibold text-[#1A1612]">{Number(product.stockQuantity || 0).toLocaleString('vi-VN')}</dd></div>
+                    <div><dt className="text-[#7D715E]">Ngày gửi</dt><dd className="text-[#7D715E]">{product.createdAt ? new Date(product.createdAt).toLocaleDateString('vi-VN') : 'Chưa có thông tin'}</dd></div>
+                  </dl>
                   {rejected && product.moderationReason && <p className="mx-4 mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Lý do từ chối: {product.moderationReason}</p>}
-                  <div className="moderation-actions mx-4 flex flex-wrap items-center gap-2 border-t border-[#EAE4D7] py-3">
+                  <div className="mt-auto mx-4 flex flex-wrap items-center gap-2 border-t border-[#EAE4D7] py-3">
                     <Button size="sm" variant="outline" icon={<Eye className="h-4 w-4" />} onClick={() => setSelected(product)}>Xem hồ sơ</Button>
                     {pending && <>
-                      <Button className="moderation-reject" size="sm" variant="outline" disabled={savingId === product.id} icon={<XCircle className="h-4 w-4" />} onClick={() => { setRejectionTarget(product); setRejectionReason(''); }}>Từ chối</Button>
+                      <Button className="text-[#DC2626] border-[#EAE4D7] hover:bg-rose-50 hover:border-rose-200" size="sm" variant="outline" disabled={savingId === product.id} icon={<XCircle className="h-4 w-4" />} onClick={() => { setRejectionTarget(product); setRejectionReason(''); }}>Từ chối</Button>
                       <Button size="sm" variant="dark" icon={<BadgeCheck className="h-4 w-4" />} loading={savingId === product.id} onClick={() => void moderate(product, 'APPROVED')}>Phê duyệt</Button>
                     </>}
                   </div>
@@ -190,51 +189,41 @@ export default function ProductModerationPage() {
         )}
       </div>
 
-      <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title="Hồ sơ kiểm duyệt sản phẩm" subtitle={selected?.store?.name || 'Thông tin do Shop cung cấp'} icon={<ClipboardCheck className="h-5 w-5" />} maxWidth="3xl">
-        {selected && <div className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="overflow-hidden rounded-2xl border border-[#EAE4D7] bg-[#F3EFE6]">
-              {gallery[0] ? <img src={gallery[0]} alt={selected.title} className="aspect-square w-full object-contain" /> : <div className="grid aspect-square place-items-center"><ImageIcon className="h-12 w-12 text-[#B88E4F]" /></div>}
-              {gallery.length > 1 && <div className="flex gap-2 overflow-x-auto border-t border-[#EAE4D7] bg-white p-2">{gallery.map((url, index) => <img key={url + index} src={url} alt={'Ảnh sản phẩm ' + (index + 1)} className="h-16 w-16 shrink-0 rounded-lg border border-[#EAE4D7] object-cover" />)}</div>}
+      <Modal isOpen={Boolean(selected)} onClose={() => setSelected(null)} title="Hồ sơ kiểm duyệt sản phẩm" subtitle={selected?.store?.name || 'Thông tin do Shop cung cấp'} icon={<ClipboardCheck className="h-5 w-5" />} maxWidth="3xl" stickyHeader className="moderation-review-modal"
+        footer={selected && <div className="moderation-review-footer"><p>{isPending ? 'Sản phẩm chỉ lên sàn sau khi được duyệt.' : selected.moderationStatus === 'REJECTED' ? 'Hồ sơ đã bị từ chối.' : 'Hồ sơ đã được phê duyệt.'}</p>{isPending && <div><Button variant="outline" className="moderation-review-reject" disabled={savingId === selected.id} icon={<XCircle size={14} />} onClick={() => { setRejectionTarget(selected); setRejectionReason(''); }}>Từ chối có lý do</Button><Button variant="gold" icon={<BadgeCheck size={14} />} loading={savingId === selected.id} onClick={() => void moderate(selected, 'APPROVED')}>Phê duyệt sản phẩm</Button></div>}</div>}>
+        {selected && <div className="moderation-review-content">
+          <div className="moderation-review-overview">
+            <div className="moderation-review-gallery">
+              <div className="moderation-review-photo">{gallery[galleryIndex] ? <a href={gallery[galleryIndex]} target="_blank" rel="noreferrer" aria-label="Mở ảnh sản phẩm lớn"><img src={gallery[galleryIndex]} alt={selected.title} /></a> : <ImageIcon size={40} />}</div>
+              {gallery.length > 1 && <div className="moderation-review-thumbnails">{gallery.map((url,index) => <button type="button" key={url} aria-label={`Xem ảnh ${index + 1}`} aria-pressed={galleryIndex === index} onClick={() => setGalleryIndex(index)}><img src={url} alt={`Ảnh sản phẩm ${index + 1}`} /></button>)}</div>}
+              <p className="moderation-review-image-hint"><ImageIcon size={13} />{gallery.length} ảnh sản phẩm · Bấm ảnh để phóng to</p>
             </div>
-            <div className="space-y-3">
-              <div><p className="text-xs font-semibold uppercase tracking-wide text-[#7D715E]">Tên sản phẩm</p><h2 className="mt-1 text-lg font-extrabold">{selected.title}</h2></div>
-              <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#FAF8F5] p-3 text-sm">
-                <div><p className="text-xs text-[#7D715E]">SKU</p><p className="font-semibold">{selected.sku || '—'}</p></div>
-                <div><p className="text-xs text-[#7D715E]">Danh mục</p><p className="font-semibold">{selected.categoryName || '—'}</p></div>
-                <div><p className="text-xs text-[#7D715E]">Giá bán</p><p className="font-semibold text-[#8C6226]">{money(selected.price)}</p></div>
-                <div><p className="text-xs text-[#7D715E]">Tồn kho</p><p className="font-semibold">{Number(selected.stockQuantity || 0).toLocaleString('vi-VN')}</p></div>
-                <div className="col-span-2"><p className="text-xs text-[#7D715E]">Chủ Shop</p><p className="font-semibold">{selected.store?.owner?.fullName || '—'} {selected.store?.owner?.email ? '· ' + selected.store.owner.email : ''}</p></div>
-              </div>
-              <ReviewField title="Xuất xứ" value={selected.origin} />
-              <ReviewField title="Thành phần" value={selected.ingredients} />
-              <ReviewField title="Nhãn mác / thông tin công bố" value={selected.labelInfo} />
+            <div className="moderation-review-workspace">
+            <div className="moderation-review-summary">
+              <span className="moderation-status">{isPending ? 'Chờ duyệt' : selected.moderationStatus === 'REJECTED' ? 'Đã từ chối' : 'Đã duyệt'}</span>
+              <h2>{selected.title}</h2>
+              <dl className="moderation-review-facts">
+                <div><dt>Giá bán</dt><dd className="moderation-review-price">{money(selected.price)}</dd></div>
+                <div><dt>Tồn kho</dt><dd>{Number(selected.stockQuantity || 0).toLocaleString('vi-VN')}</dd></div>
+                <div><dt>SKU</dt><dd>{selected.sku || 'Chưa cung cấp'}</dd></div>
+                <div><dt>Danh mục</dt><dd>{selected.categoryName || 'Chưa cung cấp'}</dd></div>
+              </dl>
+            </div>
             </div>
           </div>
-          <section className="rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#7D715E]">Tài liệu minh chứng nguồn gốc và nhãn mác</h3>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <ProofReviewField title="Nguồn gốc / xuất xứ" links={selected.originProofLinks} images={selected.originProofImages} />
-              <ProofReviewField title="Nhãn mác / thông tin công bố" links={selected.labelProofLinks} images={selected.labelProofImages} />
-            </div>
-          </section>
-          <ReviewField title="Mô tả sản phẩm" value={selected.description} />
-          {(selected.variants || []).length > 0 && <section className="rounded-xl border border-[#EAE4D7] p-3">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-[#7D715E]">Phân loại / SKU và ảnh biến thể</h3>
-            <div className="mt-2 space-y-2">{selected.variants?.map((variant) => <div key={variant.id} className="flex items-center gap-3 rounded-lg bg-[#FAF8F5] p-2">
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[#EAE4D7] bg-white">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.name} className="h-full w-full object-cover" /> : <ImageIcon className="m-3 h-6 w-6 text-[#B88E4F]" />}</div>
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{variant.name}</p><p className="text-xs text-[#7D715E]">SKU: {variant.sku} · Tồn: {Number(variant.stockQuantity || 0).toLocaleString('vi-VN')}</p></div>
-              <span className="shrink-0 text-sm font-bold text-[#8C6226]">{money(Number(variant.price ?? selected.price))}</span>
-            </div>)}</div>
-          </section>}
-          {selected.moderationStatus === 'REJECTED' && selected.moderationReason && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Lý do đã từ chối: {selected.moderationReason}</p>}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EAE4D7] pt-4">
-            <p className="text-xs text-[#7D715E]">{selected.createdAt ? 'Shop gửi ngày ' + new Date(selected.createdAt).toLocaleString('vi-VN') : ''} · Sản phẩm chỉ xuất hiện công khai sau khi được duyệt.</p>
-            {isPending && <div className="flex gap-2">
-              <Button variant="danger" icon={<XCircle className="h-4 w-4" />} onClick={() => { setRejectionTarget(selected); setRejectionReason(''); }}>Từ chối có lý do</Button>
-              <Button variant="dark" icon={<BadgeCheck className="h-4 w-4" />} loading={savingId === selected.id} onClick={() => void moderate(selected, 'APPROVED')}>Phê duyệt sản phẩm</Button>
+          <div className="moderation-review-tabs" role="group" aria-label="Các nhóm thông tin hồ sơ">{([
+            { value:'INFO', label:'Thông tin' }, { value:'EVIDENCE', label:'Minh chứng' }, { value:'DESCRIPTION', label:'Mô tả' }, { value:'VARIANTS', label:'Phân loại' },
+          ] as const).map(tab => <button key={tab.value} type="button" aria-pressed={reviewTab === tab.value} aria-controls="moderation-review-tab-content" onClick={() => setReviewTab(tab.value)}>{tab.label}{tab.value === 'VARIANTS' && <span>{selected.variants?.length || 0}</span>}</button>)}</div>
+          <div id="moderation-review-tab-content" className="moderation-review-tab-content" role="region" aria-label={reviewTab === 'INFO' ? 'Thông tin sản phẩm và gian hàng' : reviewTab === 'EVIDENCE' ? 'Tài liệu minh chứng' : reviewTab === 'DESCRIPTION' ? 'Mô tả sản phẩm' : 'Phân loại sản phẩm'}>
+            {reviewTab === 'INFO' && <div className="moderation-review-info-grid">
+              <section className="moderation-review-declarations"><h3>Thông tin công bố</h3><div><ReviewField title="Xuất xứ" value={selected.origin} /><ReviewField title="Thành phần" value={selected.ingredients} /><ReviewField title="Nhãn mác" value={selected.labelInfo} /></div></section>
+              <div className="moderation-review-shop-card"><span><Store size={16} />Gian hàng cung cấp</span><strong>{selected.store?.name || 'Chưa cung cấp'}</strong><dl><div><dt>Chủ gian hàng</dt><dd>{selected.store?.owner?.fullName || 'Chưa cung cấp'}</dd></div>{selected.store?.owner?.email && <div><dt>Email liên hệ</dt><dd>{selected.store.owner.email}</dd></div>}</dl><p>{selected.createdAt ? 'Gửi ngày ' + new Date(selected.createdAt).toLocaleString('vi-VN', { timeZone:'Asia/Ho_Chi_Minh' }) : 'Chưa có ngày gửi hồ sơ'}</p></div>
             </div>}
+            {reviewTab === 'EVIDENCE' && <div className="moderation-review-evidence"><ProofReviewField title="Nguồn gốc / xuất xứ" links={selected.originProofLinks} images={selected.originProofImages} /><ProofReviewField title="Nhãn mác / thông tin công bố" links={selected.labelProofLinks} images={selected.labelProofImages} /></div>}
+            {reviewTab === 'DESCRIPTION' && <ReviewField title="Nội dung mô tả sản phẩm" value={selected.description} />}
+            {reviewTab === 'VARIANTS' && (selected.variants?.length ? <div className="moderation-review-variants">{selected.variants.map(variant => <div key={variant.id}><span className="moderation-review-variant-image">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.name} /> : <ImageIcon size={20} />}</span><div><strong>{variant.name}</strong><p>SKU: {variant.sku} · Tồn: {Number(variant.stockQuantity || 0).toLocaleString('vi-VN')}</p></div><span>{money(Number(variant.price ?? selected.price))}</span></div>)}</div> : <div className="moderation-review-no-variants"><Package size={24} /><strong>Không có phân loại riêng</strong><p>Sản phẩm sử dụng SKU, giá bán và tồn kho trong phần tóm tắt.</p></div>)}
           </div>
+          {selected.moderationStatus === 'REJECTED' && selected.moderationReason && <p className="moderation-rejection-note">Lý do từ chối: {selected.moderationReason}</p>}
         </div>}
       </Modal>
 
@@ -256,9 +245,9 @@ export default function ProductModerationPage() {
 
 function ReviewField({ title, value }: { title: string; value?: string | null }) {
   return (
-    <section className="rounded-xl border border-[#EAE4D7] p-3">
-      <h3 className="text-xs font-bold uppercase tracking-wide text-[#7D715E]">{title}</h3>
-      <p className="mt-1 whitespace-pre-wrap text-sm">{value?.trim() || <span className="italic text-[#9A8E7B]">Shop chưa cung cấp</span>}</p>
+    <section className="moderation-review-field">
+      <h4>{title}</h4>
+      <p>{value?.trim() || <span className="moderation-review-missing">Chưa cung cấp</span>}</p>
     </section>
   );
 }

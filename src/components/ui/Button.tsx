@@ -36,9 +36,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        'bg-[#EBD08C] text-white hover:bg-[#DEC07A] shadow-xs focus:ring-[#C59B58]',
+        'scanms-brand-action focus:ring-[#C59B58]',
       gold:
-        'bg-[#EBD08C] text-white hover:bg-[#DEC07A] shadow-xs focus:ring-[#B88E4F]',
+        'scanms-brand-action focus:ring-[#B88E4F]',
       secondary:
         'bg-[#F3EFE6] text-[#1A1612] hover:bg-[#EAE4D7] border border-[#EAE4D7] focus:ring-[#B88E4F]',
       outline:
@@ -48,9 +48,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       danger:
         'bg-rose-600 text-white hover:bg-rose-700 shadow-xs focus:ring-rose-500',
       amber:
-        'bg-[#EBD08C] text-white hover:bg-[#DEC07A] shadow-xs focus:ring-[#C59B58]',
+        'scanms-brand-action focus:ring-[#C59B58]',
       dark:
-        'bg-[#C59B58] text-[#231D15] hover:bg-[#B88E4F] shadow-xs focus:ring-[#C59B58]',
+        'scanms-brand-action focus:ring-[#C59B58]',
     };
 
     return (
