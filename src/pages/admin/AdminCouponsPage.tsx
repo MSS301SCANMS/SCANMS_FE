@@ -12,6 +12,8 @@ import {
   Lock,
   Unlock,
   RefreshCw,
+  Plus,
+  Wallet,
 } from 'lucide-react';
 import {
   couponService,
@@ -19,6 +21,9 @@ import {
   type CouponStatus,
 } from '../../services/coupon.service';
 import { toast } from '../../utils/toast';
+import { AdminVoucherIssuer } from './AdminVoucherIssuer';
+import { AdminVoucherSettlements } from './AdminVoucherSettlements';
+import './AdminCouponsPage.css';
 
 const STATUS_LABELS: Record<CouponStatus, { label: string; bg: string; text: string; border: string }> = {
   ACTIVE: {
@@ -67,10 +72,15 @@ const STATUS_LABELS: Record<CouponStatus, { label: string; bg: string; text: str
 
 export const AdminCouponsPage: React.FC = () => {
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
+  const [platformSubsidies, setPlatformSubsidies] = useState<Awaited<ReturnType<typeof couponService.getPlatformSubsidies>>>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-
+  const [fundingFilter, setFundingFilter] = useState('ALL');
+  const [view, setView] = useState<'coupons' | 'settlements'>('coupons');
+  const [issuerOpen, setIssuerOpen] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [subsidyError, setSubsidyError] = useState('');
 
   const [detailCoupon, setDetailCoupon] = useState<CouponItem | null>(null);
 
@@ -83,7 +93,15 @@ export const AdminCouponsPage: React.FC = () => {
 
   const [unblockLoading, setUnblockLoading] = useState(false);
 
-  const hasOpenModal = detailCoupon !== null || blockTarget !== null;
+  const hasOpenModal = issuerOpen || detailCoupon !== null || blockTarget !== null;
+  useEffect(() => {
+    if (!hasOpenModal) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !blockLoading) { setDetailCoupon(null); setBlockTarget(null); }
+    };
+    window.addEventListener('keydown', dismiss);
+    return () => window.removeEventListener('keydown', dismiss);
+  }, [hasOpenModal, blockLoading]);
 
   useEffect(() => {
     if (window.self === window.top) return;
@@ -119,15 +137,15 @@ export const AdminCouponsPage: React.FC = () => {
   }, []);
 
   const fetchCoupons = async () => {
-    try {
-      setLoading(true);
-      const res = await couponService.getAdminCoupons();
-      setCoupons(res.data || []);
-    } catch (err) {
-      console.error('Lỗi khi tải danh sách coupon toàn sàn:', err);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setLoadError(''); setSubsidyError('');
+    const [couponResult, subsidyResult] = await Promise.allSettled([
+      couponService.getAdminCoupons(), couponService.getPlatformSubsidies(),
+    ]);
+    if (couponResult.status === 'fulfilled') setCoupons(couponResult.value.data || []);
+    else setLoadError('Chưa tải được danh sách voucher. Vui lòng bấm Làm mới để thử lại.');
+    if (subsidyResult.status === 'fulfilled') setPlatformSubsidies(subsidyResult.value);
+    else setSubsidyError('Chưa tải được dữ liệu đối soát. Vui lòng bấm Làm mới để thử lại.');
+    setLoading(false);
   };
 
   const handleBlockSubmit = async (e: React.FormEvent) => {
@@ -156,8 +174,8 @@ export const AdminCouponsPage: React.FC = () => {
     if (!window.confirm(`Xác nhận mở khóa cho mã "${coupon.displayCode}"?`)) return;
     try {
       setUnblockLoading(true);
-      await couponService.adminUnblockCoupon(coupon.id);
-      toast.success('Đã mở khóa mã giảm giá thành công');
+      const result = await couponService.adminUnblockCoupon(coupon.id);
+      toast.success(result?.message || 'Đã mở khóa và khôi phục trạng thái voucher.');
       await fetchCoupons();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Không thể mở khóa coupon');
@@ -174,7 +192,7 @@ export const AdminCouponsPage: React.FC = () => {
       (c.collaborator?.fullName && c.collaborator.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (c.collaborator?.email && c.collaborator.email.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchStatus = statusFilter === 'ALL' ? true : c.status === statusFilter;
-    return matchSearch && matchStatus;
+    return matchSearch && matchStatus && (fundingFilter === 'ALL' || c.fundingSource === fundingFilter);
   });
 
 
@@ -184,27 +202,32 @@ export const AdminCouponsPage: React.FC = () => {
   const totalRedemptions = coupons.reduce((acc, curr) => acc + (curr.usageCount || 0), 0);
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-[#FAF8F5] px-0 py-4 text-[#1A1612] sm:py-6 lg:py-8">
-      <div className="w-full min-w-0 mx-auto mb-8">
+    <div className="admin-voucher-workspace w-full min-w-0 text-[#1A1612]">
+      <div className="grid gap-4 min-w-0">
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
+        <header className="av-workspace-heading">
+          <div><span className="av-eyebrow">QUẢN LÝ ƯU ĐÃI</span><h2>Voucher toàn sàn</h2><p>Phát hành ưu đãi, kiểm soát mã và theo dõi khoản tài trợ cho Shop.</p></div>
+          <button type="button" className="av-button av-button-primary" onClick={() => setIssuerOpen(true)}><Plus size={17} />Phát hành voucher sàn</button>
+        </header>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="p-4 border border-[#EAE4D7] rounded-xl bg-white shadow-2xs min-w-0">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-[#7D715E]">Tổng coupon toàn sàn</span>
+              <span className="text-xs font-medium text-[#7D715E]">Mã giảm giá toàn sàn</span>
               <Tag className="w-4 h-4 text-[#B88E4F]" />
             </div>
             <p className="text-2xl font-bold text-[#1A1612]">{totalCount}</p>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
+          <div className="p-4 border border-[#EAE4D7] rounded-xl bg-white shadow-2xs min-w-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[#7D715E]">Đang hoạt động</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-[#059669]" />
             </div>
             <p className="text-2xl font-bold text-[#1A1612]">{activeCount}</p>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
+          <div className="p-4 border border-[#EAE4D7] rounded-xl bg-white shadow-2xs min-w-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[#7D715E]">Bị khóa vi phạm</span>
               <ShieldAlert className="w-4 h-4 text-red-600" />
@@ -212,7 +235,7 @@ export const AdminCouponsPage: React.FC = () => {
             <p className="text-2xl font-bold text-red-600">{blockedCount}</p>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
+          <div className="p-4 border border-[#EAE4D7] rounded-xl bg-white shadow-2xs min-w-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[#7D715E]">Tổng lượt sử dụng</span>
               <Percent className="w-4 h-4 text-[#B88E4F]" />
@@ -222,19 +245,25 @@ export const AdminCouponsPage: React.FC = () => {
         </div>
 
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="av-workspace-navigation"><div role="tablist" aria-label="Quản lý voucher">
+          <button id="av-coupons-tab" type="button" role="tab" aria-selected={view === 'coupons'} aria-controls="av-coupons-panel" onClick={() => setView('coupons')}><Tag size={16} />Danh sách voucher<span>{totalCount}</span></button>
+          <button id="av-settlements-tab" type="button" role="tab" aria-selected={view === 'settlements'} aria-controls="av-settlements-panel" onClick={() => setView('settlements')}><Wallet size={16} />Đối soát với Shop</button>
+        </div><button type="button" className="av-button" onClick={() => void fetchCoupons()} disabled={loading}><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Làm mới</button></div>
+
+        {view === 'settlements' ? <div role="tabpanel" id="av-settlements-panel" aria-labelledby="av-settlements-tab"><AdminVoucherSettlements items={platformSubsidies} loading={loading} error={subsidyError} onUpdated={() => void fetchCoupons()} /></div> : <div role="tabpanel" id="av-coupons-panel" aria-labelledby="av-coupons-tab" className="av-coupon-panel">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 border border-[#EAE4D7] rounded-xl bg-white">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7D715E]" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm theo mã, tên KOL, email, tên gian hàng..."
+              aria-label="Tìm mã giảm giá" placeholder="Tìm mã, KOL, email hoặc gian hàng…"
               className="w-full pl-10 pr-4 py-2 text-sm bg-[#FAF8F5] border border-[#EAE4D7] rounded-lg focus:outline-none focus:border-[#C59B58] transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
             {[
               { key: 'ALL', label: 'Tất cả' },
               { key: 'ACTIVE', label: 'Đang chạy' },
@@ -245,32 +274,24 @@ export const AdminCouponsPage: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.key}
+                aria-pressed={statusFilter === tab.key}
                 onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                className={`inline-flex items-center justify-center gap-1 min-h-[34px] px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer border ${
                   statusFilter === tab.key
-                    ? 'bg-[#EBD08C] text-white shadow-xs'
-                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612]'
+                    ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] font-semibold'
+                    : 'border-transparent bg-white text-[#7D715E] hover:border-[#EEDFC6] hover:bg-[#FBF5EB]'
                 }`}
               >
                 {tab.label}
               </button>
             ))}
 
-            <button
-              type="button"
-              onClick={fetchCoupons}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#FAF8F5] hover:bg-[#F3EFE6] text-[#1A1612] border border-[#EAE4D7] hover:border-[#C59B58] transition cursor-pointer disabled:opacity-50 shrink-0"
-              title="Làm mới dữ liệu"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} />
-              <span>Làm mới</span>
-            </button>
+            <select aria-label="Lọc nguồn tài trợ" value={fundingFilter} onChange={event => setFundingFilter(event.target.value)} className="av-funding-filter"><option value="ALL">Tất cả nguồn tài trợ</option><option value="SHOP_FUNDED">Shop tài trợ</option><option value="PLATFORM_FUNDED">SCANMS tài trợ</option><option value="CO_FUNDED">Đồng tài trợ</option></select>
           </div>
         </div>
 
 
-        {loading ? (
+        {loadError ? <p className="av-error" role="alert">{loadError}</p> : loading ? (
           <div className="bg-white rounded-xl border border-[#EAE4D7] p-12 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F] mx-auto mb-3" />
             <p className="text-sm text-[#7D715E]">Đang tải danh sách coupon toàn sàn...</p>
@@ -282,19 +303,21 @@ export const AdminCouponsPage: React.FC = () => {
             <p className="text-xs text-[#7D715E] mt-1">Thử thay đổi từ khóa hoặc bộ lọc trạng thái để tra cứu.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-[#EAE4D7] shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+          <div className="av-coupon-table border border-[#EAE4D7] rounded-xl bg-white overflow-hidden">
+            <div className="av-table-caption"><h3>Danh sách mã giảm giá</h3><span>{filteredCoupons.length} mã phù hợp</span></div>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[950px] border-collapse text-left text-xs">
+                <colgroup><col style={{width: 165}} /><col style={{width: "22%"}} /><col /><col style={{width: 95}} /><col style={{width: 125}} /><col style={{width: 85}} /><col style={{width: 120}} /><col style={{width: 110}} /></colgroup>
                 <thead className="bg-[#FAF8F5] border-b border-[#EAE4D7] text-[#7D715E] font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Mã Coupon</th>
-                    <th className="py-3 px-4">KOL / CTV</th>
-                    <th className="py-3 px-4">Gian Hàng</th>
-                    <th className="py-3 px-4">Ưu Đãi</th>
-                    <th className="py-3 px-4">Tài Trợ</th>
-                    <th className="py-3 px-4">Lượt Dùng</th>
-                    <th className="py-3 px-4">Trạng Thái</th>
-                    <th className="py-3 px-4 text-right">Thao Tác</th>
+                    <th scope="col" className="py-3 px-4">Mã giảm giá</th>
+                    <th scope="col" className="py-3 px-4">Người phát hành</th>
+                    <th scope="col" className="py-3 px-4">Gian hàng</th>
+                    <th scope="col" className="py-3 px-4">Ưu đãi</th>
+                    <th scope="col" className="py-3 px-4">Tài trợ</th>
+                    <th scope="col" className="py-3 px-4">Lượt dùng</th>
+                    <th scope="col" className="py-3 px-4">Trạng thái</th>
+                    <th scope="col" className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EAE4D7]">
@@ -305,12 +328,12 @@ export const AdminCouponsPage: React.FC = () => {
 
                     return (
                       <tr key={coupon.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#1A1612]">
-                          <span className="bg-[#FAF8F5] px-2.5 py-1 rounded-md border border-[#EAE4D7] text-[#B88E4F]">
+                        <td data-label="Mã giảm giá" className="py-3.5 px-4 font-mono font-bold text-[#1A1612]">
+                          <span className="av-table-code">
                             {coupon.displayCode}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Người phát hành" className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
                             <User className="w-3.5 h-3.5 text-[#7D715E] shrink-0" />
                             <div>
@@ -321,7 +344,7 @@ export const AdminCouponsPage: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Gian hàng" className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5">
                             <Store className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
                             <span className="font-medium text-[#1A1612]">
@@ -329,40 +352,40 @@ export const AdminCouponsPage: React.FC = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Ưu đãi" className="py-3.5 px-4">
                           <span className="font-semibold text-[#1A1612]">
                             {isDiscountPercent
                               ? `Giảm ${discountVal}%`
                               : `Giảm ${discountVal.toLocaleString('vi-VN')} ₫`}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Tài trợ" className="py-3.5 px-4">
                           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]">
                             {coupon.fundingSource === 'CO_FUNDED'
-                              ? `Đồng tài trợ (${coupon.shopFundingRate || 50}% Shop / ${coupon.platformFundingRate || 50}% Sàn)`
+                              ? `${coupon.shopFundingRate ?? 50}% Shop / ${coupon.platformFundingRate ?? 50}% Sàn`
                               : coupon.fundingSource === 'PLATFORM_FUNDED'
                               ? '100% SCANMS'
                               : '100% Shop'}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Lượt dùng" className="py-3.5 px-4">
                           <span className="font-medium text-[#1A1612]">
                             {coupon.usageCount} {coupon.usageLimitTotal ? `/ ${coupon.usageLimitTotal}` : ''}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td data-label="Trạng thái" className="py-3.5 px-4">
                           <span
-                            className={`inline-block text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}
+                            className={`admin-coupon-status is-${coupon.status.toLowerCase()}`}
                           >
                             {statusCfg.label}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td data-label="Thao tác" className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setDetailCoupon(coupon)}
-                              className="p-1.5 rounded-lg text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] transition-colors cursor-pointer"
-                              title="Xem chi tiết chính sách"
+                              className="admin-coupon-view p-1.5 rounded-lg text-[#7D715E] hover:bg-[#FAF8F5] hover:text-[#1A1612] transition-colors cursor-pointer"
+                              aria-label={`Xem mã ${coupon.displayCode}`} title="Xem chi tiết chính sách"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
@@ -371,7 +394,7 @@ export const AdminCouponsPage: React.FC = () => {
                               <button
                                 onClick={() => handleUnblock(coupon)}
                                 disabled={unblockLoading}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors text-[11px] font-semibold cursor-pointer"
+                                className="admin-coupon-unblock"
                                 title="Mở khóa coupon"
                               >
                                 <Unlock className="w-3 h-3" />
@@ -384,7 +407,7 @@ export const AdminCouponsPage: React.FC = () => {
                                   setBlockReason('');
                                   setBlockError(null);
                                 }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 transition-colors text-[11px] font-semibold cursor-pointer"
+                                className="admin-coupon-block"
                                 title="Khóa coupon"
                               >
                                 <Lock className="w-3 h-3" />
@@ -401,17 +424,19 @@ export const AdminCouponsPage: React.FC = () => {
             </div>
           </div>
         )}
+        </div>}
       </div>
 
+      {issuerOpen && <AdminVoucherIssuer onClose={() => setIssuerOpen(false)} onIssued={() => { setIssuerOpen(false); setView('coupons'); toast.success('Đã phát hành voucher sàn.'); void fetchCoupons(); }} />}
 
       {detailCoupon && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-[#EAE4D7] shadow-2xl text-left my-auto max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231D15]/35 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="coupon-detail-title" className="w-full max-w-lg max-h-[calc(100dvh-32px)] overflow-y-auto p-5 border border-[#EAE4D7] rounded-2xl bg-white text-[#1A1612] shadow-xl">
             <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-4 mb-4">
               <div className="flex items-center gap-2">
                 <Tag className="w-5 h-5 text-[#B88E4F]" />
-                <h3 className="text-lg font-bold text-[#1A1612]">
-                  Chi tiết Coupon: {detailCoupon.displayCode}
+                <h3 id="coupon-detail-title" className="text-lg font-bold text-[#1A1612]">
+                  Chi tiết mã: {detailCoupon.displayCode}
                 </h3>
               </div>
               <button
@@ -432,7 +457,7 @@ export const AdminCouponsPage: React.FC = () => {
                 <span className="font-bold text-[#1A1612]">{detailCoupon.store?.name}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#FAF8F5]">
-                <span>KOL sở hữu:</span>
+                <span>Người phát hành:</span>
                 <span className="font-bold text-[#1A1612]">{detailCoupon.collaborator?.fullName} ({detailCoupon.collaborator?.email})</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#FAF8F5]">
@@ -510,12 +535,12 @@ export const AdminCouponsPage: React.FC = () => {
 
 
       {blockTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-[#EAE4D7] shadow-2xl text-left my-auto animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#231D15]/35 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="coupon-block-title" className="w-full max-w-md p-5 border border-[#EAE4D7] rounded-2xl bg-white text-[#1A1612] shadow-xl">
             <div className="flex items-center gap-2.5 text-red-600 mb-3">
               <ShieldAlert className="w-5 h-5" />
-              <h3 className="text-base font-bold text-[#1A1612]">
-                Khóa Coupon: {blockTarget.displayCode}
+              <h3 id="coupon-block-title" className="text-base font-bold text-[#1A1612]">
+                Khóa mã: {blockTarget.displayCode}
               </h3>
             </div>
             <p className="text-xs text-[#7D715E] mb-4">
@@ -530,10 +555,11 @@ export const AdminCouponsPage: React.FC = () => {
 
             <form onSubmit={handleBlockSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#1A1612] mb-1">
+                <label htmlFor="coupon-block-reason" className="block text-xs font-bold text-[#1A1612] mb-1">
                   Lý do khóa vi phạm <span className="text-red-500">*</span>
                 </label>
                 <textarea
+                  id="coupon-block-reason"
                   rows={3}
                   value={blockReason}
                   onChange={(e) => setBlockReason(e.target.value)}

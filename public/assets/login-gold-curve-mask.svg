@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1167 587" preserveAspectRatio="none">
+  <!-- Reveal the original photograph's gold ribbon and cream background only. -->
+  <defs>
+    <filter id="blend" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+  </defs>
+  <path d="M625 -10 C578 66 578 141 598 215 C618 289 649 357 662 416 C677 485 654 549 630 597 H1180 V-10Z" fill="white" filter="url(#blend)"/>
+</svg>

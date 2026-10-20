@@ -27,9 +27,11 @@ import {
   type CouponItem,
   type ApproveCouponPayload,
   type CreateStoreCouponPayload,
+  type PlatformSubsidySummary,
 } from '../../services/coupon.service';
 import { toast } from '../../utils/toast';
 import api from '../../services/api';
+import { CreateCampaignModal } from '../../components/common/CreateCampaignModal';
 
 export interface CustomSandSelectOption<T extends string> {
   value: T;
@@ -148,10 +150,16 @@ export const ShopCouponsPage: React.FC = () => {
 
   // Store Products for Scope Picker
   const [storeProducts, setStoreProducts] = useState<Array<{ id: string; title: string; price: number; imageUrl?: string }>>([]);
+  const [platformSubsidy, setPlatformSubsidy] = useState<PlatformSubsidySummary | null>(null);
+  const [storeCampaigns, setStoreCampaigns] = useState<Array<{ id: string; name?: string; title?: string; storeId: string; isActive: boolean; startDate: string; endDate: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [voucherProductSearch, setVoucherProductSearch] = useState('');
+  const normalizeProductSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
+  const filteredVoucherProducts = storeProducts.filter(product => normalizeProductSearch(product.title).includes(normalizeProductSearch(voucherProductSearch)));
 
   // Modal: Phát hành Voucher Gian Hàng (Store-issued Voucher)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateStoreCouponPayload>({
     code: '',
     discountType: 'PERCENTAGE',
@@ -170,6 +178,13 @@ export const ShopCouponsPage: React.FC = () => {
     stackableWithPlatformVoucher: true,
   });
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
+  const [discountAmountFocused, setDiscountAmountFocused] = useState(false);
+  const voucherDiscountValues = useRef({ PERCENTAGE: 15, FIXED_AMOUNT: 50000 });
+  const changeVoucherDiscountType = (discountType: 'PERCENTAGE' | 'FIXED_AMOUNT') => {
+    if (discountType === createForm.discountType) return;
+    voucherDiscountValues.current[createForm.discountType] = createForm.discountValue;
+    setCreateForm({ ...createForm, discountType, discountValue: voucherDiscountValues.current[discountType] });
+  };
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Modal: Phê duyệt Voucher KOL
@@ -187,7 +202,7 @@ export const ShopCouponsPage: React.FC = () => {
     fundingSource: 'SHOP_FUNDED',
     stackableWithProductDiscount: false,
     stackableWithShopVoucher: false,
-    stackableWithPlatformVoucher: false,
+    stackableWithPlatformVoucher: true,
   });
   const [isSubmittingApprove, setIsSubmittingApprove] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -275,7 +290,12 @@ export const ShopCouponsPage: React.FC = () => {
         }
         await Promise.all([
           fetchStoreCoupons(foundStore.id),
+          couponService.getStorePlatformSubsidies(foundStore.id).then((rows) => setPlatformSubsidy(rows[0] || null)).catch(() => setPlatformSubsidy(null)),
           fetchStoreProducts(foundStore.id),
+          api.get('/campaigns/shop').then((res: any) => {
+            const payload = res?.data?.data || res?.data || res;
+            setStoreCampaigns((Array.isArray(payload) ? payload : []).filter((campaign: any) => campaign.storeId === foundStore.id && campaign.isActive && new Date(campaign.endDate) > new Date()));
+          }).catch(() => setStoreCampaigns([])),
         ]);
       } else {
         setLoading(false);
@@ -305,8 +325,9 @@ export const ShopCouponsPage: React.FC = () => {
     try {
       setLoadingProducts(true);
       const res: any = await api.get(`/products?storeId=${sid}&limit=100`);
-      const items = res?.data?.data || res?.data || [];
-      setStoreProducts(items);
+      const payload = res?.data?.data || res?.data || res;
+      const items = Array.isArray(payload) ? payload : payload?.items || [];
+      setStoreProducts(Array.isArray(items) ? items : []);
     } catch (err) {
       console.warn('Cannot fetch store products:', err);
     } finally {
@@ -323,6 +344,13 @@ export const ShopCouponsPage: React.FC = () => {
       setSearchParams({ storeId: selected.id }, { replace: true });
       fetchStoreCoupons(selected.id);
       fetchStoreProducts(selected.id);
+      setStoreCampaigns([]);
+      setCreateForm(form => ({ ...form, campaignId: undefined, scopeType: 'STORE_WIDE' }));
+      api.get('/campaigns/shop').then((res: any) => {
+        const payload = res?.data?.data || res?.data || res;
+        setStoreCampaigns((Array.isArray(payload) ? payload : []).filter((campaign: any) => campaign.storeId === selected.id && campaign.isActive && new Date(campaign.endDate) > new Date()));
+      }).catch(() => setStoreCampaigns([]));
+      couponService.getStorePlatformSubsidies(selected.id).then((rows) => setPlatformSubsidy(rows[0] || null)).catch(() => setPlatformSubsidy(null));
     }
   };
 
@@ -344,6 +372,7 @@ export const ShopCouponsPage: React.FC = () => {
         setCreateForm((prev) => ({
           ...prev,
           code: `SHOP10K${codeSuffix}`,
+          benefitType: 'GOODS',
           discountType: 'PERCENTAGE',
           discountValue: 10,
           maximumDiscountAmount: 30000,
@@ -357,6 +386,7 @@ export const ShopCouponsPage: React.FC = () => {
         setCreateForm((prev) => ({
           ...prev,
           code: `SUPER20K${codeSuffix}`,
+          benefitType: 'GOODS',
           discountType: 'PERCENTAGE',
           discountValue: 20,
           maximumDiscountAmount: 60000,
@@ -370,6 +400,7 @@ export const ShopCouponsPage: React.FC = () => {
         setCreateForm((prev) => ({
           ...prev,
           code: `GIAM50K${codeSuffix}`,
+          benefitType: 'GOODS',
           discountType: 'FIXED_AMOUNT',
           discountValue: 50000,
           maximumDiscountAmount: undefined,
@@ -383,6 +414,7 @@ export const ShopCouponsPage: React.FC = () => {
         setCreateForm((prev) => ({
           ...prev,
           code: `SHIP25K${codeSuffix}`,
+          benefitType: 'SHIPPING',
           discountType: 'FIXED_AMOUNT',
           discountValue: 25000,
           maximumDiscountAmount: undefined,
@@ -396,6 +428,7 @@ export const ShopCouponsPage: React.FC = () => {
         setCreateForm((prev) => ({
           ...prev,
           code: `VIP100K${codeSuffix}`,
+          benefitType: 'GOODS',
           discountType: 'FIXED_AMOUNT',
           discountValue: 100000,
           maximumDiscountAmount: undefined,
@@ -423,11 +456,18 @@ export const ShopCouponsPage: React.FC = () => {
     try {
       setIsSubmittingCreate(true);
       setCreateError(null);
-      await couponService.createStoreCoupon(storeId, createForm);
+      if (createForm.scopeType === 'CAMPAIGN' && !storeCampaigns.some(campaign => campaign.id === createForm.campaignId)) {
+        setCreateError('Vui lòng chọn một chiến dịch còn hiệu lực của gian hàng.');
+        return;
+      }
+      await couponService.createStoreCoupon(storeId, { ...createForm,
+        campaignId: createForm.scopeType === 'CAMPAIGN' ? createForm.campaignId : undefined,
+        stackableWithShopVoucher: false, stackableWithPlatformVoucher: true });
       toast.success(`Phát hành voucher "${createForm.code.toUpperCase()}" thành công!`);
       setIsCreateModalOpen(false);
       await fetchStoreCoupons(storeId);
       // Reset form
+      voucherDiscountValues.current = { PERCENTAGE: 15, FIXED_AMOUNT: 50000 };
       setCreateForm({
         code: '',
         discountType: 'PERCENTAGE',
@@ -470,10 +510,12 @@ export const ShopCouponsPage: React.FC = () => {
       usageLimitTotal: coupon.usageLimitTotal || 100,
       usageLimitPerCustomer: coupon.usageLimitPerCustomer || 1,
       scopeType: coupon.scopeType || 'STORE_WIDE',
-      fundingSource: coupon.fundingSource || 'SHOP_FUNDED',
+      fundingSource: 'SHOP_FUNDED',
+      shopFundingRate: 100,
+      platformFundingRate: 0,
       stackableWithProductDiscount: !!coupon.stackableWithProductDiscount,
-      stackableWithShopVoucher: !!coupon.stackableWithShopVoucher,
-      stackableWithPlatformVoucher: !!coupon.stackableWithPlatformVoucher,
+      stackableWithShopVoucher: false,
+      stackableWithPlatformVoucher: true,
     });
     setApproveError(null);
     setIsApproveModalOpen(true);
@@ -585,15 +627,22 @@ export const ShopCouponsPage: React.FC = () => {
     const matchesSearch =
       (c.codeNormalized && c.codeNormalized.includes(searchTerm.trim().toUpperCase())) ||
       (c.displayCode && c.displayCode.toUpperCase().includes(searchTerm.trim().toUpperCase())) ||
+      (c.campaign?.name && c.campaign.name.toLowerCase().includes(searchTerm.trim().toLowerCase())) ||
       (c.collaborator?.fullName && c.collaborator.fullName.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return matchesSearch;
   });
 
   return (
-    <div className="w-full text-[#1A1612]">
+    <div className="promotions-coupons w-full text-[#1A1612]">
       <div className="max-w-[1520px] mx-auto space-y-4 pt-1 pb-8">
-        <section aria-label="Phát hành voucher gian hàng" className="rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-xs sm:p-5">
+        {platformSubsidy && <section className="rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-sm" aria-label="Đối soát voucher sàn">
+          <h2 className="font-bold">Voucher sàn tài trợ cho Shop</h2>
+          <p className="mt-1">{platformSubsidy.orderCount} đơn · Sàn tài trợ {platformSubsidy.amount.toLocaleString('vi-VN')}₫ · Đã ghi nhận chuyển hoàn {platformSubsidy.paidAmount.toLocaleString('vi-VN')}₫ · Còn phải hoàn {platformSubsidy.outstandingAmount.toLocaleString('vi-VN')}₫</p>
+          <details className="mt-2"><summary className="cursor-pointer font-semibold text-[#B88E4F]">Xem theo đơn hàng</summary><ul className="mt-2 space-y-1">{platformSubsidy.orders.map((order) => <li key={order.orderId}>{order.orderCode}: tài trợ {order.amount.toLocaleString('vi-VN')}₫, đã ghi nhận {order.paidAmount.toLocaleString('vi-VN')}₫, còn lại {order.outstandingAmount.toLocaleString('vi-VN')}₫{order.paidAmount > order.amount ? ' — cần đối soát khoản hoàn vượt sau khi đơn đổi trạng thái' : ''}{order.payments.map((payment, index) => <span key={`${payment.bankReference}-${index}`} className="block pl-3 text-xs text-[#7D715E]">Giao dịch {payment.bankReference} · {payment.amount.toLocaleString('vi-VN')}₫ · {new Date(payment.paidAt).toLocaleDateString('vi-VN')}</span>)}</li>)}</ul></details>
+          {!platformSubsidy.reimbursementReady && <p className="mt-2 text-[#DC2626]">Chức năng ghi nhận chuyển hoàn đang chờ cập nhật database.</p>}
+        </section>}
+        <section aria-label="Phát hành voucher gian hàng" className="coupon-issuer rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-xs sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]">
@@ -617,6 +666,14 @@ export const ShopCouponsPage: React.FC = () => {
                   <Store className="h-4 w-4 shrink-0 text-[#B88E4F]" /><span className="truncate">{storeName}</span>
                 </span>
               )}
+            <button
+              type="button"
+              onClick={() => setIsCampaignModalOpen(true)}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 text-xs font-semibold text-[#1A1612] transition-colors hover:bg-[#F3EFE6] cursor-pointer"
+            >
+              <Calendar className="h-4 w-4 text-[#B88E4F]" />
+              Tạo chiến dịch
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -646,7 +703,7 @@ export const ShopCouponsPage: React.FC = () => {
         </section>
 
         {/* Top 4 Stat Cards */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="coupon-metrics grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="min-h-[112px] rounded-2xl border border-[#EAE4D7] bg-white p-4 shadow-xs sm:p-5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[#7D715E]">
@@ -708,14 +765,14 @@ export const ShopCouponsPage: React.FC = () => {
         </div>
 
         {/* Tab Selection & Search Filters */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="coupon-filters bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab('ACTIVE')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'ACTIVE'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#FBF5EB] text-[#1A1612] border border-[#EEDFC6]'
+                  : 'bg-white text-[#7D715E] hover:bg-[#FBF5EB] hover:text-[#1A1612] border border-[#EAE4D7]'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -726,12 +783,12 @@ export const ShopCouponsPage: React.FC = () => {
               onClick={() => setActiveTab('PENDING')}
               className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'PENDING'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#FBF5EB] text-[#1A1612] border border-[#EEDFC6]'
+                  : 'bg-white text-[#7D715E] hover:bg-[#FBF5EB] hover:text-[#1A1612] border border-[#EAE4D7]'
               }`}
             >
               <Clock className="w-3.5 h-3.5 text-amber-600" />
-              <span>Chờ duyệt từ KOL</span>
+              <span>KOL chờ duyệt</span>
               {pendingCoupons.length > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500 text-white font-extrabold shadow-2xs">
                   {pendingCoupons.length}
@@ -743,12 +800,12 @@ export const ShopCouponsPage: React.FC = () => {
               onClick={() => setActiveTab('HISTORY')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'HISTORY'
-                  ? 'bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] shadow-xs'
-                  : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EEDFC6] hover:text-[#1A1612] border border-transparent'
+                  ? 'bg-[#FBF5EB] text-[#1A1612] border border-[#EEDFC6]'
+                  : 'bg-white text-[#7D715E] hover:bg-[#FBF5EB] hover:text-[#1A1612] border border-[#EAE4D7]'
               }`}
             >
               <Tag className="w-3.5 h-3.5 text-[#7D715E]" />
-              <span>Lịch sử / Đã đóng ({historyCoupons.length})</span>
+              <span>Lịch sử ({historyCoupons.length})</span>
             </button>
           </div>
 
@@ -836,7 +893,7 @@ export const ShopCouponsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="coupon-list grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayedCoupons.map((coupon) => {
               const isShopIssued =
                 coupon.fundingSource === 'SHOP_FUNDED' &&
@@ -864,18 +921,22 @@ export const ShopCouponsPage: React.FC = () => {
               return (
                 <div
                   key={coupon.id}
-                  className="bg-white rounded-2xl border border-[#EAE4D7] hover:border-[#C59B58]/60 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col justify-between group"
+                  className="coupon-card relative bg-white rounded-2xl border border-[#EAE4D7] hover:border-[#C59B58] shadow-xs hover:shadow-md transition-all flex flex-col justify-between group overflow-hidden"
                 >
+                  {/* Ticket Cutout Notches */}
+                  <div className="absolute top-[88px] -left-2.5 w-5 h-5 rounded-full bg-[#FAF8F5] border-r border-[#DEBE85] z-10 pointer-events-none" />
+                  <div className="absolute top-[88px] -right-2.5 w-5 h-5 rounded-full bg-[#FAF8F5] border-l border-[#DEBE85] z-10 pointer-events-none" />
+
                   {/* Top Ticket Header Banner */}
-                  <div className="p-4.5 border-b border-[#F3EFE6] bg-gradient-to-br from-[#FAF8F5] to-white relative">
+                  <div className="coupon-card-heading p-4 border-b border-dashed border-[#DEBE85] bg-gradient-to-b from-white to-[#FAF8F5]/60 relative">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center text-[#8C6B32] font-black text-sm shrink-0 shadow-2xs">
+                        <div className="w-11 h-11 rounded-xl bg-[#FAF0DC] border border-[#DEBE85] flex items-center justify-center text-[#8C6B32] font-black text-sm shrink-0 shadow-2xs">
                           {isPercentage ? <Percent className="w-5 h-5" /> : <Coins className="w-5 h-5" />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-black text-[#1A1612] tracking-wider uppercase">
+                            <span className="text-base font-bold text-[#1A1612] tracking-normal uppercase font-mono">
                               {coupon.displayCode}
                             </span>
                             <button
@@ -886,7 +947,7 @@ export const ShopCouponsPage: React.FC = () => {
                               <Copy className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <p className="text-xs font-bold text-[#C59B58] mt-0.5">
+                          <p className="text-xs font-bold text-[#8C6B32] mt-0.5">
                             Giảm {discountDisplay}
                             {coupon.maximumDiscountAmount && isPercentage && (
                               <span className="text-[11px] font-normal text-[#7D715E] ml-1">
@@ -901,7 +962,7 @@ export const ShopCouponsPage: React.FC = () => {
                       <span
                         className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase shrink-0 border ${
                           coupon.status === 'ACTIVE'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            ? 'bg-white text-[#1A1612] border-[#EEDFC6]'
                             : coupon.status === 'PENDING_APPROVAL'
                             ? 'bg-amber-50 text-amber-700 border-amber-200'
                             : coupon.status === 'PAUSED'
@@ -927,8 +988,8 @@ export const ShopCouponsPage: React.FC = () => {
                           Voucher Gian Hàng
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-semibold border border-purple-200">
-                          <Sparkles className="w-3 h-3 text-purple-600" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#7D715E] font-semibold border border-[#EEDFC6]">
+                          <Sparkles className="w-3 h-3 text-[#B88E4F]" />
                           KOL: {coupon.collaborator?.fullName || 'Nhà sáng tạo'}
                         </span>
                       )}
@@ -937,6 +998,8 @@ export const ShopCouponsPage: React.FC = () => {
                         <Layers className="w-3 h-3" />
                         {coupon.scopeType === 'STORE_WIDE'
                           ? 'Toàn gian hàng'
+                          : coupon.scopeType === 'CAMPAIGN'
+                          ? `Chiến dịch: ${coupon.campaign?.name || storeCampaigns.find(item => item.id === coupon.campaignId)?.name || 'Chiến dịch Sale'}`
                           : coupon.scopeType === 'PRODUCTS'
                           ? `${coupon.couponProducts?.length || 0} Sản phẩm chọn lọc`
                           : 'Danh mục chỉ định'}
@@ -1017,7 +1080,7 @@ export const ShopCouponsPage: React.FC = () => {
                   </div>
 
                   {/* Footer Action Buttons */}
-                  <div className="p-3 border-t border-[#F3EFE6] bg-[#FAF8F5] flex items-center justify-between gap-2">
+                  <div className="coupon-card-actions p-3 border-t border-[#EAE4D7] bg-white flex items-center justify-between gap-2">
                     {coupon.status === 'PENDING_APPROVAL' ? (
                       <>
                         <button
@@ -1070,25 +1133,32 @@ export const ShopCouponsPage: React.FC = () => {
       {/* MODAL 1: PHÁT HÀNH VOUCHER GIAN HÀNG (STORE-ISSUED VOUCHER) */}
       {/* ========================================================= */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-4xl rounded-3xl border border-[#DEBE85] shadow-2xl overflow-hidden p-6 sm:p-8 my-auto animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#231D15]/60 backdrop-blur-[4px]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="store-voucher-title"
+            className="flex flex-col w-full max-w-4xl max-h-[calc(100dvh-28px)] overflow-hidden border border-[#EAE4D7] rounded-2xl bg-white text-[#1A1612] shadow-2xl"
+          >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#EAE4D7] pb-4 mb-5 shrink-0">
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#EAE4D7] bg-white shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF0DC] border border-[#DEBE85] flex items-center justify-center text-[#8C6B32] shadow-xs">
-                  <Sparkles className="w-5 h-5 text-amber-600" />
+                <div className="w-10 h-10 rounded-xl bg-[#FAF0DC] border border-[#DEBE85] flex items-center justify-center text-[#8C6B32] shadow-2xs">
+                  <Ticket className="w-5 h-5 text-[#8C6B32]" />
                 </div>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-[#1A1612]">
-                    Phát hành Voucher Gian hàng (Kích Cầu)
+                  <h2 id="store-voucher-title" className="text-base sm:text-lg font-bold text-[#1A1612]">
+                    Phát hành Voucher Gian Hàng
                   </h2>
                   <p className="text-xs text-[#7D715E]">
-                    Tạo mã giảm giá độc quyền cho <strong>{storeName}</strong> để tăng chuyển đổi và kích thích khách đặt hàng
+                    Tạo mã giảm giá độc quyền cho <strong>{storeName}</strong>
                   </p>
                 </div>
               </div>
               <button
                 type="button"
+                aria-label="Đóng cửa sổ phát hành voucher"
+                disabled={isSubmittingCreate}
                 onClick={() => setIsCreateModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] hover:bg-[#F3EFE6] text-[#7D715E] flex items-center justify-center text-sm font-bold cursor-pointer transition-colors"
               >
@@ -1096,481 +1166,563 @@ export const ShopCouponsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Presets Quick-Select */}
-            <div className="mb-5 bg-[#FAF8F5] p-3.5 rounded-2xl border border-[#EAE4D7] shrink-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  Gợi ý cấu hình nhanh (1-Click Presets):
-                </span>
-                <span className="text-[11px] text-[#7D715E]">Click để tự điền form</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => applyPreset('DISCOUNT_10')}
-                  className="px-3 py-1.5 bg-white hover:bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] rounded-xl text-xs font-medium transition-colors cursor-pointer"
-                >
-                  ⚡ Giảm 10% (Tối đa 30K - Đơn từ 150K)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('DISCOUNT_20')}
-                  className="px-3 py-1.5 bg-white hover:bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] rounded-xl text-xs font-medium transition-colors cursor-pointer"
-                >
-                  🔥 Giảm 20% (Tối đa 60K - Đơn từ 300K)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('FLAT_50K')}
-                  className="px-3 py-1.5 bg-white hover:bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] rounded-xl text-xs font-medium transition-colors cursor-pointer"
-                >
-                  💰 Giảm thẳng 50.000₫ (Đơn từ 250K)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset('FREESHIP')}
-                  className="px-3 py-1.5 bg-white hover:bg-[#F5E7CC] text-[#1A1612] border border-[#DEBE85] rounded-xl text-xs font-medium transition-colors cursor-pointer"
-                >
-                  🚚 Freeship 25.000₫ (Đơn từ 120K)
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body (2 Columns on Desktop) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-y-auto pr-1 flex-1">
-              {/* Left Form: 7 cols */}
-              <form onSubmit={handleCreateSubmit} className="lg:col-span-7 space-y-4">
-                {createError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{createError}</span>
+            {/* Modal Body: 2 Columns */}
+            <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-[#EAE4D7]">
+              {/* Left Column (7 cols): Presets + Form */}
+              <div className="p-4 sm:p-5 md:col-span-7 space-y-4">
+                {/* Presets Quick-Select */}
+                <div className="p-3 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB]">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="text-xs font-bold text-[#1A1612] flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      Mẫu ưu đãi nhanh
+                    </span>
+                    <span className="text-[10px] text-[#7D715E]">Bấm để áp dụng nhanh</span>
                   </div>
-                )}
-
-                {/* Voucher Code */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
-                    Mã Voucher <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={createForm.code}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-                        })
-                      }
-                      placeholder="VD: SHOPVIP20, SUMMER15..."
-                      maxLength={20}
-                      className="flex-1 px-3.5 py-2.5 text-xs font-bold tracking-wider bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] uppercase"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => generateRandomCode('SHOP')}
-                      className="px-3 py-2 bg-[#F3EFE6] hover:bg-[#EEDFC6] text-[#8C6B32] text-xs font-semibold rounded-xl border border-[#DEBE85] transition-colors cursor-pointer shrink-0"
-                    >
-                      🎲 Tạo ngẫu nhiên
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Mẫu ưu đãi nhanh">
+                    {([
+                      { id: 'DISCOUNT_10', title: 'Giảm 10%', note: 'Tối đa 30K · Đơn từ 150K', value: 10, minimum: 150000, maximum: 30000, type: 'PERCENTAGE', shipping: false, icon: Percent },
+                      { id: 'DISCOUNT_20', title: 'Giảm 20%', note: 'Tối đa 60K · Đơn từ 300K', value: 20, minimum: 300000, maximum: 60000, type: 'PERCENTAGE', shipping: false, icon: Percent },
+                      { id: 'FLAT_50K', title: 'Giảm 50.000đ', note: 'Giảm trực tiếp · Đơn từ 250K', value: 50000, minimum: 250000, maximum: undefined, type: 'FIXED_AMOUNT', shipping: false, icon: Coins },
+                      { id: 'FREESHIP', title: 'Freeship 25K', note: 'Hỗ trợ ship · Đơn từ 120K', value: 25000, minimum: 120000, maximum: undefined, type: 'FIXED_AMOUNT', shipping: true, icon: Gift },
+                    ] as const).map(preset => {
+                      const selected = createForm.discountType === preset.type && Number(createForm.discountValue) === preset.value
+                        && Number(createForm.minimumOrderAmount) === preset.minimum
+                        && (Number(createForm.maximumDiscountAmount) || 0) === (preset.maximum || 0)
+                        && (createForm.benefitType === 'SHIPPING') === preset.shipping;
+                      const Icon = preset.icon;
+                      return (
+                        <button key={preset.id} type="button" aria-pressed={selected} onClick={() => applyPreset(preset.id)}
+                          className={`relative flex min-w-0 items-start gap-2 rounded-xl border p-3 text-left transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] ${selected ? 'border-[#C59B58] bg-[#FBF5EB]' : 'border-[#EAE4D7] bg-white hover:border-[#C59B58]'}`}>
+                          <Icon className="mt-0.5 hidden h-4 w-4 shrink-0 text-[#B88E4F] sm:block" />
+                          <span className="min-w-0 flex-1 pr-3">
+                            <span className="block text-xs font-semibold leading-5 text-[#1A1612]">{preset.title}</span>
+                            <span className="block text-[10px] leading-4 text-[#7D715E]">{preset.note}</span>
+                          </span>
+                          {selected && <Check className="absolute right-2 top-2 h-3.5 w-3.5 text-[#B88E4F]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {createForm.benefitType !== 'SHIPPING' && (
+                    <button type="button" aria-pressed={createForm.scopeType === 'CAMPAIGN'}
+                      onClick={() => setCreateForm(previous => ({ ...previous, scopeType: previous.scopeType === 'CAMPAIGN' ? 'STORE_WIDE' : 'CAMPAIGN', productIds: [], campaignId: previous.scopeType === 'CAMPAIGN' ? undefined : previous.campaignId }))}
+                      className={`mt-3 flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] ${createForm.scopeType === 'CAMPAIGN' ? 'border-[#C59B58] bg-white' : 'border-[#EAE4D7] bg-white hover:border-[#C59B58]'}`}>
+                      <Calendar className="h-4 w-4 shrink-0 text-[#B88E4F]" />
+                      <span className="flex-1"><span className="block text-xs font-semibold text-[#1A1612]">Chiến dịch Sale</span><span className="mt-0.5 block text-[10px] leading-4 text-[#7D715E]">Gắn voucher với chiến dịch của gian hàng</span></span>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${createForm.scopeType === 'CAMPAIGN' ? 'border-[#C59B58] bg-[#C59B58] text-white' : 'border-[#EAE4D7]'}`}>{createForm.scopeType === 'CAMPAIGN' && <Check size={12} />}</span>
                     </button>
-                  </div>
-                  <span className="text-[10px] text-[#7D715E] mt-1 block">
-                    Từ 4-20 ký tự chữ và số, không khoảng trắng, tự động viết hoa.
-                  </span>
-                </div>
-
-                {/* Discount Type & Value */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Hình thức giảm giá
-                    </label>
-                    <CustomSandSelect<'PERCENTAGE' | 'FIXED_AMOUNT'>
-                      value={createForm.discountType}
-                      onChange={(val) => setCreateForm({ ...createForm, discountType: val })}
-                      options={[
-                        { value: 'PERCENTAGE', label: 'Theo phần trăm (%)', icon: <Percent className="w-3.5 h-3.5 text-[#8C6B32]" /> },
-                        { value: 'FIXED_AMOUNT', label: 'Số tiền cố định (VNĐ)', icon: <Coins className="w-3.5 h-3.5 text-[#8C6B32]" /> },
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      {createForm.discountType === 'PERCENTAGE' ? 'Mức giảm (%)' : 'Số tiền giảm (VNĐ)'}{' '}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.discountValue || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          discountValue: Number(e.target.value),
-                        })
-                      }
-                      min={1}
-                      max={createForm.discountType === 'PERCENTAGE' ? 100 : 10000000}
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Max Discount & Min Order */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Giảm tối đa (VNĐ)
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.maximumDiscountAmount || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          maximumDiscountAmount: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                      placeholder={createForm.discountType === 'PERCENTAGE' ? 'VD: 50.000₫' : 'Không áp dụng'}
-                      disabled={createForm.discountType === 'FIXED_AMOUNT'}
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] disabled:opacity-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Đơn hàng tối thiểu (VNĐ)
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.minimumOrderAmount || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          minimumOrderAmount: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                      placeholder="VD: 200.000₫"
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                </div>
-
-                {/* Usage Limits & Budget */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Tổng lượt dùng
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.usageLimitTotal || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          usageLimitTotal: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                      placeholder="VD: 100"
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Lượt / Khách hàng
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.usageLimitPerCustomer || 1}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          usageLimitPerCustomer: Number(e.target.value),
-                        })
-                      }
-                      min={1}
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Ngân sách tối đa (VNĐ)
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.budgetTotal || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          budgetTotal: e.target.value ? Number(e.target.value) : undefined,
-                        })
-                      }
-                      placeholder="VD: 5.000.000₫"
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                </div>
-
-                {/* Date range */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Ngày bắt đầu
-                    </label>
-                    <input
-                      type="date"
-                      value={createForm.startsAt || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          startsAt: e.target.value,
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                      Ngày hết hạn
-                    </label>
-                    <input
-                      type="date"
-                      value={createForm.expiresAt || ''}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          expiresAt: e.target.value,
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
-                    />
-                  </div>
-                </div>
-
-                {/* Scope selection */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                    Phạm vi áp dụng
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm({ ...createForm, scopeType: 'STORE_WIDE', productIds: [] })}
-                      className={`p-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-left flex items-center gap-2 ${
-                        createForm.scopeType === 'STORE_WIDE'
-                          ? 'bg-[#FBF5EB] border-[#C59B58] text-[#8C6B32] shadow-2xs'
-                          : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:bg-[#F3EFE6]'
-                      }`}
-                    >
-                      <Store className="w-4 h-4" />
-                      <span>Toàn bộ gian hàng</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm({ ...createForm, scopeType: 'PRODUCTS' })}
-                      className={`p-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-left flex items-center gap-2 ${
-                        createForm.scopeType === 'PRODUCTS'
-                          ? 'bg-[#FBF5EB] border-[#C59B58] text-[#8C6B32] shadow-2xs'
-                          : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] hover:bg-[#F3EFE6]'
-                      }`}
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                      <span>Sản phẩm chỉ định</span>
-                    </button>
-                  </div>
-
-                  {/* Product picker if scope === PRODUCTS */}
-                  {createForm.scopeType === 'PRODUCTS' && (
-                    <div className="bg-[#FAF8F5] p-3 rounded-xl border border-[#EAE4D7] max-h-40 overflow-y-auto space-y-2">
-                      <span className="text-[11px] font-bold text-[#1A1612] block">
-                        Chọn sản phẩm áp dụng voucher ({createForm.productIds?.length || 0} đã chọn):
-                      </span>
-                      {loadingProducts ? (
-                        <div className="py-4 text-center text-xs text-[#7D715E]">
-                          Đang tải sản phẩm...
-                        </div>
-                      ) : storeProducts.length === 0 ? (
-                        <div className="py-4 text-center text-xs text-[#7D715E]">
-                          Không có sản phẩm nào trong gian hàng.
-                        </div>
-                      ) : (
-                        storeProducts.map((p) => {
-                          const isSelected = createForm.productIds?.includes(p.id);
-                          return (
-                            <label
-                              key={p.id}
-                              className="flex items-center gap-2.5 p-2 rounded-lg bg-white border border-[#EAE4D7] hover:border-[#C59B58] cursor-pointer text-xs"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  const currentIds = createForm.productIds || [];
-                                  if (e.target.checked) {
-                                    setCreateForm({
-                                      ...createForm,
-                                      productIds: [...currentIds, p.id],
-                                    });
-                                  } else {
-                                    setCreateForm({
-                                      ...createForm,
-                                      productIds: currentIds.filter((id) => id !== p.id),
-                                    });
-                                  }
-                                }}
-                                className="accent-[#C59B58]"
-                              />
-                              <span className="flex-1 font-medium text-[#1A1612] truncate">
-                                {p.title}
-                              </span>
-                              <span className="text-[11px] font-bold text-[#8C6B32] shrink-0">
-                                {Number(p.price || 0).toLocaleString('vi-VN')}₫
-                              </span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
                   )}
                 </div>
 
-                {/* Stacking Options */}
-                <div className="pt-2 border-t border-[#EAE4D7] space-y-2">
-                  <span className="text-xs font-semibold text-[#1A1612] block">
-                    Quy tắc cộng dồn ưu đãi
-                  </span>
-                  <label className="flex items-center gap-2 text-xs text-[#7D715E] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={createForm.stackableWithProductDiscount}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          stackableWithProductDiscount: e.target.checked,
-                        })
-                      }
-                      className="accent-[#C59B58]"
-                    />
-                    <span>Cho phép cộng dồn với giá giảm trực tiếp của sản phẩm</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-[#7D715E] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={createForm.stackableWithPlatformVoucher}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          stackableWithPlatformVoucher: e.target.checked,
-                        })
-                      }
-                      className="accent-[#C59B58]"
-                    />
-                    <span>Cho phép dùng chung với Voucher toàn sàn SCANMS</span>
-                  </label>
-                </div>
-              </form>
+                <form id="store-voucher-form" onSubmit={handleCreateSubmit} className="space-y-4">
+                  {createForm.scopeType === 'CAMPAIGN' && (
+                    <div className="p-3.5 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB]">
+                      <label className="block text-xs font-bold text-[#1A1612] mb-2" htmlFor="voucher-campaign">Chiến dịch áp dụng *</label>
+                      <select id="voucher-campaign" required value={createForm.campaignId || ''}
+                        onChange={event => {
+                          const campaign = storeCampaigns.find(row => row.id === event.target.value);
+                          setCreateForm(form => ({ ...form, campaignId: campaign?.id,
+                            startsAt: campaign?.startDate || form.startsAt, expiresAt: campaign?.endDate || form.expiresAt }));
+                        }} className="w-full bg-white border border-[#EAE4D7] rounded-xl px-3 py-2.5 text-sm">
+                        <option value="">Chọn chiến dịch của gian hàng</option>
+                        {storeCampaigns.map(campaign => <option key={campaign.id} value={campaign.id}>{campaign.name || campaign.title}</option>)}
+                      </select>
+                      <p className="mt-2 text-xs text-[#7D715E]">Voucher chỉ dùng trong thời gian chiến dịch hoạt động. {storeCampaigns.length === 0 && 'Tạo chiến dịch trong mục Khuyến mãi & Hoa hồng trước.'}</p>
+                    </div>
+                  )}
+                  {createError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{createError}</span>
+                    </div>
+                  )}
 
-              {/* Right Column: 5 cols -> Live Ticket Preview */}
-              <div className="lg:col-span-5 flex flex-col justify-between">
+                  {/* Discount Type & Value */}
+                  <div className="p-3.5 border border-[#EAE4D7] rounded-xl bg-[#FAF8F5]">
+                    <label className="block text-xs font-bold text-[#1A1612] mb-2">
+                      Hình thức & Mức giảm giá <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-1.5 p-1 mb-3 rounded-lg bg-[#F3EFE6]" role="group" aria-label="Hình thức giảm giá">
+                      <button
+                        type="button"
+                        aria-pressed={createForm.discountType === 'PERCENTAGE'}
+                        onClick={() => changeVoucherDiscountType('PERCENTAGE')}
+                        className={`flex-1 py-1.5 px-2 rounded-md text-xs font-bold transition cursor-pointer ${
+                          createForm.discountType === 'PERCENTAGE'
+                            ? 'bg-white text-[#8C6B32] shadow-2xs border border-[#EEDFC6]'
+                            : 'text-[#7D715E] hover:text-[#1A1612]'
+                        }`}
+                      >
+                        Theo phần trăm (%)
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={createForm.discountType === 'FIXED_AMOUNT'}
+                        onClick={() => changeVoucherDiscountType('FIXED_AMOUNT')}
+                        className={`flex-1 py-1.5 px-2 rounded-md text-xs font-bold transition cursor-pointer ${
+                          createForm.discountType === 'FIXED_AMOUNT'
+                            ? 'bg-white text-[#8C6B32] shadow-2xs border border-[#EEDFC6]'
+                            : 'text-[#7D715E] hover:text-[#1A1612]'
+                        }`}
+                      >
+                        Số tiền cố định (VNĐ)
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        id="voucher-discount-value"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={createForm.discountValue ? (createForm.discountType === 'FIXED_AMOUNT' && !discountAmountFocused ? createForm.discountValue.toLocaleString('vi-VN') : String(createForm.discountValue)) : ''}
+                        onFocus={() => setDiscountAmountFocused(true)}
+                        onBlur={() => setDiscountAmountFocused(false)}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            discountValue: Number(e.target.value.replace(/[^0-9]/g, '')),
+                          })
+                        }
+                        className="w-full px-3.5 py-2.5 pr-10 text-sm font-bold bg-white border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] focus:ring-1 focus:ring-[#C59B58]/40 text-[#1A1612]"
+                        placeholder={createForm.discountType === 'PERCENTAGE' ? 'VD: 15' : 'VD: 50.000'}
+                        required
+                      />
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7D715E]">
+                        {createForm.discountType === 'PERCENTAGE' ? '%' : '₫'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Voucher Code */}
+                  <div>
+                    <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                      Mã Voucher <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={createForm.code}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                          })
+                        }
+                        placeholder="VD: SHOPVIP20, SUMMER15..."
+                        maxLength={20}
+                        className="flex-1 px-3.5 py-2.5 text-xs font-bold tracking-wider bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] uppercase"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => generateRandomCode('SHOP')}
+                        className="px-3.5 py-2 bg-[#F3EFE6] hover:bg-[#EEDFC6] text-[#8C6B32] text-xs font-bold rounded-xl border border-[#DEBE85] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Tự sinh mã</span>
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-[#7D715E] mt-1 block">
+                      4–20 ký tự chữ và số · Tự động viết hoa
+                    </span>
+                  </div>
+
+                  {/* Max Discount & Min Order */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Giảm tối đa (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        value={createForm.maximumDiscountAmount || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            maximumDiscountAmount: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder={createForm.discountType === 'PERCENTAGE' ? 'VD: 50.000₫' : 'Không áp dụng'}
+                        disabled={createForm.discountType === 'FIXED_AMOUNT'}
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Đơn hàng tối thiểu (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        value={createForm.minimumOrderAmount || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            minimumOrderAmount: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="VD: 200.000₫"
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Date range */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Ngày bắt đầu
+                      </label>
+                      <input
+                        type="date"
+                        value={createForm.startsAt?.slice(0, 10) || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            startsAt: e.target.value,
+                          })
+                        }
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Ngày hết hạn
+                      </label>
+                      <input
+                        type="date"
+                        value={createForm.expiresAt?.slice(0, 10) || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            expiresAt: e.target.value,
+                          })
+                        }
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Scope selection */}
+                  <div className="voucher-scope">
+                    <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                      Phạm vi áp dụng
+                    </label>
+                    <div className="flex gap-1 p-1 rounded-lg bg-[#F3EFE6]" role="group" aria-label="Phạm vi áp dụng voucher">
+                      <button
+                        type="button"
+                        aria-pressed={createForm.scopeType === 'STORE_WIDE'}
+                        onClick={() => { setCreateForm({ ...createForm, scopeType: 'STORE_WIDE', productIds: [] }); setVoucherProductSearch(''); }}
+                        className={`flex items-center justify-center flex-1 gap-1.5 py-1.5 px-2 text-xs font-bold rounded-md transition cursor-pointer ${
+                          createForm.scopeType === 'STORE_WIDE'
+                            ? 'bg-white text-[#8C6B32] shadow-2xs border border-[#EEDFC6]'
+                            : 'text-[#7D715E] hover:text-[#1A1612]'
+                        }`}
+                      >
+                        <Store className="w-3.5 h-3.5" />
+                        <span>Toàn gian hàng</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={createForm.scopeType === 'PRODUCTS'}
+                        onClick={() => setCreateForm({ ...createForm, scopeType: 'PRODUCTS' })}
+                        className={`flex items-center justify-center flex-1 gap-1.5 py-1.5 px-2 text-xs font-bold rounded-md transition cursor-pointer ${
+                          createForm.scopeType === 'PRODUCTS'
+                            ? 'bg-white text-[#8C6B32] shadow-2xs border border-[#EEDFC6]'
+                            : 'text-[#7D715E] hover:text-[#1A1612]'
+                        }`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>Chọn sản phẩm</span>
+                      </button>
+                    </div>
+
+                    {createForm.scopeType === 'PRODUCTS' && (
+                      <div className="mt-2.5 border border-[#EAE4D7] rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E]">
+                          <Search size={14} />
+                          <input
+                            type="search"
+                            value={voucherProductSearch}
+                            onChange={event => setVoucherProductSearch(event.target.value)}
+                            placeholder="Tìm sản phẩm theo tên..."
+                            aria-label="Tìm sản phẩm áp dụng voucher"
+                            className="flex-1 min-w-0 h-7 border-0 bg-transparent text-xs outline-none"
+                          />
+                          <span className="px-2 py-0.5 rounded-full bg-[#FBF5EB] text-[10px] font-bold text-[#8C6B32] border border-[#EEDFC6]">
+                            {createForm.productIds?.length || 0} đã chọn
+                          </span>
+                        </div>
+                        <div className="max-h-44 overflow-y-auto divide-y divide-[#F3EFE6]">
+                          {loadingProducts ? (
+                            <div className="py-4 text-center text-xs text-[#7D715E]">Đang tải sản phẩm...</div>
+                          ) : storeProducts.length === 0 ? (
+                            <div className="py-4 text-center text-xs text-[#7D715E]">Không có sản phẩm nào trong gian hàng.</div>
+                          ) : filteredVoucherProducts.length === 0 ? (
+                            <p className="p-3 text-center text-xs text-[#7D715E]">Không tìm thấy sản phẩm phù hợp.</p>
+                          ) : (
+                            filteredVoucherProducts.map((p) => {
+                              const isSelected = createForm.productIds?.includes(p.id);
+                              return (
+                                <label
+                                  key={p.id}
+                                  className={`grid grid-cols-[16px_minmax(0,1fr)_auto] gap-2.5 items-center p-2.5 hover:bg-[#FAF8F5] cursor-pointer transition ${isSelected ? 'bg-[#FBF5EB]' : ''}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const currentIds = createForm.productIds || [];
+                                      if (e.target.checked) {
+                                        setCreateForm({ ...createForm, productIds: [...currentIds, p.id] });
+                                      } else {
+                                        setCreateForm({ ...createForm, productIds: currentIds.filter((id) => id !== p.id) });
+                                      }
+                                    }}
+                                    className="accent-[#C59B58]"
+                                  />
+                                  <span className="text-xs text-[#1A1612] truncate">{p.title}</span>
+                                  <span className="text-xs font-bold text-[#8C6B32] tabular-nums whitespace-nowrap">
+                                    {Number(p.price || 0).toLocaleString('vi-VN')}₫
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Usage Limits & Budget */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Tổng lượt dùng
+                      </label>
+                      <input
+                        type="number"
+                        value={createForm.usageLimitTotal || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            usageLimitTotal: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="VD: 100"
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Lượt / Khách hàng
+                      </label>
+                      <input
+                        type="number"
+                        value={createForm.usageLimitPerCustomer || 1}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            usageLimitPerCustomer: Number(e.target.value),
+                          })
+                        }
+                        min={1}
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#1A1612] mb-1.5">
+                        Ngân sách tối đa (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        value={createForm.budgetTotal || ''}
+                        onChange={(e) =>
+                          setCreateForm({
+                            ...createForm,
+                            budgetTotal: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        placeholder="VD: 5.000.000₫"
+                        className="w-full px-3.5 py-2.5 text-xs bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stacking Options */}
+                  <div className="pt-2 border-t border-[#EAE4D7] space-y-2">
+                    <span className="text-xs font-bold text-[#1A1612] block">
+                      Quy tắc cộng dồn ưu đãi
+                    </span>
+                    <label className="flex items-center gap-2 text-xs text-[#7D715E] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createForm.stackableWithProductDiscount}
+                        onChange={(e) => setCreateForm({ ...createForm, stackableWithProductDiscount: e.target.checked })}
+                        className="accent-[#C59B58]"
+                      />
+                      <span>Cho phép cộng dồn với giá giảm trực tiếp của sản phẩm</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-[#7D715E] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        disabled
+                        className="accent-[#C59B58]"
+                      />
+                      <span>Dùng cùng 1 voucher Sàn và 1 voucher vận chuyển; không chồng voucher tiền hàng của Shop</span>
+                    </label>
+                  </div>
+                </form>
+              </div>
+
+              {/* Right Column (5 cols): Live Real-Time Ticket Preview */}
+              <div className="p-4 sm:p-5 md:col-span-5 bg-[#FAF8F5] flex flex-col justify-between gap-4">
                 <div>
-                  <h3 className="text-xs font-bold text-[#1A1612] mb-3 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    Xem trước Voucher trực tiếp (Live Preview):
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#7D715E]">
+                      Mô phỏng hiển thị trên sàn
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FBF5EB] text-[#8C6B32] border border-[#EEDFC6]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#059669] animate-pulse" />
+                      Live Preview
+                    </span>
+                  </div>
 
-                  {/* Sand Luxury Ticket Preview */}
-                  <div className="bg-gradient-to-br from-[#FBF5EB] via-[#FAF0DC] to-[#F3EFE6] rounded-2xl border-2 border-dashed border-[#C59B58] p-5 shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 px-3 py-1 bg-[#C59B58] text-white text-[10px] font-black uppercase rounded-bl-xl tracking-wider">
-                      VOUCHER SHOP
+                  {/* Sand Luxury Ticket Card */}
+                  <div className="relative bg-white rounded-2xl border border-[#DEBE85] shadow-md p-4 overflow-hidden">
+                    {/* Left & Right Cutouts */}
+                    <div className="absolute top-[88px] -left-3 w-5 h-5 rounded-full bg-[#FAF8F5] border-r border-[#DEBE85]" />
+                    <div className="absolute top-[88px] -right-3 w-5 h-5 rounded-full bg-[#FAF8F5] border-l border-[#DEBE85]" />
+
+                    {/* Top: Store Branding */}
+                    <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#F3EFE6]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#FAF0DC] border border-[#DEBE85] flex items-center justify-center text-[#8C6B32] shrink-0">
+                          <Store className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-xs font-bold text-[#1A1612] truncate">{storeName}</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF0DC] text-[#8C6B32] border border-[#DEBE85] shrink-0">
+                        Voucher Shop
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-[#8C6B32] font-bold mb-3">
-                      <Store className="w-4 h-4" />
-                      <span className="truncate">{storeName}</span>
-                    </div>
-
-                    <div className="my-4">
-                      <span className="text-3xl font-black text-[#1A1612] tracking-tight">
+                    {/* Middle: Discount Announcement */}
+                    <div className="py-4 text-center">
+                      <div className="text-2xl sm:text-3xl font-black text-[#1A1612] tracking-tight">
                         {createForm.discountType === 'PERCENTAGE'
                           ? `GIẢM ${createForm.discountValue || 0}%`
                           : `GIẢM ${Number(createForm.discountValue || 0).toLocaleString('vi-VN')}₫`}
-                      </span>
-                      {createForm.discountType === 'PERCENTAGE' && createForm.maximumDiscountAmount && (
+                      </div>
+                      {createForm.discountType === 'PERCENTAGE' && createForm.maximumDiscountAmount ? (
                         <p className="text-xs text-[#7D715E] mt-1 font-medium">
                           Giảm tối đa {Number(createForm.maximumDiscountAmount).toLocaleString('vi-VN')}₫
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[#7D715E] mt-1 font-medium">
+                          Áp dụng cho mọi giá trị thanh toán
                         </p>
                       )}
                     </div>
 
-                    <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-[#DEBE85] space-y-1.5 text-xs text-[#1A1612] mb-4">
-                      <div className="flex justify-between">
-                        <span className="text-[#7D715E]">Mã áp dụng:</span>
-                        <span className="font-extrabold text-[#8C6B32] font-mono tracking-wider">
+                    {/* Dashed Separator */}
+                    <div className="border-b border-dashed border-[#DEBE85] my-1" />
+
+                    {/* Bottom: Details & Code */}
+                    <div className="pt-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#7D715E]">Mã ưu đãi:</span>
+                        <span className="font-mono font-extrabold text-[#8C6B32] bg-[#FBF5EB] px-2.5 py-1 rounded-md border border-[#EEDFC6] tracking-wider">
                           {createForm.code || 'CHƯA_NHẬP_MÃ'}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex items-center justify-between">
                         <span className="text-[#7D715E]">Đơn tối thiểu:</span>
-                        <span className="font-bold">
+                        <span className="font-bold text-[#1A1612]">
                           {createForm.minimumOrderAmount
                             ? `${Number(createForm.minimumOrderAmount).toLocaleString('vi-VN')}₫`
-                            : '0₫ (Không giới hạn)'}
+                            : 'Không yêu cầu'}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex items-center justify-between">
                         <span className="text-[#7D715E]">Phạm vi:</span>
-                        <span className="font-bold">
+                        <span className="font-bold text-[#1A1612]">
                           {createForm.scopeType === 'STORE_WIDE'
                             ? 'Toàn gian hàng'
+                            : createForm.scopeType === 'CAMPAIGN'
+                            ? (storeCampaigns.find(item => item.id === createForm.campaignId)?.name || 'Chưa chọn chiến dịch')
                             : `${createForm.productIds?.length || 0} sản phẩm chỉ định`}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex items-center justify-between">
                         <span className="text-[#7D715E]">Hạn sử dụng:</span>
                         <span className="font-bold text-[#8C6B32]">
                           {createForm.expiresAt
                             ? new Date(createForm.expiresAt).toLocaleDateString('vi-VN')
-                            : 'Không thời hạn'}
+                            : 'Vô thời hạn'}
                         </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="text-[10px] text-center text-[#7D715E] italic">
-                      ✨ Voucher sẽ được tự động kích hoạt và hiển thị cho khách hàng ngay sau khi phát hành.
+                  {/* Summary of Rules */}
+                  <div className="mt-4 p-3 bg-white rounded-xl border border-[#EAE4D7] space-y-1.5 text-xs text-[#7D715E]">
+                    <div className="font-bold text-[#1A1612] text-[11px] uppercase tracking-wider mb-1">
+                      Tóm tắt điều kiện
                     </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#059669] shrink-0" />
+                      <span>{createForm.usageLimitPerCustomer || 1} lượt dùng / mỗi khách hàng</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#059669] shrink-0" />
+                      <span>1 voucher Shop/KOL + 1 voucher Sàn + 1 Freeship</span>
+                    </div>
+                    {createForm.budgetTotal && (
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-3.5 h-3.5 text-[#8C6B32] shrink-0" />
+                        <span>Ngân sách phát hành: {Number(createForm.budgetTotal).toLocaleString('vi-VN')}₫</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#EAE4D7] mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-medium text-[#7D715E] hover:bg-[#F3EFE6] cursor-pointer transition-colors"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateSubmit}
-                    disabled={!createForm.code.trim() || isSubmittingCreate}
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#966E2E] hover:from-[#B88E4F] hover:to-[#845E20] text-white text-xs sm:text-sm font-bold shadow-md shadow-[#C59B58]/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isSubmittingCreate ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Đang phát hành...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 text-amber-200" />
-                        <span>Xác nhận Phát hành Voucher</span>
-                      </>
-                    )}
-                  </button>
+                <div className="text-[10px] text-center text-[#7D715E]">
+                  Khách hàng sẽ thấy voucher này tại trang chi tiết sản phẩm và bước thanh toán giỏ hàng.
                 </div>
               </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex justify-end items-center gap-2.5 px-5 py-3.5 border-t border-[#EAE4D7] bg-white shrink-0">
+              <button
+                type="button"
+                disabled={isSubmittingCreate}
+                onClick={() => setIsCreateModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7D715E] hover:bg-[#F3EFE6] cursor-pointer transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="submit"
+                form="store-voucher-form"
+                disabled={!createForm.code.trim() || isSubmittingCreate}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#966E2E] hover:from-[#B88E4F] hover:to-[#845E20] text-white text-xs sm:text-sm font-bold shadow-md shadow-[#C59B58]/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmittingCreate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang phát hành...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-200" />
+                    <span>Phát hành voucher</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1590,6 +1742,7 @@ export const ShopCouponsPage: React.FC = () => {
                 <p className="text-xs text-[#7D715E]">
                   Đề xuất bởi KOL: <strong>{selectedCouponToApprove.collaborator?.fullName}</strong>
                 </p>
+                <p className="mt-1 text-xs text-[#B88E4F]">Shop chi trả 100% ngân sách giảm giá. Chỉ sau khi Shop duyệt, mã mới được kích hoạt.</p>
               </div>
               <button
                 type="button"
@@ -1803,6 +1956,18 @@ export const ShopCouponsPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {isCampaignModalOpen && (
+        <CreateCampaignModal
+          onClose={() => setIsCampaignModalOpen(false)}
+          onSuccess={(campaign) => {
+            if (campaign?.id && campaign.storeId === storeId && campaign.isActive && new Date(campaign.endDate) > new Date()) {
+              setStoreCampaigns(previous => [campaign, ...previous.filter(item => item.id !== campaign.id)]);
+              setCreateForm(previous => ({ ...previous, scopeType: 'CAMPAIGN', campaignId: campaign.id, productIds: [], startsAt: campaign.startDate, expiresAt: campaign.endDate }));
+            }
+            toast.success('Đã tạo chiến dịch. Bạn có thể phát hành voucher cho chiến dịch này.');
+          }}
+        />
       )}
     </div>
   );

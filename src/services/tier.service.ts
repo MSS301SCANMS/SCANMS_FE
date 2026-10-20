@@ -1,32 +1,33 @@
-import api from '../lib/api';
+import api from './api';
+
+export interface TierPolicy {
+  id: string;
+  name: string;
+  extraBonusPercentage: number;
+  minRevenueThreshold: number;
+}
 
 export interface TierStatus {
-  currentTier: {
-    id: string;
-    name: string;
-    extraBonusPercentage: number;
-    minRevenueThreshold: number;
-  };
+  currentTier: TierPolicy;
   currentRevenue: number;
   totalOrders: number;
-  nextTier: {
-    id: string;
-    name: string;
-    extraBonusPercentage: number;
-    minRevenueThreshold: number;
-  } | null;
+  revenueBasis: 'PREVIOUS_MONTH_VIETNAM';
+  assessmentPeriod?: { startsAt: string; endsAt: string };
+  nextEvaluationAt?: string;
+  qualifiedTier: TierPolicy;
+  nextTier: TierPolicy | null;
   progressPercentage: number;
   revenueNeeded: number;
 }
 
 export const tierService = {
-  async getAllTiers() {
-    const res: any = await api.get('/tiers');
+  async getAllTiers(): Promise<TierPolicy[]> {
+    const res: any = await api.get('/tiers', { headers: { 'x-skip-cache': 'true' } });
     return res.data;
   },
 
   async getMyTierStatus(): Promise<TierStatus> {
-    const res: any = await api.get('/tiers/my-status');
+    const res: any = await api.get('/tiers/my-status', { headers: { 'x-skip-cache': 'true' } });
     return res.data;
   },
 
@@ -35,4 +36,3 @@ export const tierService = {
     return res.data;
   },
 };
-

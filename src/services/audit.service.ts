@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export type AuditSeverity = 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -96,7 +96,7 @@ export const auditService = {
    * Lấy danh sách Audit Logs phân trang và có lọc
    */
   getAuditLogs: async (params?: AuditQueryFilters): Promise<AuditLogsResponse> => {
-    const res = await api.get('/audit-logs', { params });
+    const res = await api.get('/audit-logs', { params, headers: { 'x-skip-cache': '1' } });
     return res.data?.data || res.data || res;
   },
 
@@ -106,6 +106,7 @@ export const auditService = {
   getAuditStats: async (timeframe?: '24h' | '7d' | '30d' | 'all'): Promise<AuditStats> => {
     const res = await api.get('/audit-logs/stats', {
       params: { timeframe: timeframe || '30d' },
+      headers: { 'x-skip-cache': '1' },
     });
     return res.data?.data || res.data || res;
   },
@@ -137,4 +138,3 @@ export const auditService = {
     return res.data;
   },
 };
-

@@ -15,9 +15,9 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import api from '../../services/api';
-import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { toast } from '../../utils/toast';
-import { liveBroadcastService } from '../../services/liveBroadcast';
+import { liveBroadcastService } from '@/services/live-broadcast.service';
 
 interface LiveCommerceHubModalProps {
   isOpen: boolean;
@@ -382,7 +382,7 @@ export function LiveCommerceHubModal({ isOpen, onClose }: LiveCommerceHubModalPr
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => { onClose(); navigate('/merchant/promotions?tab=live-sessions'); }}
+              onClick={() => { onClose(); navigate('/merchant/live-sessions'); }}
               className="rounded-full border border-[#EAE4D7] px-3.5 py-2 text-xs font-bold text-[#231D15] transition hover:bg-[#F3EFE6]"
             >
               Dành cho Shop

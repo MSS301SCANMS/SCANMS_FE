@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { payoutService, type MerchantPayout } from '../services/payout.service';
+import { payoutService } from '../services/payout.service';
 import type { PayoutStatus } from '../services/wallet.service';
 
 export const payoutKeys = {

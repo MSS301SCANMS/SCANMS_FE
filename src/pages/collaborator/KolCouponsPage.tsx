@@ -26,6 +26,43 @@ import {
 import { toast as sonnerToast } from '../../utils/toast';
 import api from '../../services/api';
 
+interface EligibleStore {
+  id?: string;
+  storeId?: string;
+  name?: string;
+  storeName?: string;
+  logoUrl?: string | null;
+  owner?: { avatarUrl?: string | null } | null;
+}
+
+function PartnerStoreAvatar({ store }: { store?: EligibleStore }) {
+  const avatarUrl = store?.owner?.avatarUrl?.trim();
+  const logoUrl = store?.logoUrl?.trim();
+  const [imageIndex, setImageIndex] = useState(0);
+  useEffect(() => setImageIndex(0), [avatarUrl, logoUrl]);
+  const images = [...new Set([avatarUrl, logoUrl].filter((url): url is string => Boolean(url)))];
+  const imageUrl = images[imageIndex];
+  const name = store?.name || store?.storeName || 'Gian hàng đối tác';
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+
+  return (
+    <span className="w-7 h-7 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] inline-flex items-center justify-center overflow-hidden shrink-0 text-[#B88E4F] text-[10px] font-semibold">
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={`Avatar ${name}`}
+          className="w-full h-full object-cover"
+          onError={() => setImageIndex((index) => index + 1)}
+        />
+      ) : store ? (
+        <span aria-hidden="true">{initials || 'S'}</span>
+      ) : (
+        <Store className="w-3.5 h-3.5" />
+      )}
+    </span>
+  );
+}
+
 const STATUS_LABELS: Record<CouponStatus, { label: string; bg: string; text: string; border: string }> = {
   ACTIVE: {
     label: 'Đang hoạt động',
@@ -86,7 +123,7 @@ export const KolCouponsPage: React.FC = () => {
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [approvedStores, setApprovedStores] = useState<any[]>([]);
+  const [approvedStores, setApprovedStores] = useState<EligibleStore[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
@@ -94,6 +131,9 @@ export const KolCouponsPage: React.FC = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
+  const selectedStore = approvedStores.find(
+    (store) => (store.id || store.storeId) === selectedStoreId,
+  ) || approvedStores[0];
 
 
   const [deleteTarget, setDeleteTarget] = useState<CouponItem | null>(null);
@@ -383,34 +423,9 @@ export const KolCouponsPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen h-full overflow-y-auto bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
+    <div className="kol-coupon-page min-h-screen h-full overflow-y-auto bg-[#FAF8F5] p-4 sm:p-6 lg:p-8 text-[#1A1612]">
 
-      <div className="max-w-[1520px] mx-auto mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE4D7] pb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
-                <Sparkles className="w-3.5 h-3.5" />
-                Mạng lưới Tiếp thị Liên kết (FR-12)
-              </span>
-            </div>
-            
-          </div>
-
-          <button
-            onClick={() => {
-              setIsModalOpen(true);
-              setModalError(null);
-              setModalSuccess(null);
-            }}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white font-medium shadow-sm transition-all duration-200 cursor-pointer text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Đề xuất mã mới
-          </button>
-        </div>
-
-
+      <div className="kol-coupon-content max-w-[1520px] mx-auto mb-8">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs">
             <div className="flex items-center justify-between mb-2">
@@ -465,8 +480,8 @@ export const KolCouponsPage: React.FC = () => {
         </div>
 
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="kol-coupon-toolbar bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6">
+          <div className="kol-coupon-search relative">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7D715E]" />
             <input
               type="text"
@@ -477,7 +492,7 @@ export const KolCouponsPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div className="kol-coupon-status-tabs">
             {[
               { key: 'ALL', label: 'Tất cả' },
               { key: 'ACTIVE', label: 'Đang chạy' },
@@ -488,6 +503,8 @@ export const KolCouponsPage: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.key}
+                type="button"
+                aria-pressed={statusFilter === tab.key}
                 onClick={() => setStatusFilter(tab.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   statusFilter === tab.key
@@ -499,6 +516,19 @@ export const KolCouponsPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsModalOpen(true);
+              setModalError(null);
+              setModalSuccess(null);
+            }}
+            className="inline-flex items-center justify-center gap-2 min-h-[40px] shrink-0 px-3.5 py-2 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB] text-[#B88E4F] text-xs font-semibold whitespace-nowrap cursor-pointer hover:bg-[#F3EFE6] hover:border-[#C59B58] transition"
+          >
+            <Plus className="w-4 h-4" />
+            Đề xuất mã mới
+          </button>
         </div>
 
 
@@ -706,17 +736,17 @@ export const KolCouponsPage: React.FC = () => {
                         </button>
                       )}
 
-                      {coupon.status === 'PAUSED' && (
+                      {coupon.status === 'PAUSED' && coupon.approvedBy && coupon.approvedAt && (
                         <button
                           onClick={() => handleTogglePause(coupon)}
-                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-[#B88E4F] hover:bg-[#FBF5EB] transition-colors cursor-pointer"
                           title="Kích hoạt lại"
                         >
                           <Play className="w-3.5 h-3.5" />
                         </button>
                       )}
 
-                      {coupon.status !== 'DELETED' && (
+                      {(coupon.status === 'PENDING_APPROVAL' || coupon.status === 'REJECTED') && (
                         <button
                           onClick={() => setDeleteTarget(coupon)}
                           className="p-1.5 rounded-lg text-[#7D715E] hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
@@ -736,26 +766,28 @@ export const KolCouponsPage: React.FC = () => {
 
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#EAE4D7] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[92vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#231D15]/35 p-4 backdrop-blur-xs overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="coupon-proposal-title" className="bg-white w-full max-w-lg rounded-2xl border border-[#EAE4D7] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[92vh] flex flex-col text-left">
             <div className="px-6 py-5 border-b border-[#EAE4D7] flex items-center justify-between shrink-0">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6]" aria-hidden="true"><Tag className="w-4 h-4" /></span>
               <div>
-                <h3 className="text-lg font-bold text-[#1A1612]">
-                  Đề xuất mã giảm giá riêng
+                <h3 id="coupon-proposal-title" className="text-lg font-bold text-[#1A1612]">
+                  Đề xuất mã riêng
                 </h3>
                 <p className="text-xs text-[#7D715E] mt-0.5">
-                  Tạo mã định danh mang phong cách cá nhân của bạn
+                  Chọn gian hàng và tạo mã mang dấu ấn của bạn.
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
+                type="button" aria-label="Đóng đề xuất mã giảm giá"
                 className="text-[#7D715E] hover:text-[#1A1612] p-1.5 rounded-lg hover:bg-stone-100 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleProposeSubmit} className="p-6 space-y-5 overflow-y-auto">
+            <form onSubmit={handleProposeSubmit} className="overflow-y-auto">
               {modalError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-700">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -772,13 +804,15 @@ export const KolCouponsPage: React.FC = () => {
 
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                  Chọn Gian hàng đối tác <span className="text-red-500">*</span>
+                <label htmlFor="coupon-partner-store" className="block text-xs font-semibold text-[#1A1612] mb-1.5">
+                  Gian hàng đối tác <span className="text-red-500">*</span>
                 </label>
 
                 <div ref={storeDropdownRef} className="relative">
                   <button
                     type="button"
+                    id="coupon-partner-store"
+                    aria-expanded={isStoreDropdownOpen}
                     onClick={() => setIsStoreDropdownOpen((prev) => !prev)}
                     className={`w-full px-3.5 py-2.5 text-sm bg-[#FAF8F5] border rounded-xl flex items-center justify-between transition-all cursor-pointer ${
                       isStoreDropdownOpen
@@ -787,19 +821,9 @@ export const KolCouponsPage: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-6 h-6 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-center shrink-0 text-[#B88E4F]">
-                        <Store className="w-3.5 h-3.5" />
-                      </div>
+                      <PartnerStoreAvatar key={selectedStoreId} store={selectedStore} />
                       <span className="font-medium text-[#1A1612] truncate text-left">
-                        {approvedStores.find(
-                          (s) => (s.id || s.storeId) === selectedStoreId,
-                        )?.name ||
-                          approvedStores.find(
-                            (s) => (s.id || s.storeId) === selectedStoreId,
-                          )?.storeName ||
-                          (approvedStores.length > 0
-                            ? approvedStores[0].name || approvedStores[0].storeName
-                            : 'Chưa có gian hàng nào được duyệt')}
+                        {selectedStore?.name || selectedStore?.storeName || 'Chưa có gian hàng nào được duyệt'}
                       </span>
                     </div>
                     <ChevronDown
@@ -823,7 +847,7 @@ export const KolCouponsPage: React.FC = () => {
                               key={storeId}
                               type="button"
                               onClick={() => {
-                                setSelectedStoreId(storeId);
+                                setSelectedStoreId(storeId || '');
                                 setIsStoreDropdownOpen(false);
                               }}
                               className={`w-full px-3.5 py-2.5 text-left text-xs sm:text-sm flex items-center justify-between gap-2 transition-colors cursor-pointer ${
@@ -833,7 +857,7 @@ export const KolCouponsPage: React.FC = () => {
                               }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="text-sm">🏪</span>
+                                <PartnerStoreAvatar store={s} />
                                 <span className="truncate">{storeName}</span>
                               </div>
                               {isSelected && (
@@ -861,23 +885,30 @@ export const KolCouponsPage: React.FC = () => {
                 )}
 
                 <span className="text-[11px] text-[#7D715E] mt-1 block">
-                  Chỉ hiển thị các Shop bạn đã được duyệt hợp tác tiếp thị (APPROVED).
+                  Chỉ hiển thị gian hàng đã duyệt hợp tác với bạn.
                 </span>
               </div>
 
 
-              <div>
-                <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">
-                  Mã coupon mong muốn <span className="text-red-500">*</span>
-                </label>
+              <div className="p-3 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB] space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="coupon-proposal-code" className="block text-xs font-semibold text-[#1A1612] mb-1.5">
+                    Mã giảm giá của bạn <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-[10px] font-mono text-[#7D715E]" aria-label={`${proposeCode.length} trên 20 ký tự`}>{proposeCode.length}/20</span>
+                </div>
                 <div className="relative">
                   <input
                     type="text"
+                    id="coupon-proposal-code"
+                    aria-describedby="coupon-code-feedback"
+                    aria-invalid={Boolean(trimmedCode && !isCodeValid)}
+                    autoComplete="off"
                     value={proposeCode}
                     onChange={(e) => setProposeCode(e.target.value)}
-                    placeholder="Ví dụ: THANGVIP10, NHATXINH"
+                    placeholder="Ví dụ: THANGVIP10"
                     maxLength={20}
-                    className="w-full px-3.5 py-2.5 text-sm font-mono uppercase bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] transition-colors"
+                    className="w-full px-3.5 py-2.5 text-sm font-mono uppercase bg-white border border-[#EAE4D7] rounded-xl focus:outline-none focus:border-[#C59B58] transition-colors"
                     required
                   />
                   {trimmedCode && (
@@ -892,10 +923,16 @@ export const KolCouponsPage: React.FC = () => {
                 </div>
 
 
-                <div className="mt-3 p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl space-y-1.5 text-[11px]">
-                  <p className="font-semibold text-[#1A1612] mb-1">
-                    Tiêu chuẩn mã hợp lệ (Section 8 & 10):
-                  </p>
+                <p id="coupon-code-feedback" className={`mt-1.5 text-xs ${trimmedCode && !isCodeValid ? 'text-[#DC2626]' : 'text-[#7D715E]'}`} aria-live="polite">
+                  {!trimmedCode ? '4–20 ký tự, gồm chữ cái và số.' : isCodeValid ? 'Mã hợp lệ, sẵn sàng gửi đề xuất.' : !isLengthValid ? 'Mã cần có từ 4 đến 20 ký tự.' : !isAlphanumeric ? 'Chỉ dùng chữ A–Z và số, không có khoảng trắng.' : !hasLetter ? 'Mã cần có ít nhất một chữ cái.' : 'Mã chứa từ khóa không được phép sử dụng.'}
+                </p>
+
+                <details className="group mt-2 border-t border-[#EEDFC6] pt-2">
+                  <summary className="flex items-center justify-between gap-2 list-none text-xs font-medium text-[#B88E4F] cursor-pointer [&::-webkit-details-marker]:hidden hover:text-[#1A1612]">
+                    <span>Xem quy tắc đặt mã</span>
+                    <ChevronDown className="w-3.5 h-3.5 group-open:rotate-180 transition-transform" aria-hidden="true" />
+                  </summary>
+                  <div className="grid gap-1.5 pt-2 text-xs text-[#7D715E]">
                   <div
                     className={`flex items-center gap-1.5 ${
                       isLengthValid ? 'text-emerald-700' : 'text-[#7D715E]'
@@ -931,26 +968,12 @@ export const KolCouponsPage: React.FC = () => {
                     {!isBanned && proposeCode ? '✓' : '•'} Không chứa từ khóa
                     cấm (ADMIN, SCANMS, OFFICIAL, SYSTEM...)
                   </div>
-                </div>
+                  </div>
+                </details>
               </div>
 
 
-              {trimmedCode && (
-                <div className="p-3 bg-[#FBF5EB] border border-[#EAE4D7] rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-[#7D715E] block">
-                      Xem trước hiển thị
-                    </span>
-                    <span className="text-base font-mono font-bold text-[#B88E4F]">
-                      {trimmedCode}
-                    </span>
-                  </div>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
-                    Chờ Shop duyệt
-                  </span>
-                </div>
-              )}
-
+              <p className="flex items-start gap-1.5 mt-3 text-[11px] leading-relaxed text-[#7D715E]"><Clock className="w-3.5 h-3.5 text-[#B88E4F]" aria-hidden="true" /> Mã sẽ được Shop xét duyệt trước khi sử dụng.</p>
 
               <div className="pt-3 border-t border-[#EAE4D7] flex items-center justify-end gap-2.5">
                 <button
@@ -963,7 +986,7 @@ export const KolCouponsPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!isCodeValid || modalLoading || approvedStores.length === 0 || !selectedStoreId}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl disabled:cursor-not-allowed text-xs font-semibold transition-colors cursor-pointer"
                 >
                   {modalLoading ? (
                     <>
@@ -1068,4 +1091,3 @@ export const KolCouponsPage: React.FC = () => {
 };
 
 export default KolCouponsPage;
-

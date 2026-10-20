@@ -8,6 +8,9 @@ export interface ExclusiveDealInboxProps {
   onChat?: (item: any) => void;
 }
 
+const defaultVipTerms = { discountPercent: 5, minimumOrderAmount: 200000, maximumDiscountAmount: 50000, usageLimitTotal: 20, budgetTotal: 1000000, validDays: 30 };
+type VipTerms = typeof defaultVipTerms;
+
 export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
   const navigate = useNavigate();
   const [items, setItems] = useState<any[]>([]);
@@ -18,6 +21,7 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
   const [terminateReason, setTerminateReason] = useState('KOL không đạt chỉ tiêu đơn hàng/doanh số sau chu kỳ cam kết');
   const [escalateDispute, setEscalateDispute] = useState(false);
   const [submittingTerminate, setSubmittingTerminate] = useState(false);
+  const [voucherTermsById, setVoucherTermsById] = useState<Record<string, VipTerms>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,9 +40,9 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
     setBusyId(id);
     setFeedback('');
     try {
-      if (approve) await referralLinksService.approveExclusiveDeal(id);
+      if (approve) await referralLinksService.approveExclusiveDeal(id, voucherTermsById[id] || defaultVipTerms);
       else await referralLinksService.rejectExclusiveDeal(id);
-      setFeedback(approve ? 'Đã duyệt. Link VIP đã được tạo và gửi cho KOL trong Chat.' : 'Đã từ chối và gửi phản hồi trong Chat.');
+      setFeedback(approve ? 'Đã duyệt. Link và voucher VIP đã được tạo cho KOL.' : 'Đã từ chối và gửi phản hồi trong Chat.');
       await load();
     } catch (error: any) {
       setFeedback(error?.response?.data?.message || 'Không thể xử lý đề xuất.');
@@ -108,6 +112,7 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
         <div className="mt-2 grid gap-2">
           {items.map((item) => {
             const isTerminated = item.shopResponse?.startsWith('[ĐÃ ĐÓNG DEAL / CHẾ TÀI]') || item.referralLink?.status === 'BLOCKED';
+            const terms = voucherTermsById[item.id] || defaultVipTerms;
             return (
               <article key={item.id} className="rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-3.5 py-2.5">
                 <div className="flex items-center justify-between gap-3">
@@ -140,6 +145,14 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
                     <span className="rounded-lg border border-[#EEDFC6] bg-white px-2 py-1 text-[#7D715E]">Đang áp dụng <strong className="ml-1 text-[#B88E4F]">{item.currentCommissionRate}%</strong></span>
                   )}
                   <span className="max-w-full truncate text-[#7D715E] sm:max-w-[280px]" title={item.salesCommitment}>Cam kết: <strong className="text-[#1A1612]">{item.salesCommitment}</strong></span>
+                  {item.status === 'PENDING' && <div className="grid w-full grid-cols-2 gap-2 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] p-2 sm:grid-cols-3">
+                    {([
+                      ['discountPercent', 'Giảm (%)', 1], ['minimumOrderAmount', 'Đơn tối thiểu (₫)', 0],
+                      ['maximumDiscountAmount', 'Giảm tối đa (₫)', 1], ['usageLimitTotal', 'Tổng lượt dùng', 1],
+                      ['budgetTotal', 'Ngân sách Shop (₫)', 1], ['validDays', 'Hiệu lực (ngày)', 1],
+                    ] as const).map(([key, label, min]) => <label key={key} className="flex flex-col gap-1 text-[11px] font-medium text-[#7D715E]">{label}<input type="number" min={min} max={key === 'discountPercent' ? 20 : key === 'validDays' ? 365 : undefined} value={terms[key]} onChange={(e) => setVoucherTermsById((current) => ({ ...current, [item.id]: { ...terms, [key]: Number(e.target.value) } }))} className="w-full rounded-md border border-[#EAE4D7] bg-white px-2 py-1 text-[#1A1612]" /></label>)}
+                  </div>}
+                  {item.vipVoucherCode && <span className="text-[#B88E4F] font-bold">Mã VIP: {item.vipVoucherCode}</span>}
                   {item.status === 'APPROVED' && item.referralLink?.shortCode && !isTerminated && (
                     <span className="break-all font-semibold text-[#B88E4F]">Link VIP: /r/{item.referralLink.shortCode}</span>
                   )}
@@ -153,7 +166,7 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
                         <MessageSquare className="h-3.5 w-3.5" /> Chat
                       </button>
                       <button type="button" onClick={() => void decide(item.id, false)} disabled={busyId === item.id} className="inline-flex items-center gap-1 rounded-lg border border-[#EAE4D7] bg-white px-2 py-1.5 text-[11px] font-bold text-[#7D715E] hover:bg-[#F3EFE6] disabled:opacity-50 cursor-pointer"><X className="h-3.5 w-3.5" /> Từ chối</button>
-                      <button type="button" onClick={() => void decide(item.id, true)} disabled={busyId === item.id} className="inline-flex items-center gap-1 rounded-lg bg-[#C59B58] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#B88E4F] disabled:opacity-50 cursor-pointer shadow-xs">{busyId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Duyệt & tạo link</button>
+                      <button type="button" onClick={() => void decide(item.id, true)} disabled={busyId === item.id} className="inline-flex items-center gap-1 rounded-lg bg-[#C59B58] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#B88E4F] disabled:opacity-50 cursor-pointer shadow-xs">{busyId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Duyệt link & mã</button>
                     </span>
                   )}
                   {item.status === 'APPROVED' && item.isCurrentDeal && !isTerminated && (
@@ -245,7 +258,7 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
                 <ul className="list-disc list-inside space-y-1 text-[11px] pl-1">
                   <li><strong>Cấp 1:</strong> Hủy link VIP, hoa hồng các đơn hàng mới quay về mức tiêu chuẩn (đơn cũ giữ nguyên).</li>
                   <li><strong>Cấp 2:</strong> Ghi nhận vi phạm, trừ điểm tín nhiệm & giảm thứ hạng của KOL trên hệ thống.</li>
-                  <li><strong>Cấp 3:</strong> Tự động khóa quyền xin deal của KOL theo số lần vi phạm (Lần 1: 1 tuần, Lần 2: 2 tuần, Lần 3: 3 tuần, Lần 4+: 4 tuần & khóa mẫu thử).</li>
+                  <li><strong>Cấp 3:</strong> Tự động khóa quyền xin deal của KOL theo số lần vi phạm (Lần 1: 1 tuần, Lần 2: 2 tuần, Lần 3: 3 tuần, Lần 4+: 4 tuần). Quyền nhận mẫu do Admin xét duyệt riêng.</li>
                 </ul>
               </div>
 

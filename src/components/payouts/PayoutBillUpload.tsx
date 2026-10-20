@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
-import { validatePayoutBill } from "./payoutBillValidation";
+import { validatePayoutBill } from "@/validations/payout-bill.validation";
 
 interface Props {
   file: File | null;

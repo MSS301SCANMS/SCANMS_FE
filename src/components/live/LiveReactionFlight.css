@@ -1,0 +1,57 @@
+.live-reaction-flight {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  offset-anchor: 50% 50%;
+  offset-rotate: 0deg;
+  animation: scanmsReactionFlight var(--flight-duration, 2400ms) linear var(--flight-delay, 0ms) both;
+  will-change: offset-distance, opacity;
+}
+.live-reaction-flight-visual {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  animation: scanmsReactionBloom var(--flight-duration, 2400ms) linear var(--flight-delay, 0ms) both;
+  will-change: transform;
+}
+.live-reaction-flight img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px #231d1526);
+}
+@keyframes scanmsReactionFlight {
+  0% { offset-distance: 0%; opacity: 0; }
+  7% { opacity: .95; }
+  55% { opacity: .95; }
+  78% { opacity: .65; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+@keyframes scanmsReactionBloom {
+  0% { transform: scale(.45) rotate(var(--flight-tilt, -6deg)); }
+  9% { transform: scale(1.06) rotate(0deg); animation-timing-function: ease-out; }
+  24% { transform: scale(1) rotate(calc(var(--flight-tilt, -6deg) * -.6)); }
+  60% { transform: scale(.92) rotate(var(--flight-tilt, -6deg)); }
+  100% { transform: scale(.65) rotate(calc(var(--flight-tilt, -6deg) * -.5)); }
+}
+@supports not (offset-path: path('M 0 0 C 20 -100, -20 -200, 0 -300')) {
+  .live-reaction-flight { animation-name: scanmsReactionFallback; will-change: transform, opacity; }
+}
+@keyframes scanmsReactionFallback {
+  0% { transform: translate3d(0,0,0); opacity: 0; }
+  8% { opacity: .95; }
+  70% { opacity: .7; }
+  100% { transform: translate3d(var(--flight-drift, -24px), calc(var(--flight-rise, 360px) * -1), 0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-reaction-flight { offset-path: none !important; animation: scanmsReactionQuiet 500ms ease-out both; will-change: opacity; }
+  .live-reaction-flight-visual { animation: none; }
+}
+@keyframes scanmsReactionQuiet {
+  0%, 100% { opacity: 0; }
+  25%, 65% { opacity: .9; }
+}

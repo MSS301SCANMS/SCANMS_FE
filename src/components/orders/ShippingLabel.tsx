@@ -76,7 +76,7 @@ export function generateTrackingCode(carrier: string): string {
   const prefix = CARRIER_PREFIX[carrier] ?? "SCX";
   const ts  = Date.now().toString(36).toUpperCase().slice(-4);
   const rnd = Math.random().toString(36).toUpperCase().slice(2, 7);
-  return `${prefix}-${ts}${rnd}`;
+  return `${carrier === "GHN" ? "TEST-GHN" : prefix}-${ts}${rnd}`;
 }
 
 // --------------- ShippingLabel React preview component ---------------
@@ -106,11 +106,11 @@ export function ShippingLabel({ order, trackingNumber, carrier, note, storeName 
       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: "6px", marginBottom: "6px" }}>
         <div>
           <div style={{ fontWeight: 900, fontSize: "15px", letterSpacing: "0.5px" }}>{carrier.toUpperCase()}</div>
-          <div style={{ fontSize: "8px", color: "#555" }}>SCANMS Logistics Simulation</div>
+          <div style={{ fontSize: "8px", color: "#555" }}>Vận chuyển liên kết sàn SCANMS</div>
         </div>
         <div style={{ textAlign: "right", fontSize: "8px", color: "#444" }}>
           <div>In: {printDate}</div>
-          <div>Don #{order.externalOrderSn}</div>
+          <div>Đơn #{order.externalOrderSn}</div>
         </div>
       </div>
 
@@ -125,12 +125,12 @@ export function ShippingLabel({ order, trackingNumber, carrier, note, storeName 
       {/* Addresses */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
         <div style={{ flex: 1, borderRight: "1px solid #ccc", paddingRight: "8px" }}>
-          <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase" }}>Nguoi gui</div>
+          <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase" }}>Người gửi</div>
           <div style={{ fontWeight: 700, marginTop: "2px" }}>{storeName ?? "SCANMS Store"}</div>
-          <div style={{ fontSize: "8px", color: "#666" }}>San TMDT SCANMS</div>
+          <div style={{ fontSize: "8px", color: "#666" }}>Sàn TMĐT SCANMS</div>
         </div>
         <div style={{ flex: 1.3 }}>
-          <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase" }}>Nguoi nhan</div>
+          <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase" }}>Người nhận</div>
           <div style={{ fontWeight: 900, fontSize: "12px", marginTop: "2px" }}>{order.customerName}</div>
           <div style={{ fontSize: "10px", fontWeight: 700 }}>{"\uD83D\uDCDE"} {order.customerPhone}</div>
           <div style={{ fontSize: "8px", color: "#333", marginTop: "2px", lineHeight: "1.4" }}>{order.shippingAddress}</div>
@@ -141,11 +141,11 @@ export function ShippingLabel({ order, trackingNumber, carrier, note, storeName 
 
       {/* Items */}
       <div style={{ marginBottom: "6px" }}>
-        <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase", marginBottom: "2px" }}>Noi dung kien hang</div>
+        <div style={{ fontSize: "7px", fontWeight: 700, color: "#555", textTransform: "uppercase", marginBottom: "2px" }}>Nội dung kiện hàng</div>
         {(order.items ?? []).slice(0, 5).map((item, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "8px", marginBottom: "1px" }}>
             <span style={{ maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title} x{item.quantity}</span>
-            <span style={{ fontWeight: 600 }}>{Number(item.unitPrice * item.quantity).toLocaleString("vi-VN")} d</span>
+            <span style={{ fontWeight: 600 }}>{Number(item.unitPrice * item.quantity).toLocaleString("vi-VN")} ₫</span>
           </div>
         ))}
       </div>
@@ -153,21 +153,21 @@ export function ShippingLabel({ order, trackingNumber, carrier, note, storeName 
       {/* COD box */}
       <div style={{ background: isCod ? "#fff3cd" : "#d4edda", border: `2px solid ${isCod ? "#ffc107" : "#28a745"}`, borderRadius: "4px", padding: "5px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
         <div>
-          <div style={{ fontWeight: 900, fontSize: "9px" }}>{isCod ? "\uD83D\uDCB0 COD - THU TIEN KHI GIAO" : "\u2705 DA THANH TOAN ONLINE"}</div>
+          <div style={{ fontWeight: 900, fontSize: "9px" }}>{isCod ? "💰 COD - THU TIỀN KHI GIAO" : "✅ ĐÃ THANH TOÁN ONLINE"}</div>
           <div style={{ fontSize: "7px", color: "#666" }}>PT: {order.paymentMethod}</div>
         </div>
-        {isCod && <div style={{ fontWeight: 900, fontSize: "14px", color: "#c0392b" }}>{totalVnd} d</div>}
+        {isCod && <div style={{ fontWeight: 900, fontSize: "14px", color: "#c0392b" }}>{totalVnd} ₫</div>}
       </div>
 
       {/* Bottom: note + QR */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, paddingRight: "8px" }}>
-          {note && <div style={{ fontSize: "8px", background: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: "3px", padding: "4px" }}><strong>Ghi chu:</strong> {note}</div>}
-          <div style={{ fontSize: "6px", color: "#999", marginTop: "4px" }}>Khong mo hang khi chua thanh toan - SCANMS</div>
+          {note && <div style={{ fontSize: "8px", background: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: "3px", padding: "4px" }}><strong>Ghi chú:</strong> {note}</div>}
+          <div style={{ fontSize: "7px", fontWeight: 700, color: "#333", marginTop: "4px" }}>Chỉ dẫn phát hàng: Cho xem hàng, không cho thử</div>
         </div>
         <div style={{ textAlign: "center" }}>
           <img src={qr} width="64" height="64" alt="QR" />
-          <div style={{ fontSize: "6px", color: "#888" }}>Tra cuu van don</div>
+          <div style={{ fontSize: "6px", color: "#888" }}>Tra cứu vận đơn</div>
         </div>
       </div>
 
@@ -211,25 +211,25 @@ export function printShippingLabel(
     `body{width:105mm;min-height:148mm;font-family:Arial,sans-serif;font-size:10px;color:#000;background:#fff;padding:6mm}` +
     `@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>` +
     `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:3mm;margin-bottom:3mm">` +
-    `<div><div style="font-weight:900;font-size:15px">${carrier.toUpperCase()}</div><div style="font-size:8px;color:#555">SCANMS Logistics Simulation</div></div>` +
-    `<div style="text-align:right;font-size:8px;color:#444"><div>In: ${printDate}</div><div>Don #${order.externalOrderSn}</div></div></div>` +
+    `<div><div style="font-weight:900;font-size:15px">${carrier.toUpperCase()}</div><div style="font-size:8px;color:#555">Vận chuyển liên kết sàn SCANMS</div></div>` +
+    `<div style="text-align:right;font-size:8px;color:#444"><div>In: ${printDate}</div><div>Đơn #${order.externalOrderSn}</div></div></div>` +
     `<div style="text-align:center;margin-bottom:3mm">` +
     `<svg width="${tw}" height="70" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;display:block;margin:0 auto"><rect width="${tw}" height="70" fill="#fff"/>${bars}</svg>` +
     `<div style="font-weight:900;font-size:14px;letter-spacing:3px;font-family:monospace;margin-top:2px">${trackingNumber}</div></div>` +
     `<div style="border-bottom:1px dashed #000;margin:3mm 0"></div>` +
     `<div style="display:flex;gap:3mm;margin-bottom:3mm">` +
-    `<div style="flex:1;border-right:1px solid #ccc;padding-right:3mm"><div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Nguoi gui</div><div style="font-weight:700">${storeName ?? "SCANMS Store"}</div><div style="font-size:8px;color:#666">San TMDT SCANMS</div></div>` +
-    `<div style="flex:1.3"><div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Nguoi nhan</div><div style="font-weight:900;font-size:12px">${order.customerName}</div><div style="font-size:10px;font-weight:700">\uD83D\uDCDE ${order.customerPhone}</div><div style="font-size:8px;color:#222;margin-top:1mm;line-height:1.4">${order.shippingAddress}</div></div>` +
+    `<div style="flex:1;border-right:1px solid #ccc;padding-right:3mm"><div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Người gửi</div><div style="font-weight:700">${storeName ?? "SCANMS Store"}</div><div style="font-size:8px;color:#666">Sàn TMĐT SCANMS</div></div>` +
+    `<div style="flex:1.3"><div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Người nhận</div><div style="font-weight:900;font-size:12px">${order.customerName}</div><div style="font-size:10px;font-weight:700">\uD83D\uDCDE ${order.customerPhone}</div><div style="font-size:8px;color:#222;margin-top:1mm;line-height:1.4">${order.shippingAddress}</div></div>` +
     `</div><div style="border-bottom:1px dashed #000;margin:3mm 0"></div>` +
-    `<div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Noi dung kien hang</div>` +
+    `<div style="font-size:7px;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:1mm">Nội dung kiện hàng</div>` +
     `<table style="width:100%;border-collapse:collapse;margin-bottom:3mm"><tbody>${rows}</tbody></table>` +
     `<div style="border-radius:3mm;padding:2mm 3mm;display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm;${isCod ? "background:#fff3cd;border:2px solid #ffc107" : "background:#d4edda;border:2px solid #28a745"}">` +
-    `<div><div style="font-size:9px;font-weight:900">${isCod ? "\uD83D\uDCB0 COD - THU TIEN KHI GIAO" : "\u2705 DA THANH TOAN ONLINE"}</div><div style="font-size:7px;color:#555">PT: ${order.paymentMethod}</div></div>` +
-    `${isCod ? `<div style="font-weight:900;font-size:15px;color:#c0392b">${totalVnd} d</div>` : ""}` +
+    `<div><div style="font-size:9px;font-weight:900">${isCod ? "💰 COD - THU TIỀN KHI GIAO" : "✅ ĐÃ THANH TOÁN ONLINE"}</div><div style="font-size:7px;color:#555">PT: ${order.paymentMethod}</div></div>` +
+    `${isCod ? `<div style="font-weight:900;font-size:15px;color:#c0392b">${totalVnd} ₫</div>` : ""}` +
     `</div>` +
     `<div style="display:flex;justify-content:space-between;align-items:flex-start">` +
-    `<div style="flex:1;padding-right:3mm">${note ? `<div style="font-size:8px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:2mm;padding:2mm"><strong>Ghi chu:</strong> ${note}</div>` : ""}<div style="font-size:7px;color:#777;margin-top:2mm">Khong mo hang khi chua thanh toan - SCANMS</div></div>` +
-    `<div style="text-align:center"><img src="${qr}" width="72" height="72" alt="QR"/><div style="font-size:6px;color:#888;margin-top:1mm">Tra cuu van don</div></div>` +
+    `<div style="flex:1;padding-right:3mm">${note ? `<div style="font-size:8px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:2mm;padding:2mm"><strong>Ghi chú:</strong> ${note}</div>` : ""}<div style="font-size:7px;font-weight:700;color:#333;margin-top:2mm">Chỉ dẫn phát hàng: Cho xem hàng, không cho thử</div></div>` +
+    `<div style="text-align:center"><img src="${qr}" width="72" height="72" alt="QR"/><div style="font-size:6px;color:#888;margin-top:1mm">Tra cứu vận đơn</div></div>` +
     `</div>` +
     `<div style="border-top:1px solid #ccc;margin-top:3mm;padding-top:2mm;font-size:6px;color:#999;text-align:center">SCANMS Platform - scanms.com - 1900-SCANMS</div>` +
     `<script>var i=document.querySelector('img');function p(){setTimeout(function(){window.print();setTimeout(function(){window.close();},500);},400);}if(i&&!i.complete){i.onload=p;i.onerror=p;}else{p();}<\\/script>` +

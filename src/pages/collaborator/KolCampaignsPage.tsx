@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
+import { useRef } from 'react';
+import { WorkspaceHero } from '@/components/ui/FeatureWorkspace';
 import {
   Gift,
   Calendar,
@@ -13,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import type { CampaignParticipant } from '../../types/campaigns';
+import type { CampaignParticipant } from '@/types/campaigns.types';
 
 const STATUS_CONFIG: Record<
   string,
@@ -26,7 +28,7 @@ const STATUS_CONFIG: Record<
   },
   ACCEPTED: {
     label: 'Đã tham gia',
-    badgeClass: 'bg-emerald-100/80 text-emerald-800 border-emerald-300',
+    badgeClass: 'bg-[#FBF5EB] text-[#8C6226] border-[#EEDFC6]',
     icon: CheckCircle2,
   },
   REJECTED: {
@@ -51,6 +53,10 @@ export default function KolCampaignsPage() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'INVITED' | 'ACCEPTED' | 'REJECTED'>('ALL');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const requestSequence = useRef(0);
+  const mutationLock = useRef(false);
+  const [loadError, setLoadError] = useState('');
+  const [search, setSearch] = useState('');
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -58,24 +64,32 @@ export default function KolCampaignsPage() {
   };
 
   const loadInvitations = useCallback(async () => {
+    const request = ++requestSequence.current;
     setLoading(true);
+    setLoadError('');
     try {
-      const res: any = await api.get('/campaigns/my-invitations');
+      const res: any = await api.get('/campaigns/my-invitations', { headers: { 'x-skip-cache': '1' } });
+      if (request !== requestSequence.current) return;
       const data = res?.data || res || [];
       setInvitations(Array.isArray(data) ? data : []);
     } catch (err: any) {
+      if (request !== requestSequence.current) return;
+      setLoadError(err?.message || 'Không tải được lời mời.');
       console.error('Lỗi tải danh sách chiến dịch:', err);
       showToast(err?.response?.data?.message || 'Không thể tải danh sách lời mời.', 'error');
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadInvitations();
+    return () => { requestSequence.current += 1; };
   }, [loadInvitations]);
 
   const handleAccept = async (participantId: string, campaignName: string) => {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
     setActionLoading(participantId + '-accept');
     try {
       await api.patch(`/campaigns/invitations/${participantId}/accept`, {});
@@ -84,12 +98,15 @@ export default function KolCampaignsPage() {
     } catch (err: any) {
       showToast(err?.response?.data?.message || 'Không thể chấp nhận lời mời lúc này.', 'error');
     } finally {
+      mutationLock.current = false;
       setActionLoading(null);
     }
   };
 
   const handleReject = async (participantId: string, campaignName: string) => {
+    if (mutationLock.current) return;
     if (!confirm(`Bạn có chắc chắn muốn từ chối lời mời chiến dịch "${campaignName}"?`)) return;
+    mutationLock.current = true;
     setActionLoading(participantId + '-reject');
     try {
       await api.patch(`/campaigns/invitations/${participantId}/reject`, {});
@@ -98,11 +115,13 @@ export default function KolCampaignsPage() {
     } catch (err: any) {
       showToast(err?.response?.data?.message || 'Không thể từ chối lời mời lúc này.', 'error');
     } finally {
+      mutationLock.current = false;
       setActionLoading(null);
     }
   };
 
   const filteredInvitations = invitations.filter(item => {
+    if (!`${item.campaign?.name || ''} ${item.campaign?.store?.name || ''}`.toLocaleLowerCase('vi-VN').includes(search.trim().toLocaleLowerCase('vi-VN'))) return false;
     if (activeTab === 'ALL') return true;
     return item.status === activeTab;
   });
@@ -113,6 +132,9 @@ export default function KolCampaignsPage() {
 
   return (
     <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-campaigns-page">
+      <WorkspaceHero eyebrow="SCANMS / Exclusive partnerships" title="Lời mời chiến dịch VIP" description="Hợp tác cùng nhiều gian hàng, kiểm tra thời hạn và mức thưởng trước khi xác nhận. Phản hồi được gửi trực tiếp vào cuộc trò chuyện với Shop." />
+      <div className="flex flex-wrap gap-3"><input aria-label="Tìm chiến dịch hoặc gian hàng" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm chiến dịch hoặc gian hàng…" className="min-h-11 min-w-48 flex-1 rounded-xl border border-[#EAE4D7] bg-white px-4 text-xs outline-[#C59B58]" /><button type="button" disabled={loading} onClick={() => void loadInvitations()} className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 text-xs font-semibold disabled:opacity-50">Làm mới</button></div>
+      {loadError && <div role="alert" className="rounded-xl border border-[#EEDFC6] bg-white p-4 text-xs text-[#DC2626]">{loadError} Dữ liệu cũ nếu có chưa được đồng bộ.</div>}
 
       {toast && (
         <div
@@ -151,16 +173,16 @@ export default function KolCampaignsPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-emerald-200/80 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+        <div className="bg-white border border-[#EEDFC6] rounded-2xl p-5 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-bold text-stone-500 uppercase tracking-wider">
               Đang Tham Gia
             </div>
-            <div className="text-3xl font-black text-emerald-600 mt-1">
+            <div className="text-3xl font-black text-[#B88E4F] mt-1">
               {acceptedCount}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+          <div className="w-12 h-12 rounded-2xl bg-[#FBF5EB] text-[#B88E4F] flex items-center justify-center font-bold">
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </div>
@@ -247,7 +269,8 @@ export default function KolCampaignsPage() {
           {filteredInvitations.map(inv => {
             const statusInfo = STATUS_CONFIG[inv.status] || STATUS_CONFIG.INVITED;
             const StatusIcon = statusInfo.icon;
-            const isPending = inv.status === 'INVITED';
+            const expired = !inv.campaign?.isActive || new Date(inv.campaign.endDate) <= new Date();
+            const isPending = inv.status === 'INVITED' && !expired;
             const isAccepted = inv.status === 'ACCEPTED';
             const campaign = inv.campaign;
 
@@ -309,7 +332,7 @@ export default function KolCampaignsPage() {
                       <div className="text-right">
                         <span className="text-[11px] text-stone-500 block">Hoa hồng mặc định shop:</span>
                         <span className="text-xs font-bold text-stone-800">
-                          {campaign?.store?.defaultCommissionRate || 10}%
+                          {campaign?.store?.defaultCommissionRate == null ? 'Theo từng sản phẩm' : `${campaign.store.defaultCommissionRate}%`}
                         </span>
                       </div>
                     </div>
@@ -372,7 +395,7 @@ export default function KolCampaignsPage() {
                     </>
                   ) : (
                     <div className="w-full py-2 text-center text-xs font-semibold text-stone-500 bg-stone-100 rounded-xl">
-                      Đã từ chối tham gia chiến dịch này
+                      {expired && inv.status === 'INVITED' ? 'Chiến dịch đã kết thúc hoặc tạm dừng' : 'Đã từ chối tham gia chiến dịch này'}
                     </div>
                   )}
                 </div>

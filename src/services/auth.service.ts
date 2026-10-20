@@ -1,17 +1,29 @@
-import api from '../lib/api';
+import api from './api';
+
+function safeLoginReturn(path: string | null | undefined): string | null {
+  if (!path || !path.startsWith('/') || path.startsWith('//') || /[\\\r\n\t]/.test(path)) return null;
+  try {
+    const base = 'https://scanms.invalid';
+    const url = new URL(path, base);
+    if (url.origin !== base || /^\/(?:login|register)(?:\/|$)/.test(url.pathname)) return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch { return null; }
+}
+
+function productLoginUrl(returnTo: string): string {
+  const safePath = safeLoginReturn(returnTo);
+  const params = new URLSearchParams({ role: 'customer' });
+  if (safePath) params.set('redirect', safePath);
+  return `/login?${params}`;
+}
 
 export interface UserProfile {
   id: string;
-  username?: string;
   email: string;
   fullName: string;
   role: 'SYSTEM_ADMIN' | 'SYSTEM_MANAGER' | 'SHOP_MANAGER' | 'COLLABORATOR' | 'CUSTOMER';
   phoneNumber?: string;
-  dateOfBirth?: string | null;
-  gender?: string | null;
-  address?: string | null;
   avatarUrl?: string | null;
-  bio?: string | null;
   stores?: any[];
   collaboratorProfile?: any;
   wallet?: any;
@@ -25,10 +37,6 @@ export interface AvailableWorkspace {
   description: string;
 }
 
-
-/**
- * Chuyen doi response BE (userId, roles[]) sang format FE (id, role)
- */
 // Thu tu uu tien role khi user co nhieu role cung luc (cao -> thap)
 const ROLE_PRIORITY = ['ADMIN', 'MANAGER', 'SHOP_MANAGER', 'SHOP_OWNER', 'KOL_CTV', 'COLLABORATOR', 'CUSTOMER', 'USER'];
 
@@ -46,13 +54,9 @@ const ROLE_MAP: Record<string, string> = {
 function normalizeUser(raw: any): any {
   if (!raw) return raw;
   const user = { ...raw };
-  // BE tra "userId", FE can "id"
   if (!user.id && user.userId) {
     user.id = user.userId;
   }
-  // BE tra "roles" (array - thuc chat la Set nen KHONG co thu tu co dinh),
-  // FE can 1 "role" (string) duy nhat de dieu huong -> phai chon theo
-  // UU TIEN role cao nhat, khong duoc lay bua phan tu dau mang (roles[0]).
   if (!user.role && Array.isArray(user.roles) && user.roles.length > 0) {
     const beRoles: string[] = user.roles;
     const highestRole =
@@ -80,47 +84,73 @@ export const authService = {
   },
 
   async register(data: {
-    username: string;
+    username?: string;
     email: string;
     password: string;
-    firstName: string;
-    lastName: string;
+    firstName?: string;
+    lastName?: string;
     roleNames?: string[];
+    fullName?: string;
+    otp?: string;
+    role?: string;
+    storeName?: string;
+    phoneNumber?: string;
+    avatarUrl?: string;
+    logoUrl?: string;
   }) {
     return api.post('/auth/register', data);
   },
 
-  async login(email: string, password: string) {
-    const res: any = await api.post('/auth/login', { email, password });
-    const accessToken = res?.result?.access_token || res?.data?.access_token || res?.result?.accessToken || res?.data?.accessToken || res?.access_token || res?.accessToken;
+  async login(identifier: string, password: string) {
+    const res: any = await api.post('/auth/login', {
+      identifier: identifier.trim(),
+      password,
+    });
+    const accessToken =
+      res?.result?.access_token ||
+      res?.data?.access_token ||
+      res?.result?.accessToken ||
+      res?.data?.accessToken ||
+      res?.access_token ||
+      res?.accessToken;
+    let user = normalizeUser(res?.result?.user || res?.data?.user || res?.user);
+
     if (accessToken) {
       localStorage.setItem('token', accessToken);
-      // Fetch user profile after login
-      try {
-        const meRes: any = await api.get('/users/me');
-        const user = normalizeUser(meRes?.result || meRes?.data || meRes);
-        if (user && user.id) {
-          localStorage.setItem('user', JSON.stringify(user));
-          const uiRole =
-            user.role === 'SHOP_MANAGER'
-              ? 'shop'
-              : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
-              ? 'admin'
-              : user.role === 'CUSTOMER'
-              ? 'customer'
-              : 'kol';
-          localStorage.setItem('scanms-current-role', uiRole);
-          localStorage.setItem('scanms-active-workspace', uiRole);
-          if (user.stores?.[0]?.id) {
-            localStorage.setItem('current_store_id', user.stores[0].id);
-          } else {
-            localStorage.removeItem('current_store_id');
+      if (!user || !user.id) {
+        try {
+          const meRes: any = await api.get('/users/me');
+          user = normalizeUser(meRes?.result || meRes?.data || meRes);
+        } catch {
+          try {
+            const meRes: any = await api.get('/auth/me');
+            user = normalizeUser(meRes?.result || meRes?.data || meRes);
+          } catch (e) {
+            console.warn('Failed to fetch user profile after login:', e);
           }
-          window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
-          window.dispatchEvent(new Event('auth-user-updated'));
         }
-      } catch (e) {
-        console.warn('Failed to fetch user profile after login:', e);
+      }
+
+      if (user && (user.id || user.userId)) {
+        user = normalizeUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        const uiRole =
+          user.role === 'SHOP_MANAGER'
+            ? 'shop'
+            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
+            ? 'admin'
+            : user.role === 'CUSTOMER'
+            ? 'customer'
+            : 'kol';
+        localStorage.setItem('scanms-current-role', uiRole);
+        localStorage.setItem('scanms-active-workspace', uiRole);
+        if (user.stores?.[0]?.id) {
+          localStorage.setItem('current_store_id', user.stores[0].id);
+        } else {
+          localStorage.removeItem('current_store_id');
+        }
+        window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
+        window.dispatchEvent(new Event('auth-user-updated'));
       }
     }
     return res;
@@ -128,49 +158,68 @@ export const authService = {
 
   async googleLogin(idToken: string, role?: string, storeName?: string) {
     const res: any = await api.post('/auth/google', { idToken, role, storeName });
-    const accessToken = res?.result?.access_token || res?.data?.access_token || res?.result?.accessToken || res?.data?.accessToken || res?.access_token || res?.accessToken;
+    const accessToken =
+      res?.result?.access_token ||
+      res?.data?.access_token ||
+      res?.result?.accessToken ||
+      res?.data?.accessToken ||
+      res?.access_token ||
+      res?.accessToken;
+    let user = normalizeUser(res?.result?.user || res?.data?.user || res?.user);
+
     if (accessToken) {
       localStorage.setItem('token', accessToken);
-      // Fetch user profile after google login
-      try {
-        const meRes: any = await api.get('/users/me');
-        const user = normalizeUser(meRes?.result || meRes?.data || meRes);
-        if (user && user.id) {
-          localStorage.setItem('user', JSON.stringify(user));
-          const uiRole =
-            user.role === 'SHOP_MANAGER'
-              ? 'shop'
-              : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
-              ? 'admin'
-              : user.role === 'CUSTOMER'
-              ? 'customer'
-              : 'kol';
-          localStorage.setItem('scanms-current-role', uiRole);
-          localStorage.setItem('scanms-active-workspace', uiRole);
-          if (user.stores?.[0]?.id) {
-            localStorage.setItem('current_store_id', user.stores[0].id);
-          } else {
-            localStorage.removeItem('current_store_id');
+      if (!user || !user.id) {
+        try {
+          const meRes: any = await api.get('/users/me');
+          user = normalizeUser(meRes?.result || meRes?.data || meRes);
+        } catch {
+          try {
+            const meRes: any = await api.get('/auth/me');
+            user = normalizeUser(meRes?.result || meRes?.data || meRes);
+          } catch (e) {
+            console.warn('Failed to fetch user profile after google login:', e);
           }
-          window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
-          window.dispatchEvent(new Event('auth-user-updated'));
         }
-      } catch (e) {
-        console.warn('Failed to fetch user profile after google login:', e);
+      }
+
+      if (user && (user.id || user.userId)) {
+        user = normalizeUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        const uiRole =
+          user.role === 'SHOP_MANAGER'
+            ? 'shop'
+            : user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER'
+            ? 'admin'
+            : user.role === 'CUSTOMER'
+            ? 'customer'
+            : 'kol';
+        localStorage.setItem('scanms-current-role', uiRole);
+        localStorage.setItem('scanms-active-workspace', uiRole);
+        if (user.stores?.[0]?.id) {
+          localStorage.setItem('current_store_id', user.stores[0].id);
+        } else {
+          localStorage.removeItem('current_store_id');
+        }
+        window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: user.id } }));
+        window.dispatchEvent(new Event('auth-user-updated'));
       }
     }
     return res;
   },
 
   async getMe(): Promise<UserProfile> {
-    if (localStorage.getItem('scanms-auth-provider') === 'keycloak') return keycloakProfile(localStorage.getItem('token') || '');
-    const res: any = await api.get('/users/me');
-    const user = normalizeUser(res?.result || res?.data || res);
+    const token = localStorage.getItem('token');
+    const res: any = await api.get('/auth/me');
+    if (token !== localStorage.getItem('token')) throw new Error('Phiên đăng nhập đã thay đổi.');
+    const user = res?.data || res;
     if (user && user.id) {
+      const previousUserId = this.getCurrentUser()?.id;
       localStorage.setItem('user', JSON.stringify(user));
       if (user.stores?.[0]?.id) {
         localStorage.setItem('current_store_id', user.stores[0].id);
       }
+      if (previousUserId !== user.id) window.dispatchEvent(new Event('auth-user-updated'));
     }
     return user;
   },
@@ -186,10 +235,8 @@ export const authService = {
     return res?.data || res;
   },
 
-  logout() {
-    window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
+  logout(returnTo?: string) {
     localStorage.removeItem('token');
-    localStorage.removeItem('scanms-auth-provider');
     localStorage.removeItem('user');
     localStorage.removeItem('scanms-current-role');
     localStorage.removeItem('scanms-active-workspace');
@@ -199,8 +246,9 @@ export const authService = {
     localStorage.removeItem('scanms_cart_guest');
     localStorage.removeItem('scanms_cart_selected_guest');
     localStorage.removeItem('scanms_pending_checkout');
+    window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     window.dispatchEvent(new Event('auth-user-updated'));
-    window.location.href = '/login';
+    window.location.href = returnTo ? productLoginUrl(returnTo) : '/login';
   },
 
   getCurrentUser(): UserProfile | null {
@@ -233,13 +281,13 @@ export const authService = {
 
     const isKol =
       u.role === 'COLLABORATOR' ||
-      Boolean(u.collaboratorProfile) ||
+      (Boolean(u.collaboratorProfile) && u.collaboratorProfile?.kycStatus === 'VERIFIED') ||
       u.role === 'SYSTEM_ADMIN' ||
       u.role === 'SYSTEM_MANAGER';
 
     const isShop =
       u.role === 'SHOP_MANAGER' ||
-      Boolean(u.stores && u.stores.length > 0) ||
+      Boolean(u.stores?.some((s: any) => s.isActive || s.isVerified || s.onboardingStatus === 'APPROVED')) ||
       u.role === 'SYSTEM_ADMIN' ||
       u.role === 'SYSTEM_MANAGER';
 
@@ -282,16 +330,19 @@ export const authService = {
   },
 
   getActiveWorkspace(): 'customer' | 'kol' | 'shop' | 'admin' {
-    const stored = localStorage.getItem('scanms-active-workspace') as any;
-    if (stored && ['customer', 'kol', 'shop', 'admin'].includes(stored)) {
-      return stored;
-    }
     const user = this.getCurrentUser();
     if (!user) return 'customer';
 
-    if (user.role === 'SHOP_MANAGER') return 'shop';
-    if (user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER') return 'admin';
-    if (user.role === 'COLLABORATOR') return 'kol';
+    const availableWorkspaces = this.getUserAvailableWorkspaces(user).map((w) => w.key);
+
+    const stored = localStorage.getItem('scanms-active-workspace') as any;
+    if (stored && availableWorkspaces.includes(stored)) {
+      return stored;
+    }
+
+    if (user.role === 'SHOP_MANAGER' && availableWorkspaces.includes('shop')) return 'shop';
+    if ((user.role === 'SYSTEM_ADMIN' || user.role === 'SYSTEM_MANAGER') && availableWorkspaces.includes('admin')) return 'admin';
+    if (user.role === 'COLLABORATOR' && availableWorkspaces.includes('kol')) return 'kol';
     return 'customer';
   },
 
@@ -319,4 +370,3 @@ export const authService = {
     }
   },
 };
-

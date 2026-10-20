@@ -6,7 +6,6 @@ import {
   Package,
   User,
   LogOut,
-  ChevronRight,
   Store,
   Sparkles,
   Shield,
@@ -22,11 +21,13 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ScanMSLogo } from '../common/ScanMSLogo';
+import { HeaderAccountButton } from './HeaderAccountButton';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
-import { ChatBell } from '../chat/ChatBell';
+import { NotificationDropdown } from './NotificationDropdown';
+import { productLoginUrl } from '../../utils/login-return';
 
 export interface PublicHeaderProps {
   cartCount?: number;
@@ -47,6 +48,7 @@ export function PublicHeader({
 }: PublicHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const loginUrl = productLoginUrl(`${location.pathname}${location.search}${location.hash}`);
   const { totalCount, openCart } = useCart();
 
   const effectiveCartCount = cartCount !== undefined ? cartCount : totalCount;
@@ -117,7 +119,7 @@ export function PublicHeader({
 
   const handleLogout = () => {
     setIsUserMenuOpen(false);
-    authService.logout();
+    authService.logout(`${location.pathname}${location.search}${location.hash}`);
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,19 +176,19 @@ export function PublicHeader({
   const storeName = currentUser?.stores?.[0]?.name || 'Gian Hàng Đối Tác';
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] shadow-2xs">
-      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] flex items-center justify-between gap-3 sm:gap-6">
+    <header className="scanms-site-header sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] shadow-2xs">
+      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] flex items-center justify-between gap-3 sm:gap-6 relative z-30">
         {/* Left: Brand Logo */}
         <div className="flex items-center gap-2 shrink-0">
           <Link to="/marketplace" className="flex items-center gap-2 group" title="Về trang chủ Sàn SCANMS">
-            <ScanMSLogo size="md" />
+            <ScanMSLogo size="md" className="scanms-header-logo" />
           </Link>
         </div>
 
         {/* Center: Search Form - SCANMS Standard Minimalist with Gold Tone */}
         <form
           onSubmit={handleSearch}
-          className="hidden md:flex min-w-[280px] w-full flex-1 max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-2 sm:mx-6 items-center rounded-[3px] border border-[#EAE4D7] bg-white p-[3px] shadow-2xs transition-all duration-200 focus-within:border-[#C59B58]"
+          className="hidden lg:flex min-w-0 w-full flex-1 max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-2 items-center rounded-[3px] border border-[#EAE4D7] bg-white p-[3px] shadow-2xs transition-all duration-200 focus-within:border-[#C59B58]"
         >
           <div className="flex min-w-0 flex-1 items-center px-3.5">
             <input
@@ -257,63 +259,27 @@ export function PublicHeader({
             )}
           </button>
 
-          {isCustomer && currentUser?.id && <ChatBell userId={currentUser.id} />}
+          {/* Trung tâm thông báo & Live stream notification cho toàn bộ Khách hàng & Người dùng */}
+          <NotificationDropdown />
 
           {/* AUTHENTICATION & ROLE SECTION */}
           {currentUser ? (
             /* Logged in User Profile & Workspace Link */
             <div className="flex items-center gap-2">
-              {isCustomer && (
-                <Link
-                  to="/customer/upgrade"
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F3EFE6] hover:border-[#C59B58] transition shadow-2xs group"
-                  title="Nâng cấp tài khoản Khách Hàng lên KOL Tiếp Thị hoặc Mở Shop"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#B88E4F] group-hover:scale-110 transition-transform" />
-                  <span>Nâng cấp Đối tác</span>
-                </Link>
-              )}
-
-              {/* User Dropdown Pill - Framed VIP Card */}
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className={`flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-3 py-1.5 sm:pl-2 sm:pr-3.5 sm:py-1.5 rounded-2xl bg-white/95 border transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-xs group active:scale-[0.98] min-w-[160px] sm:min-w-[190px] ${
-                    isUserMenuOpen
-                      ? 'border-[#C59B58] ring-2 ring-[#C59B58]/20 bg-[#FAF8F5]'
-                      : 'border-[#EAE4D7] hover:border-[#C59B58]/60 hover:bg-[#FAF8F5]'
-                  }`}
-                  title="Xem thông tin tài khoản và đăng xuất"
-                >
-                  <div className="relative shrink-0">
-                    {currentUser.avatarUrl ? (
-                      <img
-                        src={currentUser.avatarUrl}
-                        alt={currentUser.fullName || 'Avatar'}
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0 border border-[#E8D4B0] shadow-2xs"
-                      />
-                    ) : (
-                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#FAF0DD] to-[#F3EFE6] text-[#8C6226] flex items-center justify-center font-black text-xs shrink-0 border border-[#E8D4B0] shadow-2xs">
-                        {currentUser.fullName?.[0]?.toUpperCase() || 'U'}
-                      </span>
-                    )}
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#059669] border-2 border-white" />
-                  </div>
-                  <div className="text-left hidden md:block max-w-[130px] sm:max-w-[155px] flex-1 min-w-0">
-                    <strong className="block text-xs font-bold text-[#1A1612] truncate leading-none mb-1">
-                      {currentUser.fullName || currentUser.email}
-                    </strong>
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#FAF0DD] border border-[#E8D4B0] text-[9.5px] font-black text-[#8C6226] truncate leading-none">
-                      {isCustomer ? '🛍️ Khách Mua' : isKol ? '⭐ KOL/KOC' : isShop ? `🏪 ${storeName}` : '🛡️ Admin'}
-                    </span>
-                  </div>
-                  <ChevronRight className={`w-3.5 h-3.5 text-[#7D715E] shrink-0 transition-transform duration-200 group-hover:text-[#B88E4F] ml-auto ${isUserMenuOpen ? 'rotate-90 text-[#B88E4F]' : ''}`} />
-                </button>
+              {/* Shared account trigger for every role */}
+              <div className="relative z-50" ref={userMenuRef}>
+                <HeaderAccountButton
+                  user={currentUser}
+                  role={currentUser.role}
+                  expanded={isUserMenuOpen}
+                  menuId="public-account-menu"
+                  detail={isShop ? storeName : undefined}
+                  onClick={() => setIsUserMenuOpen((open) => !open)}
+                />
 
                 {/* Dropdown Menu */}
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
+                  <div id="public-account-menu" className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
                     {/* User Identity Box with Avatar Upload */}
                     <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] mb-2">
                       <div className="flex items-center gap-2.5">
@@ -393,14 +359,6 @@ export function PublicHeader({
                             <span>Đơn mua của tôi</span>
                           </Link>
                           <Link
-                            to="/customer/wallet"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <Wallet className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Ví của tôi · Nạp tiền & Thanh toán</span>
-                          </Link>
-                          <Link
                             to="/customer/addresses"
                             onClick={() => setIsUserMenuOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
@@ -440,7 +398,7 @@ export function PublicHeader({
                         </Link>
                       )}
 
-                      {!isCustomer && (
+                      {!isCustomer && !isShop && !isKol && (
                         <button
                           type="button"
                           onClick={() => {
@@ -473,14 +431,6 @@ export function PublicHeader({
 
                       {isKol && (
                         <>
-                          <Link
-                            to="/collaborator/collaboration?tab=messages"
-                            onClick={() => setIsUserMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                          >
-                            <MessageSquare className="w-4 h-4 text-[#B88E4F]" />
-                            <span>Tin nhắn & Hợp tác Shop</span>
-                          </Link>
                           <Link
                             to="/collaborator/wallet"
                             onClick={() => setIsUserMenuOpen(false)}
@@ -525,6 +475,7 @@ export function PublicHeader({
                       )}
                     </div>
 
+
                     {/* Explicit Logout Button */}
                     <div className="pt-2 mt-1 border-t border-[#EAE4D7]">
                       <button
@@ -543,31 +494,20 @@ export function PublicHeader({
           ) : (
             /* Guest (Not Logged In) Authentication Actions */
             <div className="flex items-center gap-1.5">
-              <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]">
-                <User className="w-3.5 h-3.5 text-[#B88E4F]" />
-                <span>Khách mua sắm</span>
-              </span>
-
               <Link
-                to="/login"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#1A1612] bg-white/95 border border-[#EAE4D7] hover:bg-[#FAF8F5] hover:border-[#C59B58]/70 transition-all duration-200 shadow-2xs hover:shadow-xs active:scale-[0.98]"
+                to={loginUrl}
+                className="inline-flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-xl text-xs font-bold text-[#1A1612] bg-[#FBF5EB] border border-[#EEDFC6] hover:bg-[#F3EFE6] hover:border-[#C59B58] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F]"
               >
-                Đăng nhập
-              </Link>
-
-              <Link
-                to="/register"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#1A1612] bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] transition-all duration-200 shadow-sm shadow-[#C59B58]/20 active:scale-[0.98]"
-              >
-                Đăng ký đối tác
+                <User className="h-4 w-4 text-[#B88E4F]" aria-hidden="true" />
+                Đăng nhập / Đăng ký
               </Link>
             </div>
           )}
         </div>
       </div>
 
-      {/* Mobile search bar */}
-      <div className="md:hidden px-4 pb-3 pt-1 border-t border-[#F3EFE6] bg-[#FFFEFC]">
+      {/* Search row for mobile and tablet */}
+      <div className="lg:hidden px-4 pb-3 pt-1 border-t border-[#F3EFE6] bg-[#FFFEFC] relative z-10">
         <form
           onSubmit={handleSearch}
           className="flex min-w-0 items-center rounded-[3px] border border-[#EAE4D7] bg-white p-[2px] shadow-2xs focus-within:border-[#C59B58]"

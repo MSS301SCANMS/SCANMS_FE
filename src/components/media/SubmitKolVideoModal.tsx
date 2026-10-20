@@ -41,6 +41,7 @@ export interface SubmitKolVideoModalProps {
   initialProductId?: string;
   initialProductTitle?: string;
   sampleRequestId?: string;
+  sandboxOrderCode?: string;
   onSuccess?: (newAsset: any) => void;
 }
 
@@ -50,6 +51,7 @@ export function SubmitKolVideoModal({
   initialProductId,
   initialProductTitle,
   sampleRequestId,
+  sandboxOrderCode,
   onSuccess,
 }: SubmitKolVideoModalProps) {
   const [products, setProducts] = useState<EligibleProduct[]>([]);
@@ -355,12 +357,14 @@ export function SubmitKolVideoModal({
         payload.requiresCampaignParticipation = true;
       }
 
-      const res = sampleRequestId
+      const res = sandboxOrderCode
+        ? await api.post(`/shipping/ghn/sandbox-sample/${encodeURIComponent(sandboxOrderCode)}/video`, payload)
+        : sampleRequestId
         ? await api.post(`/sample-requests/${sampleRequestId}/video`, payload)
         : await mediaService.submitKolVideo(payload);
 
       setSuccessMsg(
-        res?.message ||
+        sandboxOrderCode ? 'Đã lưu video kiểm thử. Không gửi duyệt hoặc đăng công khai.' : res?.message ||
           'Video review đã được nộp thành công! Gian hàng sẽ kiểm duyệt trước khi hiển thị trên landing page.',
       );
 
@@ -414,7 +418,7 @@ export function SubmitKolVideoModal({
                 Nộp Video Review Sản Phẩm
               </h2>
               <p className="text-xs text-[#7D715E] mt-0.5 m-0">
-                Video được Shop phê duyệt sẽ tự động xuất hiện trên Landing Page sàn SCANMS
+                {sandboxOrderCode ? `Đơn GHN sandbox ${sandboxOrderCode} · Video gửi Shop duyệt, không đăng công khai` : 'Video được Shop phê duyệt sẽ tự động xuất hiện trên Landing Page sàn SCANMS'}
               </p>
             </div>
           </div>

@@ -80,87 +80,98 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 
   if (variant === 'sidebar') {
     return (
-      <div className={`relative ${className}`} ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full p-2.5 rounded-2xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-between gap-2.5 transition cursor-pointer text-left shadow-2xs group"
-          title="Chuyển đổi vai trò làm việc"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-white border border-[#EAE4D7] flex items-center justify-center shrink-0 shadow-2xs">
-              {getWorkspaceIcon(currentWs.key)}
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-[#7D715E] block leading-tight">
-                Không gian hiện tại
-              </span>
-              <strong className="text-xs font-black text-[#1A1612] truncate block">
-                {currentWs.label}
-              </strong>
-            </div>
-          </div>
-          <ChevronDown
-            className={`w-4 h-4 text-[#7D715E] shrink-0 transition-transform ${
-              isOpen ? 'rotate-180 text-[#B88E4F]' : ''
-            }`}
-          />
-        </button>
+      <div
+        className={`w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl p-2.5 flex flex-col gap-2 shadow-2xs ${className}`}
+        title="Chuyển đổi không gian làm việc"
+      >
+        {/* Header trực quan trên Sidebar */}
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#7D715E] flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#C59B58]" />
+            Chuyển đổi không gian làm việc
+          </span>
+          <span className="text-[9.5px] font-bold text-[#B88E4F] bg-[#FAF5EB] px-1.5 py-0.2 rounded-full border border-[#EEDFC6]">
+            {workspaces.length} vai trò
+          </span>
+        </div>
 
-        {isOpen && (
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-[#EAE4D7] rounded-2xl p-2 shadow-xl z-50 flex flex-col gap-1 min-w-[240px] animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-2.5 py-1.5 border-b border-[#EAE4D7] text-[11px] font-bold text-[#7D715E]">
-              Chuyển đổi không gian làm việc
-            </div>
-            {workspaces.map((ws) => {
-              const isActive = ws.key === activeWorkspace;
-              return (
-                <button
-                  key={ws.key}
-                  type="button"
-                  onClick={() => handleSelectWorkspace(ws.key)}
-                  className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition cursor-pointer ${
-                    isActive
-                      ? 'bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F]'
-                      : 'hover:bg-[#FAF8F5] text-[#1A1612]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-white border border-[#EAE4D7] flex items-center justify-center shrink-0">
-                      {getWorkspaceIcon(ws.key, 'w-3.5 h-3.5')}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                        <span>{ws.label}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E]">
-                          {ws.badge}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-[#7D715E] block truncate mt-0.5">
-                        {ws.description}
+        {/* Danh sách các nút vai trò trực tiếp (Inline Role Buttons) - Không dropdown */}
+        <div className="flex flex-col gap-1.5">
+          {workspaces.map((ws) => {
+            const isActive = ws.key === activeWorkspace;
+            return (
+              <button
+                key={ws.key}
+                type="button"
+                onClick={() => handleSelectWorkspace(ws.key)}
+                className={`w-full px-2.5 py-2 rounded-xl flex items-center justify-between text-left transition cursor-pointer group ${
+                  isActive
+                    ? 'bg-[#FAF5EB] border-2 border-[#C59B58] text-[#B88E4F] shadow-xs'
+                    : 'bg-white hover:bg-[#FAF8F5] border border-[#EAE4D7] hover:border-[#C59B58]/60 text-[#1A1612]'
+                }`}
+                title={isActive ? `Không gian hiện tại: ${ws.label}` : `Chuyển sang không gian ${ws.label}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                      isActive
+                        ? 'bg-white border-[#EEDFC6] text-[#B88E4F]'
+                        : 'bg-[#FAF8F5] border-[#EAE4D7] text-[#7D715E] group-hover:text-[#B88E4F]'
+                    }`}
+                  >
+                    {getWorkspaceIcon(ws.key, 'w-3.5 h-3.5')}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <strong
+                        className={`text-xs truncate ${
+                          isActive ? 'font-black text-[#1A1612]' : 'font-bold text-[#1A1612]'
+                        }`}
+                      >
+                        {ws.label}
+                      </strong>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                          isActive
+                            ? 'bg-[#C59B58] text-white'
+                            : 'bg-[#F3EFE6] text-[#7D715E]'
+                        }`}
+                      >
+                        {ws.badge}
                       </span>
                     </div>
                   </div>
-                  {isActive && <Check className="w-4 h-4 text-[#B88E4F] shrink-0 ml-1.5" />}
-                </button>
-              );
-            })}
+                </div>
 
-            {workspaces.length === 1 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  navigate('/customer/orders?tab=upgrade');
-                }}
-                className="mt-1 pt-2 border-t border-[#EAE4D7] w-full p-2 rounded-xl text-left text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] transition flex items-center justify-between"
-              >
-                <span>Nâng cấp lên KOL / Shop</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                {isActive ? (
+                  <div className="flex items-center gap-1 shrink-0 text-[#B88E4F] ml-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <Check className="w-3.5 h-3.5 text-[#B88E4F]" />
+                  </div>
+                ) : (
+                  <span className="text-[10px] font-bold text-[#7D715E] group-hover:text-[#B88E4F] shrink-0 opacity-70 group-hover:opacity-100 transition ml-1">
+                    Vào →
+                  </span>
+                )}
               </button>
-            )}
-          </div>
-        )}
+            );
+          })}
+
+          {/* Nếu tài khoản chỉ mới có 1 vai trò (Khách hàng), hiển thị nút đăng ký mở rộng */}
+          {workspaces.length === 1 && (
+            <button
+              type="button"
+              onClick={() => navigate('/customer/upgrade')}
+              className="w-full px-2.5 py-2 rounded-xl border border-dashed border-[#C59B58]/60 bg-gradient-to-r from-[#FAF5EB] to-white hover:from-[#F3EFE6] hover:to-[#FAF5EB] text-left transition flex items-center justify-between text-xs font-bold text-[#B88E4F] cursor-pointer shadow-2xs group"
+            >
+              <span className="flex items-center gap-1.5 min-w-0 truncate">
+                <Sparkles className="w-3.5 h-3.5 text-[#C59B58] shrink-0" />
+                <span className="truncate">Mở quyền KOL / Gian Hàng</span>
+              </span>
+              <ArrowUpRight className="w-3.5 h-3.5 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -191,10 +202,10 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
         <div className="absolute right-0 mt-2 bg-white border border-[#EAE4D7] rounded-2xl p-2.5 shadow-xl z-50 flex flex-col gap-1 w-72 animate-in fade-in zoom-in-95 duration-150 text-left">
           <div className="px-2.5 py-1.5 border-b border-[#EAE4D7]">
             <span className="text-[10px] uppercase tracking-wider text-[#7D715E] font-bold block">
-              Không Gian Làm Việc SCANMS
+              Chuyển vai trò
             </span>
-            <span className="text-xs text-[#1A1612] font-semibold mt-0.5 block">
-              Tài khoản: {currentUser.fullName || currentUser.email}
+            <span className="text-xs text-[#1A1612] font-semibold mt-0.5 block truncate">
+              {currentUser.fullName || currentUser.email}
             </span>
           </div>
 
@@ -239,7 +250,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
               type="button"
               onClick={() => {
                 setIsOpen(false);
-                navigate('/customer/orders?tab=upgrade');
+                navigate('/customer/upgrade');
               }}
               className="w-full p-2 rounded-xl text-left text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB] transition flex items-center justify-between cursor-pointer"
             >

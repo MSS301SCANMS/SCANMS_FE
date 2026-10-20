@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
-  Sparkles,
   Link as LinkIcon,
   UserCheck,
   Building,
   Send,
-  ShieldCheck,
   ShieldAlert,
   Clock,
-  CheckCircle2,
   Loader2,
   ExternalLink,
   Trash2,
   Plus,
   Star,
+  ChevronDown,
+  Camera,
+  Check,
 } from 'lucide-react';
 import { kycService, type KycProfile } from '../../services/kyc.service';
 import { socialService, type SocialChannel } from '../../services/social.service';
@@ -26,11 +26,23 @@ import { BankSelectTrigger } from '../../components/bank/BankSelectTrigger';
 import { toast } from '../../utils/toast';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
-export default function KycSubmissionPage() {
+interface KycSubmissionPageProps {
+  loadedData?: { profile: KycProfile; channels: SocialChannel[] };
+  isRefreshing?: boolean;
+}
+
+const KycSubmissionPage = forwardRef<{ refresh: () => Promise<void> }, KycSubmissionPageProps>(function KycSubmissionPage({ loadedData, isRefreshing = false }, ref) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const loadSequence = useRef(0);
+  const revealSection = (section: string) => {
+    const panel = formRef.current?.querySelector<HTMLDetailsElement>(`details[data-profile-section="${section}"]`);
+    if (panel) panel.open = true;
+  };
   const currentUser = authService.getCurrentUser();
   const [profile, setProfile] = useState<KycProfile | null>(null);
   const [socialChannels, setSocialChannels] = useState<SocialChannel[]>([]);
-  const [_loading, setLoading] = useState(true); void _loading;
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Social Channels & Primary Channel (Matching PartnerUpgradeTab - Image 2)
@@ -69,31 +81,57 @@ export default function KycSubmissionPage() {
   const [bio, setBio] = useState('');
 
   useEffect(() => {
-    loadKyc();
-    loadSocialChannels();
-  }, []);
-
-  const loadKyc = async () => {
-    try {
-      const p = await kycService.getMyKyc();
-      setProfile(p);
-      if (p.idCardNumber) setIdCardNumber(p.idCardNumber);
-      if (p.taxCode) setTaxCode(p.taxCode);
-      if (p.bankName) setBankName(p.bankName);
-      if (p.bankAccountNumber) setBankAccountNumber(p.bankAccountNumber);
-      if (p.bankAccountName) setBankAccountName(p.bankAccountName);
-      if (p.bio) setBio(p.bio);
-      if (p.socialLinksJson?.frontCardUrl) setFrontCardUrl(p.socialLinksJson.frontCardUrl);
-      if (p.socialLinksJson?.backCardUrl) setBackCardUrl(p.socialLinksJson.backCardUrl);
-      if (p.socialLinksJson?.channelProofUrl) setChannelProofUrl(p.socialLinksJson.channelProofUrl);
-      if (p.socialLinksJson?.platform) setPlatform(p.socialLinksJson.platform as any);
-      if (p.socialLinksJson?.channelName) setChannelName(p.socialLinksJson.channelName);
-      if (p.socialLinksJson?.channelUrl) setChannelUrl(p.socialLinksJson.channelUrl);
-      if (p.socialLinksJson?.followerCount) setFollowerCount(p.socialLinksJson.followerCount);
-    } catch (err) {
-      console.error('Lỗi tải KYC:', err);
-    } finally {
+    if (loadedData) {
+      applyProfileData(loadedData.profile, loadedData.channels);
       setLoading(false);
+      setLoadError('');
+      return;
+    }
+    void loadProfile().catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : 'Không thể tải hồ sơ KYC.');
+    });
+    return () => { loadSequence.current++; };
+  }, [loadedData]);
+
+  const applyProfileData = (p: KycProfile, channels: SocialChannel[]) => {
+    const primary = channels.find((channel) => channel.isPrimary) || channels[0];
+    const links = p.socialLinksJson;
+    setProfile(p);
+    setSocialChannels(channels);
+    setIdCardNumber(p.idCardNumber ?? '');
+    setTaxCode(p.taxCode ?? '');
+    setBankName(p.bankName ?? '');
+    setBankAccountNumber(p.bankAccountNumber ?? '');
+    setBankAccountName(p.bankAccountName ?? defaultName);
+    setBio(p.bio ?? '');
+    setFrontCardUrl(links?.frontCardUrl ?? '');
+    setBackCardUrl(links?.backCardUrl ?? '');
+    setChannelProofUrl(links?.channelProofUrl ?? '');
+    setPlatform((links?.platform || primary?.platformName || 'TIKTOK') as typeof platform);
+    setChannelName(links?.channelName || primary?.channelName || '');
+    setChannelUrl(links?.channelUrl || primary?.channelUrl || '');
+    setFollowerCount(links?.followerCount ?? primary?.followerCount ?? '');
+  };
+
+  const loadProfile = async (forceRefresh = false) => {
+    const sequence = ++loadSequence.current;
+    setLoading(true);
+    setLoadError('');
+    try {
+      const [p, channels] = await Promise.all([
+        kycService.getMyKyc({ forceRefresh }),
+        socialService.getMyChannels({ forceRefresh }),
+      ]);
+      if (sequence !== loadSequence.current) return;
+      if (!p || !Array.isArray(channels)) throw new Error('Dữ liệu hồ sơ KYC không hợp lệ.');
+      applyProfileData(p, channels);
+    } catch (err: unknown) {
+      if (sequence === loadSequence.current) {
+        setLoadError(err instanceof Error ? err.message : 'Không thể tải hồ sơ KYC.');
+      }
+      throw err;
+    } finally {
+      if (sequence === loadSequence.current) setLoading(false);
     }
   };
 
@@ -110,26 +148,13 @@ export default function KycSubmissionPage() {
       }
     } catch (err) {
       console.error('Lỗi tải kênh mạng xã hội:', err);
+      toast.error(err instanceof Error ? err.message : 'Không thể tải các kênh đã kết nối.');
     }
   };
 
-  // Nạp dữ liệu mẫu nhanh chuẩn Image 2 để kiểm thử
-  const fillSampleKolData = () => {
-    setPlatform('TIKTOK');
-    setChannelName('Thành Thắng Reviews');
-    setFollowerCount(15000);
-    setChannelUrl('https://tiktok.com/@thangtechreview');
-    setChannelProofUrl('https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&auto=format&fit=crop&q=80');
-    setIdCardNumber('001201012345');
-    setTaxCode('8012345678');
-    setFrontCardUrl('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80');
-    setBackCardUrl('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80');
-    setBankName('Techcombank');
-    setBankAccountNumber('19034567890012');
-    setBankAccountName('NGUYEN THANH THANG');
-    setBio('Review chuyên sâu mỹ phẩm dưỡng ẩm, đồ công nghệ gia dụng, thời trang tối giản và phong cách sống.');
-    toast.info('Đã nạp đầy đủ thông tin mẫu chuẩn KOL để kiểm thử');
-  };
+  useImperativeHandle(ref, () => ({
+    refresh: () => loadProfile(true),
+  }));
 
   const handleAddOtherChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,28 +215,40 @@ export default function KycSubmissionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || isRefreshing || saving) return;
 
     if (!platform) {
+      revealSection('channel');
       toast.error('Vui lòng chọn nền tảng mạng xã hội chính');
       return;
     }
     if (!channelUrl.trim()) {
+      revealSection('channel');
       toast.error('Vui lòng nhập đường link kênh mạng xã hội');
       return;
     }
     if (!idCardNumber.trim() || idCardNumber.length < 9) {
+      revealSection('identity');
       toast.error('Vui lòng nhập số CCCD/CMND hợp lệ (từ 9 đến 12 số)');
       return;
     }
+    if (!taxCode.trim()) {
+      revealSection('identity');
+      toast.error('Vui lòng nhập Mã số thuế cá nhân (MST) để hoàn tất hồ sơ');
+      return;
+    }
     if (!bankName?.trim()) {
+      revealSection('bank');
       toast.error('Vui lòng chọn ngân hàng thụ hưởng nhận hoa hồng');
       return;
     }
     if (!bankAccountNumber.trim() || !bankAccountName.trim()) {
+      revealSection('bank');
       toast.error('Vui lòng điền đầy đủ số tài khoản và tên chủ tài khoản ngân hàng');
       return;
     }
     if (!frontCardUrl || !backCardUrl) {
+      revealSection('identity');
       toast.error('Vui lòng tải lên đầy đủ 2 mặt ảnh CCCD/Hộ chiếu');
       return;
     }
@@ -220,7 +257,7 @@ export default function KycSubmissionPage() {
     try {
       await kycService.submitKyc({
         idCardNumber: idCardNumber.trim(),
-        taxCode: taxCode.trim() || '8012345678',
+        taxCode: taxCode.trim(),
         bankName,
         bankAccountNumber: bankAccountNumber.trim(),
         bankAccountName: bankAccountName.trim().toUpperCase(),
@@ -235,8 +272,7 @@ export default function KycSubmissionPage() {
       });
 
       toast.success('Lưu & Cập nhật hồ sơ định danh KYC thành công!');
-      await loadKyc();
-      await loadSocialChannels();
+      await loadProfile(true);
       await authService.getMe();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err.message || 'Không thể lưu hồ sơ, vui lòng thử lại');
@@ -250,15 +286,36 @@ export default function KycSubmissionPage() {
   const isVerified = rawStatus === 'VERIFIED';
   const isRejected = rawStatus === 'REJECTED';
   const isPending = (rawStatus === 'UNVERIFIED' && hasSubmitted) || rawStatus === 'PENDING';
+  const channelComplete = Boolean(channelName.trim() && channelUrl.trim() && followerCount !== '');
+  const identityComplete = Boolean(idCardNumber.length >= 9 && taxCode.trim() && frontCardUrl && backCardUrl);
+  const bankComplete = Boolean(bankName.trim() && bankAccountNumber.trim() && bankAccountName.trim());
+
+  if (loading && !profile) {
+    return (
+      <section className="flex items-center gap-2 p-3 sm:px-3.5 border border-[#EAE4D7] rounded-xl bg-white text-[#7D715E] text-xs" role="status" aria-busy="true">
+        <Loader2 size={16} className="animate-spin text-[#B88E4F] shrink-0" aria-hidden="true" />
+        <span>Đang tải dữ liệu hồ sơ KYC…</span>
+      </section>
+    );
+  }
+
+  if (!profile && loadError) {
+    return <section className="p-3 border border-red-200 rounded-xl bg-white text-red-600 text-xs" role="alert">{loadError}</section>;
+  }
 
   return (
-    <div className="flex flex-col gap-6 w-full text-left">
+    <div className="flex flex-col gap-3.5 w-full text-left" aria-busy={loading || isRefreshing}>
+      {loading && (
+        <section className="flex items-center gap-2 p-3 sm:px-3.5 border border-[#EAE4D7] rounded-xl bg-white text-[#7D715E] text-xs" role="status">
+          <Loader2 size={16} className="animate-spin text-[#B88E4F] shrink-0" aria-hidden="true" />
+          <span>Đang tải dữ liệu hồ sơ KYC…</span>
+        </section>
+      )}
       {/* 1. KHỐI TRẠNG THÁI XÁC MINH CỦA HỆ THỐNG */}
+      {!isVerified && (
       <Card
         className={`p-4 sm:p-5 border transition rounded-2xl w-full ${
-          isVerified
-            ? 'bg-[#FBF5EB] border-[#EEDFC6]'
-            : isRejected
+          isRejected
             ? 'bg-rose-50 border-rose-200'
             : isPending
             ? 'bg-amber-50/70 border-amber-200'
@@ -269,16 +326,12 @@ export default function KycSubmissionPage() {
           <div className="flex items-start sm:items-center gap-3.5">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-                isVerified
-                  ? 'bg-[#EBD08C] text-[#231D15]'
-                  : isRejected
+                isRejected
                   ? 'bg-rose-100 text-rose-700'
                   : 'bg-amber-100 text-amber-700'
               }`}
             >
-              {isVerified ? (
-                <ShieldCheck className="w-5 h-5" />
-              ) : isRejected ? (
+              {isRejected ? (
                 <ShieldAlert className="w-5 h-5" />
               ) : (
                 <Clock className="w-5 h-5" />
@@ -288,84 +341,65 @@ export default function KycSubmissionPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-0.5">
                 <strong className="text-sm sm:text-base font-extrabold text-[#1A1612]">
-                  {isVerified
-                    ? 'Hồ sơ đã được Ban Quản Trị SCANMS phê duyệt chính thức'
-                    : isRejected
-                    ? 'Hồ sơ bị từ chối phê duyệt'
+                  {isRejected
+                    ? 'Hồ sơ bị từ chối'
                     : isPending
-                    ? 'Hồ sơ đang được Ban Quản Trị thẩm định đối soát'
-                    : 'Chưa hoàn tất nộp hồ sơ định danh'}
+                    ? 'Hồ sơ đang chờ duyệt'
+                    : 'Chưa gửi hồ sơ định danh'}
                 </strong>
                 <span
                   className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                    isVerified
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : isRejected
+                    isRejected
                       ? 'bg-rose-100 text-rose-800'
                       : isPending
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-stone-100 text-stone-700'
                   }`}
                 >
-                  {isVerified ? 'ĐÃ DUYỆT' : isRejected ? 'TỪ CHỐI' : isPending ? 'CHỜ DUYỆT' : 'CHƯA NỘP'}
+                  {isRejected ? 'Từ chối' : isPending ? 'Chờ duyệt' : 'Chưa nộp'}
                 </span>
-                {isVerified && (
-                  <span className="inline-flex items-center gap-1 bg-white border border-[#EEDFC6] text-[#B88E4F] text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs">
-                    <CheckCircle2 className="w-3 h-3 text-[#B88E4F]" /> TÍCH XANH CHÍNH THỨC
-                  </span>
-                )}
               </div>
               <p className="text-xs text-[#7D715E] leading-relaxed m-0">
-                {isVerified
-                  ? 'Tài khoản của bạn đã đạt chuẩn đối tác uy tín. Bạn có thể cập nhật lại tài khoản ngân hàng, mã số thuế hoặc ảnh CCCD mới bất cứ lúc nào bên dưới.'
-                  : isRejected
-                  ? 'Thông tin định danh chưa hợp lệ hoặc hình ảnh CCCD không rõ. Vui lòng kiểm tra lại số liệu và gửi lại hồ sơ.'
+                {isRejected
+                  ? 'Thông tin chưa hợp lệ. Vui lòng kiểm tra và gửi lại.'
                   : isPending
-                  ? 'Đội ngũ kiểm soát gian lận và Admin sàn đang kiểm tra ảnh CCCD và các kênh sáng tạo nội dung của bạn.'
-                  : 'Vui lòng điền thông tin chính xác, tải ảnh 2 mặt CCCD và liên kết kênh mạng xã hội bên dưới.'}
+                  ? 'Hồ sơ đang được xem xét (kết quả trong 24h làm việc).'
+                  : 'Vui lòng cung cấp thông tin CCCD và kênh mạng xã hội bên dưới.'}
               </p>
             </div>
           </div>
         </div>
       </Card>
+      )}
 
-      {/* 2. FORM ĐỊNH DANH TOÀN DIỆN (CHÍNH XÁC THEO GIAO DIỆN ẢNH 2 BÊN USER) */}
-      <form onSubmit={handleSubmit} className="bg-white border border-[#EAE4D7] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 w-full">
-        {/* BANNER TIÊU ĐỀ + NẠP DỮ LIỆU MẪU (CHUẨN IMAGE 2) */}
-        <div className="bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center shrink-0 text-[#B88E4F] shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-black text-[#1A1612] tracking-tight m-0">
-                Hồ sơ Chứng Minh Kênh Sáng Tạo &amp; Thông Tin Định Danh KOL
-              </h3>
-              <p className="text-[11px] text-[#7D715E] mt-0.5 m-0">
-                Cung cấp link mạng xã hội và ảnh chụp màn hình studio để chứng minh quyền sở hữu kênh.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={fillSampleKolData}
-            className="px-2.5 py-1 rounded-lg bg-white hover:bg-[#FBF5EB] border border-[#EAE4D7] hover:border-[#C59B58] text-[11px] font-bold text-[#B88E4F] transition cursor-pointer shadow-2xs shrink-0"
-          >
-            ⚡ Nạp dữ liệu mẫu thử nghiệm
-          </button>
-        </div>
-
+      {/* 2. FORM ĐỊNH DANH */}
+      <form
+        ref={formRef}
+        inert={loading || isRefreshing}
+        onSubmit={handleSubmit}
+        onInvalidCapture={(event) => {
+          let panel = (event.target as HTMLElement).closest<HTMLDetailsElement>('details');
+          while (panel) {
+            panel.open = true;
+            panel = panel.parentElement?.closest<HTMLDetailsElement>('details') ?? null;
+          }
+        }}
+        className="bg-white border border-[#EAE4D7] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 w-full"
+      >
         {/* 1. BẰNG CHỨNG SỞ HỮU KÊNH TRUYỀN THÔNG (CHUẨN IMAGE 2) */}
-        <div className="space-y-4">
-          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
-            <LinkIcon className="w-3.5 h-3.5" />
-            1. Bằng chứng sở hữu kênh truyền thông
-          </h4>
-
+        <details className="border border-[#EAE4D7] rounded-xl bg-white overflow-hidden open:border-[#EEDFC6] group" data-profile-section="channel" open>
+          <summary className="flex items-center gap-2.5 p-3 rounded-xl list-none cursor-pointer hover:bg-[#FAF8F5] group-open:rounded-b-none group-open:border-b group-open:border-[#EEDFC6] group-open:bg-[#FBF5EB] select-none transition-colors [&::-webkit-details-marker]:hidden">
+            <span className="grid place-items-center w-[30px] h-[30px] shrink-0 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] text-[#B88E4F] group-open:bg-white group-open:border-[#EEDFC6]"><LinkIcon size={15} /></span>
+            <span className="flex flex-col gap-0.5 min-w-0 flex-1"><strong className="text-sm font-semibold text-[#1A1612]">Kênh sáng tạo</strong><span className="text-[11px] text-[#7D715E] truncate">{channelName || 'Thông tin kênh chính của bạn'}</span></span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#EEDFC6] rounded-md bg-[#FBF5EB] text-[#B88E4F] text-[10px] whitespace-nowrap data-[complete=true]:border-[#EAE4D7] data-[complete=true]:bg-white data-[complete=true]:text-[#7D715E]" data-complete={channelComplete}>{channelComplete ? <><Check size={12} /> Đã điền</> : 'Cần bổ sung'}</span>
+            <ChevronDown size={15} className="text-[#B88E4F] shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Nền tảng chính *</label>
+              <label htmlFor="kyc-platform" className="text-xs font-bold text-[#1A1612] block mb-1.5">Nền tảng chính *</label>
               <CustomSelect
+                id="kyc-platform"
                 value={platform}
                 onChange={(val) => setPlatform(val as any)}
                 options={[
@@ -382,8 +416,9 @@ export default function KycSubmissionPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên kênh hiển thị *</label>
+              <label htmlFor="kyc-channel-name" className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên kênh hiển thị *</label>
               <input
+                id="kyc-channel-name"
                 type="text"
                 placeholder="VD: Thành Thắng Reviews"
                 value={channelName}
@@ -394,8 +429,9 @@ export default function KycSubmissionPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số lượng Followers (Người theo dõi) *</label>
+              <label htmlFor="kyc-followers" className="text-xs font-bold text-[#1A1612] block mb-1.5">Số người theo dõi *</label>
               <input
+                id="kyc-followers"
                 type="number"
                 min="0"
                 placeholder="VD: 15000"
@@ -408,10 +444,11 @@ export default function KycSubmissionPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
-              Đường dẫn liên kết kênh (URL Profile / Kênh) *
+            <label htmlFor="kyc-channel-url" className="text-xs font-bold text-[#1A1612] block mb-1.5">
+              Liên kết kênh *
             </label>
             <input
+              id="kyc-channel-url"
               type="url"
               placeholder="https://tiktok.com/@your_channel hoặc https://facebook.com/yourpage"
               value={channelUrl}
@@ -421,29 +458,38 @@ export default function KycSubmissionPage() {
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-2.5">
+          <details className="border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] overflow-hidden group/inline [&::-webkit-details-marker]:hidden">
+            <summary className="flex items-center gap-2 min-h-[36px] px-2.5 py-2 text-xs text-[#7D715E] list-none cursor-pointer select-none hover:bg-[#F3EFE6]/50 [&::-webkit-details-marker]:hidden"><Camera size={14} className="text-[#B88E4F]" /><span>Ảnh quản trị kênh</span><span className="ml-auto text-[10px] whitespace-nowrap text-[#7D715E]">{channelProofUrl ? 'Đã đính kèm' : 'Chưa đính kèm'}</span><ChevronDown size={14} className="text-[#B88E4F] shrink-0 transition-transform group-open/inline:rotate-180" /></summary>
+            <div className="p-2.5 pt-0">
           <ImageUploadDropzone
-            label="Ảnh chụp màn hình trang quản trị kênh (TikTok Studio / Meta Business Suite)"
-            helperText="💡 Admin sẽ đối chiếu ảnh chụp màn hình quyền quản trị với URL kênh để đảm bảo tính chính chủ, tránh mạo danh KOL."
+            label="Ảnh trang quản trị kênh"
+            helperText="Ảnh TikTok Studio hoặc Meta Business Suite thể hiện tên kênh và quyền quản trị."
             value={channelProofUrl}
             onChange={(url) => setChannelProofUrl(url)}
             iconType="camera"
             folder="scanms/kyc/proofs"
           />
+            </div>
+          </details>
 
           {/* DANH SÁCH CÁC KÊNH PHỤ ĐÃ KẾT NỐI (NẾU CÓ) */}
           {socialChannels.length > 0 && (
-            <div className="pt-2">
+            <details className="border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] overflow-hidden group/inline [&::-webkit-details-marker]:hidden">
+              <summary className="flex items-center gap-2 min-h-[36px] px-2.5 py-2 text-xs text-[#7D715E] list-none cursor-pointer select-none hover:bg-[#F3EFE6]/50 [&::-webkit-details-marker]:hidden"><LinkIcon size={14} className="text-[#B88E4F]" /><span>Kênh đã kết nối</span><span className="ml-auto text-[10px] whitespace-nowrap text-[#7D715E]">{socialChannels.length} kênh</span><ChevronDown size={14} className="text-[#B88E4F] shrink-0 transition-transform group-open/inline:rotate-180" /></summary>
+            <div className="p-2.5 pt-0">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold text-[#7D715E]">
-                  Mạng lưới kênh đã kết nối ({socialChannels.length} kênh):
+                  Quản lý các kênh của bạn
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowAddOtherChannel(!showAddOtherChannel)}
+                  aria-expanded={showAddOtherChannel}
                   className="text-[11px] text-[#B88E4F] hover:underline font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
-                  {showAddOtherChannel ? 'Đóng' : '+ Thêm kênh phụ khác'}
+                  {showAddOtherChannel ? 'Đóng' : 'Thêm kênh phụ'}
                 </button>
               </div>
 
@@ -510,7 +556,7 @@ export default function KycSubmissionPage() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <strong className="text-xs text-[#1A1612] truncate">{c.channelName}</strong>
+                      <strong className="text-xs text-[#1A1612]">{c.channelName}</strong>
                           {c.isPrimary && (
                             <span className="text-[9px] font-bold bg-[#EBD08C] text-[#231D15] px-1 py-0.2 rounded shrink-0">
                               Chính
@@ -529,6 +575,7 @@ export default function KycSubmissionPage() {
                         rel="noreferrer"
                         className="p-1 text-[#B88E4F] hover:bg-white rounded"
                         title="Mở link"
+                        aria-label={`Mở kênh ${c.channelName || c.platformName}`}
                       >
                         <ExternalLink className="w-3 h-3" />
                       </a>
@@ -538,6 +585,7 @@ export default function KycSubmissionPage() {
                           onClick={() => handleSetPrimary(c.id)}
                           className="p-1 text-stone-400 hover:text-[#B88E4F] hover:bg-white rounded cursor-pointer"
                           title="Đặt làm kênh chính"
+                          aria-label={`Đặt ${c.channelName || c.platformName} làm kênh chính`}
                         >
                           <Star className="w-3 h-3" />
                         </button>
@@ -547,6 +595,7 @@ export default function KycSubmissionPage() {
                         onClick={() => setChannelToDelete(c)}
                         className="p-1 text-stone-400 hover:text-rose-600 hover:bg-white rounded cursor-pointer"
                         title="Xóa kênh"
+                        aria-label={`Xóa kênh ${c.channelName || c.platformName}`}
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -555,20 +604,26 @@ export default function KycSubmissionPage() {
                 ))}
               </div>
             </div>
+            </details>
           )}
-        </div>
+          </div>
+          </div>
+        </details>
 
         {/* 2. ĐỊNH DANH CÁ NHÂN & KÊ KHAI THUẾ TNCN (CHUẨN IMAGE 2) */}
-        <div className="space-y-4 pt-4 border-t border-[#EAE4D7]">
-          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
-            <UserCheck className="w-3.5 h-3.5" />
-            2. Định danh cá nhân &amp; Kê khai thuế TNCN
-          </h4>
-
+        <details className="border border-[#EAE4D7] rounded-xl bg-white overflow-hidden open:border-[#EEDFC6] group" data-profile-section="identity">
+          <summary className="flex items-center gap-2.5 p-3 rounded-xl list-none cursor-pointer hover:bg-[#FAF8F5] group-open:rounded-b-none group-open:border-b group-open:border-[#EEDFC6] group-open:bg-[#FBF5EB] select-none transition-colors [&::-webkit-details-marker]:hidden">
+            <span className="grid place-items-center w-[30px] h-[30px] shrink-0 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] text-[#B88E4F] group-open:bg-white group-open:border-[#EEDFC6]"><UserCheck size={15} /></span>
+            <span className="flex flex-col gap-0.5 min-w-0 flex-1"><strong className="text-sm font-semibold text-[#1A1612]">Định danh & mã số thuế</strong><span className="text-[11px] text-[#7D715E] truncate">CCCD và ảnh hai mặt giấy tờ</span></span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#EEDFC6] rounded-md bg-[#FBF5EB] text-[#B88E4F] text-[10px] whitespace-nowrap data-[complete=true]:border-[#EAE4D7] data-[complete=true]:bg-white data-[complete=true]:text-[#7D715E]" data-complete={identityComplete}>{identityComplete ? <><Check size={12} /> Đã điền</> : 'Cần bổ sung'}</span>
+            <ChevronDown size={15} className="text-[#B88E4F] shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số CCCD / CMND (12 số) *</label>
+              <label htmlFor="kyc-id-number" className="text-xs font-bold text-[#1A1612] block mb-1.5">Số CCCD / CMND (12 số) *</label>
               <input
+                id="kyc-id-number"
                 type="text"
                 placeholder="VD: 001201012345"
                 value={idCardNumber}
@@ -579,10 +634,11 @@ export default function KycSubmissionPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Mã số thuế cá nhân (MST)</label>
+              <label htmlFor="kyc-tax-code" className="text-xs font-bold text-[#1A1612] block mb-1.5">Mã số thuế cá nhân *</label>
               <input
+                id="kyc-tax-code"
                 type="text"
-                placeholder="VD: 8012345678 (Tùy chọn)"
+                placeholder="VD: 8012345678"
                 value={taxCode}
                 onChange={(e) => setTaxCode(e.target.value.replace(/\D/g, '').slice(0, 14))}
                 className="w-full h-10 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2 text-xs text-[#1A1612] font-mono outline-none focus:border-[#C59B58] transition"
@@ -610,19 +666,23 @@ export default function KycSubmissionPage() {
               required
             />
           </div>
-        </div>
+          </div>
+        </details>
 
         {/* 3. TÀI KHOẢN NGÂN HÀNG NHẬN HOA HỒNG ĐỐI SOÁT (CHUẨN IMAGE 2) */}
-        <div className="space-y-4 pt-4 border-t border-[#EAE4D7]">
-          <h4 className="text-xs font-black text-[#B88E4F] uppercase tracking-wider flex items-center gap-1.5 m-0">
-            <Building className="w-3.5 h-3.5" />
-            3. Tài khoản ngân hàng nhận hoa hồng đối soát
-          </h4>
-
+        <details className="border border-[#EAE4D7] rounded-xl bg-white overflow-hidden open:border-[#EEDFC6] group" data-profile-section="bank">
+          <summary className="flex items-center gap-2.5 p-3 rounded-xl list-none cursor-pointer hover:bg-[#FAF8F5] group-open:rounded-b-none group-open:border-b group-open:border-[#EEDFC6] group-open:bg-[#FBF5EB] select-none transition-colors [&::-webkit-details-marker]:hidden">
+            <span className="grid place-items-center w-[30px] h-[30px] shrink-0 border border-[#EAE4D7] rounded-lg bg-[#FAF8F5] text-[#B88E4F] group-open:bg-white group-open:border-[#EEDFC6]"><Building size={15} /></span>
+            <span className="flex flex-col gap-0.5 min-w-0 flex-1"><strong className="text-sm font-semibold text-[#1A1612]">Ngân hàng & hồ sơ giới thiệu</strong><span className="text-[11px] text-[#7D715E] truncate">{bankName || 'Tài khoản nhận hoa hồng và ngành hàng thế mạnh'}</span></span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 border border-[#EEDFC6] rounded-md bg-[#FBF5EB] text-[#B88E4F] text-[10px] whitespace-nowrap data-[complete=true]:border-[#EAE4D7] data-[complete=true]:bg-white data-[complete=true]:text-[#7D715E]" data-complete={bankComplete}>{bankComplete ? <><Check size={12} /> Đã điền</> : 'Cần bổ sung'}</span>
+            <ChevronDown size={15} className="text-[#B88E4F] shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-3 p-3 sm:p-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên ngân hàng *</label>
               <BankSelectTrigger
+                className="w-full"
                 value={bankName}
                 onChange={(val) => setBankName(val)}
                 placeholder="-- Chọn ngân hàng thụ hưởng --"
@@ -631,8 +691,9 @@ export default function KycSubmissionPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Số tài khoản ngân hàng *</label>
+              <label htmlFor="kyc-bank-number" className="text-xs font-bold text-[#1A1612] block mb-1.5">Số tài khoản ngân hàng *</label>
               <input
+                id="kyc-bank-number"
                 type="text"
                 placeholder="VD: 0123456789"
                 value={bankAccountNumber}
@@ -643,8 +704,9 @@ export default function KycSubmissionPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên chủ tài khoản (In hoa) *</label>
+              <label htmlFor="kyc-bank-owner" className="text-xs font-bold text-[#1A1612] block mb-1.5">Tên chủ tài khoản (In hoa) *</label>
               <input
+                id="kyc-bank-owner"
                 type="text"
                 placeholder="VD: NGUYEN VAN A"
                 value={bankAccountName}
@@ -665,26 +727,28 @@ export default function KycSubmissionPage() {
               className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl p-3 text-xs text-[#1A1612] outline-none focus:border-[#C59B58] transition"
             />
           </div>
-        </div>
+          </div>
+        </details>
 
         {/* NÚT LƯU & CẬP NHẬT HỒ SƠ KYC */}
-        <div className="pt-2 flex justify-end">
+        <div className="flex items-center justify-between flex-wrap gap-2.5 pt-3 border-t border-[#EAE4D7]">
+          <span className="text-xs text-[#7D715E]">Mở từng mục để xem hoặc cập nhật thông tin.</span>
           <button
             type="submit"
-            disabled={saving}
-            className="px-6 py-3 bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-[#1A1612] font-black text-xs rounded-xl transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            disabled={saving || loading || isRefreshing}
+            className="inline-flex items-center justify-center gap-2 min-h-[36px] px-4 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:bg-[#F3EFE6] hover:border-[#C59B58] transition-colors disabled:opacity-50 cursor-pointer"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin text-[#1A1612]" />
             ) : (
-              <Send className="w-4 h-4" />
+              <Send className="w-4 h-4 text-[#B88E4F]" />
             )}
             <span>
               {saving
                 ? 'Đang lưu hồ sơ...'
                 : isVerified
-                ? 'Lưu & Cập Nhật Hồ Sơ Định Danh'
-                : 'Nộp Hồ Sơ Thẩm Định KYC'}
+                ? 'Lưu hồ sơ'
+                : 'Gửi hồ sơ KYC'}
             </span>
           </button>
         </div>
@@ -703,4 +767,6 @@ export default function KycSubmissionPage() {
       />
     </div>
   );
-}
+});
+
+export default KycSubmissionPage;

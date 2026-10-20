@@ -1,1 +1,1 @@
-export { default } from './CreatorAccountDetails';
+export { default } from './CreatorProfilePage';

@@ -235,7 +235,7 @@ test(
           { id, text },
         );
       };
-      await clickRow(requests[0].id, "Duyệt và tải bill");
+      await clickRow(requests[0].id, "Duyệt & tải bill");
       assert.ok(await page.$eval("dialog", (el) => el.open));
       const dialogText = await page.$eval("dialog", (el) => el.textContent);
       for (const value of [
@@ -263,7 +263,7 @@ test(
       );
       const setFile = async (type, name) => {
         await page.$eval(
-          'input[type="file"]',
+          'input[aria-label="Ảnh bill ngân hàng"]',
           (input, { type, name }) => {
             const files = new DataTransfer();
             files.items.add(
@@ -284,6 +284,9 @@ test(
         true,
       );
       await setFile("application/pdf", "bill.pdf");
+      await page.waitForFunction(() => document.querySelector('dialog')?.textContent.includes('Tài liệu PDF'), { timeout: 5000 }).catch(async error => {
+        throw new Error(`PDF preview missing: ${await page.$eval('dialog', el => el.innerText)}`, { cause: error });
+      });
       assert.ok(
         (await page.$eval("dialog", (el) => el.textContent)).includes(
           "Tài liệu PDF",
@@ -336,15 +339,16 @@ test(
       await page.waitForSelector(
         'a[href="https://example.test/private-bill?expires=120"]',
       );
+      await page.click('button[aria-label="Đóng chứng từ chi trả"]');
       await page.click(`input[aria-label="Chọn payout ${requests[1].id}"]`);
-      await clickText("Xuất Excel VietQR / Napas247 (1)");
+      await clickText("Xuất Excel VietQR (1)");
       await page.waitForFunction(() =>
         document.body.textContent.includes("1 payout"),
       );
       assert.equal(exportCount, 1);
       assert.ok(
         (await page.$eval("tbody", (el) => el.textContent)).includes(
-          "Đang thanh toán theo lô",
+          "Chờ chuyển khoản",
         ),
       );
       assert.equal(
@@ -379,10 +383,10 @@ test(
           "Đã từ chối",
         ),
       );
-      await page.select(
-        'select[aria-label="Lọc trạng thái payout"]',
-        "PROCESSING",
-      );
+      await page.click('[aria-label="Lọc trạng thái payout"]');
+      await page.waitForSelector('[role="listbox"]');
+      await page.evaluate(() => [...document.querySelectorAll('[role="option"]')]
+        .find(option => option.textContent.trim() === 'Chờ chuyển khoản').click());
       await page.waitForFunction(
         () => document.querySelectorAll("tbody tr").length === 1,
       );

@@ -1,10 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
 import { TrendingUp, Trophy, Sparkles } from 'lucide-react';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
+import { PageHeader } from '../../components/ui/PageHeader';
 import RealtimeAnalyticsPage from '../dashboard/RealtimeAnalyticsPage';
 import LeaderboardPage from '../dashboard/LeaderboardPage';
 import KolRecommendationPage from '../merchant/KolRecommendationPage';
-
 export default function AdminAnalyticsHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'realtime';
@@ -16,28 +16,38 @@ export default function AdminAnalyticsHubPage() {
   const tabs: HubTabItem[] = [
     {
       id: 'realtime',
-      label: 'Analytics Thời Gian Thực',
+      label: 'Analytics thời gian thực',
       icon: TrendingUp,
     },
     {
       id: 'leaderboard',
-      label: 'Bảng Vinh Danh Top KOL',
+      label: 'Bảng vinh danh Top KOL',
       icon: Trophy,
     },
     {
       id: 'ai-matching',
-      label: 'AI Khớp Nối Toàn Sàn',
+      label: 'AI khớp nối toàn sàn',
       icon: Sparkles,
     },
   ];
 
   return (
-    <div className="w-full min-w-0 flex flex-col pt-4 text-[#1A1612] sm:pt-5" id="admin-analytics-hub">
+    <div className="w-full min-w-0 flex flex-col gap-4 text-[#1A1612]" id="admin-analytics-hub">
+      {/* 1. Page Header Chuẩn Hóa */}
+      <PageHeader
+        title="Trung tâm Báo cáo & Phân tích Sàn"
+        description="Theo dõi doanh thu toàn sàn, bảng xếp hạng Top KOL và khớp nối AI thời gian thực"
+        icon={<TrendingUp className="w-5 h-5" />}
+      />
+
       <HubTabs
         tabs={tabs}
         activeTab={activeTab}
         onChange={handleTabChange}
         tone="white"
+        compact
+        stretchTabs
+        className="mb-2 shadow-none"
       />
 
       <div className="w-full min-h-[500px]">

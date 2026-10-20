@@ -19,7 +19,7 @@ export interface HubTabsProps {
   className?: string;
   compact?: boolean;
   stretchTabs?: boolean;
-  stretchTabColumns?: 3 | 4;
+  stretchTabColumns?: 2 | 3 | 4 | 5;
   variant?: 'default' | 'pills';
   tone?: 'default' | 'light' | 'white';
 }
@@ -34,12 +34,13 @@ export function HubTabs({
   className = '',
   compact = false,
   stretchTabs = false,
-  stretchTabColumns = 4,
+  stretchTabColumns,
   variant = 'default',
   tone = 'default',
 }: HubTabsProps) {
   const defaultSpacing = variant === 'pills' ? 'mb-2' : compact ? 'gap-2.5 mb-3' : 'gap-4 mb-5';
   const spacingClass = className.includes('mb-') ? className : `${defaultSpacing} ${className}`.trim();
+  const colCount = stretchTabColumns ?? (tabs.length === 2 ? 2 : tabs.length === 3 ? 3 : tabs.length === 5 ? 5 : 4);
 
   return (
     <div className={`flex flex-col ${spacingClass}`}>
@@ -117,7 +118,15 @@ export function HubTabs({
         <div className={`w-full ${tone === 'white' ? 'bg-white' : tone === 'light' ? 'bg-[#FAF8F5]' : 'bg-[#F3EFE6]'} ${compact ? 'p-1 rounded-xl' : 'p-1.5 rounded-2xl'} border border-[#EAE4D7] shadow-2xs ${stretchTabs ? 'flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between' : 'flex flex-wrap items-center justify-between gap-2'}`}>
           <div
             className={stretchTabs
-              ? `grid w-full min-w-0 flex-1 grid-cols-2 gap-1.5 ${stretchTabColumns === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-4'}`
+              ? `grid w-full min-w-0 flex-1 gap-1.5 ${
+                  colCount === 2
+                    ? 'grid-cols-2'
+                    : colCount === 3
+                    ? 'grid-cols-3'
+                    : colCount === 5
+                    ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5'
+                    : 'grid-cols-2 xl:grid-cols-4'
+                }`
               : 'flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth'}
             role="tablist"
           >

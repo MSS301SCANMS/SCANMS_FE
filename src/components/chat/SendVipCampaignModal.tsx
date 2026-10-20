@@ -1,290 +1,296 @@
-import { useState, useEffect } from 'react';
-import {
-  Sparkles,
-  X,
-  Gift,
-  Calendar,
-  Percent,
-  CheckCircle2,
-  AlertCircle,
-  Send,
-  Loader2,
-  Crown,
-} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Crown, X, Search, Send, Loader2, Users, Plus, Check } from 'lucide-react';
 import api from '../../services/api';
-import type { Campaign } from '../../types/campaigns';
+import { Select } from '../ui/Select';
+import { DateTimePicker } from '../common/DateTimePicker';
+import type { Campaign } from '@/types/campaigns.types';
+import type { ChatMessage } from '@/types/chat.types';
 
-interface SendVipCampaignModalProps {
-  conversationId: string;
-  collaboratorName: string;
+interface Props {
+  conversationId?: string;
+  collaboratorName?: string;
   onClose: () => void;
-  onSuccess: (chatMessage: any) => void;
+  onSuccess: (message: ChatMessage) => void;
+}
+interface Recipient {
+  id: string; fullName: string; email: string; avatarUrl?: string;
+  collaboratorProfile?: { avatarUrl?: string };
 }
 
-export function SendVipCampaignModal({
-  conversationId,
-  collaboratorName,
-  onClose,
-  onSuccess,
-}: SendVipCampaignModalProps) {
+const localDateTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+export function SendVipCampaignModal({ conversationId, collaboratorName, onClose, onSuccess }: Props) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
-  const [personalMessage, setPersonalMessage] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipientId, setRecipientId] = useState('');
+  const [campaignId, setCampaignId] = useState('');
+  const [query, setQuery] = useState('');
+  const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [sendError, setSendError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [unavailableCount, setUnavailableCount] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createdCampaignId, setCreatedCampaignId] = useState('');
+  const [draft, setDraft] = useState(() => ({ name: '', rate: '5', start: localDateTime(new Date()), end: localDateTime(new Date(Date.now() + 7 * 86400000)) }));
+  const sending = useRef(false);
+  const creatingRef = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const busy = submitting || saving;
+  const recipientSearchRef = useRef<HTMLInputElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
+  const datePopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchShopCampaigns();
+    let cancelled = false;
+    setLoading(true); setLoadError('');
+    const load = async () => {
+      try {
+        const [campaignRes, recipientRes]: any[] = await Promise.all([
+          api.get('/campaigns/shop', { headers: { 'x-skip-cache': '1' } }),
+          conversationId ? Promise.resolve([]) : api.get('/chat/search-collaborators'),
+        ]);
+        if (cancelled) return;
+        const list = campaignRes?.data || campaignRes;
+        const people = recipientRes?.data || recipientRes;
+        if (!Array.isArray(list) || !Array.isArray(people)) throw new Error('Dữ liệu lời mời chưa hợp lệ. Vui lòng tải lại.');
+        const active = list.filter((campaign: Campaign) => campaign.isActive && new Date(campaign.endDate).getTime() >= Date.now());
+        setCampaigns(active); setRecipients(people); setUnavailableCount(list.length - active.length);
+        setCampaignId(previous => active.some((campaign: Campaign) => campaign.id === previous) ? previous : active[0]?.id || '');
+      } catch (error: any) {
+        if (!cancelled) setLoadError(error.message || 'Không tải được dữ liệu lời mời.');
+      } finally { if (!cancelled) setLoading(false); }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [conversationId, reload]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => { if (previousFocus?.isConnected) previousFocus.focus(); };
   }, []);
 
-  const fetchShopCampaigns = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res: any = await api.get('/campaigns/shop');
-      const data = res?.data || res || [];
-      const list = Array.isArray(data) ? data : [];
+  useEffect(() => {
+    if (!createdCampaignId || creating || saving) return;
+    if (conversationId) sendButtonRef.current?.focus();
+    else recipientSearchRef.current?.focus();
+  }, [createdCampaignId, creating, saving, conversationId]);
 
-      const now = new Date();
-      const activeList = list.filter((c: Campaign) => {
-        const end = new Date(c.endDate);
-        return c.isActive && end >= now;
-      });
-      setCampaigns(activeList);
-      if (activeList.length > 0) {
-        setSelectedCampaignId(activeList[0].id);
-      }
-    } catch (err: any) {
-      console.error('Lỗi tải danh sách chiến dịch:', err);
-      setError(err?.response?.data?.message || 'Không thể tải danh sách chiến dịch của cửa hàng.');
-    } finally {
-      setLoading(false);
-    }
+  const selectedRecipient = recipients.find(person => person.id === recipientId);
+  const selectedCampaign = campaigns.find(campaign => campaign.id === campaignId);
+  const visibleRecipients = recipients.filter(person => `${person.fullName} ${person.email}`.toLocaleLowerCase('vi-VN').includes(query.trim().toLocaleLowerCase('vi-VN')));
+  const recipientName = conversationId ? collaboratorName || 'KOL/CTV' : selectedRecipient?.fullName;
+  const canSend = !loading && !loadError && !busy && !creating && Boolean(selectedCampaign && (conversationId || selectedRecipient));
+
+  const createCampaign = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (creatingRef.current || busy) return;
+    setCreateError('');
+    const start = new Date(draft.start), end = new Date(draft.end), rate = Number(draft.rate);
+    if (!draft.name.trim()) { setCreateError('Vui lòng nhập tên chiến dịch.'); return; }
+    if (!draft.rate.trim() || !Number.isFinite(rate) || rate < 0 || rate > 100) { setCreateError('Hoa hồng thưởng thêm phải từ 0 đến 100%.'); return; }
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || end <= new Date()) { setCreateError('Ngày kết thúc phải sau ngày bắt đầu và thời điểm hiện tại.'); return; }
+    creatingRef.current = true; setSaving(true);
+    try {
+      const response: any = await api.post('/campaigns', { name: draft.name.trim(), bonusCommissionRate: rate, startDate: start.toISOString(), endDate: end.toISOString() });
+      const campaign: Campaign = response?.data || response;
+      if (!campaign?.id || !campaign.isActive || !(new Date(campaign.endDate).getTime() >= Date.now())) throw new Error('Máy chủ chưa xác nhận chiến dịch còn hiệu lực. Hãy tải lại trước khi thử tạo thêm.');
+      setCampaigns(previous => [campaign, ...previous.filter(item => item.id !== campaign.id)]);
+      setCampaignId(campaign.id); setCreatedCampaignId(campaign.id); setCreating(false); setSendError('');
+    } catch (error: any) { setCreateError(error.message || 'Không tạo được chiến dịch. Vui lòng thử lại.'); }
+    finally { creatingRef.current = false; setSaving(false); }
   };
 
-  const handleSubmit = async () => {
-    if (!selectedCampaignId) {
-      setError('Vui lòng chọn một chiến dịch để gửi thẻ mời VIP.');
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
+  const submit = async () => {
+    if (!canSend || sending.current) return;
+    sending.current = true; setSubmitting(true); setSendError('');
     try {
-      const res: any = await api.post(`/campaigns/chat/${conversationId}/invite`, {
-        campaignId: selectedCampaignId,
-        personalMessage: personalMessage.trim() || undefined,
-      });
-
-      const result = res?.data || res;
-      onSuccess(result?.chatMessage);
-      onClose();
-    } catch (err: any) {
-      console.error('Lỗi gửi thẻ mời VIP:', err);
-      setError(err?.response?.data?.message || 'Có lỗi xảy ra khi gửi thẻ mời VIP. Vui lòng thử lại.');
-    } finally {
-      setSubmitting(false);
-    }
+      const personalMessage = note.trim() || undefined;
+      const response: any = conversationId
+        ? await api.post(`/campaigns/chat/${conversationId}/invite`, { campaignId, personalMessage })
+        : await api.post(`/campaigns/${campaignId}/invite`, { collaboratorId: recipientId, personalMessage });
+      const result = response?.data || response;
+      if (!result?.chatMessage?.id || !result.chatMessage.conversationId) throw new Error('Máy chủ chưa xác nhận lời mời. Vui lòng thử lại.');
+      onSuccess(result.chatMessage); onClose();
+    } catch (error: any) { setSendError(error.message || 'Không gửi được lời mời. Vui lòng thử lại.'); }
+    finally { sending.current = false; setSubmitting(false); }
   };
-
-  const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-60 p-4 flex items-center justify-center bg-[#231D15]/35 backdrop-blur-xs" onClick={() => { if (!busy) onClose(); }}>
       <div
-        className="bg-white rounded-3xl shadow-2xl border border-amber-200/80 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
-        onClick={e => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vip-campaign-title"
+        className="w-full max-w-[480px] max-h-[calc(100dvh-32px)] flex flex-col bg-white text-[#1A1612] border border-[#EAE4D7] rounded-[20px] shadow-[0_24px_80px_rgba(35,29,21,0.15)] outline-none overflow-hidden"
+        onClick={event => event.stopPropagation()}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose(); }
+          if (event.key === 'Tab') {
+            const elements = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]')).filter(element => element.getClientRects().length);
+            const first = elements[0], last = elements[elements.length - 1];
+            if (!first) { event.preventDefault(); return; }
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && (document.activeElement === last || document.activeElement === event.currentTarget)) { event.preventDefault(); first.focus(); }
+          }
+        }}
       >
-
-        <div className="relative px-6 py-5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shadow-inner border border-white/30">
-              <Crown className="w-5 h-5 text-amber-100" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 bg-black/20 rounded-md">
-                  FR-27 VIP
-                </span>
-                <h3 className="font-extrabold text-base tracking-tight text-white">
-                  Mời Chiến Dịch Độc Quyền
-                </h3>
-              </div>
-              <p className="text-xs text-amber-100 mt-0.5">
-                Gửi Thẻ Mời VIP trực tiếp tới <strong>{collaboratorName}</strong>
-              </p>
-            </div>
+        <header className="p-4 sm:p-5 flex items-center gap-2.5 sm:gap-3 border-b border-[#EAE4D7]">
+          <span className="grid place-items-center w-[42px] h-[42px] rounded-[13px] bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] shrink-0"><Crown size={22} /></span>
+          <div>
+            <h3 id="vip-campaign-title" className="text-lg sm:text-[19px] leading-snug font-semibold tracking-tight text-[#1A1612] m-0">Mời chiến dịch VIP</h3>
+            <p className="text-[11px] text-[#7D715E] m-0 mt-1 leading-relaxed">{creating ? 'Thiết lập chiến dịch để tiếp tục gửi lời mời.' : conversationId ? 'Chọn chiến dịch để mời KOL đang trò chuyện.' : 'Chọn KOL và chiến dịch để gửi lời mời.'}</p>
           </div>
-          <button
-            className="w-8 h-8 rounded-full hover:bg-white/20 text-white/90 hover:text-white flex items-center justify-center transition-colors"
-            onClick={onClose}
-            title="Đóng"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          <button type="button" aria-label="Đóng" disabled={busy} onClick={onClose} className="ml-auto shrink-0 grid place-items-center w-7 h-7 border-0 rounded-lg bg-[#FAF8F5] text-[#7D715E] hover:bg-[#FBF5EB] hover:text-[#1A1612] cursor-pointer transition-colors"><X size={18} /></button>
+        </header>
 
-
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-stone-50/50">
-          {error && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-              <span className="font-medium">{error}</span>
-            </div>
-          )}
-
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 [scrollbar-width:thin]" aria-busy={loading}>
           {loading ? (
-            <div className="py-12 flex flex-col items-center justify-center text-stone-500 gap-3">
-              <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-              <span className="text-xs font-semibold">Đang tải danh sách chiến dịch tiếp thị...</span>
-            </div>
-          ) : campaigns.length === 0 ? (
-            <div className="py-8 px-4 text-center bg-white border border-stone-200 rounded-2xl space-y-3">
-              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 mx-auto flex items-center justify-center">
-                <Gift className="w-6 h-6" />
+            <div className="min-h-[140px] flex flex-col justify-center items-center gap-3 text-center text-xs text-[#7D715E]"><Loader2 className="animate-spin text-[#B88E4F]" size={22} />Đang tải KOL và chiến dịch…</div>
+          ) : loadError ? (
+            <div className="min-h-[140px] flex flex-col justify-center items-center gap-3 text-center text-xs text-[#7D715E]"><p role="alert" className="text-[#DC2626] m-0">{loadError}</p><button type="button" onClick={() => setReload(value => value + 1)} className="px-3.5 py-1.5 border border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] rounded-lg cursor-pointer">Tải lại</button></div>
+          ) : creating ? (
+            <form id="vip-create-campaign" className="space-y-3.5" onSubmit={event => void createCampaign(event)}>
+              <div className="flex items-center gap-4 mb-3 text-[11px] text-[#7D715E]" aria-label="Các bước gửi lời mời">
+                <span className="flex items-center gap-1.5 text-[#1A1612] font-semibold"><b className="grid place-items-center w-5 h-5 rounded-full bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] text-[11px]">1</b>Thiết lập chiến dịch</span>
+                <span className="flex items-center gap-1.5"><b className="grid place-items-center w-5 h-5 rounded-full bg-[#F3EFE6] text-[#7D715E] text-[11px]">2</b>Gửi lời mời</span>
+              </div>
+              <p className="m-0 mb-4 text-xs leading-relaxed text-[#7D715E]">Lời mời VIP cần có chiến dịch để KOL xem thời gian hợp tác và hoa hồng. Lưu xong, bạn sẽ chuyển ngay sang bước gửi lời mời.</p>
+              <div>
+                <label htmlFor="vip-create-name" className="block text-xs font-semibold text-[#1A1612] mb-1.5">Tên chiến dịch</label>
+                <input id="vip-create-name" autoFocus required maxLength={200} placeholder="VD: Hợp tác KOL tháng 10" value={draft.name} disabled={saving} onChange={event => setDraft(previous => ({ ...previous, name: event.target.value }))} className="w-full h-10 px-3 border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5] text-[#1A1612] text-xs outline-none focus:border-[#C59B58] focus:bg-white" />
               </div>
               <div>
-                <h4 className="font-bold text-stone-800 text-sm">Chưa có chiến dịch nào đang hoạt động</h4>
-                <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto">
-                  Bạn cần tạo chiến dịch tiếp thị mới trong mục Quản lý Chiến dịch trước khi gửi thẻ mời VIP cho KOL.
-                </p>
+                <label htmlFor="vip-create-rate" className="block text-xs font-semibold text-[#1A1612] mb-1.5">Hoa hồng thưởng thêm (%)</label>
+                <input id="vip-create-rate" type="number" min={0} max={100} step="0.01" required value={draft.rate} disabled={saving} onChange={event => setDraft(previous => ({ ...previous, rate: event.target.value }))} className="w-full h-10 px-3 border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5] text-[#1A1612] text-xs outline-none focus:border-[#C59B58] focus:bg-white" />
+                <small className="block mt-1 text-[10px] leading-relaxed text-[#7D715E]">Được cộng thêm vào hoa hồng thông thường của sản phẩm.</small>
               </div>
-            </div>
-          ) : (
-            <>
-
-              <div className="space-y-2.5">
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
-                  1. Chọn chiến dịch gửi mời <span className="text-rose-500">*</span>
-                </label>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {campaigns.map(c => {
-                    const isSelected = c.id === selectedCampaignId;
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => setSelectedCampaignId(c.id)}
-                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                          isSelected
-                            ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/20 shadow-xs'
-                            : 'bg-white border-stone-200 hover:border-amber-200 hover:bg-stone-50/80'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isSelected
-                                ? 'bg-amber-600 border-amber-600 text-white'
-                                : 'border-stone-300 bg-white'
-                            }`}
-                          >
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          </div>
-                          <div className="min-w-0">
-                            <h5 className="text-sm font-bold text-stone-900 truncate">
-                              🎯 {c.name}
-                            </h5>
-                            <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-0.5">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3 text-stone-400" />
-                                {new Date(c.startDate).toLocaleDateString('vi-VN')} →{' '}
-                                {new Date(c.endDate).toLocaleDateString('vi-VN')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex-shrink-0 text-right">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs">
-                            <Percent className="w-3 h-3" />+{c.bonusCommissionRate}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="vip-create-start" className="block text-xs font-medium text-[#7D715E] mb-1">Bắt đầu</label>
+                  <DateTimePicker id="vip-create-start" compact required popoverTitle="Chọn ngày bắt đầu" inlinePopoverRef={datePopoverRef} value={draft.start} disabled={saving} onChange={value => setDraft(previous => ({ ...previous, start: value }))} />
+                </div>
+                <div>
+                  <label htmlFor="vip-create-end" className="block text-xs font-medium text-[#7D715E] mb-1">Kết thúc</label>
+                  <DateTimePicker id="vip-create-end" compact required popoverTitle="Chọn ngày kết thúc" inlinePopoverRef={datePopoverRef} minDateTime={draft.start} value={draft.end} disabled={saving} onChange={value => setDraft(previous => ({ ...previous, end: value }))} />
                 </div>
               </div>
-
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
-                  2. Lời nhắn riêng gửi kèm (Tùy chọn)
-                </label>
-                <textarea
-                  className="w-full bg-white border border-stone-200 rounded-2xl p-3 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none transition-all"
-                  rows={2}
-                  placeholder={`Chào ${collaboratorName}, Shop trân trọng mời bạn tham gia chiến dịch đặc biệt này với hoa hồng thưởng hấp dẫn!`}
-                  value={personalMessage}
-                  onChange={e => setPersonalMessage(e.target.value)}
-                />
-              </div>
-
-
-              {selectedCampaign && (
-                <div className="p-3.5 bg-gradient-to-br from-amber-100/70 via-orange-50/80 to-amber-50 border border-amber-300/80 rounded-2xl shadow-xs space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                    <span className="inline-flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Xem trước Thẻ Mời VIP
-                    </span>
-                    <span className="text-[10px] text-amber-700 bg-white/80 px-2 py-0.5 rounded-full border border-amber-200">
-                      Hiển thị trong chat
-                    </span>
-                  </div>
-                  <div className="text-xs text-stone-800 font-semibold">
-                    🎯 {selectedCampaign.name}
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-amber-800 font-bold">
-                      Thưởng thêm: +{selectedCampaign.bonusCommissionRate}% hoa hồng
-                    </span>
-                    <span className="text-[11px] text-stone-600">
-                      Hạn:{' '}
-                      {new Date(selectedCampaign.endDate).toLocaleDateString('vi-VN')}
-                    </span>
+              <div ref={datePopoverRef} />
+              {createError && <p role="alert" className="m-0 text-xs text-[#DC2626] leading-relaxed">{createError}</p>}
+            </form>
+          ) : campaigns.length === 0 ? (
+            <div className="min-h-[140px] flex flex-col justify-center items-center gap-3 text-center text-xs text-[#7D715E]">
+              <Crown size={26} className="text-[#B88E4F]" />
+              <strong className="text-sm font-semibold text-[#1A1612]">{unavailableCount ? 'Chưa có chiến dịch còn hiệu lực' : 'Thiết lập chiến dịch để mời KOL'}</strong>
+              <p className="m-0 max-w-[310px] leading-relaxed text-[11px]">{unavailableCount ? 'Các chiến dịch hiện có đã kết thúc hoặc bị tắt. Thiết lập chiến dịch mới, sau đó gửi lời mời.' : 'Gian hàng chưa có chiến dịch VIP. Thiết lập thời gian và hoa hồng một lần, sau đó dùng chiến dịch này để mời các KOL.'}</p>
+              <button type="button" onClick={() => { setCreating(true); setCreateError(''); }} className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] rounded-lg font-medium cursor-pointer"><Plus size={15} />Thiết lập & tiếp tục mời</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {createdCampaignId === campaignId && (
+                <div className="flex items-start gap-2 p-3 rounded-[10px] border border-[#EEDFC6] bg-[#FBF5EB]" role="status">
+                  <Check size={17} className="text-[#B88E4F] shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-xs font-semibold text-[#1A1612]">Chiến dịch đã sẵn sàng</strong>
+                    <p className="m-0 mt-1 text-[11px] leading-relaxed text-[#7D715E]">{conversationId ? `Bấm “Gửi lời mời VIP” để mời ${recipientName}.` : 'Chọn KOL bên dưới, rồi bấm “Gửi lời mời VIP”.'}</p>
                   </div>
                 </div>
               )}
-            </>
+              <div>
+                <label className="block text-xs font-semibold text-[#1A1612] mb-1.5">Người nhận lời mời</label>
+                {conversationId ? (
+                  <div className="flex items-center gap-2 p-2.5 bg-[#FBF5EB] border border-[#EEDFC6] rounded-[10px] text-xs">
+                    <Users size={16} className="text-[#B88E4F] shrink-0" />
+                    <strong className="font-semibold text-[#1A1612]">{recipientName}</strong>
+                    <span className="ml-auto text-[9px] text-[#7D715E]">KOL / CTV</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search size={15} className="absolute left-3 top-3 text-[#7D715E]" />
+                      <input ref={recipientSearchRef} aria-label="Tìm KOL nhận lời mời" placeholder="Tìm tên hoặc email KOL…" value={query} disabled={submitting} onChange={event => setQuery(event.target.value)} className="w-full h-9.5 pl-9 pr-3 border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5] text-xs text-[#1A1612] outline-none focus:border-[#C59B58] focus:bg-white" />
+                    </div>
+                    <div className="max-h-40 overflow-y-auto mt-2 [scrollbar-width:thin] space-y-1" role="group" aria-label="KOL nhận lời mời">
+                      {visibleRecipients.length ? visibleRecipients.map(person => {
+                        const isSelected = recipientId === person.id;
+                        return (
+                          <button
+                            type="button"
+                            key={person.id}
+                            aria-pressed={isSelected}
+                            disabled={submitting}
+                            onClick={() => { setRecipientId(person.id); setSendError(''); }}
+                            className={`flex items-center gap-2.5 w-full text-left p-2 border rounded-[10px] cursor-pointer transition-colors ${
+                              isSelected ? 'bg-[#FBF5EB] border-[#EEDFC6]' : 'bg-white border-transparent hover:bg-[#FAF8F5]'
+                            }`}
+                          >
+                            <span className="w-8 h-8 shrink-0 grid place-items-center bg-[#F3EFE6] border border-[#EAE4D7] rounded-[10px] text-xs font-semibold text-[#B88E4F] overflow-hidden">
+                              {(person.collaboratorProfile?.avatarUrl || person.avatarUrl) ? <img src={person.collaboratorProfile?.avatarUrl || person.avatarUrl} alt="" className="w-full h-full object-cover" /> : person.fullName.charAt(0)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <strong className="block text-xs leading-snug font-semibold text-[#1A1612] truncate">{person.fullName}</strong>
+                              <small className="block text-[10px] text-[#7D715E] truncate">{person.email}</small>
+                            </span>
+                            <span className={`w-4 h-4 rounded-full shrink-0 ${isSelected ? 'border-4 border-[#C59B58] bg-white' : 'border border-[#EAE4D7] bg-white'}`} aria-hidden="true" />
+                          </button>
+                        );
+                      }) : <p className="p-4 text-center text-xs text-[#7D715E] m-0">Không tìm thấy KOL phù hợp.</p>}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-[#1A1612]">Chiến dịch</label>
+                  <button type="button" disabled={busy} onClick={() => { setCreating(true); setCreateError(''); }} className="flex items-center gap-1 border-0 bg-transparent text-[#B88E4F] text-[11px] font-medium cursor-pointer hover:underline">
+                    <Plus size={13} />Tạo mới
+                  </button>
+                </div>
+                <Select aria-label="Chiến dịch VIP" value={campaignId} disabled={submitting} onChange={event => { setCampaignId(event.target.value); setSendError(''); }} options={campaigns.map(campaign => ({ value: campaign.id, label: campaign.name }))} />
+                {selectedCampaign && (
+                  <div className="flex flex-wrap justify-between gap-1 mt-1.5 text-[10px] text-[#7D715E]">
+                    <span>Thưởng thêm <strong className="text-[#B88E4F] font-semibold">+{selectedCampaign.bonusCommissionRate}%</strong> hoa hồng</span>
+                    <span>Đến {new Date(selectedCampaign.endDate).toLocaleDateString('vi-VN')}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="vip-campaign-note" className="block text-xs font-semibold text-[#1A1612] mb-1.5">Lời nhắn <span className="font-normal text-[#7D715E]">· Không bắt buộc</span></label>
+                <textarea id="vip-campaign-note" rows={2} maxLength={1000} disabled={submitting} placeholder="Gửi lời chào hoặc đề xuất hợp tác…" value={note} onChange={event => setNote(event.target.value)} className="w-full p-2.5 border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5] text-xs text-[#1A1612] outline-none focus:border-[#C59B58] focus:bg-white resize-y" />
+              </div>
+
+              {recipientName && <p className="text-[11px] leading-relaxed text-[#7D715E] m-0">Lời mời sẽ gửi tới <strong className="font-semibold text-[#1A1612]">{recipientName}</strong> trong hội thoại KOL.</p>}
+              {!recipientName && <p className="text-[11px] leading-relaxed text-[#7D715E] m-0">Chọn một KOL để bật nút gửi lời mời.</p>}
+              {sendError && <p role="alert" className="text-xs text-[#DC2626] m-0">{sendError}</p>}
+            </div>
           )}
         </div>
 
-
-        <div className="px-6 py-4 bg-white border-t border-stone-200 flex items-center justify-end gap-3 shadow-inner">
-          <button
-            type="button"
-            className="px-4 py-2 text-xs font-bold text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-xl transition-colors"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Hủy bỏ
+        <footer className="flex justify-end gap-2.5 p-3.5 sm:px-5 border-t border-[#EAE4D7] bg-white">
+          <button type="button" disabled={busy} onClick={() => creating ? setCreating(false) : onClose()} className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 border border-[#EAE4D7] rounded-[10px] bg-white text-[#7D715E] text-xs font-medium cursor-pointer hover:bg-[#FAF8F5]">
+            {creating ? 'Quay lại' : 'Đóng'}
           </button>
-          <button
-            type="button"
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-md active:scale-95 ${
-              campaigns.length > 0 && selectedCampaignId && !submitting
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-amber-500/20'
-                : 'bg-stone-300 text-stone-500 cursor-not-allowed'
-            }`}
-            onClick={handleSubmit}
-            disabled={campaigns.length === 0 || !selectedCampaignId || submitting}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang gửi thẻ mời...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span>Gửi Thẻ Mời VIP Ngay</span>
-              </>
-            )}
-          </button>
-        </div>
+          {creating ? (
+            <button type="submit" form="vip-create-campaign" disabled={saving} className="inline-flex items-center justify-center gap-1.5 h-[38px] px-4 border border-[#EEDFC6] rounded-[10px] bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:bg-[#F3E8D5] cursor-pointer">
+              {saving ? <Loader2 size={16} className="animate-spin text-[#B88E4F]" /> : <Plus size={16} className="text-[#B88E4F]" />}
+              {saving ? 'Đang lưu…' : 'Tạo & tiếp tục mời'}
+            </button>
+          ) : campaigns.length > 0 && (
+            <button ref={sendButtonRef} type="button" disabled={!canSend} onClick={() => void submit()} className="inline-flex items-center justify-center gap-1.5 h-[38px] px-4 border border-[#EEDFC6] rounded-[10px] bg-[#FBF5EB] text-[#1A1612] text-xs font-semibold hover:bg-[#F3E8D5] cursor-pointer disabled:opacity-50">
+              {submitting ? <Loader2 size={16} className="animate-spin text-[#B88E4F]" /> : <Send size={16} className="text-[#B88E4F]" />}
+              {submitting ? 'Đang gửi…' : 'Gửi lời mời VIP'}
+            </button>
+          )}
+        </footer>
       </div>
     </div>
   );

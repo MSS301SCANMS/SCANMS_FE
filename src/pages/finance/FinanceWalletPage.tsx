@@ -528,7 +528,7 @@ export default function FinanceWalletPage() {
             )}
 
             {banks.map((b) => {
-              const matchedInfo = FALLBACK_VIET_BANKS.find((item) => item.bin === b.bankCode);
+              const matchedInfo = (FALLBACK_VIET_BANKS as any[]).find((item: any) => item.bin === b.bankCode);
               const logoUrl = matchedInfo?.logo || `https://cdn.vietqr.io/img/${matchedInfo?.code || 'BANK'}.png`;
               const isVerified = b.verificationStatus === 'VERIFIED';
               return (
@@ -661,7 +661,7 @@ export default function FinanceWalletPage() {
                   </label>
                   <VietnameseBankPicker
                     value={bankCode}
-                    onChange={(bin) => setBankCode(bin)}
+                    onChange={(bin: string) => setBankCode(bin)}
                   />
                 </div>
 

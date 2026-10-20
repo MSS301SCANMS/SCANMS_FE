@@ -1,101 +1,28 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { getChatSocket } from '../services/chat-socket.service';
-import type { ChatAttachmentType } from '../types/chat';
+import type {
+  ChatAttachmentType,
+  ChatProductInfo,
+  ChatStoreInfo,
+  ChatCouponVoucher,
+  ChatExclusiveDeal,
+  ChatMessageItem,
+  ChatConversationItem,
+  ScanmsChatContextType,
+} from '@/types/chat.types';
 import { toast } from '../utils/toast';
 
-export interface ChatProductInfo {
-  id: string;
-  title: string;
-  price: number;
-  originalPrice?: number;
-  imageUrl?: string;
-  sku?: string;
-  soldCount?: number;
-}
-
-export interface ChatStoreInfo {
-  id: string;
-  name: string;
-  logoUrl?: string;
-  isVerified?: boolean;
-}
-
-export interface ChatCouponVoucher {
-  id: string;
-  code: string;
-  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT';
-  discountValue: number;
-  minimumOrderAmount: number | null;
-  maximumDiscountAmount: number | null;
-  remainingUses: number | null;
-  expiresAt: string | null;
-  scopeType: string;
-  products: Array<{ id: string; title: string }>;
-  categories: string[];
-  storeName: string;
-}
-
-export interface ChatExclusiveDeal {
-  type: 'EXCLUSIVE_DEAL_PROPOSAL' | 'EXCLUSIVE_DEAL_DECISION';
-  proposalId?: string;
-  productTitle?: string;
-  storeName?: string;
-  publicCommissionRate?: number;
-  currentCommissionRate?: number | null;
-  previousCommissionRate?: number | null;
-  isRevision?: boolean;
-  message?: string;
-  proposedCommissionRate?: number;
-  approvedCommissionRate?: number;
-  salesCommitment?: string;
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
-  shopResponse?: string | null;
-  shortUrl?: string | null;
-}
-
-export interface ChatMessageItem {
-  id: string;
-  sender: 'user' | 'shop';
-  content: string;
-  timestamp: string;
-  product?: ChatProductInfo;
-  products?: ChatProductInfo[];
-  coupon?: ChatCouponVoucher;
-  mediaUrl?: string;
-  mediaType?: ChatAttachmentType;
-  mediaName?: string;
-}
-
-export interface ChatConversationItem {
-  id: string;
-  store: ChatStoreInfo;
-  lastMessage: string;
-  lastTime: string;
-  unreadCount: number;
-  messages: ChatMessageItem[];
-}
-
-export interface ScanmsChatContextType {
-  isOpen: boolean;
-  isMinimized: boolean;
-  activeConversationId: string;
-  conversations: ChatConversationItem[];
-  activeConversation: ChatConversationItem | null;
-  activeProduct: ChatProductInfo | null;
-  openChat: (store?: ChatStoreInfo, product?: ChatProductInfo) => void;
-  closeChat: () => void;
-  toggleMinimize: () => void;
-  selectConversation: (id: string) => void;
-  sendMessage: (content: string) => void;
-  sendAttachment: (file: File, type: ChatAttachmentType, caption?: string) => Promise<void>;
-  sendProductsInquiry: (products: ChatProductInfo[]) => boolean;
-  shareCouponVoucher: (coupon: ChatCouponVoucher) => boolean;
-  clearActiveProduct: () => void;
-  deleteConversation: (id: string) => Promise<boolean>;
-  clearConversationMessages: (id: string) => Promise<boolean>;
-  clearAllConversations: () => void;
-}
+export type {
+  ChatAttachmentType,
+  ChatProductInfo,
+  ChatStoreInfo,
+  ChatCouponVoucher,
+  ChatExclusiveDeal,
+  ChatMessageItem,
+  ChatConversationItem,
+  ScanmsChatContextType,
+};
 
 const DEFAULT_CONVERSATIONS: ChatConversationItem[] = [
   {
@@ -144,26 +71,44 @@ function getChatStorageKey(scope = getChatStorageScope()): string {
   return `scanms_chat_conversations:${encodeURIComponent(scope)}`;
 }
 
+function formatTimeDisplay(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return 'Hôm qua';
+  }
+  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+}
+
 function loadCachedConversations(scope: string): ChatConversationItem[] {
   try {
+    const isGuest = scope === 'guest';
     const key = getChatStorageKey(scope);
     const legacyKey = `scanms_shopee_chat_conversations:${encodeURIComponent(scope)}`;
     const saved = localStorage.getItem(key) || localStorage.getItem(legacyKey);
-    if (!saved) return DEFAULT_CONVERSATIONS;
+    if (!saved) return isGuest ? DEFAULT_CONVERSATIONS : [];
     const parsed: ChatConversationItem[] = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return DEFAULT_CONVERSATIONS;
+    if (!Array.isArray(parsed)) return isGuest ? DEFAULT_CONVERSATIONS : [];
     const filtered = parsed.filter(
       (c) =>
         c?.store?.name &&
         !c.store.name.toLowerCase().includes('marie.japan') &&
         !c.store.name.toLowerCase().includes('umizoku') &&
         c.id !== 'conv-marie-japan' &&
-        c.id !== 'conv-umizoku'
+        c.id !== 'conv-umizoku' &&
+        (isGuest || c.id !== 'conv-sora-skin')
     );
     const deduped = deduplicateConversations(filtered);
-    return deduped.length > 0 ? deduped : DEFAULT_CONVERSATIONS;
+    return deduped.length > 0 ? deduped : (isGuest ? DEFAULT_CONVERSATIONS : []);
   } catch {
-    return DEFAULT_CONVERSATIONS;
+    return scope === 'guest' ? DEFAULT_CONVERSATIONS : [];
   }
 }
 
@@ -293,10 +238,8 @@ function mapServerConversation(raw: any): ChatConversationItem {
       logoUrl: isUnsafeShopLogo(rawLogo) ? undefined : rawLogo,
     },
     lastMessage: getChatMessagePreview(last?.messageText, last?.mediaName),
-    lastTime: last?.createdAt
-      ? new Date(last.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-      : '',
-    unreadCount: 0,
+    lastTime: last?.createdAt ? formatTimeDisplay(last.createdAt) : '',
+    unreadCount: Number(raw._count?.chatMessages) || 0,
     messages: [],
   };
 }
@@ -328,12 +271,18 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
   const [activeProduct, setActiveProduct] = useState<ChatProductInfo | null>(null);
   const socketRef = useRef<ReturnType<typeof getChatSocket> | null>(null);
   const authScopeRef = useRef(getChatStorageScope());
+  const visibleChatRef = useRef({ isOpen: false, conversationId: activeConversationId });
+  visibleChatRef.current = { isOpen: isOpen && !isMinimized, conversationId: activeConversationId };
 
   const ensureSocket = () => {
     const socket = getChatSocket();
     if (socketRef.current !== socket) {
       socket.on('new_message', (raw: any) => {
         const message = mapServerMessage(raw);
+        if (message.sender !== 'user' && visibleChatRef.current.isOpen &&
+            visibleChatRef.current.conversationId === raw.conversationId && document.visibilityState === 'visible') {
+          void api.patch(`/chat/conversations/${raw.conversationId}/read`).catch(() => undefined);
+        }
         setConversations((prev) => prev.map((conv) => {
           if (conv.id !== raw.conversationId || conv.messages.some((item) => item.id === message.id)) return conv;
           return {
@@ -346,6 +295,11 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
       });
       socket.on('error', (error: { message?: string }) => {
         if (error?.message) toast.error(error.message);
+      });
+      socket.on('messages_read', (event: { readerId: string; conversationId: string }) => {
+        if (event.readerId === getCurrentUserId()) {
+          setConversations((prev) => prev.map((conv) => conv.id === event.conversationId ? { ...conv, unreadCount: 0 } : conv));
+        }
       });
       socketRef.current = socket;
     }
@@ -360,8 +314,9 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
       const currentScope = getChatStorageScope();
       if (authScopeRef.current !== currentScope) {
         authScopeRef.current = currentScope;
-        setConversations(loadCachedConversations(currentScope));
-        setActiveConversationId('conv-sora-skin');
+        const initial = loadCachedConversations(currentScope);
+        setConversations(initial);
+        setActiveConversationId(initial[0]?.id || '');
         setActiveProduct(null);
         setIsOpen(false);
         setIsMinimized(false);
@@ -382,29 +337,42 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
                 lastMessage: srv.lastMessage !== 'Bắt đầu cuộc trò chuyện' ? srv.lastMessage : (localMatch?.lastMessage || srv.lastMessage),
               };
             });
-            return deduplicateConversations([...mergedMapped, ...prev]);
+            const pendingOptimistic = prev.filter(
+              (p) => !UUID_REGEX.test(p.id) && p.id !== 'conv-sora-skin' && p.store?.id && !mapped.some((m) => m.store?.id === p.store?.id)
+            );
+            return deduplicateConversations([...mergedMapped, ...pendingOptimistic]);
           });
           if (mapped.length) {
-            setActiveConversationId((current) => UUID_REGEX.test(current) ? current : mapped[0].id);
+            setActiveConversationId((current) => UUID_REGEX.test(current) && mapped.some((m) => m.id === current) ? current : mapped[0].id);
+          } else {
+            setActiveConversationId('');
           }
           ensureSocket();
         })
         .catch(() => {});
     };
     reloadConversations();
+    const readVisibleChat = () => {
+      const current = visibleChatRef.current;
+      if (current.isOpen && document.visibilityState === 'visible' && UUID_REGEX.test(current.conversationId) && localStorage.getItem('token')) {
+        void api.patch(`/chat/conversations/${current.conversationId}/read`).catch(() => undefined);
+      }
+    };
     window.addEventListener('auth-user-updated', reloadConversations);
+    document.addEventListener('visibilitychange', readVisibleChat);
     return () => {
       cancelled = true;
       window.removeEventListener('auth-user-updated', reloadConversations);
+      document.removeEventListener('visibilitychange', readVisibleChat);
     };
   }, []);
 
   useEffect(() => {
-    if (!isOpen || !UUID_REGEX.test(activeConversationId) || !localStorage.getItem('token')) return;
+    if (!isOpen || isMinimized || !UUID_REGEX.test(activeConversationId) || !localStorage.getItem('token')) return;
     let cancelled = false;
     const socket = ensureSocket();
     socket.emit('join_conversation', { conversationId: activeConversationId });
-    api.get(`/chat/conversations/${activeConversationId}/messages?take=50`)
+    api.get(`/chat/conversations/${activeConversationId}/messages?take=50`, { headers: { 'x-skip-cache': '1' } })
       .then((result: any) => {
         const rows = Array.isArray(result) ? result : result?.data || [];
         if (cancelled || !Array.isArray(rows)) return;
@@ -415,13 +383,16 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
           const justArrived = conv.messages.filter((message) => !fetchedIds.has(message.id));
           return { ...conv, messages: [...fetched, ...justArrived] };
         }));
+        if (document.visibilityState === 'visible') {
+          void api.patch(`/chat/conversations/${activeConversationId}/read`).catch(() => undefined);
+        }
       })
       .catch((error: any) => toast.error(error?.message || 'Không tải được lịch sử chat.'));
     return () => {
       cancelled = true;
       socket.emit('leave_conversation', { conversationId: activeConversationId });
     };
-  }, [activeConversationId, isOpen]);
+  }, [activeConversationId, isOpen, isMinimized]);
 
   useEffect(() => {
     try {

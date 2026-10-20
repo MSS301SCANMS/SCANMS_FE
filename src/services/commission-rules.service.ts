@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface CommissionRule {
   id: string;
@@ -166,10 +166,11 @@ export const commissionRulesService = {
     storeId: string,
     collaboratorId: string,
     yearMonth: string,
+    allowUnfinishedMonth = false,
   ): Promise<SettlementResponse> {
     const res: any = await api.post(
       `/stores/${storeId}/commission-rules/settle`,
-      { collaboratorId, yearMonth },
+      { collaboratorId, yearMonth, allowUnfinishedMonth },
     );
     return res.data || res;
   },
@@ -270,4 +271,3 @@ export const commissionRulesService = {
 };
 
 export default commissionRulesService;
-

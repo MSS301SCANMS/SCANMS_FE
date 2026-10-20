@@ -11,6 +11,9 @@ type LiveStreamTransportOptions = {
   sessionId?: string;
   isHost: boolean;
   localStream: MediaStream | null;
+  onNewChatMessage?: (msg: any) => void;
+  onPinnedProductChange?: (data: { productIndex: number; productId?: string }) => void;
+  onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -22,6 +25,9 @@ export function useLiveStreamTransport({
   sessionId,
   isHost,
   localStream,
+  onNewChatMessage,
+  onPinnedProductChange,
+  onReactionBroadcast,
 }: LiveStreamTransportOptions) {
   const socketRef = useRef<Socket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(localStream);
@@ -37,6 +43,13 @@ export function useLiveStreamTransport({
   const [isStreamLive, setIsStreamLive] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
+
+  const onNewChatMessageRef = useRef(onNewChatMessage);
+  onNewChatMessageRef.current = onNewChatMessage;
+  const onPinnedProductChangeRef = useRef(onPinnedProductChange);
+  onPinnedProductChangeRef.current = onPinnedProductChange;
+  const onReactionBroadcastRef = useRef(onReactionBroadcast);
+  onReactionBroadcastRef.current = onReactionBroadcast;
 
   localStreamRef.current = localStream;
 
@@ -329,6 +342,15 @@ export function useLiveStreamTransport({
     socket.on('live_signal', (payload: { fromSocketId?: string; signal?: LiveSignal }) => {
       void handleSignal(payload);
     });
+    socket.on('new_live_chat', (msg: any) => {
+      onNewChatMessageRef.current?.(msg);
+    });
+    socket.on('product_pinned_changed', (data: any) => {
+      onPinnedProductChangeRef.current?.(data);
+    });
+    socket.on('reaction_broadcast', (data: any) => {
+      onReactionBroadcastRef.current?.(data);
+    });
 
     const hostPeers = hostPeersRef.current;
     const viewerPeers = viewerPeersRef.current;
@@ -385,5 +407,27 @@ export function useLiveStreamTransport({
     }
   }, [createHostPeer, isHost, localStream, roomJoined, sessionId]);
 
-  return { remoteStream, hostOnline, isStreamLive, streamError, sessionEnded };
+  const sendLiveChat = useCallback((text: string, senderInfo?: { sender?: string; avatar?: string; role?: string }) => {
+    socketRef.current?.emit('send_live_chat', { sessionId, text, ...senderInfo });
+  }, [sessionId]);
+
+  const pinProduct = useCallback((productIndex: number, productId?: string) => {
+    socketRef.current?.emit('host_pin_product', { sessionId, productIndex, productId });
+  }, [sessionId]);
+
+  const sendReaction = useCallback((emoji: string, iconUrl?: string) => {
+    socketRef.current?.emit('send_reaction', { sessionId, emoji, iconUrl });
+  }, [sessionId]);
+
+  return {
+    remoteStream,
+    hostOnline,
+    isStreamLive,
+    streamError,
+    sessionEnded,
+    sendLiveChat,
+    pinProduct,
+    sendReaction,
+    socket: socketRef.current,
+  };
 }

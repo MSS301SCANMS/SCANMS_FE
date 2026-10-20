@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { RefreshCw, Scale } from 'lucide-react';
 import { returnService, type ReturnDisputeRecord } from '../../services/return.service';
 import { ReturnTimeline } from '../../components/returns/ReturnTimeline';
+import { toast } from '../../utils/toast';
 
 type Ruling = 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP';
 
@@ -27,8 +28,12 @@ export default function AdminReturnDisputesPage() {
       returnService.resolveDispute(id, data),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['return-disputes'] });
+      toast.success('Đã lưu quyết định phán quyết trọng tài thành công!');
       setSelectedId(null);
       setNotes('');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể lưu quyết định. Vui lòng thử lại.');
     },
   });
   const rows = disputes.data ?? [];

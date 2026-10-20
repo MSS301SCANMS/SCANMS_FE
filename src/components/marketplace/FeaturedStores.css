@@ -1,0 +1,8 @@
+.featured-store-rail { container-type:inline-size; display:flex; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; -ms-overflow-style:none; cursor:grab; touch-action:pan-x pan-y; }
+.featured-store-rail::-webkit-scrollbar { display:none; width:0; height:0; }
+.featured-store-rail[data-dragging="true"] { cursor:grabbing; user-select:none; }
+.featured-store-rail[data-dragging="true"] a { cursor:grabbing; }
+.featured-store-group { display:flex; flex-shrink:0; align-items:stretch; gap:16px; padding-right:16px; }
+.featured-store-card { width:min(350px,85cqw); }
+@media(min-width:640px) { .featured-store-card { width:min(350px,calc((100cqw - 16px)/2)); } }
+@media(min-width:1024px) { .featured-store-card { width:min(350px,calc((100cqw - 32px)/3)); } }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import FaceFilterWorker from '../workers/liveFaceFilter.worker?worker';
-import { drawFaceEffect, type FacePoint, type FaceFilter } from '../features/live/faceFilters';
-export { FACE_FILTERS, type FaceFilter } from '../features/live/faceFilters';
+import FaceFilterWorker from '@/components/live/liveFaceFilter.worker?worker';
+import { drawFaceEffect, type FacePoint, type FaceFilter } from '@/components/live/faceFilters';
+export { FACE_FILTERS, type FaceFilter } from '@/components/live/faceFilters';
 
 // The captured canvas is shared by the host preview and WebRTC senders.
 export function useLiveFaceFilter(source: MediaStream | null, filter: FaceFilter, strength: number) {

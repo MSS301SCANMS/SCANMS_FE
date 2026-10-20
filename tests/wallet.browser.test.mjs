@@ -61,6 +61,7 @@ test(
       };
       let withdrawals = [];
       let postCount = 0;
+      let ledgerPaging = false;
       await page.setRequestInterception(true);
       page.on("request", (request) => {
         void (async () => {
@@ -116,20 +117,21 @@ test(
                 availableBalance: summary.availableBalance,
               };
             } else if (requestUrl.pathname === "/api/wallets/me/ledger") {
+              const requestedPage = Number(requestUrl.searchParams.get('page') || 1);
               data = {
                 entries: withdrawals.map((withdrawal) => ({
-                  id: "ledger-" + withdrawal.id,
+                  id: ledgerPaging && requestedPage === 2 ? 'ledger-older-page' : "ledger-" + withdrawal.id,
                   transactionType: "PAYOUT_WITHDRAW",
                   balanceBucket: "AVAILABLE",
                   amount: "-200000.10",
                   balanceBefore: "500000.31",
                   balanceAfter: "300000.21",
-                  referenceId: withdrawal.id,
+                  referenceId: ledgerPaging && requestedPage === 2 ? 'older-page-reference' : withdrawal.id,
                   referenceType: "PAYOUT_REQUEST",
                   createdAt: withdrawal.createdAt,
                 })),
-                total: withdrawals.length,
-                page: 1,
+                total: ledgerPaging ? 11 : withdrawals.length,
+                page: requestedPage,
                 limit: 10,
               };
             } else if (requestUrl.pathname === "/api/wallets/withdrawals") {
@@ -210,7 +212,7 @@ test(
           () =>
             document
               .querySelector("tbody")
-              ?.textContent.includes("ui-test-request"),
+              ?.textContent.includes("ui-test-"),
           { timeout: 5000 },
         );
       } catch (error) {
@@ -246,23 +248,49 @@ test(
       await page.waitForFunction(
         () =>
           getComputedStyle(document.querySelector('form button[type="submit"]'))
-            .backgroundColor === "rgb(197, 155, 88)",
-      );
+            .backgroundColor === "rgb(251, 245, 235)",
+        { timeout: 5000 },
+      ).catch(async error => { throw new Error(`Unexpected withdrawal CTA: ${await page.$eval('form button[type="submit"]', el => JSON.stringify({ disabled: el.disabled, color: getComputedStyle(el).backgroundColor, className: el.className }))}`, { cause: error }); });
       assert.equal(
         await page.$eval(
           'form button[type="submit"]',
           (element) => getComputedStyle(element).backgroundColor,
         ),
-        "rgb(197, 155, 88)",
+        "rgb(251, 245, 235)",
       );
+
+      ledgerPaging = true;
+      await page.waitForFunction(() => !document.querySelector('button[aria-label="Tải lại ví"]').disabled);
+      await page.evaluate(() => document.querySelector('button[aria-label="Tải lại ví"]').click());
+      await page.waitForFunction(() => !document.querySelector('button[aria-label="Trang giao dịch sau"]').disabled);
+      await page.click('button[aria-label="Trang giao dịch sau"]');
+      await page.waitForFunction(() => document.querySelector('table[aria-label="Sổ cái tài chính"] tbody')?.textContent.includes('older-pa'));
+
+      // The total wallet can have money while the selected store cannot pay it.
+      summary.stores[0].availableBalance = '0.00';
+      summary.unallocatedAvailableBalance = summary.availableBalance;
+      summary.canWithdraw = false;
+      await page.click('button[aria-label="Tải lại ví"]');
+      await page.waitForFunction(() => document.querySelector('form button[type="submit"]')?.disabled);
+      assert.ok((await page.$eval('.kol-wallet-notice', element => element.textContent)).includes('chưa thể rút'));
+      assert.ok(!(await page.$eval('.kol-wallet-balances', element => element.textContent)).includes('Đủ điều kiện rút'));
+      assert.equal(postCount, 1);
+
+      if (process.env.WALLET_SCREENSHOT_DIR) {
+        await page.screenshot({path: `${process.env.WALLET_SCREENSHOT_DIR}/wallet-desktop.png`, fullPage: true});
+        await page.setViewport({width: 390, height: 844});
+        await page.screenshot({path: `${process.env.WALLET_SCREENSHOT_DIR}/wallet-mobile.png`, fullPage: true});
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Mobile must not overflow horizontally');
+      }
 
       summary.kycStatus = "UNVERIFIED";
       summary.canWithdraw = false;
       await page.click('button[aria-label="Tải lại ví"]');
       await page.waitForFunction(
-        () => document.querySelector("#withdrawal-amount")?.disabled,
+        () => document.querySelector('form button[type="submit"]')?.disabled && document.querySelector('.kol-wallet-transfer')?.textContent.includes('Mở hồ sơ KYC'),
       );
-      assert.ok(await page.$('a[href="/collaborator/kyc"]'));
+      await page.evaluate(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Mở hồ sơ KYC').click());
+      await page.waitForFunction(() => new URL(location.href).searchParams.get('tab') === 'kyc');
     } finally {
       await browser.close();
     }

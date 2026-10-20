@@ -1,0 +1,25 @@
+.tracking-kind-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  height: 44px;
+  padding: 0 26px;
+  text-align: center;
+  text-align-last: center;
+  line-height: 1.4;
+}
+
+.tracking-kind-select::picker-icon {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  margin-inline-start: 0;
+  font-size: 11px;
+}
+
+.tracking-kind-select option {
+  text-align: center;
+}

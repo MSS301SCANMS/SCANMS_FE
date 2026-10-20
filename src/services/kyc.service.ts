@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface KycProfile {
   id: string;
@@ -71,6 +71,16 @@ export interface StoreApplication {
   };
 }
 
+export interface SocialChannelFormItem {
+  id?: string;
+  platform: 'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM' | 'SHOPEE_VIDEO' | 'LEMON8' | 'OTHER';
+  channelName: string;
+  channelUrl: string;
+  followerCount: number;
+  channelProofUrl?: string;
+  isPrimary?: boolean;
+}
+
 export interface ApplyKolData {
   idCardNumber: string;
   taxCode?: string;
@@ -80,11 +90,14 @@ export interface ApplyKolData {
   bio?: string;
   frontCardUrl?: string;
   backCardUrl?: string;
-  platform: 'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM' | 'LEMON8' | 'OTHER';
-  channelName: string;
-  channelUrl: string;
-  followerCount: number;
+  platform?: 'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM' | 'SHOPEE_VIDEO' | 'LEMON8' | 'OTHER';
+  channelName?: string;
+  channelUrl?: string;
+  followerCount?: number;
   channelProofUrl?: string;
+  channels?: SocialChannelFormItem[];
+  specialtyCategories?: string[];
+  contentStyles?: string[];
 }
 
 export interface ApplyShopData {
@@ -113,6 +126,7 @@ export interface UpgradeStatusResponse {
     tier?: string;
     totalFollowers: number;
     socialLinksJson?: any;
+    channels?: any[];
     submittedAt: string;
     updatedAt: string;
   } | null;
@@ -132,8 +146,10 @@ export interface UpgradeStatusResponse {
 }
 
 export const kycService = {
-  async getMyKyc(): Promise<KycProfile> {
-    const res: any = await api.get('/kyc/profile');
+  async getMyKyc(options: { forceRefresh?: boolean } = {}): Promise<KycProfile> {
+    const res: any = await api.get('/kyc/profile', options.forceRefresh
+      ? { headers: { 'x-skip-cache': 'true' } }
+      : undefined);
     return res.data;
   },
 
@@ -203,4 +219,3 @@ export const kycService = {
     return res.data;
   },
 };
-

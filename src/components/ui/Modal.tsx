@@ -9,9 +9,10 @@ export interface ModalProps {
   subtitle?: ReactNode;
   icon?: ReactNode;
   children: ReactNode;
+  footer?: ReactNode;
   className?: string;
   stickyHeader?: boolean;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full';
 }
 
 export function Modal({
@@ -21,6 +22,7 @@ export function Modal({
   subtitle,
   icon,
   children,
+  footer,
   className,
   stickyHeader = false,
   maxWidth = 'md',
@@ -44,6 +46,11 @@ export function Modal({
     xl: 'max-w-xl',
     '2xl': 'max-w-2xl',
     '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+    '6xl': 'max-w-6xl',
+    '7xl': 'max-w-7xl',
+    full: 'max-w-[96vw] w-[96vw]',
   };
 
   return (
@@ -53,7 +60,8 @@ export function Modal({
     >
       <div
         className={cn(
-          'bg-white rounded-2xl p-6 sm:p-7 w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left transition-all',
+          'bg-white rounded-2xl w-full shadow-2xl border border-slate-200 flex flex-col text-left transition-all',
+          stickyHeader ? 'max-h-[90dvh] overflow-hidden' : 'p-6 sm:p-7 gap-4',
           maxWidthStyles[maxWidth],
           className
         )}
@@ -61,10 +69,10 @@ export function Modal({
       >
         {(title || icon) && (
           <div className={cn(
-            'flex justify-between items-center pb-2 border-b border-slate-100',
-            stickyHeader && 'sticky top-0 z-20 -mx-6 -mt-6 bg-white px-6 pt-6 pb-3 sm:-mx-7 sm:-mt-7 sm:px-7 sm:pt-7'
+            'flex shrink-0 justify-between items-center gap-3 border-b border-slate-100',
+            stickyHeader ? 'bg-white px-6 py-4 sm:px-7 sm:py-5' : 'pb-2'
           )}>
-            <div className="flex items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
               {icon && (
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-lg shrink-0">
                   {icon}
@@ -79,14 +87,19 @@ export function Modal({
               type="button"
               onClick={onClose}
               aria-label="Đóng cửa sổ"
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              className="shrink-0 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         )}
 
-        {children}
+        {stickyHeader ? (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 sm:p-7">
+            {children}
+          </div>
+        ) : children}
+        {footer && <div className="shrink-0 border-t border-[#EAE4D7] px-6 py-3 sm:px-7">{footer}</div>}
       </div>
     </div>
   );

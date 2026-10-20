@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface Product {
   id: string;
@@ -10,6 +10,11 @@ export interface Product {
   ingredients?: string | null;
   origin?: string | null;
   labelInfo?: string | null;
+  barcode?: string | null;
+  packageWeight?: number | null;
+  packageLength?: number | null;
+  packageWidth?: number | null;
+  packageHeight?: number | null;
   originProofLinks?: string[];
   originProofImages?: string[];
   labelProofLinks?: string[];
@@ -66,8 +71,8 @@ export const productService = {
     category?: string;
     page?: number;
     limit?: number;
-  }) {
-    const res: any = await api.get('/products', { params });
+  }, fresh = false) {
+    const res: any = await api.get('/products', { params, headers: fresh ? { 'x-skip-cache': 'true' } : undefined });
     return res.data;
   },
 
@@ -127,4 +132,3 @@ export const productService = {
     return res.data;
   },
 };
-

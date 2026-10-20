@@ -1,2 +1,1 @@
-// Re-export all symbols from ScanmsFloatingChatWidget for backward compatibility
-export * from './ScanmsFloatingChatWidget';
+export { default, ScanmsFloatingChatWidget, ShopeeFloatingChatWidget } from './ScanmsFloatingChatWidget';

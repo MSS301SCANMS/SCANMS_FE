@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface UploadResult {
   publicId: string;
@@ -30,7 +30,7 @@ export const uploadService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 
-    const data = res?.result || res?.data?.data || res?.data || res;
+    const data = res?.data?.data || res?.data || res;
     const secureUrl = data?.secureUrl || data?.url;
     if (!secureUrl) {
       throw new Error('Máy chủ không trả về đường dẫn ảnh sau khi tải lên Cloudinary');
@@ -61,7 +61,7 @@ export const uploadService = {
       timeout: 180000,
     });
 
-    const data = res?.result || res?.data?.data || res?.data || res;
+    const data = res?.data?.data || res?.data || res;
     const secureUrl = data?.secureUrl || data?.url;
     if (!secureUrl) {
       throw new Error('Máy chủ không trả về đường dẫn video sau khi tải lên Cloudinary');
@@ -81,4 +81,3 @@ export const uploadService = {
     }
   },
 };
-

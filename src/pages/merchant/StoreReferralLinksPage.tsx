@@ -1,4 +1,3 @@
-import './StoreReferralLinksPage.css';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Link2,
@@ -20,7 +19,7 @@ import { referralLinksService } from '../../services/referral-links.service';
 import type { ReferralLinkItem } from '../../services/referral-links.service';
 import api from '../../services/api';
 import { toast } from '../../utils/toast';
-import { getSafeProductImageUrl } from '../../features/marketplace/marketplaceUtils';
+import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { Select } from '../../components/ui/Select';
 
 export default function StoreReferralLinksPage() {
@@ -164,7 +163,7 @@ export default function StoreReferralLinksPage() {
   const hasActiveFilters = Boolean(search || statusFilter || channelFilter);
 
   return (
-    <div className="mx-auto flex w-full min-w-0 max-w-[1520px] flex-col gap-4 pb-8 pt-3 font-sans text-[#1A1612] sm:pt-4">
+    <div className="promotions-links mx-auto flex w-full min-w-0 max-w-[1520px] flex-col gap-4 pb-8 pt-3 font-sans text-[#1A1612] sm:pt-4">
       {/* Search & Filter Bar */}
       <div className="rounded-2xl border border-[#EAE4D7] bg-white p-3 shadow-[0_3px_12px_rgba(35,29,21,0.035)] sm:p-4">
         <form onSubmit={handleSearch} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_200px_180px_auto] xl:items-center">
@@ -236,7 +235,7 @@ export default function StoreReferralLinksPage() {
       </div>
 
       {/* Main Table Card */}
-      <div className="store-referral-panel min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-[0_4px_18px_rgba(35,29,21,0.04)]">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-sm">
         {loading ? (
           <div className="p-16 text-center text-[#7D715E] flex flex-col items-center justify-center gap-2">
             <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F]" />
@@ -259,16 +258,6 @@ export default function StoreReferralLinksPage() {
           </div>
         ) : (
           <>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#EAE4D7] bg-white px-4 py-3 sm:px-5">
-            <div>
-              <div className="text-sm font-bold text-[#1A1612]">Liên kết tiếp thị</div>
-              <div className="mt-0.5 text-[11px] text-[#7D715E]">Hiển thị {links.length} liên kết · Trang {page}</div>
-            </div>
-            <div className="hidden items-center gap-2 text-[10px] font-medium text-[#7D715E] sm:flex">
-              <span className="rounded-full border border-[#EAE4D7] bg-[#FAF8F5] px-2.5 py-1">Mã link có thể sao chép</span>
-              <span className="rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 py-1 text-[#8A642C]">Khóa link cần nêu lý do</span>
-            </div>
-          </div>
           <div className="relative isolate max-w-full overflow-x-auto" role="region" aria-label="Bảng liên kết tiếp thị, có thể cuộn ngang" tabIndex={0}>
             <table className="w-full min-w-[960px] table-fixed border-collapse text-left">
               <colgroup>
@@ -282,7 +271,10 @@ export default function StoreReferralLinksPage() {
               </colgroup>
               <thead>
                 <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[10px] font-bold uppercase tracking-[0.08em] text-[#5F5547]">
-                  <th className="px-4 py-3.5">KOL tiếp thị</th>
+                  <th className="px-4 py-3.5">
+                    <span className="block">KOL tiếp thị</span>
+                    <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-[#7D715E]">Hiển thị {links.length} liên kết</span>
+                  </th>
                   <th className="px-4 py-3.5">Sản phẩm &amp; chính sách</th>
                   <th className="px-4 py-3.5">Mã link &amp; kênh</th>
                   <th className="whitespace-nowrap px-2 py-3.5 text-center">Nhấp</th>

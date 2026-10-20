@@ -1,496 +1,490 @@
-import { useState, useEffect, useCallback } from 'react';
-import { format } from 'date-fns';
-import api from '../../services/api';
-import type { SampleRequest, SampleRequestStatus } from '../../types/samples';
-import { SubmitKolVideoModal } from '../../components/media/SubmitKolVideoModal';
-import { Select } from '../../components/ui/Select';
+import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Copy,
+  ExternalLink,
+  Package,
+  RefreshCw,
+  Search,
+  Truck,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import api from '@/services/api';
+import { useWorkspaceResource } from '@/hooks/useWorkspaceResource';
+import {
+  WorkspaceHero,
+  WorkspaceMetrics,
+  WorkspaceState,
+  workspaceButton,
+  workspaceInput,
+} from '@/components/ui/FeatureWorkspace';
+import type { SampleRequest } from '@/types/samples.types';
+import {
+  canSubmitSampleVideo,
+  SAMPLE_STATUS_LABELS,
+  sampleDeadline,
+  sampleNeedsAttention,
+} from '@/utils/sample-workspace';
 
-
-const STATUS_LABEL: Record<SampleRequestStatus, string> = {
-  PENDING: 'Chờ duyệt',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
-  SHIPPED: 'Đang giao',
-  RECEIVED: 'Đã nhận · chờ video',
-  VIDEO_SUBMITTED: 'Chờ Shop nghiệm thu',
-  REVISION_REQUIRED: 'Cần sửa video',
-  COMPLETED: 'Hoàn tất',
-  OVERDUE: 'Quá hạn',
-  CANCELLED: 'Đã hủy',
-  DELIVERY_ISSUE: 'Sự cố giao hàng',
-};
-
-const STATUS_CLASS: Record<SampleRequestStatus, string> = {
-  PENDING: 'bg-amber-50 text-amber-700 border border-amber-200',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  REJECTED: 'bg-rose-50 text-rose-700 border border-rose-200',
-  SHIPPED: 'bg-blue-50 text-blue-700 border border-blue-200',
-  RECEIVED: 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]',
-  VIDEO_SUBMITTED: 'bg-[#FBF5EB] text-[#8C6226] border border-[#EEDFC6]',
-  REVISION_REQUIRED: 'bg-rose-50 text-rose-700 border border-rose-200',
-  COMPLETED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  OVERDUE: 'bg-rose-50 text-rose-700 border border-rose-200',
-  CANCELLED: 'bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]',
-  DELIVERY_ISSUE: 'bg-rose-50 text-rose-700 border border-rose-200',
-};
-
-const STATUS_ICON: Record<SampleRequestStatus, string> = {
-  PENDING: '⏳',
-  APPROVED: '✅',
-  REJECTED: '❌',
-  SHIPPED: '🚚',
-  RECEIVED: '📦',
-  VIDEO_SUBMITTED: '🎬',
-  REVISION_REQUIRED: '📝',
-  COMPLETED: '✅',
-  OVERDUE: '⚠️',
-  CANCELLED: '—',
-  DELIVERY_ISSUE: '🚨',
-};
-
-function formatDate(d: string) {
-  return format(new Date(d), 'dd/MM/yyyy HH:mm');
-}
-
-
-function RequestModal({
-  onClose,
-  onSuccess,
-}: {
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [products, setProducts] = useState<any[]>([]);
-  const [fetchingProducts, setFetchingProducts] = useState(false);
-  const [productId, setProductId] = useState('');
-  const [shippingAddress, setShippingAddress] = useState(
-    'Phòng 402, Chung cư Sunrise City, Quận 7, TP.HCM'
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    setFetchingProducts(true);
-    api
-      .get('/products')
-      .then((res: any) => {
-        const list = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res?.data?.items)
-          ? res.data.items
-          : Array.isArray(res?.items)
-          ? res.items
-          : [];
-        setProducts(list);
-        if (list.length > 0) {
-          setProductId((prev) => prev || list[0].id);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setFetchingProducts(false));
-  }, []);
-
-  const selectedProduct = Array.isArray(products)
-    ? products.find((p) => p.id === productId)
-    : null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productId.trim() || !shippingAddress.trim()) return;
-    setLoading(true);
-    setError('');
-    try {
-      await api.post('/sample-requests', {
-        productId: productId.trim(),
-        shippingAddress: shippingAddress.trim(),
+const date = (value?: string | number | null) =>
+  value == null
+    ? 'Chưa cập nhật'
+    : new Date(value).toLocaleString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        dateStyle: 'short',
+        timeStyle: 'short',
       });
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Gửi yêu cầu thất bại');
+type Action = 'video' | 'issue' | 'cancel';
+
+export default function SampleRequestsPage() {
+  const { data, loading, error, refresh, updatedAt } = useWorkspaceResource<
+    SampleRequest[]
+  >('/sample-requests/my');
+  const requests = data || [];
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('ALL');
+  const [attention, setAttention] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [action, setAction] = useState<Action>('video');
+  const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const lock = useRef(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const selected = requests.find((item) => item.id === selectedId);
+  const visible = useMemo(
+    () =>
+      (data || [])
+        .filter(
+          (item) =>
+            (status === 'ALL' || item.status === status) &&
+            (!attention || sampleNeedsAttention(item)) &&
+            `${item.product.title} ${item.product.store.name} ${item.trackingNumber || ''}`
+              .toLocaleLowerCase('vi-VN')
+              .includes(search.trim().toLocaleLowerCase('vi-VN')),
+        )
+        .sort(
+          (a, b) =>
+            Number(sampleNeedsAttention(b)) - Number(sampleNeedsAttention(a)) ||
+            (sampleDeadline(a) ?? Infinity) - (sampleDeadline(b) ?? Infinity),
+        ),
+    [data, status, attention, search],
+  );
+
+  function open(item: SampleRequest, next: Action) {
+    setSelectedId(item.id);
+    setAction(next);
+    setTitle(item.videoTitle || `Review ${item.product.title}`);
+    setUrl(item.videoUrl || '');
+    setReason('');
+    setActionError('');
+    dialog.current?.showModal();
+  }
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setActionError('');
+    try {
+      if (action === 'video')
+        await api.post(`/sample-requests/${selected.id}/video`, {
+          title: title.trim(),
+          videoUrl: url.trim(),
+        });
+      if (action === 'issue')
+        await api.patch(`/sample-requests/${selected.id}/delivery-issue`, {
+          reason: reason.trim(),
+        });
+      if (action === 'cancel')
+        await api.patch(`/sample-requests/${selected.id}/cancel`, {});
+      dialog.current?.close();
+      toast.success('Đã cập nhật yêu cầu mẫu.');
+      refresh();
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error
+          ? cause.message
+          : 'Không thể cập nhật. Vui lòng thử lại.',
+      );
     } finally {
-      setLoading(false);
+      lock.current = false;
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white border border-[#EAE4D7] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
+    <main className="mx-auto flex max-w-[1520px] flex-col gap-5 bg-[#FAF8F5] p-4 sm:p-7">
+      <WorkspaceHero
+        eyebrow="SCANMS / Creator operations"
+        title="Mẫu dùng thử của tôi"
+        description="Theo dõi hợp tác với nhiều gian hàng: duyệt mẫu, giao hàng, nộp video và nghiệm thu. Các yêu cầu cần xử lý được ưu tiên lên đầu."
+        actions={
+          <>
+            <button
+              className={workspaceButton}
+              disabled={loading}
+              onClick={refresh}
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              Làm mới
+            </button>
+            <Link
+              className={workspaceButton}
+              to="/collaborator/collaboration?tab=samples"
+            >
+              <Package size={15} />
+              Xin mẫu mới
+            </Link>
+          </>
+        }
+      />
+      <WorkspaceMetrics
+        items={[
+          {
+            label: 'Tổng yêu cầu',
+            value: requests.length,
+            detail: 'Tất cả gian hàng đối tác',
+          },
+          {
+            label: 'Đang giao',
+            value: requests.filter((item) => item.status === 'SHIPPED').length,
+            detail: 'Nhận hàng được hệ thống xác minh',
+          },
+          {
+            label: 'Cần chú ý',
+            value: requests.filter((item) => sampleNeedsAttention(item)).length,
+            alert: true,
+            detail: 'Cần sửa, quá hạn, hạn ≤ 3 ngày hoặc sự cố',
+          },
+          {
+            label: 'Đã hoàn thành',
+            value: requests.filter((item) => item.status === 'COMPLETED')
+              .length,
+            detail: 'Video đã được Shop nghiệm thu',
+          },
+        ]}
+      />
+      <section
+        aria-label="Bộ lọc yêu cầu"
+        className="flex flex-wrap gap-3 rounded-2xl border border-[#EAE4D7] bg-white p-4"
       >
-        <div className="px-6 py-4 border-b border-[#EAE4D7] flex items-center justify-between bg-stone-50/50">
-          <h2 className="text-base font-extrabold text-[#1A1612] flex items-center gap-2">
-            <span>📦</span> Xin Sản Phẩm Mẫu Dùng Thử
-          </h2>
-          <button
-            type="button"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#7D715E] hover:bg-[#F3EFE6] transition cursor-pointer"
-            onClick={onClose}
-            id="btn-close-modal"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label htmlFor="sr-product-id" className="text-xs font-bold text-[#1A1612] block mb-1.5">
-              Chọn Sản phẩm muốn xin mẫu
-            </label>
-            {fetchingProducts ? (
-              <div className="text-xs text-stone-500 py-2 flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                Đang tải danh sách sản phẩm...
-              </div>
-            ) : products.length > 0 ? (
-              <Select
-                id="sr-product-id"
-                className="w-full text-xs"
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-                required
+        <label className="relative min-w-52 flex-1">
+          <span className="sr-only">Tìm sản phẩm, gian hàng, mã vận đơn</span>
+          <Search
+            size={15}
+            className="absolute left-3 top-3.5 text-[#7D715E]"
+          />
+          <input
+            className={`${workspaceInput} pl-9`}
+            placeholder="Sản phẩm, gian hàng, mã vận đơn…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <select
+          aria-label="Trạng thái yêu cầu"
+          className={`${workspaceInput} sm:!w-52`}
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="ALL">Tất cả trạng thái</option>
+          {Object.entries(SAMPLE_STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2 text-xs text-[#7D715E]">
+          <input
+            type="checkbox"
+            checked={attention}
+            onChange={(event) => setAttention(event.target.checked)}
+            className="accent-[#C59B58]"
+          />
+          Chỉ cần xử lý
+        </label>
+      </section>
+      {error && (
+        <WorkspaceState
+          error
+          title="Không tải được yêu cầu"
+          description={error}
+          action="Thử lại"
+          onAction={refresh}
+        />
+      )}
+      {loading && !data ? (
+        <WorkspaceState
+          title="Đang tải yêu cầu…"
+          description="Đang đồng bộ trạng thái từ các gian hàng."
+        />
+      ) : !error && visible.length === 0 ? (
+        <WorkspaceState
+          title="Không có yêu cầu phù hợp"
+          description="Bỏ bộ lọc hoặc mở Hợp tác & Nhận mẫu Shop để gửi yêu cầu đầu tiên."
+          action="Xóa bộ lọc"
+          onAction={() => {
+            setSearch('');
+            setStatus('ALL');
+            setAttention(false);
+          }}
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {visible.map((item) => {
+            const deadline = sampleDeadline(item);
+            const needsAttention = sampleNeedsAttention(item);
+            return (
+              <article
+                key={item.id}
+                className={`rounded-2xl border bg-white p-5 ${needsAttention ? 'border-[#C59B58]' : 'border-[#EAE4D7]'}`}
               >
-                {products.map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title} - {p.store?.name || 'Shop'} ({Number(p.price).toLocaleString('vi-VN')} đ)
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <input
-                id="sr-product-id"
-                type="text"
-                className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F]"
-                placeholder="Nhập ID sản phẩm..."
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-                required
-              />
-            )}
-          </div>
-
-          {selectedProduct && (
-            <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl flex items-center gap-3">
-              {selectedProduct.imageUrl && (
-                <img
-                  src={selectedProduct.imageUrl}
-                  alt={selectedProduct.title}
-                  className="w-12 h-12 rounded-lg object-cover bg-white border border-amber-200/60 flex-shrink-0"
+                <div className="flex items-start gap-3">
+                  {item.product.imageUrl ? (
+                    <img
+                      src={item.product.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-16 w-16 rounded-xl bg-[#F3EFE6] object-cover"
+                    />
+                  ) : (
+                    <Package className="h-16 w-16 rounded-xl bg-[#F3EFE6] p-4 text-[#B88E4F]" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 text-[11px] text-[#7D715E]">
+                      {item.product.store.name}
+                    </p>
+                    <h2 className="my-1 text-sm font-bold text-[#1A1612]">
+                      {item.product.title}
+                    </h2>
+                    <span className="inline-block rounded-full border border-[#EEDFC6] bg-[#FBF5EB] px-2 py-1 text-[10px] font-semibold text-[#8C6226]">
+                      {SAMPLE_STATUS_LABELS[item.status]}
+                    </span>
+                  </div>
+                </div>
+                <dl className="mb-0 mt-4 grid grid-cols-2 gap-4 rounded-xl bg-[#FAF8F5] p-3 text-xs">
+                  <div>
+                    <dt className="text-[#7D715E]">Ngày yêu cầu</dt>
+                    <dd className="ml-0 mt-1 text-[#1A1612]">
+                      {date(item.createdAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#7D715E]">
+                      {item.revisionDeadlineAt
+                        ? 'Hạn sửa video'
+                        : 'Hạn nộp video'}
+                    </dt>
+                    <dd
+                      className={`ml-0 mt-1 font-semibold ${needsAttention ? 'text-[#DC2626]' : 'text-[#1A1612]'}`}
+                    >
+                      {date(deadline)}
+                    </dd>
+                  </div>
+                </dl>
+                {item.trackingNumber && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#7D715E]">
+                    <Truck size={15} />
+                    <span>
+                      {item.carrier || 'Vận chuyển'} ·{' '}
+                      <strong className="text-[#1A1612]">
+                        {item.trackingNumber}
+                      </strong>
+                    </span>
+                    <button
+                      className="rounded-lg p-2 hover:bg-[#F3EFE6]"
+                      aria-label="Sao chép mã vận đơn"
+                      onClick={() =>
+                        void navigator.clipboard
+                          .writeText(item.trackingNumber!)
+                          .then(() => toast.success('Đã sao chép mã vận đơn.'))
+                          .catch(() =>
+                            toast.error(
+                              'Không sao chép được. Hãy chọn mã để sao chép thủ công.',
+                            ),
+                          )
+                      }
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                )}
+                {(item.videoRejectionReason || item.rejectedReason) && (
+                  <p className="mt-3 rounded-xl border border-[#EEDFC6] p-3 text-xs leading-5 text-[#7D715E]">
+                    Phản hồi: {item.videoRejectionReason || item.rejectedReason}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {canSubmitSampleVideo(item.status) && (
+                    <button
+                      className={`${workspaceButton} !bg-[#C59B58]`}
+                      onClick={() => open(item, 'video')}
+                    >
+                      {item.status === 'REVISION_REQUIRED'
+                        ? 'Nộp video chỉnh sửa'
+                        : 'Nộp video'}
+                    </button>
+                  )}
+                  {item.status === 'SHIPPED' && (
+                    <button
+                      className={workspaceButton}
+                      onClick={() => open(item, 'issue')}
+                    >
+                      Báo sự cố giao hàng
+                    </button>
+                  )}
+                  {item.status === 'PENDING' && (
+                    <button
+                      className={workspaceButton}
+                      onClick={() => open(item, 'cancel')}
+                    >
+                      Hủy yêu cầu
+                    </button>
+                  )}
+                  {item.videoUrl && /^https:\/\//i.test(item.videoUrl) && (
+                    <a
+                      className={workspaceButton}
+                      href={item.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Xem video
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
+                </div>
+                {!!item.events?.length && (
+                  <details className="mt-4 border-t border-[#EAE4D7] pt-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-[#7D715E]">
+                      Lịch sử xử lý ({item.events.length})
+                    </summary>
+                    <ol className="mb-0 space-y-2 pl-4 text-[11px] text-[#7D715E]">
+                      {item.events.map((event) => (
+                        <li key={event.id}>
+                          <time>{date(event.createdAt)}</time>
+                          <span className="ml-2 break-words">
+                            {event.action
+                              .replace(/^SAMPLE_/, '')
+                              .replaceAll('_', ' ')}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+      {updatedAt && (
+        <p className="m-0 text-right text-[10px] text-[#7D715E]">
+          Đồng bộ lúc {date(updatedAt.getTime())} · {visible.length}/
+          {requests.length} yêu cầu
+        </p>
+      )}
+      <dialog
+        ref={dialog}
+        aria-labelledby="sample-action-title"
+        onCancel={(event) => {
+          if (busy) event.preventDefault();
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-[#EAE4D7] bg-white p-6 text-[#1A1612] shadow-xl backdrop:bg-black/40"
+      >
+        <form onSubmit={submit} className="space-y-4">
+          <h2 id="sample-action-title" className="m-0 text-lg font-bold">
+            {action === 'video'
+              ? 'Nộp video review'
+              : action === 'issue'
+                ? 'Báo sự cố giao hàng'
+                : 'Hủy yêu cầu mẫu?'}
+          </h2>
+          <p className="text-xs leading-5 text-[#7D715E]">
+            {selected?.product.title} · {selected?.product.store.name}
+          </p>
+          {action === 'video' && (
+            <>
+              <label className="block text-xs">
+                Tiêu đề video
+                <input
+                  autoFocus
+                  required
+                  maxLength={255}
+                  className={`${workspaceInput} mt-2`}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
                 />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold text-stone-900 truncate">
-                  {selectedProduct.title}
-                </div>
-                <div className="text-[11px] text-amber-800 font-semibold">
-                  {Number(selectedProduct.price).toLocaleString('vi-VN')} đ • SKU: {selectedProduct.sku}
-                </div>
-              </div>
-            </div>
+              </label>
+              <label className="block text-xs">
+                Liên kết video công khai
+                <input
+                  required
+                  type="url"
+                  pattern="https://.*"
+                  maxLength={2000}
+                  placeholder="https://…"
+                  className={`${workspaceInput} mt-2`}
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                />
+              </label>
+              <p className="text-xs text-[#7D715E]">
+                Dùng HTTPS trên nền tảng đã cam kết. Shop kiểm duyệt trước khi
+                nghiệm thu.
+              </p>
+            </>
           )}
-
-          <div>
-            <label htmlFor="sr-address" className="text-xs font-bold text-[#1A1612] block mb-1.5">
-              Địa chỉ nhận hàng mẫu (Kèm SĐT liên hệ)
+          {action === 'issue' && (
+            <label className="block text-xs">
+              Mô tả sự cố
+              <textarea
+                autoFocus
+                required
+                minLength={3}
+                maxLength={500}
+                rows={4}
+                className={`${workspaceInput} mt-2 py-3`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
             </label>
-            <textarea
-              id="sr-address"
-              className="w-full bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3.5 py-2.5 text-xs text-[#1A1612] outline-none focus:border-[#B88E4F] resize-none"
-              placeholder="Ví dụ: Phòng 402, Chung cư Sunrise City, Quận 7, TP.HCM - SĐT: 0987654321"
-              value={shippingAddress}
-              onChange={(e) => setShippingAddress(e.target.value)}
-              rows={3}
-              required
-              minLength={10}
-            />
-          </div>
-
-          {error && (
-            <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-              {error}
-            </div>
           )}
-
-          <div className="flex items-center justify-end gap-2 pt-2">
+          {action === 'cancel' && (
+            <p className="text-xs text-[#7D715E]">
+              Chỉ yêu cầu đang chờ duyệt mới có thể hủy. Bạn có thể xin mẫu lại
+              khi đủ điều kiện.
+            </p>
+          )}
+          {actionError && (
+            <p role="alert" className="text-xs text-[#DC2626]">
+              {actionError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="px-4 py-2.5 rounded-xl border border-[#EAE4D7] text-xs font-bold text-[#7D715E] hover:bg-[#F3EFE6] transition cursor-pointer"
-              onClick={onClose}
+              disabled={busy}
+              className={workspaceButton}
+              onClick={() => dialog.current?.close()}
             >
-              Hủy
+              Đóng
             </button>
             <button
-              type="submit"
-              id="btn-submit-sample"
-              className="px-5 py-2.5 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer disabled:opacity-50"
-              disabled={loading || !productId.trim() || !shippingAddress.trim()}
+              disabled={
+                busy ||
+                (action === 'issue' && !reason.trim()) ||
+                (action === 'video' && !title.trim())
+              }
+              className={`${workspaceButton} !bg-[#C59B58]`}
             >
-              {loading ? '⏳ Đang gửi...' : '📤 Gửi yêu cầu xin mẫu'}
+              {busy ? 'Đang gửi…' : 'Xác nhận'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </dialog>
+    </main>
   );
 }
-
-
-export default function SampleRequestsPage() {
-  const [requests, setRequests] = useState<SampleRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [reviewModalReq, setReviewModalReq] = useState<SampleRequest | null>(null);
-  const [receivedIds, setReceivedIds] = useState<Record<string, boolean>>({});
-  const [filterStatus, setFilterStatus] = useState<SampleRequestStatus | 'ALL'>('ALL');
-
-  const loadRequests = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res: any = await api.get('/sample-requests/my');
-      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-      setRequests(list);
-    } catch (err) {
-      console.error(err);
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
-
-  const filtered =
-    filterStatus === 'ALL'
-      ? requests
-      : requests.filter((r) => r.status === filterStatus);
-
-  const counts = {
-    ALL: requests.length,
-    PENDING: requests.filter((r) => r.status === 'PENDING').length,
-    APPROVED: requests.filter((r) => r.status === 'APPROVED').length,
-    SHIPPED: requests.filter((r) => r.status === 'SHIPPED').length,
-    REJECTED: requests.filter((r) => r.status === 'REJECTED').length,
-  };
-
-  return (
-    <div className="max-w-[1520px] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6" id="kol-sample-requests-page">
-
-      <div className="flex items-center justify-end gap-4 pb-2">
-        <button
-          id="btn-new-sample-request"
-          type="button"
-          className="px-4 py-2.5 rounded-full bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-extrabold transition shadow-xs cursor-pointer flex items-center gap-1.5"
-          onClick={() => setShowModal(true)}
-        >
-          <span>+</span> Xin Mẫu Mới
-        </button>
-      </div>
-
-
-      <div className="flex items-center gap-2 overflow-x-auto pb-1" role="tablist">
-        {(['ALL', 'PENDING', 'APPROVED', 'SHIPPED', 'REJECTED'] as const).map((s) => (
-          <button
-            key={s}
-            id={`tab-${s.toLowerCase()}`}
-            type="button"
-            role="tab"
-            aria-selected={filterStatus === s}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
-              filterStatus === s
-                ? 'bg-white border-[#EAE4D7] text-[#B88E4F] shadow-xs'
-                : 'bg-[#F3EFE6] border-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612]'
-            }`}
-            onClick={() => setFilterStatus(s)}
-          >
-            <span>{s === 'ALL' ? '📋 Tất cả' : `${STATUS_ICON[s]} ${STATUS_LABEL[s]}`}</span>
-            <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                filterStatus === s ? 'bg-[#FBF5EB] text-[#B88E4F]' : 'bg-[#EAE4D7] text-[#7D715E]'
-              }`}
-            >
-              {counts[s]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center gap-3 p-20 text-[#7D715E]">
-          <div className="w-8 h-8 border-3 border-[#C59B58]/20 border-t-[#C59B58] rounded-full animate-spin" />
-          <span className="text-sm font-semibold">Đang tải danh sách yêu cầu mẫu...</span>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-[#EAE4D7] rounded-2xl text-[#7D715E] p-8 shadow-xs">
-          <div className="text-4xl mb-3">📭</div>
-          <h3 className="text-base font-bold text-[#1A1612]">Chưa có yêu cầu nào</h3>
-          <p className="text-xs text-[#7D715E] mt-1 max-w-md mx-auto mb-4">
-            Nhấn <strong>+ Xin Mẫu Mới</strong> để gửi thông tin sản phẩm và địa chỉ nhận hàng cho gian hàng.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filtered.map((req) => (
-            <div
-              key={req.id}
-              className="bg-white border border-[#EAE4D7] rounded-2xl p-5 shadow-xs hover:border-[#EAE4D7] transition space-y-4"
-              id={`request-${req.id}`}
-            >
-
-              <div className="flex items-start justify-between gap-4 flex-wrap pb-3 border-b border-[#EAE4D7]">
-                <div className="flex items-center gap-3 min-w-0">
-                  {req.product.imageUrl ? (
-                    <img
-                      src={req.product.imageUrl}
-                      alt={req.product.title}
-                      className="w-14 h-14 rounded-xl border border-[#EAE4D7] object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center text-2xl flex-shrink-0">
-                      🛍️
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold text-[#1A1612] truncate">
-                      {req.product.title}
-                    </div>
-                    <div className="text-xs text-[#7D715E] mt-0.5">
-                      SKU: <code className="font-mono text-[#1A1612]">{req.product.sku}</code> ·{' '}
-                      <span className="font-semibold text-[#B88E4F]">{req.product.store.name}</span>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 ${
-                    STATUS_CLASS[req.status]
-                  }`}
-                >
-                  <span>{STATUS_ICON[req.status]}</span>
-                  <span>{STATUS_LABEL[req.status]}</span>
-                </div>
-              </div>
-
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-[#7D715E] font-semibold block mb-0.5">📍 Địa chỉ nhận mẫu:</span>
-                  <span className="text-[#1A1612] font-medium">{req.shippingAddress}</span>
-                </div>
-                <div>
-                  <span className="text-[#7D715E] font-semibold block mb-0.5">📅 Thời gian gửi:</span>
-                  <span className="text-[#1A1612] font-medium">{formatDate(req.createdAt)}</span>
-                </div>
-              </div>
-
-
-              {req.trackingNumber && (
-                <div className="p-3 rounded-xl bg-[#FBF5EB] border border-[#EAE4D7] flex items-center justify-between gap-3 flex-wrap text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🚚</span>
-                    <span className="font-semibold text-[#7D715E]">Mã vận đơn:</span>
-                    <code className="font-mono font-black text-[#1A1612] bg-white px-2 py-0.5 rounded border border-[#EAE4D7]">
-                      {req.trackingNumber}
-                    </code>
-                  </div>
-                  <a
-                    href={`https://ghtk.vn/tracking?order_code=${req.trackingNumber}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#B88E4F] font-bold hover:underline"
-                    id={`tracking-link-${req.id}`}
-                  >
-                    Tra cứu tiến độ GHTK →
-                  </a>
-                </div>
-              )}
-
-              {req.status === 'SHIPPED' && (
-                <div className="p-3.5 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl flex items-center justify-between gap-3 flex-wrap text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🎁</span>
-                    <div>
-                      <div className="font-bold text-[#1A1612]">
-                        {receivedIds[req.id] ? 'Đã nhận mẫu trải nghiệm thành công' : 'Mẫu sản phẩm đang được bưu cục vận chuyển'}
-                      </div>
-                      <div className="text-[11px] text-[#7D715E]">
-                        Quy chế: Nộp link video review trong vòng 14 ngày kể từ khi xác nhận nhận mẫu
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!receivedIds[req.id] && (
-                      <button
-                        type="button"
-                        onClick={() => setReceivedIds((prev) => ({ ...prev, [req.id]: true }))}
-                        className="px-3 py-1.5 rounded-lg bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] font-bold text-xs transition cursor-pointer"
-                      >
-                        ✓ Đã Nhận Hàng
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setReviewModalReq(req)}
-                      className="px-3 py-1.5 rounded-lg bg-[#EBD08C] hover:bg-[#DEC07A] text-white font-bold text-xs transition cursor-pointer flex items-center gap-1 shadow-xs"
-                    >
-                      <span>🎬</span> Nộp Video Review
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-[#EAE4D7] flex items-center justify-between max-w-sm">
-                {(['PENDING', 'APPROVED', 'SHIPPED'] as SampleRequestStatus[]).map((s, i) => {
-                  const idx = ['PENDING', 'APPROVED', 'SHIPPED'].indexOf(req.status);
-                  const done = req.status !== 'REJECTED' && i <= idx;
-                  return (
-                    <div key={s} className="flex items-center gap-2 text-xs">
-                      <div
-                        className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
-                          done ? 'bg-[#15803d] text-white' : 'bg-[#EAE4D7] text-[#7D715E]'
-                        }`}
-                      >
-                        {done ? '✓' : i + 1}
-                      </div>
-                      <span className={done ? 'font-bold text-[#1A1612]' : 'text-[#7D715E]'}>
-                        {STATUS_LABEL[s]}
-                      </span>
-                      {i < 2 && <span className="w-8 h-0.5 bg-[#EAE4D7] mx-1" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showModal && (
-        <RequestModal onClose={() => setShowModal(false)} onSuccess={loadRequests} />
-      )}
-
-      {reviewModalReq && (
-        <SubmitKolVideoModal
-          isOpen={Boolean(reviewModalReq)}
-          onClose={() => setReviewModalReq(null)}
-          initialProductId={reviewModalReq.product.id}
-          initialProductTitle={reviewModalReq.product.title}
-          onSuccess={() => {
-            setReviewModalReq(null);
-            loadRequests();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-

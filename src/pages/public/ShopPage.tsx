@@ -4,6 +4,7 @@ import { BadgeCheck, Heart, MessageSquare, Search, Store } from 'lucide-react';
 import api from '../../services/api';
 import { authService } from '../../services/auth.service';
 import { PublicHeader } from '../../components/layout/PublicHeader';
+import { StoreActivityStatus } from '../../components/store/StoreActivityStatus';
 import { useScanmsChat } from '../../context/ScanmsChatContext';
 import { LiveSessionDealBadge, useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
 import { Select } from '../../components/ui/Select';
@@ -90,10 +91,22 @@ export default function ShopPage() {
         <section className="rounded-3xl border border-[#EAE4D7] bg-white p-5 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[#EAE4D7] bg-[#F3EFE6] text-3xl font-bold text-[#B88E4F] sm:h-28 sm:w-28">
-              {shop.logoUrl ? <img src={shop.logoUrl} alt={`Logo ${shop.name}`} className="h-full w-full object-cover" /> : <Store size={36} />}
+              {shop.logoUrl ? (
+                <img
+                  src={shop.logoUrl}
+                  alt={`Logo ${shop.name}`}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = '/assets/shops/shop-sora-skin.png';
+                  }}
+                />
+              ) : (
+                <Store size={36} />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="flex items-center gap-2 text-2xl font-bold sm:text-3xl">{shop.name}{shop.isVerified && <BadgeCheck size={22} className="text-[#B88E4F]" aria-label="Shop đã xác minh" />}</h1>
+              <StoreActivityStatus storeId={shop.id} className="mt-1" />
               {shop.description && <p className="mt-2 max-w-2xl text-sm text-[#7D715E]">{shop.description}</p>}
               <p className="mt-3 text-xs text-[#7D715E]">{shop.isActive ? 'Shop đang hoạt động' : 'Shop ngừng hoạt động'} · {shop.productCount} sản phẩm · {shop.followerCount} người theo dõi</p>
             </div>

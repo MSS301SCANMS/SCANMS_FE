@@ -1,0 +1,57 @@
+.customer-identity-card {
+  container: customer-identity / inline-size;
+  width: 100%;
+  max-width: 1040px;
+  min-width: 0;
+  border: 1px solid #EAE4D7;
+  border-radius: 16px;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgb(35 29 21 / 2%);
+}
+
+.customer-identity-form { min-width: 0; color: #1A1612; text-align: left; }
+.customer-identity-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 20px; padding: 24px; }
+.customer-identity-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.customer-identity-field label { font-size: 13px; font-weight: 600; line-height: 1.5; }
+.customer-identity-field label > span { color: #B88E4F; }
+.customer-identity-input { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 14px; border: 1px solid #EAE4D7; border-radius: 10px; background: #FFFFFF; transition: border-color 150ms, box-shadow 150ms; }
+.customer-identity-input:hover { border-color: #EEDFC6; }
+.customer-identity-input:focus-within { border-color: #C59B58; box-shadow: 0 0 0 3px rgb(197 155 88 / 12%); }
+.customer-identity-input > svg { flex-shrink: 0; color: #B88E4F; }
+.customer-identity-input input, .customer-identity-input textarea { width: 100%; min-width: 0; margin: 0; padding: 12px 0; border: 0; border-radius: 0; outline: none; background: transparent; color: #1A1612; font: inherit; font-size: 13px; line-height: 1.65; }
+.customer-identity-input input { min-height: 46px; }
+.customer-identity-input input::placeholder, .customer-identity-input textarea::placeholder { color: #7D715E; opacity: .8; }
+.customer-identity-input--multiline { align-items: flex-start; }
+.customer-identity-input--multiline > svg { margin-top: 15px; }
+.customer-identity-input textarea { min-height: 96px; resize: vertical; }
+.customer-identity-hint { margin: 0; color: #7D715E; font-size: 11px; line-height: 1.6; }
+.customer-identity-address { grid-column: 1 / -1; }
+.customer-identity-address-help { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.customer-identity-address-help > span { flex-shrink: 0; color: #7D715E; font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.customer-identity-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px 24px; border-top: 1px solid #EAE4D7; }
+.customer-identity-privacy { display: flex; align-items: flex-start; gap: 8px; max-width: 340px; margin: 0; color: #7D715E; font-size: 11px; line-height: 1.6; }
+.customer-identity-privacy > svg { flex-shrink: 0; margin-top: 1px; color: #B88E4F; }
+.customer-identity-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-left: auto; padding: 10px 18px; border: 1px solid #EEDFC6; border-radius: 9px; background: #FBF5EB; color: #1A1612; font: inherit; font-size: 12px; font-weight: 600; line-height: 1.5; cursor: pointer; transition: background-color 150ms, border-color 150ms; }
+.customer-identity-submit > svg { flex-shrink: 0; color: #B88E4F; }
+.customer-identity-submit:hover:not(:disabled) { border-color: #C59B58; background: #F3EFE6; }
+.customer-identity-submit:focus-visible { outline: 2px solid #B88E4F; outline-offset: 3px; }
+.customer-identity-submit:disabled { background: #FAF8F5; border-color: #EAE4D7; color: #7D715E; cursor: not-allowed; }
+.customer-identity-submit:disabled > svg { color: #7D715E; }
+
+@container customer-identity (max-width: 600px) {
+  .customer-identity-fields { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px; }
+  .customer-identity-footer { flex-direction: column-reverse; align-items: stretch; gap: 12px; padding: 16px 20px; }
+  .customer-identity-submit { width: 100%; margin-left: 0; }
+  .customer-identity-privacy { max-width: none; justify-content: center; }
+}
+
+@container customer-identity (max-width: 360px) {
+  .customer-identity-fields { padding: 16px; }
+  .customer-identity-footer { padding: 16px; }
+  .customer-identity-input { gap: 8px; padding: 0 10px; }
+  .customer-identity-input input, .customer-identity-input textarea { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-identity-input, .customer-identity-submit { transition: none; }
+}

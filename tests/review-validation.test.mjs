@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 
 const source = await readFile(
-  new URL("../src/components/reviews/reviewValidation.ts", import.meta.url),
+  new URL("../src/validations/review.validation.ts", import.meta.url),
   "utf8",
 );
 const compiled = ts.transpileModule(source, {

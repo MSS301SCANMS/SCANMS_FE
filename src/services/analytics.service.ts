@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api from './api';
 
 export interface DashboardOverviewResponse {
   period: {
@@ -102,21 +102,14 @@ export const analyticsService = {
     days?: number;
     startDate?: string;
     endDate?: string;
-    interval?: 'hourly' | 'daily' | 'weekly' | 'monthly' | string;
+    interval?: string;
     storeId?: string;
     channel?: string;
     campaignId?: string;
-  }) => {
-    const normalizedParams = params ? { ...params } : undefined;
-    if (normalizedParams?.interval) {
-      if (normalizedParams.interval === 'day') normalizedParams.interval = 'daily';
-      else if (normalizedParams.interval === 'hour') normalizedParams.interval = 'hourly';
-      else if (normalizedParams.interval === 'week') normalizedParams.interval = 'weekly';
-      else if (normalizedParams.interval === 'month') normalizedParams.interval = 'monthly';
-    }
+  }, fresh = false) => {
     const res = await api.get<{ data?: DashboardOverviewResponse } | DashboardOverviewResponse>(
       '/dashboard/realtime/overview',
-      { params: normalizedParams },
+      { params, headers: fresh ? { 'x-skip-cache': 'true' } : undefined },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -126,19 +119,12 @@ export const analyticsService = {
     days?: number;
     startDate?: string;
     endDate?: string;
-    interval?: 'hourly' | 'daily' | 'weekly' | 'monthly' | string;
+    interval?: string;
     storeId?: string;
-  }) => {
-    const normalizedParams = params ? { ...params } : undefined;
-    if (normalizedParams?.interval) {
-      if (normalizedParams.interval === 'day') normalizedParams.interval = 'daily';
-      else if (normalizedParams.interval === 'hour') normalizedParams.interval = 'hourly';
-      else if (normalizedParams.interval === 'week') normalizedParams.interval = 'weekly';
-      else if (normalizedParams.interval === 'month') normalizedParams.interval = 'monthly';
-    }
+  }, fresh = false) => {
     const res = await api.get<{ data?: TimeSeriesPoint[] } | TimeSeriesPoint[]>(
       '/dashboard/realtime/timeseries',
-      { params: normalizedParams },
+      { params, headers: fresh ? { 'x-skip-cache': 'true' } : undefined },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -146,7 +132,7 @@ export const analyticsService = {
   getTopProducts: async (params?: { range?: string; limit?: number; startDate?: string; endDate?: string }) => {
     const res = await api.get<{ data?: TopProductItem[] } | TopProductItem[]>(
       '/dashboard/realtime/top-products',
-      { params },
+      { params, headers: { 'x-skip-cache': '1' } },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -154,7 +140,7 @@ export const analyticsService = {
   getTopChannels: async (params?: { range?: string; limit?: number; startDate?: string; endDate?: string }) => {
     const res = await api.get<{ data?: TopChannelItem[] } | TopChannelItem[]>(
       '/dashboard/realtime/top-channels',
-      { params },
+      { params, headers: { 'x-skip-cache': '1' } },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -162,7 +148,7 @@ export const analyticsService = {
   getConversionFunnel: async (params?: { range?: string; startDate?: string; endDate?: string }) => {
     const res = await api.get<{ data?: FunnelResponse } | FunnelResponse>(
       '/dashboard/realtime/funnel',
-      { params },
+      { params, headers: { 'x-skip-cache': '1' } },
     );
     return (res.data as any)?.data || res.data;
   },
@@ -170,9 +156,8 @@ export const analyticsService = {
   getCampaignPerformance: async (params?: { range?: string; startDate?: string; endDate?: string }) => {
     const res = await api.get<{ data?: CampaignPerformanceItem[] } | CampaignPerformanceItem[]>(
       '/dashboard/realtime/campaigns',
-      { params },
+      { params, headers: { 'x-skip-cache': '1' } },
     );
     return (res.data as any)?.data || res.data;
   },
 };
-

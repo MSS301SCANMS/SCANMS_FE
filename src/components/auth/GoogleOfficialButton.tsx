@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadGoogleIdentityScript, renderGoogleButton } from '../../utils/googleAuth';
+import { loadGoogleIdentityScript, renderGoogleButton } from '@/utils/google-auth.utils';
 
 interface GoogleOfficialButtonProps {
   onSuccess: (idToken: string) => void;
@@ -71,3 +71,4 @@ export const GoogleOfficialButton: React.FC<GoogleOfficialButtonProps> = ({
     </div>
   );
 };
+

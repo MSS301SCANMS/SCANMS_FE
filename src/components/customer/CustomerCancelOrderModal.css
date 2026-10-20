@@ -1,0 +1,37 @@
+.customer-cancel-overlay { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center; padding:12px; background:rgb(35 29 21 / 38%); backdrop-filter:blur(3px); }
+.customer-cancel-dialog { display:flex; flex-direction:column; width:100%; max-width:520px; max-height:min(92dvh,760px); min-height:0; margin:0; overflow:hidden; border:1px solid #EAE4D7; border-radius:16px; background:#FFFFFF; color:#1A1612; text-align:left; box-shadow:0 20px 70px rgb(35 29 21 / 18%); }
+.customer-cancel-header { display:flex; align-items:center; flex-shrink:0; gap:12px; padding:18px 20px; border-bottom:1px solid #EAE4D7; }
+.customer-cancel-icon { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; border:1px solid #EEDFC6; border-radius:11px; background:#FBF5EB; color:#B88E4F; }
+.customer-cancel-header h2 { margin:0; color:#1A1612; font:inherit; font-size:18px; font-weight:650; line-height:1.4; }
+.customer-cancel-header p { margin:4px 0 0; color:#7D715E; font-size:12px; line-height:1.5; }
+.customer-cancel-close { display:grid; place-items:center; flex-shrink:0; width:32px; height:32px; margin-left:auto; padding:0; border:1px solid #EAE4D7; border-radius:8px; background:#FAF8F5; color:#7D715E; cursor:pointer; }
+.customer-cancel-body { flex:1; min-height:0; padding:16px 20px 20px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#EEDFC6 transparent; }
+.customer-cancel-notice { display:flex; align-items:flex-start; gap:9px; margin:0 0 18px; padding:12px; border:1px solid #EEDFC6; border-radius:10px; background:#FBF5EB; color:#7D715E; font-size:12px; line-height:1.65; }
+.customer-cancel-notice svg { flex-shrink:0; margin-top:2px; color:#B88E4F; }
+.customer-cancel-reasons { display:grid; gap:7px; min-width:0; margin:0; padding:0; border:0; }
+.customer-cancel-reasons legend { margin-bottom:10px; padding:0; color:#1A1612; font-size:13px; font-weight:600; }
+.customer-cancel-choice { display:flex; align-items:flex-start; gap:10px; min-height:44px; padding:11px 12px; border:1px solid #EAE4D7; border-radius:9px; background:#FFFFFF; color:#1A1612; font-size:13px; line-height:1.55; cursor:pointer; }
+.customer-cancel-choice input { flex-shrink:0; width:16px; height:16px; margin:2px 0 0; accent-color:#B88E4F; cursor:pointer; }
+.customer-cancel-choice:hover, .customer-cancel-choice[data-selected="true"] { background:#FBF5EB; border-color:#C59B58; }
+.customer-cancel-custom { display:grid; gap:7px; padding-top:5px; }
+.customer-cancel-custom > label { font-size:12px; font-weight:600; }
+.customer-cancel-custom > label span { color:#DC2626; }
+.customer-cancel-custom textarea { box-sizing:border-box; width:100%; min-height:90px; padding:11px 12px; border:1px solid #EAE4D7; border-radius:9px; background:#FFFFFF; color:#1A1612; font:inherit; font-size:13px; line-height:1.6; resize:vertical; }
+.customer-cancel-custom p { display:flex; justify-content:space-between; gap:12px; margin:0; color:#7D715E; font-size:11px; line-height:1.5; }
+.customer-cancel-custom p > span:last-child { flex-shrink:0; font-variant-numeric:tabular-nums; }
+.customer-cancel-footer { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); flex-shrink:0; gap:10px; padding:14px 20px; border-top:1px solid #EAE4D7; background:#FAF8F5; }
+.customer-cancel-footer button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #EAE4D7; border-radius:9px; background:#FFFFFF; color:#7D715E; font:inherit; font-size:13px; font-weight:600; line-height:1.5; cursor:pointer; }
+.customer-cancel-footer .customer-cancel-confirm { border-color:#EEDFC6; background:#FBF5EB; color:#1A1612; }
+.customer-cancel-footer button:hover:not(:disabled), .customer-cancel-close:hover:not(:disabled) { background:#F3EFE6; border-color:#C59B58; }
+.customer-cancel-dialog button:disabled { cursor:not-allowed; opacity:0.5; }
+.customer-cancel-dialog :is(button,input,textarea):focus-visible { outline:2px solid #C59B58; outline-offset:3px; }
+@media (max-width:419px) {
+ .customer-cancel-dialog { max-height:94dvh; border-radius:13px; }
+ .customer-cancel-header { gap:9px; padding:14px; }
+ .customer-cancel-icon { width:34px; height:34px; }
+ .customer-cancel-header h2 { font-size:16px; }
+ .customer-cancel-header p { font-size:11px; }
+ .customer-cancel-body { padding:14px; }
+ .customer-cancel-footer { padding:12px 14px; }
+ .customer-cancel-choice { padding:10px; font-size:12px; }
+}

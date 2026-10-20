@@ -1,0 +1,36 @@
+/* A lighter surface treatment for the marketing workspace only. */
+#marketing-toolkit-hub {
+  background-color: color-mix(in srgb, #FFFFFF 75%, #FAF8F5);
+  border-radius: 16px;
+}
+
+#marketing-toolkit-hub [class~="bg-[#F3EFE6]"],
+#marketing-toolkit-hub [class~="bg-[#FAF8F5]"] {
+  background-color: #FFFFFF;
+}
+
+#marketing-toolkit-hub [class~="bg-[#FBF5EB]"] {
+  background-color: color-mix(in srgb, #FFFFFF 65%, #FBF5EB);
+}
+
+#marketing-toolkit-hub [class~="text-[#795A2D]"] {
+  color: #1A1612;
+}
+
+#marketing-toolkit-hub [class~="text-[#8D6936]"] {
+  color: #7D715E;
+}
+
+#marketing-toolkit-hub [class~="border-[#EAE4D7]"] {
+  border-color: color-mix(in srgb, #FFFFFF 25%, #EAE4D7);
+}
+
+#marketing-toolkit-hub button[class~="hover:bg-[#F3EFE6]"]:hover,
+#marketing-toolkit-hub button[class~="hover:bg-[#FAF8F5]"]:hover {
+  background-color: color-mix(in srgb, #FFFFFF 50%, #FBF5EB);
+}
+
+#marketing-toolkit-hub .kol-exclusive-deals,
+#marketing-toolkit-hub [aria-label="Thống kê liên kết tiếp thị"] > div {
+  box-shadow: 0 2px 8px rgb(35 29 21 / 3%);
+}

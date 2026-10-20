@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { drawFilterPreview, type FaceFilter } from '../../features/live/faceFilters';
+import { drawFilterPreview, type FaceFilter } from '@/components/live/faceFilters';
 
 export function FaceFilterPreview({ filter }: { filter: FaceFilter }) {
   const ref = useRef<HTMLCanvasElement>(null);

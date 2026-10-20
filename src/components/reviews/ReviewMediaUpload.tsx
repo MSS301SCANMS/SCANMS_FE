@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ImagePlus, Video, X } from "lucide-react";
-import { MAX_REVIEW_IMAGES, validateReviewFile } from "./reviewValidation";
+import { MAX_REVIEW_IMAGES, validateReviewFile } from "@/validations/review.validation";
 
 export interface ReviewAttachment {
   id: string;

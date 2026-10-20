@@ -72,7 +72,7 @@ test(
                   id: orderId,
                   externalOrderSn: "QA-REVIEW-ORDER",
                   reviewToken: "signed-qa-token",
-                  status: "DELIVERED",
+                  status: "COMPLETED",
                   items: [
                     {
                       productId,

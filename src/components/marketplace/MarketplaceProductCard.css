@@ -1,0 +1,8 @@
+.marketplace-variant-select { position:relative; display:flex; align-items:center; justify-content:center; height:44px; padding:0 26px; text-align:center; text-align-last:center; line-height:1.4; }
+.marketplace-variant-select::picker-icon { position:absolute; inset-inline-end:10px; top:50%; translate:0 -50%; margin-inline-start:0; font-size:11px; }
+.marketplace-variant-select option { text-align:center; }
+.marketplace-variant-choice { scroll-margin-block:16px; }
+.marketplace-variant-choice[data-required="true"] .marketplace-variant-select { border-color:#DC2626; background:#FBF5EB; outline-color:#DC2626; }
+.marketplace-variant-hint { display:flex; align-items:flex-start; gap:5px; margin:7px 0 0; color:#DC2626; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+.marketplace-variant-hint svg { flex-shrink:0; margin-top:2px; }
+@media(max-width:480px) { .marketplace-variant-select { padding-inline:20px; font-size:10px; } }

@@ -307,7 +307,7 @@ try {
     (id) =>
       [...document.querySelectorAll("tbody tr")]
         .find((el) => el.textContent.includes(id))
-        ?.textContent.includes("Đang thanh toán theo lô"),
+        ?.textContent.includes("Chờ chuyển khoản"),
     {},
     payout.id,
   );
@@ -321,7 +321,7 @@ try {
       realBatchExport: true,
       netCell: excel.getWorksheet("VietQR").getCell("L2").value,
       processingVisible: await merchant.$eval("tbody", (el) =>
-        el.textContent.includes("Đang thanh toán theo lô"),
+        el.textContent.includes("Chờ chuyển khoản"),
       ),
     }),
   );
