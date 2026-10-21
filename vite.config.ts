@@ -28,12 +28,8 @@ export default defineConfig({
         target: process.env.VITE_PROXY_TARGET || "http://localhost:3000",
         changeOrigin: true,
       },
-      // Chỉ proxy endpoint referral /r/{shortCode}; không bắt nhầm
-      // static assets dưới /reference/*.
-      "^/r/": {
-        target: process.env.VITE_PROXY_TARGET || "http://localhost:3000",
-        changeOrigin: true,
-      },
+      // /r/:shortCode is a frontend route. RedirectHandlerPage resolves the
+      // link through the configured API instead of a legacy port-3000 proxy.
     },
   },
 });

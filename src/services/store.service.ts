@@ -1,5 +1,21 @@
 import api from './api';
-import { unwrapApi, unwrapList } from '@/utils/api-response';
+import { unwrapApi } from '@/utils/api-response';
+
+export class MissingOwnedStoreError extends Error {
+  constructor() {
+    super('Tài khoản chưa được liên kết với gian hàng nào.');
+    this.name = 'MissingOwnedStoreError';
+  }
+}
+
+function ownedStoreList(response: unknown): any[] {
+  const value = unwrapApi(response);
+  const list = Array.isArray(value) ? value : value?.items ?? value?.content;
+  if (!Array.isArray(list) || list.some(store => !store || !(store.storeId || store.id))) {
+    throw new Error('Chưa tải được danh sách gian hàng. Vui lòng thử lại.');
+  }
+  return list;
+}
 
 export interface StoreSettings {
   id: string;
@@ -70,10 +86,10 @@ export const storeService = {
     const res: any = await api.get('/stores/mine', {
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
-    const list = unwrapList(res);
+    const list = ownedStoreList(res);
     const first = list[0];
     if (!first) {
-      throw new Error('Bạn chưa có cửa hàng nào.');
+      throw new MissingOwnedStoreError();
     }
     // `/mine` returns summary; enrich from detail when possible
     try {
@@ -90,7 +106,7 @@ export const storeService = {
     const res: any = await api.get('/stores/mine', {
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
-    return unwrapList(res).map(normalizeStore);
+    return ownedStoreList(res).map(normalizeStore);
   },
 
   async updateMyStore(data: Partial<StoreSettings> & { id?: string }) {

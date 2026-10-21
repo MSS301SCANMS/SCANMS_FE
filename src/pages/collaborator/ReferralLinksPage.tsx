@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import {
   Link2,
@@ -43,7 +43,7 @@ import {
   ShieldCheck,
   Video,
 } from 'lucide-react';
-import { referralLinksService } from '../../services/referral-links.service';
+import { referralLinksService, EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE } from '../../services/referral-links.service';
 import type {
   ReferralLinkItem,
   EligibleProduct,
@@ -55,6 +55,8 @@ import { toast } from '../../utils/toast';
 import { ReferralLinkActions } from './ReferralLinkActions';
 
 import QRCode from 'qrcode';
+import { usesLegacyCheckout } from '../../services/checkout.service';
+import { CreateReferralLinkModal } from './CreateReferralLinkModal';
 
 function useQrDataUrl(value?: string | null) {
   const [dataUrl, setDataUrl] = useState('');
@@ -113,6 +115,7 @@ function useQrDataUrl(value?: string | null) {
 
 export default function ReferralLinksPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [links, setLinks] = useState<ReferralLinkItem[]>([]);
   const [totalLinks, setTotalLinks] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -624,6 +627,7 @@ export default function ReferralLinksPage() {
   }, [fetchLinks]);
 
   const fetchDealProposals = useCallback(async () => {
+    if (!referralLinksService.supportsExclusiveDeals) return;
     setLoadingDealProposals(true);
     try {
       setDealProposals(await referralLinksService.getMyExclusiveDeals());
@@ -645,7 +649,7 @@ export default function ReferralLinksPage() {
   };
 
 
-  const loadEligibleProductsAndCampaigns = async () => {
+  const loadEligibleProductsAndCampaigns = useCallback(async () => {
     setLoadingProducts(true);
     setLoadingMoreProducts(false);
     setEligibleProductsPage(1);
@@ -676,10 +680,10 @@ export default function ReferralLinksPage() {
     } finally {
       setLoadingProducts(false);
     }
-  };
+  }, []);
 
 
-  const handleOpenCreateModal = async () => {
+  const handleOpenCreateModal = useCallback(async () => {
     setCreateLinkStep(1);
     setIsCreateModalOpen(true);
     setCreatedSuccessLink(null);
@@ -695,8 +699,18 @@ export default function ReferralLinksPage() {
     setUtmCampaign('');
     setUtmContent('');
     setFormTouched({});
-    await loadEligibleProductsAndCampaigns();
-  };
+    if (usesLegacyCheckout) await loadEligibleProductsAndCampaigns();
+  }, [loadEligibleProductsAndCampaigns]);
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    void handleOpenCreateModal();
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete('create');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams, handleOpenCreateModal]);
 
   useEffect(() => {
     const handleOpenCreateLinkEvent = () => {
@@ -714,7 +728,7 @@ export default function ReferralLinksPage() {
       window.removeEventListener('scanms_open_create_link', handleOpenCreateLinkEvent);
       window.removeEventListener('scanms_open_submit_video', handleOpenSubmitVideoEvent);
     };
-  }, []);
+  }, [handleOpenCreateModal]);
 
 
   const handleSelectProduct = (prod: EligibleProduct) => {
@@ -762,6 +776,7 @@ export default function ReferralLinksPage() {
   };
 
   const openExclusiveDealDialog = (product: EligibleProduct) => {
+    if (!referralLinksService.supportsExclusiveDeals) return;
     setDealProposalStep(1);
     setDealProposalProduct(product);
     const currentDeal = dealProposals.find(
@@ -812,6 +827,7 @@ export default function ReferralLinksPage() {
   };
 
   const handleConfirmDeleteDeal = async () => {
+    if (!referralLinksService.supportsExclusiveDeals) return;
     if (!dealToDelete) return;
     setDeletingDealId(dealToDelete.id);
     try {
@@ -834,6 +850,7 @@ export default function ReferralLinksPage() {
 
   const handleSubmitExclusiveDeal = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!referralLinksService.supportsExclusiveDeals) return;
     if (!dealProposalProduct || submittingDealProposal) return;
     if (kolDealStatus?.isBlocked) {
       toast.error(
@@ -1126,9 +1143,12 @@ export default function ReferralLinksPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 id="exclusive-deals-heading" className="text-base font-extrabold text-[#1A1612]">
-                  Deal độc quyền
+                  Thỏa thuận độc quyền
                 </h2>
-                {dealStats.total > 0 && (
+                {!referralLinksService.supportsExclusiveDeals && (
+                  <span className="rounded-full border border-[#EAE4D7] bg-[#FAF8F5] px-2.5 py-1 text-[11px] font-medium text-[#7D715E]">Chưa hỗ trợ</span>
+                )}
+                {referralLinksService.supportsExclusiveDeals && dealStats.total > 0 && (
                   <span className="inline-flex h-7 items-center px-2.5 rounded-full text-[11px] font-semibold bg-[#FBF5EB] text-[#8D6936] border border-[#EEDFC6]">
                     {dealStats.total} đề xuất
                   </span>
@@ -1149,12 +1169,12 @@ export default function ReferralLinksPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 items-center gap-2 shrink-0 lg:min-w-[230px]">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={toggleExclusiveDealsCollapse}
               className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 text-xs font-semibold text-[#795A2D] hover:bg-[#F3EFE6] transition-colors cursor-pointer select-none"
-              title={isExclusiveDealsCollapsed ? 'Mở rộng danh sách đề xuất Exclusive Deal' : 'Thu gọn danh sách đề xuất'}
+              title={isExclusiveDealsCollapsed ? 'Mở rộng thông tin thỏa thuận độc quyền' : 'Thu gọn thông tin thỏa thuận độc quyền'}
               aria-expanded={!isExclusiveDealsCollapsed}
               aria-controls="kol-deal-list"
             >
@@ -1166,22 +1186,21 @@ export default function ReferralLinksPage() {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate('/chat')}
-              className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[#EAE4D7] bg-white px-3 text-xs font-semibold text-[#1A1612] hover:bg-[#FAF8F5] hover:border-[#C59B58] transition-colors cursor-pointer select-none"
-              title="Mở hộp chat trao đổi với Shop"
-            >
-              <ExternalLink className="h-3.5 w-3.5 text-[#B88E4F]" />
-              <span>Mở Chat</span>
-            </button>
           </div>
         </div>
 
         {/* Nội dung danh sách deal (Có thể thu gọn / mở rộng) */}
         {!isExclusiveDealsCollapsed && (
           <div id="kol-deal-list" className="kol-deal-content mt-4 border-t border-[#EAE4D7] pt-4">
-            {loadingDealProposals ? (
+            {!referralLinksService.supportsExclusiveDeals ? (
+              <div className="flex items-start gap-3 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB]/60 p-4" role="note">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B88E4F]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#795A2D]">{EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#7D715E]">Hiện chưa thể gửi, duyệt hoặc điều chỉnh thỏa thuận hoa hồng độc quyền.</p>
+                </div>
+              </div>
+            ) : loadingDealProposals ? (
               <div className="py-4 flex items-center justify-center gap-2 text-sm text-[#7D715E]">
                 <Loader2 className="h-4 w-4 animate-spin text-[#B88E4F]" />
                 <span>Đang tải danh sách đề xuất Exclusive Deal...</span>
@@ -1645,7 +1664,8 @@ export default function ReferralLinksPage() {
       </div>
       </section>
 
-      {isCreateModalOpen && (
+      {isCreateModalOpen && !usesLegacyCheckout && <CreateReferralLinkModal onClose={() => setIsCreateModalOpen(false)} onCreated={() => { void fetchLinks(); }} />}
+      {isCreateModalOpen && usesLegacyCheckout && (
         <div className="kol-create-link-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div role="dialog" aria-modal="true" aria-labelledby="create-link-title" className={`kol-create-link-modal ${createdSuccessLink ? 'kol-link-success-modal' : ''} bg-white rounded-2xl shadow-2xl border border-[#EAE4D7] w-full max-w-[590px] max-h-[92vh] flex flex-col overflow-hidden`}>
 
@@ -1979,7 +1999,7 @@ export default function ReferralLinksPage() {
                       </div>
                     )}
 
-                    {selectedProduct && (
+                    {referralLinksService.supportsExclusiveDeals && selectedProduct && (
                       <button
                         type="button"
                         onClick={() => openExclusiveDealDialog(selectedProduct)}
@@ -3047,7 +3067,7 @@ export default function ReferralLinksPage() {
       )}
 
 
-      {dealProposalProduct && (
+      {referralLinksService.supportsExclusiveDeals && dealProposalProduct && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center kol-deal-proposal-overlay bg-[#231D15]/25 p-4 backdrop-blur-xs" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !submittingDealProposal) setDealProposalProduct(null);
         }}>

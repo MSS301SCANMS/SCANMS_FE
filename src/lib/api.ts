@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiCache } from '../utils/apiCache';
+import { prepareSessionRequest, assertCurrentSession, handleSessionApiError } from '../services/auth-session';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
@@ -12,10 +13,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    await prepareSessionRequest(config);
 
     // Client Memory Cache Hit: Nếu là GET request hợp lệ và chưa hết hạn, trả về ngay từ cache không cần chờ mạng
     const isGet = (config.method || 'get').toLowerCase() === 'get';
@@ -47,6 +45,7 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    assertCurrentSession(response.config);
     const method = (response.config.method || 'get').toLowerCase();
     const url = response.config.url;
 
@@ -64,22 +63,7 @@ api.interceptors.response.use(
     }
     return payload;
   },
-  async (error) => {
-    const status = error.response?.status;
-    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    }
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      'Something went wrong';
-    const customErr: any = new Error(message);
-    customErr.response = error.response;
-    customErr.status = status;
-    customErr.statusCode = status;
-    return Promise.reject(customErr);
-  }
+  (error) => handleSessionApiError(error, api)
 );
 
 export default api;

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import api from './api';
 import { financeService } from './finance.service';
+import { installRawSessionAuth } from './auth-session';
 
 export const usesLegacyCheckout = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 const unwrap = (response: any) => response?.result ?? response?.data?.data ?? response?.data ?? response;
@@ -16,11 +17,7 @@ legacyFinance.interceptors.response.use(response => response, error => {
 });
 
 const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || 'http://localhost:8080/api/v1', timeout: 60000 });
-checkout.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+installRawSessionAuth(checkout);
 export const checkoutService = {
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));

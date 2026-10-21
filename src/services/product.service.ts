@@ -31,6 +31,8 @@ export interface Product {
   moderationStatus?: 'DRAFT' | 'APPROVED' | 'REJECTED';
   moderationReason?: string | null;
   moderatedAt?: string | null;
+  requiresModeration?: boolean;
+  product?: Product;
   isAffiliateEnabled?: boolean;
   sampleEnabled?: boolean;
   sampleQuota?: number;
@@ -175,7 +177,15 @@ export const productService = {
           p.sku?.toLowerCase().includes(q),
       );
     }
-    return { items, data: items, total: items.length };
+    const page = params?.page || 1;
+    const limit = params?.limit || 20;
+    const totalPages = Math.max(1, Math.ceil(items.length / limit));
+    return {
+      items,
+      data: items,
+      total: items.length,
+      pagination: { total: items.length, page, limit, totalPages },
+    };
   },
 
   async getProduct(id: string): Promise<Product> {

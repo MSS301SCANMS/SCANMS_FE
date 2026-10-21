@@ -200,7 +200,7 @@ test(
       await page
         .waitForFunction(() =>
           document
-            .querySelector('table[aria-label="Danh sách payout"] tbody')
+            .querySelector('table[aria-label="Danh sách chi trả"] tbody')
             ?.textContent.includes("Test KOL first"),
         )
         .catch(async (error) => {
@@ -263,7 +263,7 @@ test(
       );
       const setFile = async (type, name) => {
         await page.$eval(
-          'input[aria-label="Ảnh bill ngân hàng"]',
+          'input[aria-label="Chứng từ ngân hàng"]',
           (input, { type, name }) => {
             const files = new DataTransfer();
             files.items.add(
@@ -292,15 +292,15 @@ test(
           "Tài liệu PDF",
         ),
       );
-      await page.click('button[aria-label="Xóa file bill"]');
+      await page.click('button[aria-label="Xóa tệp chứng từ"]');
       assert.equal(
         await page.$eval('dialog button[type="submit"]', (el) => el.disabled),
         true,
       );
       await setFile("image/png", "bill.png");
-      await page.waitForSelector('img[alt="Preview bill ngân hàng"]');
+      await page.waitForSelector('img[alt="Ảnh xem trước chứng từ ngân hàng"]');
       await page.type(
-        'textarea[aria-label="Ghi chú duyệt payout"]',
+        'textarea[aria-label="Ghi chú duyệt chi trả"]',
         "Confirmed bank transfer",
       );
       await page.$eval('[role="dialog"] form', (form) => {
@@ -340,10 +340,10 @@ test(
         'a[href="https://example.test/private-bill?expires=120"]',
       );
       await page.click('button[aria-label="Đóng chứng từ chi trả"]');
-      await page.click(`input[aria-label="Chọn payout ${requests[1].id}"]`);
+      await page.click(`input[aria-label="Chọn lệnh chi trả ${requests[1].id}"]`);
       await clickText("Xuất Excel VietQR (1)");
       await page.waitForFunction(() =>
-        document.body.textContent.includes("1 payout"),
+        document.body.textContent.includes("1 lệnh chi trả"),
       );
       assert.equal(exportCount, 1);
       assert.ok(
@@ -353,7 +353,7 @@ test(
       );
       assert.equal(
         await page.$eval(
-          `input[aria-label="Chọn payout ${requests[1].id}"]`,
+          `input[aria-label="Chọn lệnh chi trả ${requests[1].id}"]`,
           (el) => el.disabled,
         ),
         true,
@@ -383,7 +383,7 @@ test(
           "Đã từ chối",
         ),
       );
-      await page.click('[aria-label="Lọc trạng thái payout"]');
+      await page.click('[aria-label="Lọc trạng thái chi trả"]');
       await page.waitForSelector('[role="listbox"]');
       await page.evaluate(() => [...document.querySelectorAll('[role="option"]')]
         .find(option => option.textContent.trim() === 'Chờ chuyển khoản').click());
@@ -411,7 +411,7 @@ test(
         frame,
         "Prototype payout route must load the real merchant page",
       );
-      await frame.waitForSelector('table[aria-label="Danh sách payout"]');
+      await frame.waitForSelector('table[aria-label="Danh sách chi trả"]');
     } finally {
       await browser.close();
     }

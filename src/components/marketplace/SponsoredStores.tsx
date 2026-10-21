@@ -12,12 +12,18 @@ export function SponsoredStores() {
   const [now, setNow] = useState(Date.now());
   const { data = [] } = useQuery<Placement[]>({
     queryKey: ['marketplace-sponsored-placements'],
+    enabled: import.meta.env.VITE_COMMERCE_BACKEND === 'legacy',
     queryFn: async () => {
-      const response = await api.get('/stores/public/placements');
-      const payload = response?.data?.data ?? response?.data ?? response;
-      return Array.isArray(payload) ? payload : [];
+      try {
+        const response = await api.get('/stores/public/placements');
+        const payload = response?.data?.data ?? response?.data ?? response;
+        return Array.isArray(payload) ? payload : [];
+      } catch {
+        return [];
+      }
     },
-    staleTime: 30_000, refetchInterval: 30_000,
+    staleTime: 60_000,
+    retry: false,
   });
   useEffect(() => {
     const nextExpiry = Math.min(...data.map(row => Date.parse(row.endsAt)).filter(time => time > Date.now()));

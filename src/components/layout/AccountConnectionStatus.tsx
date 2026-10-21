@@ -80,7 +80,7 @@ export function AccountConnectionStatus({ userId }: { userId?: string }) {
     status === 'online'
       ? 'Đang trực tuyến'
       : status === 'api-ready'
-        ? 'API đang sẵn sàng'
+        ? 'Đã kết nối'
         : status === 'offline'
           ? 'Mất kết nối'
           : 'Đang kết nối';
@@ -94,7 +94,7 @@ export function AccountConnectionStatus({ userId }: { userId?: string }) {
   return (
     <span
       role="status"
-      aria-label={`Trạng thái tài khoản: ${label}`}
+      aria-label={`Trạng thái kết nối: ${label}`}
       data-account-connection={status}
       className="hidden h-8 items-center gap-2 whitespace-nowrap rounded-[10px] border border-[#EAE4D7] bg-white px-2.5 text-[11px] font-medium text-[#7D715E] lg:inline-flex"
     >

@@ -3,6 +3,7 @@
  */
 
 import api from '../services/api';
+import { authService } from '../services/auth.service';
 
 type ComponentLoader = () => Promise<any>;
 
@@ -19,6 +20,8 @@ const ROUTE_LOADERS: Record<string, ComponentLoader> = {
   '/collaborator/wallet': () => import('@/pages/collaborator/WalletPage'),
   '/collaborator/profile': () => import('@/pages/collaborator/CreatorProfilePage'),
   '/admin/users': () => import('@/pages/admin/AdminUsersPage'),
+  '/admin/kyc-approval': () => import('@/pages/admin/KycApprovalPage'),
+  '/admin/ops-dashboard': () => import('@/pages/admin/ManagerOpsDashboardPage'),
   '/admin/product-moderation': () => import('@/pages/admin/ProductModerationPage'),
   '/admin/affiliate-oversight': () => import('@/pages/admin/AdminOversightHubPage'),
   '/customer/orders': () => import('@/pages/customer/CustomerPortalPage'),
@@ -28,7 +31,6 @@ const ROUTE_LOADERS: Record<string, ComponentLoader> = {
 const ROUTE_DATA_PREFETCH: Record<string, () => Promise<any>> = {
   '/merchant/orders': () => api.get('/seller-orders'),
   '/merchant/products': () => api.get('/products'),
-  '/merchant/payouts': () => api.get('/finance/settlements'),
   '/collaborator/marketing': () => api.get('/referrals'),
   '/collaborator/wallet': () => api.get('/finance/wallets/me'),
   '/admin/users': () => api.get('/users/admin'),
@@ -41,7 +43,7 @@ const preloadedRoutes = new Set<string>();
 const prefetchedDataRoutes = new Set<string>();
 
 export function preloadRoute(path: string): void {
-  const cleanPath = path.split('?')[0].split('#')[0];
+  const cleanPath = resolvePreloadPath(path);
   if (preloadedRoutes.has(cleanPath)) return;
   const loader = ROUTE_LOADERS[cleanPath];
   if (loader) {
@@ -51,13 +53,22 @@ export function preloadRoute(path: string): void {
 }
 
 export function prefetchRouteData(path: string): void {
-  const cleanPath = path.split('?')[0].split('#')[0];
+  const cleanPath = resolvePreloadPath(path);
+  // User administration is restricted to Admin, including speculative requests.
+  if (cleanPath === '/admin/users' && !['SYSTEM_ADMIN', 'ADMIN'].includes(authService.getCurrentUser()?.role || '')) return;
   if (prefetchedDataRoutes.has(cleanPath)) return;
   const fetcher = ROUTE_DATA_PREFETCH[cleanPath];
   if (fetcher) {
     prefetchedDataRoutes.add(cleanPath);
     void fetcher().catch(() => prefetchedDataRoutes.delete(cleanPath));
   }
+}
+
+function resolvePreloadPath(path: string): string {
+  const cleanPath = path.split('?')[0].split('#')[0];
+  const role = authService.getCurrentUser()?.role;
+  return cleanPath === '/admin/users' && (role === 'SYSTEM_MANAGER' || role === 'MANAGER')
+    ? '/admin/kyc-approval' : cleanPath;
 }
 
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,8 +94,10 @@ export function prewarmCoreRoutes(role?: string): void {
       ? ['/merchant/dashboard', '/merchant/orders', '/merchant/products']
       : role === 'COLLABORATOR' || role === 'kol'
         ? ['/collaborator/dashboard', '/collaborator/marketing']
-        : role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER' || role === 'admin'
-          ? ['/admin/users', '/admin/product-moderation']
+        : role === 'SYSTEM_MANAGER' || role === 'MANAGER' || (role === 'admin' && ['SYSTEM_MANAGER', 'MANAGER'].includes(authService.getCurrentUser()?.role || ''))
+          ? ['/admin/ops-dashboard', '/admin/kyc-approval', '/admin/product-moderation']
+        : role === 'SYSTEM_ADMIN' || role === 'ADMIN' || role === 'admin'
+          ? ['/admin/users']
           : ['/marketplace', '/customer/orders'];
   routes.forEach((r) => {
     preloadRoute(r);

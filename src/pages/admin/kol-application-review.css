@@ -1,0 +1,31 @@
+.kol-review-dialog { max-height: calc(100dvh - 32px); border: 1px solid #e6dfd2; border-radius: 20px; background: #faf8f5; color: #241f19; box-shadow: 0 28px 90px #231d1533; }
+.kol-review-dialog > div:first-child { padding: 20px 26px; background: white; border-bottom: 1px solid #eae4d7; }
+.kol-review-dialog > div:first-child h3 { font-size: 21px; line-height: 1.4; }
+.kol-review-dialog > div:first-child p { margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.kol-review-dialog > div:nth-child(2) { padding: 20px 24px; }
+.kol-review-dialog > div:last-child { padding: 14px 24px; background: white; }
+.kol-review-dialog .kyc-kol-content { gap: 16px; font-size: 13px; }
+.kol-review-dialog .kyc-kol-scroll { overflow: visible; padding: 0; }
+.kol-review-dialog .kyc-kol-person { padding: 16px; border-radius: 12px; box-shadow: none; }
+.kol-review-dialog .kyc-kol-person strong { font-size: 16px; }
+.kol-review-dialog .kyc-kol-person > div:first-child { width: 52px; height: 52px; font-size: 18px; }
+.kol-review-dialog .kyc-kol-person + [role=alert] { margin-top: 14px; padding: 14px; border-radius: 12px; }
+.kol-review-dialog [role=alert] strong { font-size: 13px; margin-bottom: 8px; }
+.kyc-kol-missing-tag { display: inline-block; margin: 3px 6px 3px 0; padding: 4px 8px; border: 1px solid #ead7b8; border-radius: 6px; background: #fffcf6; font-size: 11px; line-height: 1.5; }
+.kol-review-dialog .kyc-kol-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; margin-top: 16px; }
+.kyc-kol-main-column { display: grid; gap: 16px; min-width: 0; }
+.kol-review-dialog .kyc-kol-section { min-width: 0; padding: 18px; border: 1px solid #eae4d7; border-radius: 12px; background: white; box-shadow: none; }
+.kol-review-dialog .kyc-kol-section > header { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 10px; margin: 0 0 16px; padding: 0 0 14px; border-bottom: 1px solid #eee8dd; }
+.kol-review-dialog .kyc-kol-section > header > div { flex: 1; min-width: 0; }
+.kyc-kol-group-icon { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border: 1px solid #e9dcc8; border-radius: 9px; background: #fbf5eb; color: #a77d40; }
+.kol-review-dialog .kyc-kol-section header h4 { font-size: 14px; line-height: 1.5; }
+.kol-review-dialog .kyc-kol-section header div > span { display: block; margin-bottom: 3px; font-size: 10px; letter-spacing: .06em; }
+.kol-review-dialog .kyc-kol-disclosure-body { display: grid; gap: 14px; margin: 0; }
+.kol-review-dialog .kyc-kol-disclosure-body strong { font-size: 13px; line-height: 1.6; }
+.kol-review-dialog .kyc-kol-disclosure-body p { font-size: 12px; line-height: 1.7; }
+.kol-review-dialog .kyc-document-image, .kol-review-dialog .kyc-document-empty { height: 150px; border-radius: 9px; }
+.kol-review-dialog .kyc-document-empty { display: flex; flex-direction: column; gap: 6px; background: #faf8f5; font-size: 11px; }
+.kol-review-dialog .kyc-kol-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding: 0; border: 0; }
+.kol-review-dialog .kyc-kol-footer button { min-height: 40px; font-size: 12px; }
+.kol-review-dialog textarea { font-size: 13px; line-height: 1.7; }
+@media (max-width: 760px) { .kol-review-dialog .kyc-kol-columns { grid-template-columns: minmax(0, 1fr); } .kol-review-dialog > div:first-child { padding: 16px; } .kol-review-dialog > div:first-child h3 { font-size: 18px; } .kol-review-dialog > div:nth-child(2) { padding: 14px; } .kol-review-dialog > div:last-child { padding: 12px 14px; } .kol-review-dialog .kyc-kol-footer button { flex: 1; width: auto; } }

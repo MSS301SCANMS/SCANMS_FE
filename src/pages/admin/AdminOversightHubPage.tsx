@@ -1,7 +1,6 @@
 import { useSearchParams, Navigate } from 'react-router-dom';
 import { Link2, Tag } from 'lucide-react';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { authService } from '../../services/auth.service';
 import AdminReferralLinksPage from './AdminReferralLinksPage';
 import AdminCouponsPage from './AdminCouponsPage';
@@ -29,17 +28,12 @@ export default function AdminOversightHubPage() {
   };
 
   const tabs: HubTabItem[] = [
-    { id: 'links', label: 'Referral Links', icon: Link2 },
-    { id: 'coupons', label: 'Vouchers', icon: Tag },
+    { id: 'links', label: 'Liên kết tiếp thị', icon: Link2 },
+    { id: 'coupons', label: 'Mã giảm giá', icon: Tag },
   ];
 
   return (
     <div className="w-full min-w-0 flex flex-col gap-4 text-[#1A1612]" id="admin-oversight-hub">
-      <PageHeader
-        title="Referral & Voucher"
-        description="Giám sát link tiếp thị và voucher theo mainflow affiliate/promotion"
-        icon={<Link2 className="w-5 h-5" />}
-      />
 
       <HubTabs
         className="mb-2 shadow-none"

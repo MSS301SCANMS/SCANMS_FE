@@ -23,7 +23,8 @@ import SampleDeadlineExtension from '../../components/affiliate/SampleDeadlineEx
 import SampleViolationAction from '../../components/affiliate/SampleViolationAction';
 import { SampleGhnEnvironmentPicker, SampleSandboxWaybills, SampleSandboxStatus, isSandboxShipment, sampleDisplayStatus } from '../../components/shipping/SampleGhnEnvironmentPicker';
 import { toast } from '../../utils/toast';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { unwrapApi } from '../../utils/api-response';
 
 export interface SampleRequestItem {
   id: string;
@@ -141,8 +142,20 @@ function KolAvatar({
 }
 
 export default function ShopSampleManagementTab() {
+  if (import.meta.env.VITE_COMMERCE_BACKEND !== 'legacy') {
+    return <section aria-label="Trạng thái hàng mẫu KOL" className="grid justify-items-start gap-4 rounded-2xl border border-[#EAE4D7] bg-white p-5 text-left text-[#1A1612] sm:p-7">
+      <span className="grid h-12 w-12 place-items-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]"><Package size={23} /></span>
+      <div className="max-w-2xl"><h2 className="m-0 text-lg font-bold">Hàng mẫu KOL chưa được kích hoạt</h2><p className="mb-0 mt-2 text-sm leading-6 text-[#7D715E]">Hệ thống hiện tại chưa hỗ trợ quản lý yêu cầu hàng mẫu và vận chuyển mẫu. Bạn vẫn có thể quản lý đơn bán hàng và theo dõi hợp tác KOL.</p></div>
+      <div className="flex flex-wrap gap-3"><Link to="/merchant/orders?tab=commercial" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2 text-sm font-semibold text-[#795A2D] hover:bg-[#F3E9D8]">Xem đơn bán hàng</Link><Link to="/merchant/collaborations" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#EAE4D7] px-4 py-2 text-sm font-semibold hover:bg-[#FAF8F5]">Xem hợp tác KOL</Link></div>
+    </section>;
+  }
+  return <LegacyShopSampleManagementTab />;
+}
+
+function LegacyShopSampleManagementTab() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [samples, setSamples] = useState<SampleRequestItem[]>([]);
   const sampleLoadSequence = useRef(0);
   const [storeTab, setStoreTab] = useState<'SAMPLES_QUEUE' | 'LEADERBOARD' | 'DEALS'>('SAMPLES_QUEUE');
@@ -164,9 +177,10 @@ export default function ShopSampleManagementTab() {
   const loadData = useCallback(async () => {
     const sequence = ++sampleLoadSequence.current;
     setLoading(true);
+    setLoadError('');
     try {
       const res: any = await api.get('/sample-requests/shop', { headers: { 'x-skip-cache': 'true' } });
-      const data = res?.data || res;
+      const data = unwrapApi(res);
       if (sequence !== sampleLoadSequence.current) return;
       if (!Array.isArray(data)) throw new Error('Không đọc được danh sách hàng mẫu.');
       if (Array.isArray(data)) {
@@ -233,9 +247,8 @@ export default function ShopSampleManagementTab() {
       }
     } catch (err: any) {
       if (sequence !== sampleLoadSequence.current) return;
-      setSamples([]);
       setTrackingModalItem(null);
-      toast.error('Chưa tải được thông tin nhận hàng mới nhất. Vui lòng làm mới danh sách mẫu.');
+      setLoadError(err?.response?.data?.message || err?.message || 'Chưa tải được danh sách hàng mẫu. Vui lòng thử lại.');
     } finally {
       if (sequence === sampleLoadSequence.current) setLoading(false);
     }
@@ -246,7 +259,9 @@ export default function ShopSampleManagementTab() {
     const refresh = () => { if (!document.hidden) void loadData(); };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
+    const requests = sampleLoadSequence;
     return () => {
+      requests.current++;
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
@@ -426,6 +441,15 @@ export default function ShopSampleManagementTab() {
     setCarrierInput('GHN');
     setTrackingCodeInput(s.trackingCode || '');
   };
+
+  if (loadError) {
+    return <section aria-label="Lỗi tải hàng mẫu" className="grid justify-items-start gap-3 rounded-2xl border border-[#EAE4D7] bg-white p-5 text-left sm:p-7">
+      <AlertTriangle size={24} className="text-[#B88E4F]" />
+      <h2 className="m-0 text-base font-bold text-[#1A1612]">Chưa tải được danh sách hàng mẫu</h2>
+      <p role="alert" className="m-0 max-w-2xl text-sm leading-6 text-[#7D715E]">{loadError}</p>
+      <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#EAE4D7] bg-white px-4 py-2 text-sm font-semibold text-[#1A1612] hover:bg-[#FBF5EB] disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Thử tải lại</button>
+    </section>;
+  }
 
   return (
     <div className="w-full flex flex-col space-y-4">

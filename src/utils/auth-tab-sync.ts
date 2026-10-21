@@ -2,10 +2,11 @@ import { authService } from '../services/auth.service';
 import { apiCache } from './api-cache.utils';
 import { queryClient } from '../config/query-client.config';
 import { disconnectChatSocket } from '../services/chat-socket.service';
+import { getSessionId } from '../services/auth-session';
 
 function sessionIdentity() {
   const user = authService.getCurrentUser();
-  return { token: localStorage.getItem('token'), userId: user?.id, role: user?.role };
+  return { token: localStorage.getItem('token'), sessionId: getSessionId(), userId: user?.id, role: user?.role };
 }
 
 export function startAuthTabSync() {
@@ -20,9 +21,11 @@ export function startAuthTabSync() {
   const sync = (fromOtherTab: boolean) => {
     if (navigating) return;
     const current = sessionIdentity();
-    if (current.token === previous.token && current.userId === previous.userId && current.role === previous.role) return;
-    const accountChanged = current.userId !== previous.userId || current.role !== previous.role;
+    if (current.token === previous.token && current.sessionId === previous.sessionId && current.userId === previous.userId && current.role === previous.role) return;
+    const accountChanged = current.userId !== previous.userId || current.role !== previous.role || current.sessionId !== previous.sessionId;
     previous = current;
+    // Token rotation preserves the same account, page state and selected workspace.
+    if (!accountChanged) return;
     clearPreviousAccount();
     if (!fromOtherTab) return;
 
@@ -42,7 +45,7 @@ export function startAuthTabSync() {
     }
   };
   const queueSync = (event: StorageEvent) => {
-    if (event.storageArea !== localStorage || (event.key !== null && !['token', 'user'].includes(event.key))) return;
+    if (event.storageArea !== localStorage || (event.key !== null && !['token', 'user', 'scanms-session-id'].includes(event.key))) return;
     clearTimeout(timer);
     timer = setTimeout(() => sync(true), 0);
   };

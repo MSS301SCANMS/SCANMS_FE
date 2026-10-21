@@ -19,8 +19,8 @@ export function MarketplaceHero({ stores, onOpenLive }: { stores: BannerStore[];
       eyebrow: 'SCANMS · SÀN ĐA GIAN HÀNG',
       title: partner ? partner.activeCampaign!.name : 'Một điểm đến. Nhiều lựa chọn chính hãng.',
       description: partner ? `Khám phá chương trình đang diễn ra tại ${partner.name} và chọn sản phẩm phù hợp với bạn.` : 'Khám phá sản phẩm từ nhiều gian hàng đối tác, kết nối cùng những nhà sáng tạo bạn yêu thích.',
-      label: partner ? `Ghé thăm ${partner.name}` : 'Khám phá gian hàng',
-      href: partner ? `/shops/${partner.id}` : '#featured-stores',
+      label: partner ? `Ghé thăm ${partner.name}` : 'Khám phá sản phẩm',
+      href: partner ? `/shops/${partner.id}` : '#catalog-section',
     },
     {
       image: '/assets/marketplace/scanms-affiliate-banner-v2.png',

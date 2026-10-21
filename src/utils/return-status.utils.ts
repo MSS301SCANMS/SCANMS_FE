@@ -1,6 +1,9 @@
 import type { ReturnStatus } from '../services/return.service';
 
 const labels: Record<ReturnStatus, string> = {
+  PENDING: 'Chờ Shop phản hồi',
+  APPROVED: 'Shop đã duyệt',
+  REJECTED: 'Shop từ chối',
   REQUESTED: 'Chờ Shop phản hồi',
   SHOP_APPROVED: 'Shop đã duyệt · chờ đặt lấy hàng',
   PICKUP_BOOKED: 'Đã đặt shipper lấy hàng',

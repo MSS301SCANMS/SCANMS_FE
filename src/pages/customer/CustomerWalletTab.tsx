@@ -24,6 +24,7 @@ export const CustomerWalletTab: React.FC = () => {
   const [page, setPage] = useState(1);
   const [customAmount, setCustomAmount] = useState<string>('500000');
   const [topUpLoading, setTopUpLoading] = useState(false);
+  const [sandboxAvailable, setSandboxAvailable] = useState(false);
   const [topUpTab, setTopUpTab] = useState<'SANDBOX' | 'PAYOS'>('PAYOS');
 
   const fetchWalletData = async () => {
@@ -36,7 +37,7 @@ export const CustomerWalletTab: React.FC = () => {
       setWallet(walletData);
       setLedger(ledgerData);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không thể tải thông tin ví');
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể tải thông tin ví');
     } finally {
       setLoading(false);
     }
@@ -46,9 +47,16 @@ export const CustomerWalletTab: React.FC = () => {
     fetchWalletData();
   }, [page]);
 
+  useEffect(() => {
+    let active = true;
+    walletService.sandboxAvailability().then(value => { if (active) setSandboxAvailable(value); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   const handleTopUp = async (amount: number) => {
-    if (!amount || amount < 10000) {
-      toast.error('Số tiền nạp tối thiểu là 10.000 ₫');
+    if (!sandboxAvailable) return;
+    if (!Number.isSafeInteger(amount) || amount < 10000 || amount > 50000000) {
+      toast.error('Nhập số tiền nguyên từ 10.000 đến 50.000.000 ₫');
       return;
     }
     try {
@@ -57,7 +65,7 @@ export const CustomerWalletTab: React.FC = () => {
       toast.success(`Nạp thành công ${formatMoney(amount)} vào Ví SCANMS!`);
       await fetchWalletData();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không thể nạp tiền thử nghiệm');
+      toast.error(err?.response?.data?.message || err?.message || 'Không thể nạp tiền thử nghiệm');
     } finally {
       setTopUpLoading(false);
     }
@@ -150,14 +158,14 @@ export const CustomerWalletTab: React.FC = () => {
         </header>
         <div className="grid gap-[12px] p-[16px] max-w-[860px] text-left @max-[599px]:p-[14px_12px]">
           <div className="flex gap-[4px] w-fit max-w-full p-[3px] border border-[#EAE4D7] rounded-[9px] bg-[#FAF8F5] @max-[599px]:w-full" role="group" aria-label="Phương thức nạp tiền">
-            <button
+            {sandboxAvailable && <button
               type="button"
               aria-pressed={topUpTab === 'SANDBOX'}
               onClick={() => setTopUpTab('SANDBOX')}
               className={`inline-flex items-center justify-center gap-[6px] min-h-[32px] px-[12px] py-[6px] border rounded-[6px] text-[12px] font-[500] cursor-pointer transition @max-[599px]:flex-1 @max-[599px]:px-[8px] @max-[599px]:py-[6px] @max-[599px]:text-[11px] ${topUpTab === 'SANDBOX' ? 'bg-white text-[#1A1612] border-[#EEDFC6] shadow-xs' : 'border-transparent text-[#7D715E] hover:text-[#1A1612]'}`}
             >
               Sandbox (Demo)
-            </button>
+            </button>}
             <button
               type="button"
               aria-pressed={topUpTab === 'PAYOS'}

@@ -6,7 +6,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Wallet,
-  Share2,
   Landmark,
   Loader2,
   ArrowUpRight,
@@ -26,11 +25,9 @@ import {
   ReceiptText,
   Plus,
 } from "lucide-react";
-import KycSubmissionPage from "./KycSubmissionPage";
-import SocialChannelsPage from "./SocialChannelsPage";
 import { walletService } from "../../services/wallet.service";
-import { kycService, type KycProfile } from "../../services/kyc.service";
-import { socialService, type SocialChannel } from "../../services/social.service";
+import { kycService } from "../../services/kyc.service";
+import { socialService } from "../../services/social.service";
 import { toast } from "../../utils/toast";
 import { cn } from "../../utils/cn";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
@@ -89,8 +86,8 @@ export default function WalletPage() {
   // Note: chỉ giữ ví & rút tiền — bỏ tab KYC/social khỏi wallet
   const activeTab = 'wallet';
   void searchParams;
-  const [kycData, setKycData] = useState<{ profile: KycProfile; channels: SocialChannel[] } | null>(null);
-  const [socialData, setSocialData] = useState<SocialChannel[] | null>(null);
+  const [, setKycData] = useState<any>(null);
+  const [, setSocialData] = useState<any>(null);
 
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [storeId, setStoreId] = useState("");
@@ -106,7 +103,6 @@ export default function WalletPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const submissionInFlight = useRef(false);
-  const reloadInFlight = useRef(false);
   const loadSequence = useRef(0);
 
   const defaultBank = VIETNAM_BANKS.find((b) => b.shortName === "MBBank") || VIETNAM_BANKS[0];
@@ -262,17 +258,6 @@ export default function WalletPage() {
     void loadCurrentTab();
     return () => { sequenceRef.current++; };
   }, [loadCurrentTab]);
-
-  const isReloading = loading;
-  const handleReload = async () => {
-    if (isReloading || submitting || reloadInFlight.current) return;
-    reloadInFlight.current = true;
-    try {
-      await loadCurrentTab();
-    } finally {
-      reloadInFlight.current = false;
-    }
-  };
 
   const validPreviewAmount = /^\d{1,13}(\.\d{1,2})?$/.test(amount.trim());
   const selectedStore = wallet?.stores.find(

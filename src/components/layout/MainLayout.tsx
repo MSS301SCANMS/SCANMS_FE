@@ -35,14 +35,17 @@ export default function MainLayout() {
 
     const handleUserUpdated = () => {
       const updated = authService.getCurrentUser();
-      if (updated) {
-        setCurrentUser(updated);
+      setCurrentUser(updated);
+      if (!updated && !localStorage.getItem('token')) {
+        const path = `${location.pathname}${location.search}${location.hash}`;
+        const role = path.startsWith('/merchant/') ? 'shop' : path.startsWith('/admin/') ? 'admin' : 'kol';
+        navigate(`/login?role=${role}&redirect=${encodeURIComponent(path)}`, { replace: true });
       }
     };
 
     window.addEventListener('auth-user-updated', handleUserUpdated);
     return () => window.removeEventListener('auth-user-updated', handleUserUpdated);
-  }, [location.pathname]);
+  }, [location.pathname, location.search, location.hash, navigate]);
 
   const handleLogout = () => {
     authService.logout();
