@@ -11,9 +11,6 @@ export default function ShopApplicationPage({ onCheckStore, checkingStore = fals
   return (
     <div aria-label="Hồ sơ gian hàng của chủ shop" className="shop-application-page">
       <header className="shop-application-page-header">
-        <div>
-          <h1>Hồ sơ gian hàng</h1><p>Thông tin đăng ký và trạng thái xét duyệt.</p>
-        </div>
         {onCheckStore ? (
           <button type="button" onClick={onCheckStore} disabled={checkingStore} className="shop-application-back">
             <RefreshCw size={16} className={checkingStore ? 'animate-spin' : ''} />Kiểm tra gian hàng

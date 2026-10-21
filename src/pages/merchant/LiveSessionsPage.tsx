@@ -30,23 +30,7 @@ import { DateTimePicker } from '../../components/common/DateTimePicker';
 import { Select } from '../../components/ui/Select';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
 import { liveBroadcastService } from '@/services/live-broadcast.service';
-
-const getFallbackAvatar = (id: string, name: string) => {
-  const avatars = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80',
-  ];
-  let sum = 0;
-  for (let i = 0; i < (id || name || '').length; i++) {
-    sum += (id || name).charCodeAt(i);
-  }
-  return avatars[sum % avatars.length];
-};
+import { partnershipInvitationsService } from '@/services/partnership-invitations.service';
 
 type LiveProduct = {
   id: string;
@@ -111,6 +95,16 @@ type Catalog = {
   creators: Creator[];
   defaultCommissionRate: number;
 };
+
+function CreatorAvatar({ creator, className }: { creator: Creator; className: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (creator.avatarUrl && !imageFailed) {
+    return <img src={creator.avatarUrl} alt={creator.fullName} onError={() => setImageFailed(true)} className={`${className} rounded-full border border-[#EEDFC6] object-cover bg-white`} />;
+  }
+  return <div role="img" aria-label={creator.fullName} className={`${className} flex items-center justify-center rounded-full border border-[#EEDFC6] bg-[#FBF5EB] font-bold text-[#9B7137]`}>
+    {(creator.fullName.trim().charAt(0) || 'K').toLocaleUpperCase('vi-VN')}
+  </div>;
+}
 
 const currency = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')} ₫`;
 const localDateTime = (value: string) =>
@@ -201,6 +195,7 @@ export default function LiveSessionsPage({
   const [activeTab, setActiveTab] = useState<'history' | 'create'>('history');
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
   const [catalog, setCatalog] = useState<Catalog>({ products: [], creators: [], defaultCommissionRate: 10 });
+  const [collaboratorLoadError, setCollaboratorLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -321,36 +316,62 @@ export default function LiveSessionsPage({
           return;
         }
 
-        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
+        const [productsRes, invitationsCatalog, invitations, loadedSessions] = await Promise.all([
           api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
+          partnershipInvitationsService.catalog().catch(() => null),
+          partnershipInvitationsService.list('shop').catch(() => null),
           loadSessions(sId),
         ]);
         if (!active) return;
         if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
+        const hasCollaborationData = Array.isArray(invitations) && Array.isArray(invitationsCatalog?.creators);
+        setCollaboratorLoadError(hasCollaborationData ? '' : 'Không tải được danh sách hợp tác. Hãy cập nhật trang rồi thử lại.');
         const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
-        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
         const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
           id: p.productId || p.id,
           title: p.title || p.name || 'Sản phẩm',
           imageUrl: p.imageUrl || p.thumbnailUrl || null,
           price: p.price ?? p.basePrice ?? 0,
         }));
-        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
-          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
-          .map((c: any) => ({
-            id: c.collaboratorId || c.id || c.userId,
-            fullName: c.displayName || c.fullName || c.username || 'KOL',
-            avatarUrl: c.avatarUrl || null,
-            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
-            socialChannels: c.socialChannels || [],
-            baseRate: c.baseRate ?? 10,
-            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
-            isExclusiveVip: Boolean(c.isExclusiveVip),
-            exclusiveDealRate: c.exclusiveDealRate,
-            campaignBonusRate: c.campaignBonusRate || 0,
-          }));
+        const acceptedInvitations = Array.isArray(invitations)
+          ? invitations.filter((row: any) => row.status === 'ACCEPTED' && row.storeId === sId)
+          : [];
+        const acceptedByCreatorId = new Map<string, any>();
+        acceptedInvitations.forEach((row: any) => {
+          if (row.collaboratorId && !acceptedByCreatorId.has(row.collaboratorId)) acceptedByCreatorId.set(row.collaboratorId, row);
+        });
+        const approvedCreators = Array.isArray(invitationsCatalog?.creators) ? invitationsCatalog.creators : [];
+        const creators = approvedCreators
+          .filter((creator: any) => acceptedByCreatorId.has(creator.id))
+          .map((creator: any) => {
+            const invitation = acceptedByCreatorId.get(creator.id);
+            return {
+              id: creator.id,
+              fullName: invitation?.collaboratorName || creator.name || 'KOL',
+              avatarUrl: creator.avatarUrl || null,
+              collaboratorProfile: { totalFollowers: Number(creator.followers || 0), kycStatus: 'VERIFIED' },
+              socialChannels: [{
+                platformName: creator.platform || 'OTHER',
+                channelName: creator.name || invitation?.collaboratorName || null,
+                followerCount: Number(creator.followers || 0),
+                channelUrl: creator.channelUrl || '',
+              }],
+              baseRate: 10,
+              currentEffectiveRate: 10,
+              isExclusiveVip: false,
+              campaignBonusRate: 0,
+            };
+          });
         setCatalog({ products, creators, defaultCommissionRate: 10 });
+        const creatorById = new Map(creators.map((creator: Creator) => [creator.id, creator]));
+        const normalizedSessions = loadedSessions.map((session) => ({
+          ...session,
+          creator: creatorById.get(session.creator.id) || session.creator,
+        }));
+        setSessions(normalizedSessions);
+        setDetailModalSession((current) => current
+          ? normalizedSessions.find((session) => session.id === current.id) || current
+          : current);
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',
@@ -941,14 +962,7 @@ export default function LiveSessionsPage({
                       {/* KOL & Voucher Row */}
                       <div className="grid grid-cols-2 gap-2 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-2.5 text-xs">
                         <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={session.creator.avatarUrl || getFallbackAvatar(session.creator.id, session.creator.fullName)}
-                            alt={session.creator.fullName}
-                            className="h-7 w-7 rounded-full border border-[#EEDFC6] object-cover shrink-0"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = getFallbackAvatar(session.creator.id, session.creator.fullName);
-                            }}
-                          />
+                          <CreatorAvatar creator={session.creator} className="h-7 w-7 shrink-0 text-[10px]" />
                           <div className="min-w-0">
                             <span className="block text-[10px] text-[#7D715E]">KOL hợp tác</span>
                             <span className="mt-0.5 block truncate font-bold text-[#1A1612]">
@@ -1166,9 +1180,7 @@ export default function LiveSessionsPage({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <span className="text-xs font-bold text-[#1A1612]">Chọn KOL hợp tác phát sóng *</span>
-                  <p className="text-[11px] text-[#7D715E]">
-                    Ưu tiên hiển thị Đối tác VIP đã chốt Deal độc quyền hoặc đang trong Chiến dịch.
-                  </p>
+                  <p className="text-[11px] text-[#7D715E]">Chỉ hiển thị KOL đã đồng ý hợp tác với gian hàng này.</p>
                 </div>
                 {selectedCreator && !isChangingKol && (
                   <button
@@ -1187,14 +1199,7 @@ export default function LiveSessionsPage({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="relative shrink-0">
-                        <img
-                          src={selectedCreator.avatarUrl || getFallbackAvatar(selectedCreator.id, selectedCreator.fullName)}
-                          alt={selectedCreator.fullName}
-                          className="h-13 w-13 rounded-full border-2 border-[#C59B58] object-cover bg-white shadow-2xs"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = getFallbackAvatar(selectedCreator.id, selectedCreator.fullName);
-                          }}
-                        />
+                        <CreatorAvatar creator={selectedCreator} className="h-13 w-13 text-lg shadow-2xs" />
                         {selectedCreator.isExclusiveVip && (
                           <div className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#C59B58] text-white shadow-xs" title="Đối tác VIP có Deal riêng">
                             <Crown className="h-3 w-3 fill-current" />
@@ -1313,13 +1318,14 @@ export default function LiveSessionsPage({
                   {/* KOL Cards List */}
                   {filteredCreators.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[#EAE4D7] p-6 text-center text-xs text-[#7D715E]">
-                      Không tìm thấy KOL đối tác nào khớp với tìm kiếm.
+                      {collaboratorLoadError || (kolSearch.trim()
+                        ? 'Không tìm thấy KOL nào khớp với từ khóa.'
+                        : 'Chưa có KOL đồng ý hợp tác với gian hàng này.')}
                     </div>
                   ) : (
                     <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 pr-1">
                       {filteredCreators.map((c) => {
                         const isSelected = form.creatorId === c.id;
-                        const avatarSrc = c.avatarUrl || getFallbackAvatar(c.id, c.fullName);
                         const effectiveRate = c.currentEffectiveRate ?? c.baseRate ?? catalog.defaultCommissionRate ?? 10;
 
                         return (
@@ -1339,14 +1345,7 @@ export default function LiveSessionsPage({
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="relative shrink-0">
-                                <img
-                                  src={avatarSrc}
-                                  alt={c.fullName}
-                                  className="h-10 w-10 rounded-full border border-[#EEDFC6] object-cover bg-white shadow-2xs"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = getFallbackAvatar(c.id, c.fullName);
-                                  }}
-                                />
+                                <CreatorAvatar creator={c} className="h-10 w-10 shrink-0 text-sm shadow-2xs" />
                                 {c.isExclusiveVip && (
                                   <div className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#C59B58] text-white" title="Đối tác VIP">
                                     <Crown className="h-2.5 w-2.5 fill-current" />
@@ -1741,14 +1740,7 @@ export default function LiveSessionsPage({
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#EAE4D7] p-5">
               <div className="flex items-center gap-3">
-                  <img
-                    src={detailModalSession.creator.avatarUrl || getFallbackAvatar(detailModalSession.creator.id, detailModalSession.creator.fullName)}
-                    alt={detailModalSession.creator.fullName}
-                    className="h-10 w-10 rounded-full border border-[#EEDFC6] object-cover shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = getFallbackAvatar(detailModalSession.creator.id, detailModalSession.creator.fullName);
-                    }}
-                  />
+                  <CreatorAvatar creator={detailModalSession.creator} className="h-10 w-10 shrink-0 text-sm" />
                 <div>
                   <h3 className="text-base font-extrabold text-[#1A1612]">{detailModalSession.title}</h3>
                   <p className="text-xs text-[#7D715E]">
