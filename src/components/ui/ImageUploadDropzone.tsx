@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import {
   UploadCloud,
   Camera,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
+import './ImageUploadDropzone.css';
 
 export interface ImageUploadDropzoneProps {
   label: string;
@@ -22,6 +23,7 @@ export interface ImageUploadDropzoneProps {
   required?: boolean;
   className?: string;
   variant?: 'compact' | 'document';
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
@@ -34,9 +36,12 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
   required = false,
   className = '',
   variant = 'compact',
+  onUploadingChange,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const inputId = useId();
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,33 +49,36 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
 
     // Reset input so re-selecting same file triggers change
     e.target.value = '';
+    setError('');
+
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      const message = 'Chọn ảnh PNG, JPG hoặc WEBP.';
+      setError(message);
+      toast.error(message);
+      return;
+    }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Dung lượng ảnh không được vượt quá 5MB');
+      const message = 'Dung lượng ảnh không được vượt quá 5 MB.';
+      setError(message);
+      toast.error(message);
       return;
     }
 
     setUploading(true);
+    onUploadingChange?.(true);
     try {
       // 1. Tải lên Cloudinary qua uploadService
       const secureUrl = await uploadService.uploadImage(file, folder);
       onChange(secureUrl);
       toast.success('Tải ảnh từ máy lên thành công!');
     } catch (err: any) {
-      console.warn('Lỗi upload server, chuyển sang đọc FileReader:', err);
-      // 2. Fallback FileReader Data URL nếu mạng/server upload tạm bận
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        onChange(dataUrl);
-        toast.success('Đã tải ảnh lên thành công!');
-      };
-      reader.onerror = () => {
-        toast.error('Không thể đọc file ảnh từ máy của bạn');
-      };
-      reader.readAsDataURL(file);
+      const message = err?.message || 'Không tải được ảnh. Vui lòng thử lại.';
+      setError(message);
+      toast.error(message);
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   };
 
@@ -89,29 +97,43 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
 
   if (variant === 'document') {
     return (
-      <div className={`upgrade-document ${className}`}>
+      <div className={`upgrade-document ${className}`} role="group" aria-labelledby={`${inputId}-label`} aria-busy={uploading}>
         <div className="upgrade-document-label">
-          <span>
+          <label id={`${inputId}-label`} htmlFor={inputId}>
             {label}
             {required && <span className="upgrade-required"> *</span>}
-          </span>
+          </label>
           {value && (
             <span className="upgrade-document-status">Đã đính kèm</span>
           )}
         </div>
         <input
           ref={fileInputRef}
+          id={inputId}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/jpg"
           onChange={handleFileSelected}
           className="hidden"
           aria-label={label}
+          disabled={uploading}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${inputId}-error` : undefined}
         />
-        <div className={`upgrade-document-body ${value ? 'has-image' : ''}`}>
+        <div className={`upgrade-document-body ${value ? 'has-image' : ''} ${error ? 'has-error' : ''}`}>
+          {!value && (
+            <button
+              type="button"
+              className="upgrade-document-upload-area"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label={`Chọn ảnh: ${label}`}
+            />
+          )}
           {value ? (
             <button
               type="button"
               className="upgrade-document-preview"
+              disabled={uploading}
               onClick={() =>
                 window.open(value, '_blank', 'noopener,noreferrer')
               }
@@ -143,19 +165,20 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
             </span>
           </div>
           <div className="upgrade-document-actions">
-            <button
+            {value ? <button
               type="button"
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
               className="upgrade-document-choose"
+              aria-label={`${value ? 'Đổi ảnh' : 'Chọn ảnh'}: ${label}`}
             >
-              {value ? 'Đổi ảnh' : 'Chọn ảnh'}
-            </button>
+              Đổi ảnh
+            </button> : <span className="upgrade-document-choose" aria-hidden="true">Chọn ảnh</span>}
             {value && (
               <button
                 type="button"
                 disabled={uploading}
-                onClick={() => onChange('')}
+                onClick={() => { setError(''); onChange(''); }}
                 aria-label={`Xóa ${label}`}
                 className="upgrade-document-remove"
               >
@@ -165,6 +188,7 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
           </div>
         </div>
         {helperText && <p className="upgrade-document-hint">{helperText}</p>}
+        {error && <p id={`${inputId}-error`} className="upgrade-document-error" role="alert">{error}</p>}
       </div>
     );
   }
@@ -280,6 +304,7 @@ export const ImageUploadDropzone: React.FC<ImageUploadDropzoneProps> = ({
           {helperText}
         </p>
       )}
+      {error && <p className="upgrade-document-error" role="alert">{error}</p>}
     </div>
   );
 };

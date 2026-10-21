@@ -17,13 +17,13 @@ import {
 } from 'lucide-react';
 import { referralLinksService } from '../../services/referral-links.service';
 import type { ReferralLinkItem } from '../../services/referral-links.service';
-import api from '../../services/api';
+import { storeService, MissingOwnedStoreError } from '../../services/store.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { Select } from '../../components/ui/Select';
 
 export default function StoreReferralLinksPage() {
-  const initStartedRef = useRef(false);
+  const requestSequence = useRef(0);
   const [links, setLinks] = useState<ReferralLinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -33,6 +33,9 @@ export default function StoreReferralLinksPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [channelFilter, setChannelFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({ search: '', status: '', channel: '' });
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
@@ -40,66 +43,55 @@ export default function StoreReferralLinksPage() {
   const [blockReason, setBlockReason] = useState('');
   const [isSubmittingBlock, setIsSubmittingBlock] = useState(false);
 
-  useEffect(() => {
-    if (initStartedRef.current) return;
-    initStartedRef.current = true;
-
-    async function initStore() {
-      try {
-        const res: any = await api.get('/users/me');
-        const user = res?.result || res?.data || res;
-
-        if (user?.stores && user.stores.length > 0) {
-          setStoreId(user.stores[0].id);
-        } else {
-          const storeRes: any = await api.get('/collaborator/stores');
-          const stores = storeRes?.data || storeRes || [];
-          if (stores.length > 0) {
-            setStoreId(stores[0].id);
-          }
-        }
-      } catch (err: any) {
-        console.error('Lỗi khi lấy storeId:', err);
-      }
-    }
-    initStore();
-  }, []);
-
   const fetchStoreLinks = useCallback(async () => {
-    if (!storeId) return;
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await referralLinksService.getStoreLinks(storeId, {
-        page,
-        limit: 30,
-        status: statusFilter || undefined,
-        channel: channelFilter || undefined,
-        search: search.trim() || undefined,
-      });
-      setLinks(res.data);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Lỗi khi tải danh sách liên kết tiếp thị');
-    } finally {
+    const request = ++requestSequence.current;
+    setLoading(true); setErrorMsg(null); setLinks([]);
+    const deadline = window.setTimeout(() => {
+      if (request !== requestSequence.current) return;
+      requestSequence.current++;
+      setErrorMsg('Máy chủ phản hồi chậm. Vui lòng thử tải lại.');
       setLoading(false);
+    }, 20000);
+    try {
+      const store = await storeService.getMyStore(true);
+      if (request !== requestSequence.current) return;
+      setStoreId(store.id);
+      const res = await referralLinksService.getStoreLinks(store.id, {
+        page, limit: 30,
+        status: filters.status || undefined,
+        channel: filters.channel || undefined,
+        search: filters.search || undefined,
+      });
+      if (request !== requestSequence.current) return;
+      setLinks(res.data); setTotalPages(res.meta.totalPages); setTotal(res.meta.total);
+    } catch (err: any) {
+      if (request !== requestSequence.current) return;
+      setLinks([]);
+      setErrorMsg(err instanceof MissingOwnedStoreError
+        ? 'Gian hàng chưa được kích hoạt. Vui lòng kiểm tra hồ sơ gian hàng.'
+        : 'Chưa tải được danh sách liên kết tiếp thị. Vui lòng thử lại.');
+    } finally {
+      window.clearTimeout(deadline);
+      if (request === requestSequence.current) setLoading(false);
     }
-  }, [storeId, page, statusFilter, channelFilter, search]);
+  }, [page, filters]);
 
   useEffect(() => {
-    fetchStoreLinks();
+    void fetchStoreLinks();
+    const requests = requestSequence;
+    return () => { requests.current++; };
   }, [fetchStoreLinks]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
-    fetchStoreLinks();
+    const next = { search: search.trim(), status: statusFilter, channel: channelFilter };
+    if (page === 1 && JSON.stringify(next) === JSON.stringify(filters)) void fetchStoreLinks();
+    else { setPage(1); setFilters(next); }
   };
 
   const handleResetFilters = () => {
-    setSearch('');
-    setStatusFilter('');
-    setChannelFilter('');
-    setPage(1);
+    setSearch(''); setStatusFilter(''); setChannelFilter(''); setPage(1);
+    setFilters({ search: '', status: '', channel: '' });
   };
 
   const handleCopyLink = (link: ReferralLinkItem) => {
@@ -172,7 +164,7 @@ export default function StoreReferralLinksPage() {
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7D715E]" />
             <input
               type="text"
-              placeholder="Tìm theo mã shortCode, tên sản phẩm hoặc tên KOL..."
+              placeholder="Tìm mã liên kết, tên sản phẩm hoặc mã KOL..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-11 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] pl-10 pr-4 text-sm text-[#1A1612] outline-none transition placeholder:text-[#7D715E]/65 focus:border-[#C59B58] focus:bg-white focus:ring-2 focus:ring-[#C59B58]/15"
@@ -182,9 +174,9 @@ export default function StoreReferralLinksPage() {
           {/* Status Filter */}
           <Select
             value={statusFilter}
+            aria-label="Lọc trạng thái liên kết"
             onChange={(e) => {
               setStatusFilter(e.target.value);
-              setPage(1);
             }}
             className="h-11 w-full text-sm font-medium"
           >
@@ -197,9 +189,9 @@ export default function StoreReferralLinksPage() {
           {/* Channel Filter */}
           <Select
             value={channelFilter}
+            aria-label="Lọc kênh tiếp thị"
             onChange={(e) => {
               setChannelFilter(e.target.value);
-              setPage(1);
             }}
             className="h-11 w-full text-sm font-medium"
           >
@@ -237,24 +229,26 @@ export default function StoreReferralLinksPage() {
       {/* Main Table Card */}
       <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-sm">
         {loading ? (
-          <div className="p-16 text-center text-[#7D715E] flex flex-col items-center justify-center gap-2">
+          <div role="status" className="p-16 text-center text-[#7D715E] flex flex-col items-center justify-center gap-2">
             <Loader2 className="w-8 h-8 animate-spin text-[#B88E4F]" />
             <p className="text-sm font-medium">Đang tải danh sách liên kết tiếp thị của Cửa hàng...</p>
           </div>
         ) : errorMsg ? (
-          <div className="p-12 text-center text-rose-600">
+          <div role="alert" className="p-12 text-center text-rose-600">
             <AlertCircle className="w-8 h-8 mx-auto mb-2" />
             <p className="text-sm font-semibold">{errorMsg}</p>
+            <button type="button" onClick={() => void fetchStoreLinks()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#EAE4D7] bg-white px-4 py-2 text-sm font-semibold text-[#795A2D]"><RotateCcw size={16} />Thử tải lại</button>
           </div>
         ) : links.length === 0 ? (
           <div className="p-16 text-center text-[#7D715E]">
             <div className="w-12 h-12 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] flex items-center justify-center mx-auto text-[#B88E4F] mb-3">
               <Link2 className="w-6 h-6 text-[#B88E4F]" />
             </div>
-            <p className="text-base font-bold text-[#1A1612]">Chưa có liên kết tiếp thị nào</p>
+            <p className="text-base font-bold text-[#1A1612]">{Object.values(filters).some(Boolean) ? 'Không có liên kết khớp bộ lọc' : 'Chưa có liên kết tiếp thị nào'}</p>
             <p className="text-xs text-[#7D715E] mt-1">
-              Khi KOL tạo link tiếp thị cho sản phẩm của Shop, dữ liệu sẽ tự động hiển thị tại đây.
+              {Object.values(filters).some(Boolean) ? 'Thử thay đổi từ khóa, trạng thái hoặc kênh tiếp thị.' : 'Khi KOL tạo link tiếp thị cho sản phẩm của shop, dữ liệu sẽ hiển thị tại đây.'}
             </p>
+            {Object.values(filters).some(Boolean) && <button type="button" onClick={handleResetFilters} className="mt-3 rounded-xl border border-[#EAE4D7] px-4 py-2 text-sm font-semibold">Xóa bộ lọc</button>}
           </div>
         ) : (
           <>
@@ -305,10 +299,10 @@ export default function StoreReferralLinksPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="line-clamp-2 break-words font-semibold leading-5 text-[#1A1612]" title={link.collaborator?.fullName}>
-                              {link.collaborator?.fullName || 'Cộng tác viên'}
+                              {link.collaborator?.fullName || `KOL ${link.collaboratorId?.slice(-6) || ''}`}
                             </div>
                             <div className="mt-0.5 truncate text-[11px] text-[#7D715E]" title={link.collaborator?.email}>
-                              {link.collaborator?.email || 'kol@scanms.vn'}
+                              {link.collaborator?.email || ''}
                             </div>
                           </div>
                         </div>
@@ -467,6 +461,10 @@ export default function StoreReferralLinksPage() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-[#EAE4D7] px-4 py-3 text-sm text-[#7D715E]">
+            <span>{total} liên kết · Trang {page}/{totalPages}</span>
+            <div className="flex gap-2"><button type="button" onClick={() => setPage(current => current - 1)} disabled={page <= 1} className="rounded-lg border border-[#EAE4D7] px-3 py-2 disabled:opacity-40">Trang trước</button><button type="button" onClick={() => setPage(current => current + 1)} disabled={page >= totalPages} className="rounded-lg border border-[#EAE4D7] px-3 py-2 disabled:opacity-40">Trang sau</button></div>
           </div>
           </>
         )}

@@ -33,6 +33,10 @@ import {
   Truck,
 } from 'lucide-react';
 import api from '../../services/api';
+import { storeService } from '../../services/store.service';
+import { unwrapApi } from '../../utils/api-response';
+import './product-video-review.css';
+import './product-table-layout.css';
 import { productService, type Product } from '../../services/product.service';
 import { productPackageInput } from '../../utils/product-package.utils';
 import { authService } from '../../services/auth.service';
@@ -44,7 +48,6 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
-import { PageHeader } from '../../components/ui/PageHeader';
 import {
   Table,
   TableHeader,
@@ -397,14 +400,19 @@ export default function ProductManagementPage() {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   useEffect(() => { setActiveVideoId(null); }, [selectedVideoProduct?.id]);
   const activeReviewVideo = productVideos.find(video => video.id === activeVideoId) || productVideos[0];
+  const [videoPlaybackError, setVideoPlaybackError] = useState(false);
+  useEffect(() => { setVideoPlaybackError(false); }, [activeReviewVideo?.id]);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState('');
+  const videoRequestSequence = useRef(0);
+  useEffect(() => () => { videoRequestSequence.current++; }, []);
   const [reviewingMediaId, setReviewingMediaId] = useState<string | null>(null);
   const [rejectionModalMedia, setRejectionModalMedia] = useState<any | null>(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [rejectionActionType, setRejectionActionType] = useState<'REJECTED' | 'HIDDEN'>('REJECTED');
 
   useEffect(() => {
-    if (!selectedVideoProduct) return;
+    if (!selectedVideoProduct) { videoRequestSequence.current++; return; }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (rejectionModalMedia) setRejectionModalMedia(null);
@@ -414,69 +422,7 @@ export default function ProductManagementPage() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [selectedVideoProduct, rejectionModalMedia]);
 
-  const localKolVideoStorageKey = 'scanms_kol_video_submissions';
-  const readLocalKolVideos = () => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(localKolVideoStorageKey) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-  const saveLocalKolVideoStatus = (
-    mediaId: string,
-    status: 'APPROVED' | 'REJECTED' | 'HIDDEN',
-    options?: { isFeatured?: boolean; rejectionReason?: string | null },
-  ) => {
-    const localVideos = readLocalKolVideos();
-    const targetProductId = localVideos.find((video: any) => video.id === mediaId)?.productId;
-    const updated = localVideos.map((video: any) =>
-      video.id === mediaId
-        ? {
-            ...video,
-            status,
-            isApproved: status === 'APPROVED',
-            isFeatured: Boolean(options?.isFeatured),
-            rejectionReason: options?.rejectionReason || null,
-          }
-        : options?.isFeatured && video.productId === targetProductId
-          ? { ...video, isFeatured: false }
-          : video,
-    );
-    localStorage.setItem(localKolVideoStorageKey, JSON.stringify(updated));
-  };
-
-  const normalizeLocalKolVideo = (video: any, matchedProduct?: Product) => ({
-    ...video,
-    _localPrototype: true,
-    assetType: 'VIDEO',
-    urlOrContent: video.videoUrl?.startsWith('./assets/')
-      ? `/reference/${video.videoUrl.slice(2)}`
-      : video.videoUrl,
-    posterUrl: video.image?.startsWith('./assets/')
-      ? `/reference/${video.image.slice(2)}`
-      : video.image,
-    caption: video.caption || null,
-    collaborator: video.collaborator || { fullName: 'Trần Văn Nhật' },
-    product: matchedProduct
-      ? {
-          id: matchedProduct.id,
-          sku: matchedProduct.sku,
-          title: matchedProduct.title || (matchedProduct as any).name,
-        }
-      : video.product || {
-          id: video.productId,
-          sku: video.productId,
-          title: video.productName || 'Sản phẩm KOL đã chọn',
-        },
-  });
-
-  const pendingKolVideoCount = new Set(
-    [...readLocalKolVideos(), ...productVideos]
-      .filter((video: any) => video.status === 'PENDING')
-      .map((video: any) => video.id),
-  ).size;
-
+  const pendingKolVideoCount = productVideos.filter(video => video.status === 'PENDING').length;
 
   const [showReviewModeration, setShowReviewModeration] = useState(false);
   const [customerReviews, setCustomerReviews] = useState<any[]>([]);
@@ -683,54 +629,56 @@ export default function ProductManagementPage() {
     } as Product);
     setLoadingVideos(true);
 
-    const localVideos = readLocalKolVideos().map((video: any) => {
-      const matchedProduct = products.find((product) => {
-        const aliases = new Set([
-          product.id,
-          product.sku,
-          ...(product.sku === 'SR-VTC-15' ? ['SKIN-C15'] : []),
-        ]);
-        return aliases.has(video.productId);
-      });
-      return normalizeLocalKolVideo(video, matchedProduct);
-    });
-
+    setVideoLoadError('');
+    setProductVideos([]);
+    const request = ++videoRequestSequence.current;
     try {
+      const store = await storeService.getMyStore(true);
+      const catalog = await productService.getProducts({ storeId: store.id }, true);
+      if (request !== videoRequestSequence.current) return;
+      if (!catalog.items.length) return;
+      const ownedProducts = new Map(catalog.items.map(product => [product.id, product]));
       const res = await api.get('/media', {
-        params: { assetType: 'VIDEO', limit: 100 },
+        params: { storeId: store.id, assetType: 'VIDEO', limit: 100 },
+        headers: { 'x-skip-cache': 'true' },
       });
-      const merged = [...(res.data?.items || [])];
-      localVideos.forEach((video: any) => {
-        if (!merged.some((item: any) => item.id === video.id)) merged.push(video);
+      const data = unwrapApi<any>(res);
+      const rows = Array.isArray(data) ? data : data?.items ?? data?.content;
+      if (!Array.isArray(rows)) throw new Error('INVALID_VIDEO_LIST');
+      const videos = rows.filter((video: any) => {
+        const productId = video.productId || video.product?.id;
+        return (video.id || video.mediaId) && video.assetType === 'VIDEO'
+          && ownedProducts.has(productId)
+          && (!video.storeId || video.storeId === store.id)
+          && typeof video.urlOrContent === 'string' && video.urlOrContent.trim();
+      }).map((video: any) => {
+        const product = ownedProducts.get(video.productId || video.product?.id)!;
+        return { ...video, id: video.id || video.mediaId, product: { id: product.id, title: product.title, sku: product.sku } };
       });
-      merged.sort((a: any, b: any) => {
+      videos.sort((a: any, b: any) => {
         if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
         if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
         return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       });
-      setProductVideos(merged);
-    } catch (err) {
-      console.error('Lỗi khi tải toàn bộ video KOL:', err);
-      setProductVideos(localVideos);
+      if (request === videoRequestSequence.current) setProductVideos(videos);
+    } catch (err: any) {
+      if (request !== videoRequestSequence.current) return;
+      setProductVideos([]);
+      setVideoLoadError([404, 501].includes(err?.response?.status)
+        ? 'Máy chủ hiện chưa hỗ trợ duyệt video KOL.'
+        : 'Chưa tải được danh sách video của gian hàng. Vui lòng thử lại.');
     } finally {
-      setLoadingVideos(false);
+      if (request === videoRequestSequence.current) setLoadingVideos(false);
     }
   };
 
   const handleApproveVideo = async (mediaId: string, isFeatured: boolean) => {
     setReviewingMediaId(mediaId);
     try {
-      const isLocalVideo = Boolean(
-        productVideos.find((video) => video.id === mediaId)?._localPrototype,
-      );
-      if (isLocalVideo) {
-        saveLocalKolVideoStatus(mediaId, 'APPROVED', { isFeatured });
-      } else {
-        await api.patch(`/media/${mediaId}/review`, {
-          status: 'APPROVED',
-          isFeatured,
-        });
-      }
+      await api.patch(`/media/${encodeURIComponent(mediaId)}/review`, {
+        status: 'APPROVED',
+        isFeatured,
+      });
       showToast(
         isFeatured
           ? 'Đã duyệt và ghim video làm nổi bật Landing!'
@@ -777,16 +725,10 @@ export default function ProductManagementPage() {
     const mediaId = rejectionModalMedia.id;
     setReviewingMediaId(mediaId);
     try {
-      if (rejectionModalMedia._localPrototype) {
-        saveLocalKolVideoStatus(mediaId, rejectionActionType, {
-          rejectionReason: rejectionReasonInput.trim(),
-        });
-      } else {
-        await api.patch(`/media/${mediaId}/review`, {
-          status: rejectionActionType,
-          rejectionReason: rejectionReasonInput.trim(),
-        });
-      }
+      await api.patch(`/media/${encodeURIComponent(mediaId)}/review`, {
+        status: rejectionActionType,
+        rejectionReason: rejectionReasonInput.trim(),
+      });
       showToast(
         rejectionActionType === 'REJECTED'
           ? 'Đã từ chối video review và lưu lý do kiểm duyệt.'
@@ -832,12 +774,12 @@ export default function ProductManagementPage() {
     };
   }, [showModal]);
 
-  const loadProducts = async () => {
+  const loadProducts = async (fresh = false) => {
     try {
       const res: any = await productService.getProducts({
         search: search || undefined,
         storeId: currentStoreId,
-      });
+      }, fresh);
       setProducts(res.items || []);
     } catch (err) {
       console.error('Lỗi tải sản phẩm:', err);
@@ -1546,7 +1488,7 @@ export default function ProductManagementPage() {
             await productService.updateVariantSamplePolicy(editingProduct.id, variant.id, policy);
           }
         }
-        showToast(productUpdate?.requiresModeration || variantUpdate?.requiresModeration
+        showToast(productUpdate?.requiresModeration || (variantUpdate as any)?.requiresModeration
           ? 'Đã lưu thay đổi. Sản phẩm tạm ẩn và chờ Ban Quản Trị kiểm duyệt lại.'
           : 'Cập nhật sản phẩm & hoa hồng thành công!');
       } else {
@@ -1593,69 +1535,6 @@ export default function ProductManagementPage() {
 
 
 
-  const demoProducts =
-    products.length > 0
-      ? products
-      : [
-          {
-            id: 'p-1',
-            sku: 'SR-VTC-15',
-            title: 'Serum Vitamin C 15% Dưỡng Sáng Đều Màu Da',
-            category: 'Chăm sóc da',
-            price: 459000,
-            commissionRate: 10,
-            stockQuantity: 120,
-            status: 'active',
-            images: ['/assets/products/real/vitamin-c-15-serum.jpg'],
-          },
-          {
-            id: 'p-2',
-            sku: 'SUN-SPF50-PA',
-            title: 'Kem Chống Nắng Phổ Rộng SPF50+ PA++++ Kiểm Dầu',
-            category: 'Chống nắng',
-            price: 389000,
-            commissionRate: 10,
-            stockQuantity: 84,
-            status: 'active',
-            images: ['/assets/products/real/spf50-oil-control.jpg'],
-          },
-          {
-            id: 'p-3',
-            sku: 'CL-GEL-TEA',
-            title: 'Gel Rửa Mặt Tràm Trà Trị Mụn Dịu Nhẹ',
-            category: 'Làm sạch',
-            price: 219000,
-            commissionRate: 10,
-            stockQuantity: 0,
-            status: 'out_of_stock',
-            images: ['/assets/products/real/tea-tree-cleanser.jpg'],
-          },
-          {
-            id: 'p-4',
-            sku: 'TN-BHA-2',
-            title: 'Toner BHA 2% Thu Nhỏ Lỗ Chân Lông & Tẩy Tế Bào Chết',
-            category: 'Toner & Nước hoa hồng',
-            price: 349000,
-            commissionRate: 10,
-            stockQuantity: 45,
-            status: 'active',
-            images: ['/assets/products/real/bha-toner-2pct.png'],
-          },
-          {
-            id: 'p-5',
-            sku: 'MSK-HYA-5X',
-            title: 'Mặt Nạ Cấp Ẩm Chuyên Sâu Hyaluronic Acid 5X',
-            category: 'Mặt nạ',
-            price: 199000,
-            commissionRate: 10,
-            stockQuantity: 15,
-            status: 'paused',
-            images: ['/assets/products/real/centella-sheet-mask.jpg'],
-          },
-        ];
-
-  void demoProducts;
-
   const displayProducts = products;
 
   const filtered = displayProducts.filter((p: any) => {
@@ -1684,35 +1563,6 @@ export default function ProductManagementPage() {
           <span>{toastMsg}</span>
         </div>
       )}
-
-      {/* 1. Page Header Chuẩn Hóa */}
-      <PageHeader
-        title={isKol ? "Sản phẩm Tiếp thị Liên kết" : "Danh mục Sản phẩm"}
-        description={isKol ? "Khám phá danh sách sản phẩm hợp tác và hoa hồng trên sàn" : "Quản lý kho SKU, biến thể đa tầng và chính sách hoa hồng tiếp thị liên kết"}
-        icon={<Boxes className="w-5 h-5" />}
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void loadProducts()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-xs font-semibold text-[#1A1612] hover:bg-[#FBF5EB] hover:border-[#C59B58] transition cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-[#B88E4F]" />
-              <span>Làm mới</span>
-            </button>
-            {!isKol && (
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] text-[#1A1612] text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Thêm sản phẩm</span>
-              </button>
-            )}
-          </div>
-        }
-      />
 
       {/* ────── BANNER CẢNH BÁO TỒN KHO THẤP ────── */}
       {(() => {
@@ -1758,10 +1608,10 @@ export default function ProductManagementPage() {
 
       {/* Unified Toolbar: Compact Search, Filters & Action Buttons in One Row */}
       <Card className="product-toolbar p-3 bg-white border border-[#EAE4D7] rounded-xl shadow-none">
-        <div className="product-toolbar-layout grid grid-cols-[minmax(280px,1fr)_minmax(0,1.3fr)] @max-[900px]/product-management:grid-cols-1 items-stretch gap-3 @max-[900px]/product-management:gap-2.5">
+        <div className="product-toolbar-layout grid grid-cols-[minmax(380px,1fr)_minmax(0,1.4fr)] @max-[1000px]/product-management:grid-cols-1 items-stretch gap-3 @max-[1000px]/product-management:gap-2.5">
           {/* Left: Compact search input & filter controls */}
-          <div className="product-filter-controls grid grid-cols-[minmax(0,1fr)_160px] items-stretch min-w-0 gap-2">
-            <div className="product-search flex items-center gap-2 bg-white border border-[#EAE4D7] rounded-lg px-3 h-9 text-xs text-[#1A1612] w-full sm:w-64 focus-within:border-[#C59B58] transition">
+          <div className="product-filter-controls grid grid-cols-[minmax(0,1fr)_180px] @max-[440px]/product-management:grid-cols-1 items-stretch min-w-0 gap-2">
+            <div className="product-search flex items-center gap-2 bg-white border border-[#EAE4D7] rounded-lg px-3 h-10 min-w-0 text-xs text-[#1A1612] w-full focus-within:border-[#C59B58] transition">
               <Search className="w-3.5 h-3.5 text-[#7D715E] shrink-0" />
               <input
                 type="text"
@@ -1785,7 +1635,7 @@ export default function ProductManagementPage() {
             <Select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              aria-label="Lọc trạng thái sản phẩm" className="product-status-filter"
+              aria-label="Lọc trạng thái sản phẩm" className="product-status-filter w-full h-10 rounded-lg py-2 text-xs sm:text-xs shadow-none"
             >
               <option value="ALL">Tất cả trạng thái</option>
               <option value="DRAFT">Chờ kiểm duyệt</option>
@@ -1800,7 +1650,15 @@ export default function ProductManagementPage() {
           </div>
 
           {/* Actions share the search/filter toolbar and equal-sized columns. */}
-          <div className="product-toolbar-actions grid grid-flow-col auto-cols-[minmax(0,1fr)] @max-[900px]/product-management:w-full items-stretch min-w-0 gap-2" role="group" aria-label="Thao tác quản lý sản phẩm">
+          <div className="product-toolbar-actions grid grid-flow-col auto-cols-[minmax(0,1fr)] @max-[560px]/product-management:grid-flow-row @max-[560px]/product-management:grid-cols-2 items-stretch min-w-0 gap-2" role="group" aria-label="Thao tác quản lý sản phẩm">
+            <button
+              type="button"
+              onClick={() => void loadProducts(true)}
+              className="flex items-center justify-center w-full min-w-0 min-h-10 p-2 border border-[#EAE4D7] rounded-lg bg-white hover:bg-[#FBF5EB] hover:border-[#C59B58] text-[#1A1612] text-xs font-semibold leading-[1.4] transition cursor-pointer gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
+              <span>Làm mới</span>
+            </button>
             {!isKol ? (
               <>
                 {isAdminOrManager && (
@@ -1873,7 +1731,7 @@ export default function ProductManagementPage() {
 
       <Card className="product-table-card p-0 min-w-0 shadow-none">
         <Table className="product-table">
-          <colgroup><col style={{width:40}} /><col /><col style={{width:120}} /><col style={{width:85}} /><col style={{width:85}} /><col style={{width:140}} /><col style={{width:270}} /></colgroup>
+          <colgroup><col style={{width:44}} /><col /><col style={{width:140}} /><col style={{width:150}} /><col style={{width:120}} /><col style={{width:160}} /><col style={{width:250}} /></colgroup>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
@@ -3355,7 +3213,7 @@ export default function ProductManagementPage() {
           onClick={() => setSelectedVideoProduct(null)}
         >
           <div
-            className="kol-video-review-modal bg-white rounded-2xl shadow-2xl border border-[#EAE4D7] w-full max-w-[900px] max-h-[calc(100dvh-32px)] text-left animate-in zoom-in-95 duration-150 overflow-hidden flex flex-col"
+            className="kol-video-review-modal bg-white rounded-2xl shadow-2xl border border-[#EAE4D7] w-full max-w-[1200px] max-h-[calc(100dvh-32px)] text-left animate-in zoom-in-95 duration-150 overflow-hidden flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-labelledby="kol-video-review-title"
@@ -3390,18 +3248,19 @@ export default function ProductManagementPage() {
 
             <div className="kol-video-review-list flex-1 overflow-y-auto p-3 sm:p-[14px_16px] space-y-3 overscroll-contain [scrollbar-color:#EEDFC6_#FFFFFF]">
               {loadingVideos ? (
-                <div className="text-center py-10 text-xs text-[#7D715E]">
-                  Đang tải danh sách video review từ máy chủ...
+                <div role="status" className="kol-video-state">
+                  <RefreshCw size={28} className="animate-spin" /><strong>Đang tải video của gian hàng…</strong>
+                </div>
+              ) : videoLoadError ? (
+                <div role="alert" className="kol-video-state kol-video-state-error">
+                  <AlertCircle size={32} /><h4>Chưa tải được video</h4><p>{videoLoadError}</p>
+                  <Button variant="outline" icon={<RefreshCw size={16} />} onClick={() => void openAllVideoModeration()}>Thử tải lại</Button>
                 </div>
               ) : productVideos.length === 0 ? (
-                <div className="text-center py-10 bg-[#FAF8F5] rounded-xl border border-dashed border-[#EAE4D7] p-6">
-                  <Video className="w-8 h-8 text-[#7D715E]/40 mx-auto mb-2" />
-                  <p className="text-xs font-bold text-[#1A1612] m-0">Chưa có video review nào</p>
-                  <p className="text-[11px] text-[#7D715E] mt-1 m-0">
-                    {selectedVideoProduct.id === '__ALL__'
-                      ? 'Hiện chưa có video KOL nào được gửi đến gian hàng.'
-                      : 'Khi KOL/CTV nộp video review cho sản phẩm này qua Media Hub, video sẽ xuất hiện tại đây để bạn kiểm duyệt.'}
-                  </p>
+                <div className="kol-video-state">
+                  <span className="kol-video-empty-icon"><Video size={30} /></span>
+                  <h4>Chưa có video đánh giá</h4>
+                  <p>Video được gửi cho sản phẩm đang có trong gian hàng sẽ xuất hiện tại đây. Hiện chưa có video phù hợp để hiển thị.</p>
                 </div>
               ) : (
                 <div className="kol-video-workspace">
@@ -3409,7 +3268,7 @@ export default function ProductManagementPage() {
                     <p className="kol-video-picker-count"><span>Danh sách video</span><strong>{productVideos.length}</strong></p>
                     {productVideos.map((video: any, index: number) => (
                       <button key={video.id} type="button" className="kol-video-picker-item" data-status={video.status} aria-pressed={activeReviewVideo?.id === video.id} onClick={() => setActiveVideoId(video.id)}>
-                        <span className="kol-video-picker-thumb">{video.posterUrl ? <img src={video.posterUrl} alt="" /> : <Video size={18} />}<span>{index + 1}</span></span>
+                        <span className="kol-video-picker-thumb">{video.posterUrl ? <img src={video.posterUrl} alt="" onError={event => { event.currentTarget.style.display = 'none'; }} /> : <Video size={18} />}<span>{index + 1}</span></span>
                         <span className="kol-video-picker-text"><strong>{video.title || 'Video review sản phẩm'}</strong><span>{video.collaborator?.fullName || 'Nhà sáng tạo'}</span><small>{({ PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Bị từ chối', HIDDEN: 'Đã ẩn' } as Record<string, string>)[video.status] || video.status}{video.isFeatured ? ' · Đã ghim' : ''}</small></span>
                       </button>
                     ))}
@@ -3428,7 +3287,9 @@ export default function ProductManagementPage() {
                     >
                       <div className="kol-video-review-layout grid grid-cols-1 sm:grid-cols-[224px_minmax(0,1fr)] gap-3 sm:gap-4 items-start">
                         <div className="kol-video-player overflow-hidden border border-[#EAE4D7] rounded-[10px] bg-[#FAF8F5] max-sm:w-full max-sm:max-w-[280px] max-sm:justify-self-center">
-                          <video
+                          {videoPlaybackError ? (
+                            <div role="status" className="kol-video-playback-error"><Video size={30} /><strong>Chưa phát được video</strong><p>Đường dẫn video có thể hết hạn hoặc tệp không còn truy cập được.</p><button type="button" onClick={() => setVideoPlaybackError(false)}>Thử phát lại</button></div>
+                          ) : <video
                             src={v.urlOrContent}
                             poster={v.posterUrl || undefined}
                             controls
@@ -3436,9 +3297,10 @@ export default function ProductManagementPage() {
                             preload="metadata"
                             className="w-full aspect-video object-contain"
                             aria-label={`Video review ${v.title || 'của KOL'}`}
+                            onError={() => setVideoPlaybackError(true)}
                           >
                             Trình duyệt của bạn không hỗ trợ phát video này.
-                          </video>
+                          </video>}
                         </div>
 
                         <div className="kol-video-info flex flex-col min-w-0">
@@ -3458,7 +3320,8 @@ export default function ProductManagementPage() {
                           )}
                         </div>
 
-                        <details className="kol-video-details"><summary>Thông tin video & sản phẩm</summary>
+                        <p className="kol-video-product-name">{v.product?.title}</p>
+                        <details className="kol-video-details"><summary>Thông tin video và sản phẩm</summary>
                         <div className="kol-video-metadata text-[11px] text-[#7D715E]">
                           <p>KOL: <strong>{v.collaborator?.fullName || 'Nhà sáng tạo'}</strong></p>
                           <p>
@@ -3508,7 +3371,7 @@ export default function ProductManagementPage() {
                               disabled={reviewingMediaId === v.id}
                               onClick={() => handleApproveVideo(v.id, true)}
                               className="px-2.5 py-1.5 rounded-lg bg-[#FBF5EB] border border-[#EAE4D7] text-[#B88E4F] font-bold text-xs hover:bg-[#F3EFE6] transition cursor-pointer disabled:opacity-50"
-                              title="Duyệt và đặt làm video nổi bật nhất trên Landing"
+                              title="Duyệt và đặt làm video nổi bật trên trang sản phẩm"
                             >
                               <Star className="h-3.5 w-3.5" /> Duyệt &amp; ghim
                             </button>
@@ -3567,7 +3430,8 @@ export default function ProductManagementPage() {
               )}
             </div>
 
-            <div className="kol-video-review-footer bg-white border-t border-[#EAE4D7] flex justify-end">
+            <div className="kol-video-review-footer bg-white border-t border-[#EAE4D7] flex justify-between items-center gap-3">
+              <span>Chỉ hiển thị video gắn với sản phẩm thật của gian hàng.</span>
               <Button
                 variant="outline"
                 size="sm"

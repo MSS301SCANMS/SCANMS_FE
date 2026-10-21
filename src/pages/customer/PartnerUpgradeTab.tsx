@@ -4,7 +4,6 @@ import {
   Sparkles,
   Store,
   ArrowRight,
-  ShieldCheck,
   Clock3,
   CheckCircle2,
   CircleAlert,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import {
   kycService,
+  ShopApplicationSaveError,
   type UpgradeStatusResponse,
   type ApplyKolData,
   type ApplyShopData,
@@ -20,6 +20,8 @@ import { authService } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 
 import { KolUpgradeForm, ShopUpgradeForm } from './PartnerUpgradeForms';
+import ShopApplicationStatusCard from '../merchant/ShopApplicationStatusCard';
+import KolApplicationStatusCard from './KolApplicationStatusCard';
 
 const createEmptyKolForm = (): ApplyKolData => ({
   platform: '' as ApplyKolData['platform'],
@@ -89,17 +91,24 @@ function ApplicationBadge({ status }: { status?: string | null }) {
   );
 }
 
-export const PartnerUpgradeTab: React.FC = () => {
+export const PartnerUpgradeTab: React.FC<{
+  workspace?: 'customer' | 'shop';
+  onOpenShop?: () => void;
+}> = ({ workspace = 'customer', onOpenShop }) => {
+  const isShopWorkspace = workspace === 'shop';
   const navigate = useNavigate();
   const location = useLocation();
   const [activePartnerType, setActivePartnerType] = useState<'kol' | 'shop'>(
-    location.pathname.endsWith('/upgrade/shop') ? 'shop' : 'kol',
+    isShopWorkspace || location.pathname.endsWith('/upgrade/shop') ? 'shop' : 'kol',
   );
   const [statusData, setStatusData] = useState<UpgradeStatusResponse | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [statusError, setStatusError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingPendingShop, setEditingPendingShop] = useState(false);
+  const [editingKol, setEditingKol] = useState(false);
 
   const [kolForm, setKolForm] = useState(createEmptyKolForm);
   const [shopForm, setShopForm] = useState(createEmptyShopForm);
@@ -107,10 +116,12 @@ export const PartnerUpgradeTab: React.FC = () => {
   useEffect(() => {
     setKolForm(createEmptyKolForm());
     setShopForm(createEmptyShopForm());
-    if (location.pathname.endsWith('/upgrade/shop'))
+    setEditingPendingShop(false);
+    setEditingKol(false);
+    if (isShopWorkspace || location.pathname.endsWith('/upgrade/shop'))
       setActivePartnerType('shop');
     if (location.pathname.endsWith('/upgrade/kol')) setActivePartnerType('kol');
-  }, [location.pathname]);
+  }, [location.pathname, isShopWorkspace]);
 
   useEffect(() => {
     const clearRestoredForm = (event: PageTransitionEvent) => {
@@ -131,11 +142,12 @@ export const PartnerUpgradeTab: React.FC = () => {
 
   const loadStatus = async () => {
     setLoading(true);
+    setStatusError('');
     try {
       const data = await kycService.getMyUpgradeStatus();
       setStatusData(data);
     } catch (err: any) {
-      console.error('Failed to load upgrade status:', err);
+      setStatusError(err?.message || 'Không tải được trạng thái hồ sơ. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -147,6 +159,7 @@ export const PartnerUpgradeTab: React.FC = () => {
 
   const handleKolSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!kolForm.platform) {
       toast.error('Vui lòng chọn nền tảng mạng xã hội chính');
       return;
@@ -177,14 +190,15 @@ export const PartnerUpgradeTab: React.FC = () => {
     setSubmitting(true);
     try {
       await kycService.applyKolUpgrade(kolForm);
+      setEditingKol(false);
       toast.success(
-        'Gửi hồ sơ đăng ký KOL thành công! Ban Quản Trị SCANMS sẽ xét duyệt trong 24h.',
+        'Đã lưu đầy đủ hồ sơ KOL và giấy tờ. Ban quản trị sẽ xét duyệt hồ sơ của bạn.',
       );
       loadStatus();
       authService.getMe();
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message || 'Không thể gửi hồ sơ, vui lòng thử lại',
+        err?.response?.data?.message || err?.message || 'Không thể gửi hồ sơ, vui lòng thử lại',
       );
     } finally {
       setSubmitting(false);
@@ -193,6 +207,7 @@ export const PartnerUpgradeTab: React.FC = () => {
 
   const handleShopSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!shopForm.businessType) {
       toast.error('Vui lòng chọn hình thức kinh doanh');
       return;
@@ -254,19 +269,51 @@ export const PartnerUpgradeTab: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await kycService.applyShopUpgrade(shopForm);
+      const application = await kycService.applyShopUpgrade(shopForm,
+        editingPendingShop ? statusData?.shopApplication?.id : undefined);
+      setEditingPendingShop(false);
+      setStatusData(current => ({
+        userRole: current?.userRole || 'USER',
+        kolApplication: current?.kolApplication || null,
+        shopApplication: {
+          ...application,
+          submittedAt: application.onboardingSubmittedAt || '',
+          updatedAt: application.updatedAt || '',
+        },
+      }));
       toast.success(
-        'Gửi hồ sơ mở Gian Hàng thành công! Ban Quản Trị SCANMS sẽ thẩm định giấy phép.',
+        editingPendingShop ? 'Đã lưu cập nhật hồ sơ và giấy tờ. Ban quản trị sẽ xét duyệt hồ sơ của bạn.' : 'Đã lưu đầy đủ hồ sơ mở gian hàng và giấy tờ. Ban quản trị sẽ xét duyệt hồ sơ của bạn.',
       );
-      loadStatus();
-      authService.getMe();
+      void loadStatus();
     } catch (err: any) {
+      if (err instanceof ShopApplicationSaveError) {
+        // The record exists even if the old server discarded its details; retry by updating its ID.
+        setStatusData(current => ({
+          userRole: current?.userRole || 'USER',
+          kolApplication: current?.kolApplication || null,
+          shopApplication: {
+            ...err.application,
+            submittedAt: err.application.onboardingSubmittedAt || '',
+            updatedAt: err.application.updatedAt || '',
+          },
+        }));
+        setEditingPendingShop(true);
+      }
       toast.error(
         err?.response?.data?.message ||
+            err?.message ||
           'Không thể gửi hồ sơ gian hàng, vui lòng thử lại',
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openKolWorkspace = async () => {
+    try {
+      await authService.enterKolWorkspace(navigate);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Chưa thể mở không gian KOL. Vui lòng thử lại.');
     }
   };
 
@@ -280,6 +327,13 @@ export const PartnerUpgradeTab: React.FC = () => {
       </div>
     );
   }
+
+  if (statusError) return (
+    <div role="alert" className="grid justify-items-start gap-3 rounded-2xl border border-[#EEDFC6] bg-white p-5 text-sm text-[#7D715E]">
+      <p>{statusError}</p>
+      <button type="button" onClick={() => void loadStatus()} className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2 font-semibold text-[#795A2D]">Thử tải lại</button>
+    </div>
+  );
 
   const kolApp = statusData?.kolApplication;
   const shopApp = statusData?.shopApplication;
@@ -322,26 +376,8 @@ export const PartnerUpgradeTab: React.FC = () => {
   ];
 
   return (
-    <div className="grid gap-[16px] text-left min-w-0 text-[#1A1612] max-[640px]:gap-[12px] max-[767px]:pb-[64px]">
-      <header className="flex items-center justify-between gap-[20px] p-[22px_24px] border border-[#EAE4D7] rounded-[18px] bg-white max-[640px]:p-[18px]">
-        <div>
-          <span className="block text-[#B88E4F] text-[11px] font-[600] mb-[6px]">Đồng hành cùng SCANMS</span>
-          <h2 className="m-0 text-[24px] leading-[1.3] font-[700] tracking-[-0.7px] text-[#1A1612] max-[640px]:text-[21px]">Nâng cấp đối tác</h2>
-          <p className="m-[7px_0_0] text-[13px] text-[#7D715E] leading-[1.7] max-w-[760px] max-[640px]:text-[12px]">
-            Trở thành KOL tiếp thị liên kết hoặc mở gian hàng. Chọn vai trò phù
-            hợp và hoàn thiện hồ sơ đăng ký.
-          </p>
-        </div>
-        <div className="hidden min-[1101px]:flex items-center gap-[9px] shrink-0 border-l border-[#EAE4D7] pl-[22px] text-[#7D715E] text-[12px] leading-[1.6]">
-          <ShieldCheck size={22} className="text-[#B88E4F] shrink-0" />
-          <span>
-            <strong className="block text-[#1A1612] text-[13px] font-[600]">Một tài khoản, nhiều vai trò</strong>Tiếp tục mua sắm và
-            chuyển đổi linh hoạt.
-          </span>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-2 gap-[14px] max-[640px]:grid-cols-1 max-[640px]:gap-[10px]" aria-label="Chọn loại đối tác">
+    <div className={`grid gap-[16px] text-left min-w-0 text-[#1A1612] max-[640px]:gap-[12px] ${isShopWorkspace ? '' : 'max-[767px]:pb-[64px]'}`}>
+      {!isShopWorkspace && <div className="grid grid-cols-2 gap-[14px] max-[640px]:grid-cols-1 max-[640px]:gap-[10px]" aria-label="Chọn loại đối tác">
         {choices.map((choice) => (
           <article
             key={choice.type}
@@ -371,7 +407,9 @@ export const PartnerUpgradeTab: React.FC = () => {
               className={`flex items-center justify-between w-full mt-[14px] rounded-[10px] border p-[9px_12px] text-[12px] font-[600] cursor-pointer transition ${activePartnerType === choice.type ? 'text-[#8F682E] bg-[#FBF5EB] border-[#EEDFC6]' : 'border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58]'}`}
               onClick={() =>
                 choice.status === 'VERIFIED'
-                  ? authService.switchWorkspace(choice.type, navigate)
+                  ? choice.type === 'kol'
+                    ? void openKolWorkspace()
+                    : authService.switchWorkspace(choice.type, navigate)
                   : selectPartnerType(choice.type)
               }
             >
@@ -391,9 +429,14 @@ export const PartnerUpgradeTab: React.FC = () => {
             </button>
           </article>
         ))}
-      </div>
+      </div>}
 
-      {activePartnerType === 'kol' && (
+      {activePartnerType === 'kol' && kolApp && !editingKol ? (
+        <KolApplicationStatusCard application={kolApp} onRefresh={() => void loadStatus()} onEdit={() => {
+          setKolForm({ ...createEmptyKolForm(), ...kolApp.applicationData });
+          setEditingKol(true);
+        }} onOpen={() => void openKolWorkspace()} />
+      ) : activePartnerType === 'kol' && (
         <KolUpgradeForm
           form={kolForm}
           setForm={setKolForm}
@@ -407,7 +450,7 @@ export const PartnerUpgradeTab: React.FC = () => {
         />
       )}
       {activePartnerType === 'shop' &&
-        (canSubmitShopApplication ? (
+        (canSubmitShopApplication || editingPendingShop ? (
           <ShopUpgradeForm
             form={shopForm}
             setForm={setShopForm}
@@ -418,6 +461,15 @@ export const PartnerUpgradeTab: React.FC = () => {
                 ? shopApp?.onboardingReviewNote
                 : undefined
             }
+          />
+        ) : isShopWorkspace && shopApp ? (
+          <ShopApplicationStatusCard application={shopApp}
+            onEdit={() => {
+              setShopForm({ ...createEmptyShopForm(), ...shopApp.onboardingData, shopName: shopApp.name || '', description: shopApp.description || '' });
+              setEditingPendingShop(true);
+            }}
+            onRefresh={() => void loadStatus()}
+            onOpenShop={onOpenShop || (() => authService.switchWorkspace('shop', navigate))}
           />
         ) : (
           <section className="p-[30px_22px] grid gap-[14px] justify-items-start border border-[#EAE4D7] rounded-[18px] bg-white shadow-xs">
@@ -434,6 +486,20 @@ export const PartnerUpgradeTab: React.FC = () => {
                 ? 'Gian hàng đã được kích hoạt. Bạn có thể vào không gian quản lý để đăng sản phẩm và hợp tác cùng KOL.'
                 : 'SCANMS đang kiểm tra hồ sơ của bạn. Kết quả hoặc yêu cầu bổ sung sẽ được gửi qua thông báo.'}
             </p>
+            {shopStatus === 'PENDING_APPROVAL' && (
+              <>
+              {Object.keys(shopApp?.onboardingData || {}).length === 0 && (
+                <div role="alert" className="flex w-full items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <CircleAlert size={20} className="mt-0.5 shrink-0" />
+                  <div><strong>Hồ sơ trên máy chủ chưa có thông tin chi tiết và giấy tờ.</strong><p className="mt-1">Manager hiện chỉ thấy tên gian hàng. Chọn “Bổ sung thông tin hồ sơ” để gửi cập nhật vào hồ sơ này.</p></div>
+                </div>
+              )}
+              <button type="button" className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2.5 text-xs font-semibold text-[#795A2D]" onClick={() => {
+                setShopForm({ ...createEmptyShopForm(), ...shopApp?.onboardingData, shopName: shopApp?.name || '', description: shopApp?.description || '' });
+                setEditingPendingShop(true);
+              }}>Bổ sung thông tin hồ sơ</button>
+              </>
+            )}
             {shopApp?.onboardingReviewNote && shopStatus !== 'VERIFIED' && (
               <div className="flex items-start gap-[10px] border border-[#EEDFC6] rounded-[12px] p-[12px_14px] bg-[#FBF5EB] text-[12px] text-[#7D715E] leading-[1.7] w-full">
                 <CircleAlert size={17} className="text-[#B88E4F] shrink-0 mt-[2px]" />
@@ -448,7 +514,7 @@ export const PartnerUpgradeTab: React.FC = () => {
               className="inline-flex items-center justify-center gap-[9px] bg-[#C59B58] hover:bg-[#B88E4F] text-white border border-[#C59B58] rounded-[11px] p-[11px_18px] text-[12px] font-[650] whitespace-nowrap cursor-pointer transition-[background] duration-150 shadow-xs max-[640px]:w-full"
               onClick={() =>
                 shopStatus === 'VERIFIED'
-                  ? authService.switchWorkspace('shop', navigate)
+                  ? onOpenShop ? onOpenShop() : authService.switchWorkspace('shop', navigate)
                   : void loadStatus()
               }
             >

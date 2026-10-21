@@ -46,37 +46,66 @@ export interface TimeSeriesPoint {
 }
 
 export interface TopProductItem {
+  rank: number;
   productId: string;
-  productName: string;
+  title: string;
+  sku: string;
   imageUrl?: string | null;
-  clicks: number;
-  orders: number;
-  revenue: number;
-  commission: number;
+  unitPrice: number;
+  storeName?: string;
+  ordersCount: number;
+  quantitySold: number;
+  grossRevenue: number;
+  productName?: string;
+  clicks?: number;
+  orders?: number;
+  revenue?: number;
+  commission?: number;
 }
 
 export interface TopChannelItem {
   channel: string;
   clicks: number;
   orders: number;
-  revenue: number;
-  commission: number;
+  conversionRate: number;
+  trafficSharePercent: number;
+  revenue?: number;
+  commission?: number;
+}
+
+export interface FunnelStage {
+  stage: string;
+  label: string;
+  count: number;
+  percentage: number;
 }
 
 export interface FunnelResponse {
-  clicks: number;
-  addToCart: number;
-  checkouts: number;
-  paidOrders: number;
+  stages: FunnelStage[];
+  conversionRate: number;
+  fulfillmentRate: number;
+  clicks?: number;
+  addToCart?: number;
+  checkouts?: number;
+  paidOrders?: number;
 }
 
 export interface CampaignPerformanceItem {
   campaignId: string;
   name: string;
-  clicks: number;
-  orders: number;
-  revenue: number;
-  commission: number;
+  bonusCommissionRate: number;
+  isActive: boolean;
+  startDate: string;
+  endDate: string;
+  storeName?: string;
+  participantsCount: number;
+  totalOrders: number;
+  totalRevenue: number;
+  totalCommissions: number;
+  clicks?: number;
+  orders?: number;
+  revenue?: number;
+  commission?: number;
 }
 
 export interface ShopKolProgressItem {
@@ -161,6 +190,9 @@ export const analyticsService = {
     startDate?: string;
     endDate?: string;
   }): Promise<FunnelResponse> => ({
+    stages: [],
+    conversionRate: 0,
+    fulfillmentRate: 0,
     clicks: 0,
     addToCart: 0,
     checkouts: 0,

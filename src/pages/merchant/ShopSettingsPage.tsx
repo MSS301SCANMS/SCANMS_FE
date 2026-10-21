@@ -26,7 +26,6 @@ import { uploadService } from '../../services/upload.service';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Select } from '../../components/ui/Select';
-import { SponsoredPlacementsPanel } from '../../components/stores/SponsoredPlacementsPanel';
 import { StorefrontSettingsSection } from '../../components/stores/StorefrontSettingsSection';
 
 export default function ShopSettingsPage() {
@@ -702,7 +701,6 @@ export default function ShopSettingsPage() {
           </Button>
         </div>
       </form>
-      {isShopManager && <SponsoredPlacementsPanel />}
     </div>
   );
 }

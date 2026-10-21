@@ -4,6 +4,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { productService, type Product } from '../../services/product.service';
 import { toast } from '../../utils/toast';
+import './product-moderation-toolbar.css';
 
 type ModerationProduct = Product & {
   createdAt?: string;
@@ -131,10 +132,10 @@ export default function ProductModerationPage() {
                 onClick={() => void loadProducts()}
                 disabled={loading}
                 aria-label={loading ? 'Đang tải danh sách sản phẩm' : 'Làm mới danh sách sản phẩm'}
+                title="Làm mới danh sách sản phẩm"
                 className="moderation-refresh"
               >
                 <RefreshCw className={'h-3.5 w-3.5 text-[#B88E4F]' + (loading ? ' animate-spin' : '')} />
-                <span>{loading ? 'Đang tải…' : 'Làm mới'}</span>
               </button>
             </div>
           </div>

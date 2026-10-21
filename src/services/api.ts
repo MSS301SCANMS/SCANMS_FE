@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiCache } from '@/utils/api-cache.utils';
+import { prepareSessionRequest, assertCurrentSession, handleSessionApiError } from './auth-session';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
@@ -12,11 +13,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    const token = localStorage.getItem('token');
-    (config as any).__sessionToken = token;
-    if (token && config.headers && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    await prepareSessionRequest(config);
 
     // Client Memory Cache Hit: Nếu là GET request hợp lệ và chưa hết hạn, trả về ngay từ cache không cần chờ mạng
     const isGet = (config.method || 'get').toLowerCase() === 'get';
@@ -48,9 +45,7 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
-    if ((response.config as any).__sessionToken !== localStorage.getItem('token')) {
-      return Promise.reject(new axios.CanceledError('Phiên đăng nhập đã thay đổi.', response.config));
-    }
+    assertCurrentSession(response.config);
     const method = (response.config.method || 'get').toLowerCase();
     const url = response.config.url;
 
@@ -70,24 +65,7 @@ api.interceptors.response.use(
     }
     return payload;
   },
-  async (error) => {
-    const status = error.response?.status;
-    if (status === 401 && !error.config?.url?.includes('/auth/login') &&
-        error.config?.headers?.Authorization === `Bearer ${localStorage.getItem('token')}`) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.dispatchEvent(new Event('auth-user-updated'));
-    }
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      'Something went wrong';
-    const customErr: any = new Error(message);
-    customErr.response = error.response;
-    customErr.status = status;
-    customErr.statusCode = status;
-    return Promise.reject(customErr);
-  }
+  (error) => handleSessionApiError(error, api)
 );
 
 export default api;

@@ -15,39 +15,10 @@ export default function CreatorAccountDetails() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // KOL profile metadata (Gender & Date of birth)
-  const metaKey = `scanms_kol_meta_${currentUser?.id || 'kol'}`;
-  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).gender || 'MALE';
-    } catch {}
-    return 'MALE';
-  });
-
-  const [birthDay, setBirthDay] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthDay || '02';
-    } catch {}
-    return '02';
-  });
-
-  const [birthMonth, setBirthMonth] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthMonth || '01';
-    } catch {}
-    return '01';
-  });
-
-  const [birthYear, setBirthYear] = useState(() => {
-    try {
-      const saved = localStorage.getItem(metaKey);
-      if (saved) return JSON.parse(saved).birthYear || '2000';
-    } catch {}
-    return '2000';
-  });
+  const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('OTHER');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
 
   // Sync latest user profile on mount
   useEffect(() => {
@@ -56,6 +27,11 @@ export default function CreatorAccountDetails() {
       try {
         const profile = await customerService.getProfile();
         if (isMounted && profile?.user) {
+          if (profile.user.gender) setGender(profile.user.gender);
+          if (profile.user.dateOfBirth) {
+            const [year, month, day] = profile.user.dateOfBirth.split('-');
+            setBirthDay(day); setBirthMonth(month); setBirthYear(year);
+          }
           if (profile.user.fullName) setNameInput(profile.user.fullName);
           if (profile.user.phoneNumber) setPhoneInput(profile.user.phoneNumber);
         }
@@ -113,13 +89,9 @@ export default function CreatorAccountDetails() {
       await customerService.updateProfile({
         fullName: nameInput.trim(),
         phoneNumber: phoneInput.trim(),
+        gender,
+        ...(birthDay && birthMonth && birthYear ? { dateOfBirth: `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}` } : {}),
       });
-
-      // Persist gender and birth date in localStorage
-      localStorage.setItem(
-        metaKey,
-        JSON.stringify({ gender, birthDay, birthMonth, birthYear })
-      );
 
       // Refresh auth session
       await authService.getMe();

@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   RefreshCw,
   PlusCircle,
+  CalendarDays,
   type LucideIcon,
 } from 'lucide-react';
 import { walletService, type LedgerHistory } from '@/services/wallet.service';
@@ -117,31 +118,6 @@ export default function KolDashboardPage() {
 
   return (
     <section className="flex flex-col gap-3.5 w-full min-w-0 text-[#1A1612] text-left pb-12" aria-label="Tổng quan hiệu quả KOL">
-      <section className="grid w-full grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 items-start gap-3 rounded-2xl border border-[#EAE4D7] bg-white p-3 sm:p-4 shadow-xs" aria-label="Bộ lọc và thao tác tổng quan KOL">
-            <div className="w-full">
-              <Select
-                className="w-full min-h-[44px]"
-                id="kol-dashboard-period"
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                aria-label="Khoảng thời gian phân tích"
-              >
-                <option value="7">7 ngày gần nhất</option>
-                <option value="30">30 ngày gần nhất</option>
-                <option value="90">90 ngày gần nhất</option>
-              </Select>
-            </div>
-            <button
-              type="button"
-              className="order-last inline-flex w-full min-h-[44px] items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-[#EAE4D7] bg-white text-[#1A1612] text-xs font-semibold hover:border-[#C59B58] hover:bg-[#FBF5EB] transition-colors disabled:opacity-60 cursor-pointer sm:col-span-1 xl:col-span-3"
-              onClick={() => void loadData()}
-              disabled={loading}
-            >
-              <RefreshCw size={14} className={`text-[#B88E4F] ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-              <span>Làm mới dữ liệu</span>
-            </button>
-      </section>
-
       <div className="min-w-0 rounded-xl border border-[#EAE4D7] bg-white shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="Hiệu quả tiếp thị trong khoảng thời gian đã chọn">
           <DashboardMetric
@@ -187,8 +163,28 @@ export default function KolDashboardPage() {
               </div>
             </div>
 
-            <div className="w-[160px] max-w-full">
+            <div className="flex w-full flex-wrap items-end justify-end gap-2 sm:w-auto">
+              <label htmlFor="kol-dashboard-period" className="grid w-full gap-1 sm:w-[210px]">
+                <span className="text-[11px] font-semibold text-[#7D715E]">Thời gian thống kê</span>
+                <span className="relative block min-w-0">
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]"><CalendarDays size={17} aria-hidden="true" /></span>
+                  <Select
+                    className="h-11 w-full rounded-xl border-[#E7DDCC] py-2 pl-12 pr-4 text-sm shadow-none hover:bg-[#FFFCF7] focus-visible:ring-2"
+                    id="kol-dashboard-period"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                    aria-label="Khoảng thời gian phân tích"
+                  >
+                    <option value="7">7 ngày gần nhất</option>
+                    <option value="30">30 ngày gần nhất</option>
+                    <option value="90">90 ngày gần nhất</option>
+                  </Select>
+                </span>
+              </label>
+              <label className="grid w-full gap-1 sm:w-[160px]">
+                <span className="text-[11px] font-semibold text-[#7D715E]">Chỉ số biểu đồ</span>
               <Select
+                className="h-11 w-full"
                 value={metric}
                 onChange={(e) => setMetric(e.target.value as any)}
                 aria-label="Chọn chỉ số biểu đồ"
@@ -198,6 +194,7 @@ export default function KolDashboardPage() {
                 <option value="revenue">Doanh số (₫)</option>
                 <option value="commission">Hoa hồng (₫)</option>
               </Select>
+              </label>
             </div>
           </div>
 

@@ -1,0 +1,53 @@
+.shop-application-page { display: grid; min-width: 0; gap: 16px; padding: 0 0 24px; text-align: left; color: #231f19; }
+.shop-application-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 2px 0 14px; border-bottom: 1px solid #e8e3d9; }
+.shop-application-page-header h1 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 650; letter-spacing: -.35px; }
+.shop-application-page-header p { margin: 4px 0 0; color: #837969; font-size: 12px; line-height: 1.6; }
+.shop-application-back { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #e7e1d7; border-radius: 7px; background: white; color: #645b4d; font-size: 12px; font-weight: 550; line-height: 1.4; white-space: nowrap; cursor: pointer; }
+.shop-application-back:hover { border-color: #c9b48e; color: #795a2d; }
+.shop-application-back:disabled { cursor: default; opacity: .5; }
+.shop-application-status-card { overflow: hidden; min-width: 0; border: 1px solid #e6e1d7; border-radius: 10px; background: white; box-shadow: 0 1px 2px #241b0d04; }
+.shop-application-status-bar { display: flex; align-items: center; gap: 9px; padding: 12px 18px; border-bottom: 1px solid #e7eee8; background: #f3f9f5; color: #278255; }
+.shop-application-status-bar > svg { flex-shrink: 0; }
+.shop-application-status-bar h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.shop-application-status-badge { flex-shrink: 0; margin-left: auto; padding: 2px 8px; border: 1px solid #cfe5d6; border-radius: 4px; background: white; font-size: 11px; line-height: 1.5; }
+.shop-application-status-card[data-state="pending"] .shop-application-status-bar { border-color: #f0e6d4; background: #fcf8ef; color: #9d7532; }
+.shop-application-status-card[data-state="pending"] .shop-application-status-badge { border-color: #eadcbd; }
+.shop-application-status-main { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px 24px; padding: 20px 18px; }
+.shop-application-store-summary { display: flex; align-items: flex-start; gap: 13px; flex: 1 1 380px; min-width: 0; }
+.shop-application-store-summary > div { min-width: 0; }
+.shop-application-store-icon { display: grid; width: 44px; height: 44px; flex-shrink: 0; place-items: center; border: 1px solid #ece5d9; border-radius: 8px; background: #faf8f4; color: #a08250; }
+.shop-application-store-summary h3 { margin: 0; overflow-wrap: anywhere; color: #27231d; font-size: 17px; font-weight: 650; line-height: 1.4; }
+.shop-application-store-summary p { max-width: 570px; margin: 5px 0 0; color: #82796c; font-size: 12px; line-height: 1.7; }
+.shop-application-status-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 11px 0 0; font-size: 11px; line-height: 1.5; }
+.shop-application-status-meta > div { display: flex; align-items: baseline; gap: 7px; }
+.shop-application-status-meta dt { color: #948a7a; }
+.shop-application-status-meta dd { margin: 0; color: #645b4d; font-variant-numeric: tabular-nums; }
+.shop-application-status-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-application-status-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 8px 13px; border: 1px solid #e2dbcf; border-radius: 6px; font-size: 12px; font-weight: 600; line-height: 1.4; cursor: pointer; }
+.shop-application-status-actions .shop-application-primary { border-color: #b28a4c; background: #b28a4c; color: white; }
+.shop-application-status-actions .shop-application-primary:hover { border-color: #9a733c; background: #9a733c; }
+.shop-application-status-actions .shop-application-secondary { background: white; color: #6c5d46; }
+.shop-application-status-actions .shop-application-secondary:hover { background: #faf8f4; }
+.shop-application-status-notice { display: flex; align-items: flex-start; gap: 9px; margin: 0 18px 16px; padding: 12px; border: 1px solid #eddfbd; border-radius: 7px; background: #fffbf1; color: #8a6529; font-size: 12px; line-height: 1.65; }
+.shop-application-status-notice > svg { flex-shrink: 0; margin-top: 2px; }
+.shop-application-status-notice strong { font-weight: 600; }
+.shop-application-status-notice p { margin: 3px 0 0; }
+.shop-application-page button:focus-visible, .shop-application-back:focus-visible { outline: 2px solid #b28a4c; outline-offset: 3px; }
+
+@media (max-width: 639px) {
+  .shop-application-page-header { align-items: flex-start; }
+  .shop-application-page-header h1 { font-size: 18px; }
+  .shop-application-page-header p { max-width: 200px; }
+  .shop-application-back { min-height: 34px; padding: 7px 9px; font-size: 11px; }
+  .shop-application-status-bar { padding: 11px 13px; gap: 7px; }
+  .shop-application-status-bar h2 { font-size: 13px; }
+  .shop-application-status-badge { padding: 2px 6px; font-size: 10px; }
+  .shop-application-status-main { gap: 16px; padding: 17px 13px; }
+  .shop-application-store-summary { gap: 10px; flex-basis: 100%; }
+  .shop-application-store-icon { width: 36px; height: 36px; }
+  .shop-application-store-summary h3 { font-size: 16px; }
+  .shop-application-status-meta { gap: 5px 14px; }
+  .shop-application-status-actions { width: 100%; }
+  .shop-application-status-actions button { flex: 1 1 auto; min-height: 38px; }
+  .shop-application-status-notice { margin: 0 13px 13px; padding: 10px; }
+}

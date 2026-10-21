@@ -1,4 +1,4 @@
-﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
+import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -682,7 +682,7 @@ export default function LiveSessionsPage({
     }
   };
 
-  const changeState = async (session: LiveSessionItem, action: 'PAUSED' | 'RESUME' | 'CANCELLED' | 'START_NOW') => {
+  const changeState = async (session: LiveSessionItem, action: 'PAUSED' | 'RESUME' | 'CANCELLED' | 'START_NOW' | string) => {
     try {
       if (action === 'start' || action === 'START' || action === 'go_live') {
         await api.post(`/livestreams/${session.id}/start`);

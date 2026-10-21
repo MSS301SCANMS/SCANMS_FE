@@ -33,7 +33,7 @@ export default function PayoutBillUpload({
     if (disabled || !files?.length) return;
     const message =
       files.length > 1
-        ? "Chỉ chọn một file bill cho mỗi payout."
+        ? "Chỉ chọn một tệp chứng từ cho mỗi lệnh chi trả."
         : validatePayoutBill(files[0], maxBytes);
     setError(message);
 
@@ -65,7 +65,7 @@ export default function PayoutBillUpload({
           onClick={() => input.current?.click()}
           className="mt-2 rounded-lg px-3 py-2 text-sm font-semibold text-brand-strong focus-visible:outline-brand disabled:opacity-50"
         >
-          Chọn file bill
+          Chọn tệp chứng từ
         </button>
         <p className="text-xs text-muted">
           hoặc kéo và thả · JPG, PNG, PDF · tối đa{" "}
@@ -73,7 +73,7 @@ export default function PayoutBillUpload({
         </p>
         <input
           ref={input}
-          aria-label="Ảnh bill ngân hàng"
+          aria-label="Chứng từ ngân hàng"
           type="file"
           accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
           disabled={disabled}
@@ -89,7 +89,7 @@ export default function PayoutBillUpload({
           {preview ? (
             <img
               src={preview}
-              alt="Preview bill ngân hàng"
+              alt="Ảnh xem trước chứng từ ngân hàng"
               className="h-24 w-24 rounded-lg object-contain"
             />
           ) : (
@@ -108,7 +108,7 @@ export default function PayoutBillUpload({
           </div>
           <button
             type="button"
-            aria-label="Xóa file bill"
+            aria-label="Xóa tệp chứng từ"
             disabled={disabled}
             onClick={() => {
               onChange(null);

@@ -1,0 +1,30 @@
+.product-table-card .product-table {
+  width: 100%;
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+.product-table-card .product-table thead th {
+  height: 48px;
+  padding: 12px;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 11px;
+  line-height: 20px;
+  letter-spacing: .035em;
+}
+
+.product-table-card .product-table tbody td {
+  padding-right: 12px;
+  padding-left: 12px;
+  vertical-align: middle;
+}
+
+.product-table-card .product-table :is(th, td):first-child {
+  text-align: center;
+}
+
+.product-table-card .product-table :is(th, td):nth-child(4),
+.product-table-card .product-table :is(th, td):nth-child(5) {
+  text-align: center;
+}

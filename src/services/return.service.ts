@@ -170,26 +170,20 @@ export const returnService = {
   confirmReceipt: async (_id: string) => unsupported('returns/{id}/receipt'),
   startInspection: async (_id: string) => unsupported('returns/{id}/inspection/start'),
   submitInspection: async (
-    id: string,
-    data: { resolution: 'REFUND' | 'EXCHANGE' | 'REJECT'; notes: string },
+    _id: string,
+    _data: { resolution: 'REFUND' | 'EXCHANGE' | 'REJECT'; notes: string },
   ) =>
-    returnService.decide(id, {
-      status: data.resolution === 'REJECT' ? 'REJECTED' : 'APPROVED',
-      decisionReason: data.notes,
-    }),
+    unsupported('kết quả kiểm tra hàng hoặc đổi hàng; backend chưa hỗ trợ quy trình này'),
   submitExchangeShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string }) =>
     unsupported('returns/{id}/exchange-shipment'),
   confirmCompletion: async (_id: string) => unsupported('returns/{id}/confirmation'),
   openDispute: async (_id: string, _data: { reason: string; details: string }) =>
     unsupported('returns/{id}/disputes'),
-  getAdminDisputes: async () => [] as ReturnDisputeRecord[],
-  getAdminStalled: async () => [] as ReturnDetail[],
+  getAdminDisputes: async (): Promise<ReturnDisputeRecord[]> => unsupported('danh sách khiếu nại riêng'),
+  getAdminStalled: async (): Promise<ReturnDetail[]> => unsupported('thời hạn kiểm tra hàng đã nhận'),
   resolveDispute: async (
-    id: string,
-    data: { ruling: 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP'; notes: string },
+    _id: string,
+    _data: { ruling: 'APPROVE_REFUND' | 'APPROVE_EXCHANGE' | 'UPHOLD_SHOP'; notes: string },
   ) =>
-    returnService.decide(id, {
-      status: data.ruling === 'UPHOLD_SHOP' ? 'REJECTED' : 'APPROVED',
-      decisionReason: data.notes,
-    }),
+    unsupported('phân xử khiếu nại hoặc đổi hàng; sử dụng xét duyệt yêu cầu đổi trả trong khu vực manager'),
 };

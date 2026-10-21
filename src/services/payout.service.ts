@@ -125,5 +125,5 @@ export async function getPayoutErrorMessage(error: unknown): Promise<string> {
       }
     }
   }
-  return error instanceof Error ? error.message : "Không thể xử lý payout";
+  return error instanceof Error ? error.message : "Không thể xử lý lệnh chi trả";
 }

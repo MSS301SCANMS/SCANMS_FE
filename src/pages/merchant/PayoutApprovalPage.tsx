@@ -20,6 +20,7 @@ import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { Select } from "../../components/ui/Select";
 import { type VietQrBank, findBankByQuery } from "@/config/banks.config";
 import { toast } from "../../utils/toast";
+import "./payout-approval-layout.css";
 import {
   maskBankAccount,
   MAX_PAYOUT_BILL_BYTES,
@@ -513,7 +514,7 @@ export default function PayoutApprovalPage() {
           !/^[A-Z0-9][A-Z0-9._/ -]{0,99}$/i.test(bankRefCode.trim())))
     ) {
       setError(
-        "Cần bill JPG, PNG hoặc PDF hợp lệ; mã giao dịch nếu nhập phải đúng định dạng.",
+          "Cần chứng từ JPG, PNG hoặc PDF hợp lệ; mã giao dịch nếu nhập phải đúng định dạng.",
       );
       return;
     }
@@ -659,7 +660,7 @@ export default function PayoutApprovalPage() {
         : displayedRequests.map((r) => r.id);
 
     if (targetIds.length === 0) {
-      toast.info("Không có lệnh payout nào để xuất file đối soát.");
+        toast.info("Không có lệnh chi trả nào để xuất tệp đối soát.");
       return;
     }
 
@@ -674,7 +675,7 @@ export default function PayoutApprovalPage() {
           const rows = [
             [
               "STT",
-              "Mã Payout",
+          "Mã chi trả",
               "KOL Nhận Tiền",
               "Số Điện Thoại",
               "Ngân Hàng",
@@ -735,12 +736,12 @@ export default function PayoutApprovalPage() {
           ]);
         }
         toast.success(
-          `Đã xuất file đối soát VietQR cho ${targetIds.length} lệnh payout!`
+        `Đã xuất tệp đối soát VietQR cho ${targetIds.length} lệnh chi trả!`
         );
         setSelected([]);
         if (!fixtureMode) await load();
       } catch (err: any) {
-        toast.error(err?.message || "Lỗi xuất file VietQR");
+      toast.error(err?.message || "Lỗi xuất tệp VietQR");
         throw err;
       }
     });
@@ -749,7 +750,7 @@ export default function PayoutApprovalPage() {
   return (
     <div className="merchant-payout-page mx-auto w-full min-w-0 max-w-[1480px] space-y-4 pb-8 pt-4 text-ink sm:pt-6">
       {fixtureMode && <p role="status" className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs text-[#7D715E]">
-        Đang bật dữ liệu giao diện chi trả TEST. Những bản ghi này không chứng minh chuyển tiền thật.
+        Đang bật dữ liệu giao diện chi trả thử nghiệm. Những bản ghi này không chứng minh chuyển tiền thật.
       </p>}
 
       {error && (
@@ -768,7 +769,7 @@ export default function PayoutApprovalPage() {
             rel="noopener noreferrer"
             className="font-semibold text-brand-strong underline"
           >
-            Mở ảnh bill riêng tư (link hết hạn sau 2 phút)
+            Mở ảnh chứng từ riêng tư (liên kết hết hạn sau 2 phút)
           </a>
         </p>
       )}
@@ -1205,11 +1206,11 @@ export default function PayoutApprovalPage() {
                     ? "border-[#DC2626] bg-[#FEF2F2] shadow-xs ring-1 ring-[#DC2626]/20"
                     : "border-[#EAE4D7] bg-gradient-to-b from-[#FAF8F5]/50 to-white hover:border-[#FECACA] hover:bg-white shadow-2xs"
                 }`}
-                title="Bấm để lọc các lệnh cần bổ sung hồ sơ KYC"
+              title="Bấm để lọc các lệnh cần bổ sung hồ sơ định danh"
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="truncate text-xs font-semibold text-[#7D715E]">
-                    Cần bổ sung KYC
+                Cần bổ sung định danh
                   </span>
                   <div className="flex items-center gap-1">
                     {activeKpiFilter === "KYC" && (
@@ -1236,7 +1237,7 @@ export default function PayoutApprovalPage() {
 
           {/* Footer đồng bộ */}
           <div className="mt-3.5 pt-2.5 border-t border-[#EAE4D7] flex items-center justify-between text-xs text-[#7D715E]">
-            <span className="text-[11px] font-medium text-[#7D715E]">Đối chiếu thuế TNCN &amp; KYC tự động</span>
+            <span className="text-[11px] font-medium text-[#7D715E]">Tự động đối chiếu thuế thu nhập cá nhân và hồ sơ định danh</span>
             <span className="font-bold text-[#B88E4F] text-[11px] tracking-wide">VietQR / Napas247</span>
           </div>
         </div>
@@ -1245,12 +1246,13 @@ export default function PayoutApprovalPage() {
       <section className="payout-approval-table @container/payout-approval-table min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#EAE4D7] bg-white shadow-[0_2px_12px_rgba(35,29,21,0.03)]">
         {/* Toolbar điều hướng & tìm kiếm */}
         <div className="payout-toolbar flex flex-wrap items-center justify-between gap-3 border-b border-[#EAE4D7] bg-white p-3.5 sm:p-4">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="payout-toolbar-filters">
             {/* Thanh tìm kiếm nhanh */}
-            <div className="relative">
+            <div className="payout-search relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#7D715E]" />
               <input
                 type="text"
+                aria-label="Tìm yêu cầu chi trả"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm KOL, mã yêu cầu, số tài khoản..."
@@ -1259,6 +1261,7 @@ export default function PayoutApprovalPage() {
               {searchQuery && (
                 <button
                   type="button"
+                  aria-label="Xóa từ khóa tìm chi trả"
                   onClick={() => setSearchQuery("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7D715E] hover:text-[#1A1612]"
                 >
@@ -1268,9 +1271,9 @@ export default function PayoutApprovalPage() {
             </div>
 
             {/* Dropdown Trạng thái */}
-            <div className="flex items-center gap-1.5">
+            <div className="payout-filter-status">
               <Select
-                aria-label="Lọc trạng thái payout"
+                  aria-label="Lọc trạng thái chi trả"
                 value={status}
                 onChange={(event) => {
                   setStatus(event.target.value as PayoutStatus | "");
@@ -1295,18 +1298,18 @@ export default function PayoutApprovalPage() {
                 onClick={() => setActiveKpiFilter("ALL")}
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 text-xs font-semibold text-[#8A642C] transition hover:border-[#FECACA] hover:text-[#DC2626]"
               >
-                <span>Đang lọc: {activeKpiFilter === 'PENDING' ? 'Chờ duyệt' : activeKpiFilter === 'APPROVED' ? 'Đã duyệt' : activeKpiFilter === 'TAX' ? 'Thuế 10%' : 'KYC'}</span>
+                <span>Đang lọc: {activeKpiFilter === 'PENDING' ? 'Chờ duyệt' : activeKpiFilter === 'APPROVED' ? 'Đã duyệt' : activeKpiFilter === 'TAX' ? 'Thuế 10%' : 'Hồ sơ định danh'}</span>
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="payout-toolbar-actions">
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading || busy}
-              aria-label="Tải lại payout"
+                aria-label="Tải lại danh sách chi trả"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#EAE4D7] bg-white text-[#5F5547] shadow-2xs transition hover:bg-[#FAF8F5] cursor-pointer"
               title="Tải lại dữ liệu yêu cầu chi trả"
             >
@@ -1318,7 +1321,7 @@ export default function PayoutApprovalPage() {
               disabled={busy || loading}
               onClick={handleExportExcel}
               className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-              title="Bấm để xuất file danh sách chuyển khoản VietQR / Napas247 tương thích Excel"
+                title="Bấm để xuất tệp danh sách chuyển khoản VietQR / Napas247 tương thích Excel"
             >
               <Download size={14} />
               <span>
@@ -1330,26 +1333,29 @@ export default function PayoutApprovalPage() {
           </div>
         </div>
 
-        {loading && <p className="p-5 text-sm text-[#7D715E]">Đang tải dữ liệu payout…</p>}
+        {loading && <p className="p-5 text-sm text-[#7D715E]">Đang tải dữ liệu chi trả…</p>}
 
-        {/* Bảng danh sách chi trả hoa hồng */}
-          <div className="relative isolate max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label="Danh sách chi trả hoa hồng" tabIndex={0}>
-            <label className="payout-select-all items-center gap-2 border-b border-[#EAE4D7] px-4 py-3 text-xs text-[#7D715E]">
-              <input type="checkbox" aria-label="Chọn tất cả payout chờ" checked={eligible.length > 0 && eligible.every((request) => selected.includes(request.id))} disabled={busy || loading || eligible.length === 0} onChange={(event) => setSelected(event.target.checked ? eligible.map((request) => request.id) : [])} className="accent-[#C59B58]" />
-              Chọn tất cả yêu cầu chờ trên trang
+        <div className="payout-selection-bar">
+            <label className="payout-select-all">
+            <input type="checkbox" aria-label="Chọn tất cả lệnh chi trả đang chờ" checked={eligible.length > 0 && eligible.every((request) => selected.includes(request.id))} disabled={busy || loading || eligible.length === 0} onChange={(event) => setSelected(event.target.checked ? eligible.map((request) => request.id) : [])} className="accent-[#C59B58]" />
+              <span>Chọn tất cả yêu cầu chờ trên trang</span>
             </label>
+            <span className="payout-selection-count">{selected.length > 0 ? `Đã chọn ${selected.length} yêu cầu` : `${eligible.length} yêu cầu có thể chọn`}</span>
+        </div>
+        {/* Bảng chỉ cần cuộn ngang khi có yêu cầu để xem. */}
+          {displayedRequests.length > 0 && <div className="payout-table-scroll relative isolate max-w-full overflow-x-auto overscroll-x-contain" role="region" aria-label="Danh sách chi trả hoa hồng" tabIndex={0}>
             <table
-              aria-label="Danh sách payout"
-              className="w-full min-w-[1200px] table-fixed text-left text-xs"
+          aria-label="Danh sách chi trả"
+              className="w-full min-w-[1060px] table-fixed text-left text-xs"
             >
             <colgroup>
               <col className="w-[42px]" />
-              <col className="w-[22%]" />
+              <col className="w-[20%]" />
               <col />
               <col className="w-[110px]" />
               <col className="w-[90px]" />
               <col className="w-[110px]" />
-              <col className="w-[205px]" />
+              <col className="w-[180px]" />
               <col className="w-[160px]" />
             </colgroup>
             <thead className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[11px] font-bold uppercase tracking-wider text-[#7D715E]">
@@ -1357,7 +1363,7 @@ export default function PayoutApprovalPage() {
                 <th className="px-2.5 py-3 text-center">
                   <input
                     type="checkbox"
-                    aria-label="Chọn tất cả payout chờ trên trang"
+                      aria-label="Chọn tất cả lệnh chi trả đang chờ trên trang"
                     checked={
                       eligible.length > 0 &&
                       eligible.every((request) => selected.includes(request.id))
@@ -1379,7 +1385,7 @@ export default function PayoutApprovalPage() {
                 <th scope="col" className="px-2.5 py-3 text-right">Thuế</th>
                 <th scope="col" className="px-2.5 py-3 text-right">Thực nhận</th>
                 <th scope="col" className="px-2.5 py-3 text-center">Trạng thái</th>
-                <th scope="col" className="sticky right-0 z-20 bg-[#FAF8F5] px-2.5 py-3 text-center shadow-[-1px_0_0_#EAE4D7]">Thao tác</th>
+                <th scope="col" className="bg-[#FAF8F5] px-2.5 py-3 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -1388,7 +1394,7 @@ export default function PayoutApprovalPage() {
                   <td className="px-2.5 py-2.5 text-center align-middle">
                     <input
                       type="checkbox"
-                      aria-label={`Chọn payout ${request.id}`}
+                        aria-label={`Chọn lệnh chi trả ${request.id}`}
                       checked={selected.includes(request.id)}
                       disabled={
                         busy ||
@@ -1412,7 +1418,7 @@ export default function PayoutApprovalPage() {
                     </div>
                     {request.kycStatus && (
                       <div className="mt-0.5 flex items-center gap-1 text-[10px]">
-                        <span className="text-[#7D715E]">KYC</span>
+              <span className="text-[#7D715E]">Định danh</span>
                         <span
                           className={`inline-flex items-center gap-1 font-semibold ${
                             request.kycStatus === "VERIFIED" ? "text-[#059669]" : "text-[#DC2626]"
@@ -1503,7 +1509,7 @@ export default function PayoutApprovalPage() {
                           onClick={() => openDialog(request, "approve")}
                           className="inline-flex h-8 w-full items-center justify-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 text-xs font-semibold text-[#1A1612] transition hover:border-[#C59B58] cursor-pointer whitespace-nowrap"
                         >
-                          Duyệt &amp; tải bill
+                          Duyệt và tải chứng từ
                         </button>
                       )}
                       {request.status === "PENDING" && !request.batchId && (
@@ -1524,7 +1530,7 @@ export default function PayoutApprovalPage() {
                           className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-2.5 text-xs font-semibold text-[#8A642C] transition hover:bg-[#F3EFE6] cursor-pointer whitespace-nowrap"
                         >
                           <ReceiptText size={13} className="text-[#B88E4F]" />
-                          <span>Xem bill</span>
+                          <span>Xem chứng từ</span>
                         </button>
                       )}
                     </div>
@@ -1533,13 +1539,13 @@ export default function PayoutApprovalPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
 
         {!loading && displayedRequests.length === 0 && (
-          <div className="p-8 text-center text-[#7D715E]">
-            <p className="font-semibold text-[#1A1612]">
-              Không có yêu cầu chi trả nào phù hợp với bộ lọc hiện tại.
-            </p>
+          <div className="payout-table-empty">
+            <span className="payout-empty-icon"><ReceiptText size={26} /></span>
+            <h3>{status || activeKpiFilter !== "ALL" || searchQuery ? 'Không tìm thấy yêu cầu phù hợp' : 'Chưa có yêu cầu chi trả'}</h3>
+            <p>{status || activeKpiFilter !== "ALL" || searchQuery ? 'Thử thay đổi từ khóa hoặc đặt lại bộ lọc để xem các yêu cầu khác.' : 'Các yêu cầu chi trả hoa hồng của gian hàng sẽ hiển thị tại đây.'}</p>
             {(status || activeKpiFilter !== "ALL" || searchQuery) && (
               <button
                 type="button"
@@ -1557,10 +1563,8 @@ export default function PayoutApprovalPage() {
         )}
 
         {/* Thanh phân trang */}
-        <div className="flex items-center justify-between gap-3 border-t border-[#EAE4D7] p-3.5 sm:p-4 text-xs">
-          <span className="font-medium text-[#7D715E]">
-            Hiển thị <strong className="text-[#1A1612]">{displayedRequests.length}</strong> yêu cầu chi trả · Trang {page}
-          </span>
+        <div className="payout-pagination">
+          <div className="payout-pagination-summary"><span>Hiển thị</span><strong>{displayedRequests.length}</strong><span>yêu cầu chi trả</span><span aria-hidden="true">·</span><span>Trang {page}</span></div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -1581,14 +1585,15 @@ export default function PayoutApprovalPage() {
           </div>
         </div>
       </section>
-      <section className="rounded-2xl border border-line bg-white p-5">
-        <h2 className="text-lg font-bold">Lịch sử lô VietQR gần nhất</h2>
-        <p className="mt-2 text-xs text-muted">
-          Tải lại cùng file không tạo lô mới. File có thể chứa payout đã trả —
+      <section className="payout-batch-history rounded-2xl border border-line bg-white p-5">
+        <div className="payout-batch-heading"><span className="payout-batch-icon"><FileText size={22} /></span><div><h2>Lịch sử lô VietQR gần nhất</h2><p>Theo dõi các lô đã xuất và tải lại tệp khi cần.</p></div><span className="payout-batch-count">{batches.length} lô</span></div>
+        <p className="payout-batch-notice">
+          <ShieldCheck size={17} /> <span>
+            Tải lại cùng tệp không tạo lô mới. Tệp có thể chứa lệnh đã chi trả —
           không chuyển khoản lại.
-        </p>
+          </span></p>
         {batches.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">Chưa có lô thanh toán.</p>
+          <div className="payout-batch-empty"><Landmark size={24} /><div><strong>Chưa có lô thanh toán</strong><p>Các lô VietQR đã xuất sẽ được lưu trong danh sách này.</p></div></div>
         ) : (
           <ul className="mt-4 space-y-3">
             {batches.map((batch) => (
@@ -1601,7 +1606,7 @@ export default function PayoutApprovalPage() {
                     {batch.id}
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    {batch.payoutCount} payout ·{" "}
+                    {batch.payoutCount} lệnh chi trả ·{" "}
                     {new Date(batch.createdAt).toLocaleString("vi-VN")}
                   </p>
                 </div>
@@ -1618,7 +1623,7 @@ export default function PayoutApprovalPage() {
                         const batchRows = [
                           [
                             "STT",
-                            "Mã Payout",
+                          "Mã chi trả",
                             "KOL Nhận Tiền",
                             "Ngân Hàng",
                             "Số Tài Khoản",
@@ -1650,7 +1655,7 @@ export default function PayoutApprovalPage() {
                           type: "text/csv;charset=utf-8;",
                         });
                         saveWorkbook(blob, `SCANMS-VietQR-${batch.id}.csv`);
-                        toast.success(`Đã tải lại file lô ${batch.id}!`);
+                        toast.success(`Đã tải lại tệp của lô ${batch.id}!`);
                       }
                     })
                   }
@@ -1677,7 +1682,7 @@ export default function PayoutApprovalPage() {
         >
           <h2 id="payout-dialog-title" className="text-xl font-bold">
             {dialog.action === "approve"
-              ? "Duyệt payout và tải bill ngân hàng"
+                  ? "Duyệt chi trả và tải chứng từ ngân hàng"
               : "Từ chối yêu cầu"}
           </h2>
           <p className="mt-2 break-all font-mono text-xs text-muted">
@@ -1768,8 +1773,8 @@ export default function PayoutApprovalPage() {
             {dialog.action === "approve" ? (
               <>
                 <p className="text-sm text-muted">
-                  Chỉ xác nhận sau khi chuyển khoản thành công. Bill không được
-                  tái sử dụng cho payout khác. Duyệt payout không trừ ví lần
+                Chỉ xác nhận sau khi chuyển khoản thành công. Chứng từ không được
+                tái sử dụng cho lệnh chi trả khác. Duyệt chi trả không trừ ví lần
                   nữa.
                 </p>
                 <label className="block text-sm">
@@ -1795,7 +1800,7 @@ export default function PayoutApprovalPage() {
                 <label className="block text-sm">
                   Ghi chú (không bắt buộc)
                   <textarea
-                    aria-label="Ghi chú duyệt payout"
+                  aria-label="Ghi chú duyệt chi trả"
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                     maxLength={500}
@@ -1843,7 +1848,7 @@ export default function PayoutApprovalPage() {
                 className={`${buttonClass} border-brand bg-brand text-white hover:bg-brand-strong`}
               >
                 {busy
-                  ? "Đang tải bill và xác nhận…"
+                    ? "Đang tải chứng từ và xác nhận…"
                   : dialog.action === "approve"
                     ? "Xác nhận duyệt"
                     : "Từ chối & hoàn tiền"}
@@ -1935,7 +1940,7 @@ export default function PayoutApprovalPage() {
             <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[#EAE4D7] bg-[#F3EFE6] p-3 text-xs">
               <div className="flex items-center gap-1.5 font-semibold text-[#5F5547]">
                 <CheckCircle className="h-4 w-4 text-[#059669]" />
-                <span>{viewingBill.status === 'APPROVED' ? 'Shop đã xác nhận chi trả' : 'Chưa xác nhận chi trả'}</span>
+                <span>{viewingBill.status === 'APPROVED' ? 'Gian hàng đã xác nhận chi trả' : 'Chưa xác nhận chi trả'}</span>
               </div>
               <span className="text-right font-mono text-[11px] text-[#7D715E]">
                 {viewingBill.processedAt ? new Date(viewingBill.processedAt).toLocaleString('vi-VN') : 'Chưa ghi nhận thời điểm'}

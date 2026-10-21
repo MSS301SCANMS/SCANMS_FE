@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarDays, Eye, Gift, Radio, RotateCcw, Play, User } from 'lucide-react';
@@ -31,11 +31,17 @@ export function LiveNowSection({ onOpenHub }: { onOpenHub: () => void }) {
   const { data = [], isLoading, isError, refetch, isFetching } = useQuery<LiveSession[]>({
     queryKey: ['marketplace-live-sessions'],
     queryFn: async () => {
-      const response = await api.get('/livestreams');
-      const payload = response?.data?.data ?? response?.data ?? response;
-      return Array.isArray(payload) ? payload : [];
+      try {
+        const response = await api.get('/livestreams');
+        const payload = response?.data?.data ?? response?.data ?? response;
+        return Array.isArray(payload) ? payload : [];
+      } catch {
+        return [];
+      }
     },
-    refetchInterval: 15_000, staleTime: 10_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+    retry: false,
   });
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);

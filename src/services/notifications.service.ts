@@ -1,4 +1,5 @@
 import api from './api';
+const notificationsEnabled = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 
 export type NotificationCategory = 'ALL' | 'ORDER' | 'PROMOTION' | 'SYSTEM';
 
@@ -33,6 +34,7 @@ export const notificationsService = {
     page = 1,
     limit = 20,
   ): Promise<NotificationResponse> {
+    if (!notificationsEnabled) return { items: [], total: 0, page, limit, totalPages: 0, unreadCount: 0 };
     const res: any = await api.get('/notifications', {
       params: { category, page, limit },
     });
@@ -40,6 +42,7 @@ export const notificationsService = {
   },
 
   async getUnreadCount(): Promise<number | null> {
+    if (!notificationsEnabled) return 0;
     try {
       const res: any = await api.get('/notifications/unread-count');
       const data = res?.data?.data || res?.data || res;
@@ -57,6 +60,7 @@ export const notificationsService = {
       SYSTEM: number;
     };
   } | null> {
+    if (!notificationsEnabled) return null;
     try {
       const res: any = await api.get('/notifications/unread-count');
       const data = res?.data?.data || res?.data || res;
@@ -71,6 +75,7 @@ export const notificationsService = {
   },
 
   async markAsRead(notificationId: string): Promise<boolean> {
+    if (!notificationsEnabled) return false;
     try {
       await api.patch(`/notifications/${notificationId}/read`);
       return true;
@@ -80,6 +85,7 @@ export const notificationsService = {
   },
 
   async markAllAsRead(): Promise<boolean> {
+    if (!notificationsEnabled) return false;
     try {
       await api.patch('/notifications/read-all');
       return true;

@@ -1,0 +1,17 @@
+.moderation-toolbar .moderation-toolbar-row { display: flex; flex-direction: column; gap: 14px; width: 100%; min-width: 0; }
+.moderation-toolbar .moderation-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px; border-radius: 11px; background: #faf8f5; }
+.moderation-toolbar .moderation-tabs button { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 42px; padding: 10px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; font-weight: 500; line-height: 1.5; color: #847762; cursor: pointer; transition: background .15s, border-color .15s; }
+.moderation-toolbar .moderation-tabs button:hover { background: #f3eee5; color: #5f4c32; }
+.moderation-toolbar .moderation-tabs button[aria-pressed="true"] { border-color: #e6cfaa; background: #fbf5eb; color: #805e2d; font-weight: 600; }
+.moderation-toolbar .moderation-filter-controls { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 10px; min-width: 0; }
+.moderation-toolbar .moderation-search { display: block; min-width: 0; width: 100%; }
+.moderation-toolbar .moderation-search input { display: block; height: 42px; width: 100%; font-size: 13px; border-radius: 9px; }
+.moderation-toolbar .moderation-refresh { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid #e7dfd2; border-radius: 9px; background: white; cursor: pointer; }
+.moderation-toolbar .moderation-refresh:hover { background: #fbf5eb; border-color: #e6cfaa; }
+.moderation-toolbar .moderation-refresh:disabled { opacity: .5; cursor: wait; }
+.moderation-toolbar button:focus-visible, .moderation-toolbar input:focus-visible { outline: 2px solid #c59b58; outline-offset: 2px; }
+@media (max-width: 480px) {
+  .moderation-toolbar .moderation-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .moderation-toolbar .moderation-tabs button { font-size: 12px; min-height: 40px; padding: 8px; }
+  .moderation-toolbar .moderation-toolbar-row { gap: 10px; }
+}

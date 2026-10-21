@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus,
@@ -11,8 +11,10 @@ import {
   Box,
   ChevronDown,
   ChevronUp,
+  Store,
+  Loader2,
 } from 'lucide-react';
-import { storeService } from '../../services/store.service';
+import { storeService, MissingOwnedStoreError } from '../../services/store.service';
 import {
   analyticsService,
   type DashboardOverviewResponse,
@@ -22,6 +24,7 @@ import { productService, type Product } from '../../services/product.service';
 import { orderService, type StoreOrderRecord } from '../../services/order.service';
 
 import { StatCard } from '../../components/ui/StatCard';
+import ShopApplicationPage from './ShopApplicationPage';
 
 export default function ShopDashboardPage() {
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
@@ -31,13 +34,18 @@ export default function ShopDashboardPage() {
   const [isOrdersExpanded, setIsOrdersExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [storeStatus, setStoreStatus] = useState<'unknown' | 'missing' | 'ready'>('unknown');
+  const requestSequence = useRef(0);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    const request = ++requestSequence.current;
     setLoading(true);
     setLoadError('');
     try {
       const currentStore = await storeService.getMyStore(true);
+      if (request !== requestSequence.current) return;
       if (!currentStore?.id) throw new Error('Không xác định được gian hàng. Vui lòng thử lại.');
+      setStoreStatus('ready');
 
       const [overviewData, seriesData, productsData, ordersData] = await Promise.all([
         analyticsService.getRealtimeOverview({ days: 30, storeId: currentStore.id }, true),
@@ -45,26 +53,52 @@ export default function ShopDashboardPage() {
         productService.getProducts({ storeId: currentStore.id, page: 1, limit: 5 }, true),
         orderService.getMyStoreOrders({ storeId: currentStore.id, page: 1, limit: 10 }, true),
       ]);
+      if (request !== requestSequence.current) return;
 
       if (overviewData) setOverview(overviewData);
       if (seriesData) setTimeSeries(seriesData);
       if (productsData?.items) setTopProducts(productsData.items);
       if (ordersData?.items) setRecentOrders(ordersData.items);
     } catch (err) {
+      if (request !== requestSequence.current) return;
+      if (err instanceof MissingOwnedStoreError) {
+        setStoreStatus('missing');
+        setOverview(null); setTimeSeries([]); setTopProducts([]); setRecentOrders([]);
+        return;
+      }
       setLoadError(err instanceof Error ? err.message : 'Chưa tải được dữ liệu gian hàng. Vui lòng thử lại.');
       console.error('Lỗi tải dữ liệu Dashboard Shop:', err);
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+    const requests = requestSequence;
+    return () => { requests.current++; };
+  }, [loadData]);
 
   const metrics = overview?.metrics;
   const chartSeries = timeSeries.slice(-7);
   const maxRevenue = Math.max(...chartSeries.flatMap(t => [t.revenue, t.commission]), 1);
+
+  if (loading && storeStatus !== 'ready') {
+    return <div role="status" className="flex items-center justify-center gap-2 rounded-2xl border border-[#EAE4D7] bg-white p-10 text-sm text-[#7D715E]"><Loader2 size={18} className="animate-spin" />Đang kiểm tra gian hàng của bạn…</div>;
+  }
+
+  if (storeStatus === 'missing' && !loadError) {
+    return <ShopApplicationPage onCheckStore={() => void loadData()} checkingStore={loading} />;
+  }
+
+  if (storeStatus !== 'ready') {
+    return <section aria-label="Thiết lập gian hàng" className="grid justify-items-start gap-4 rounded-2xl border border-[#EAE4D7] bg-white p-5 text-left text-[#1A1612] sm:p-7">
+      <span className="grid h-12 w-12 place-items-center rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] text-[#B88E4F]"><Store size={23} /></span>
+      <div className="max-w-2xl"><h1 className="m-0 text-lg font-bold">Chưa tải được thông tin gian hàng</h1><p className="mb-0 mt-2 text-sm leading-6 text-[#7D715E]">Vui lòng kiểm tra kết nối và thử tải lại.</p></div>
+      {loadError && <p role="alert" className="m-0 text-sm text-red-700">{loadError}</p>}
+      <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#EAE4D7] px-4 py-2 text-sm font-semibold disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Kiểm tra lại</button>
+    </section>;
+  }
 
   return (
     <div className="shop-overview flex flex-col gap-4 text-left pb-6">

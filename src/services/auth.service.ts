@@ -1,4 +1,5 @@
 import api from './api';
+import { saveLoginSession, clearSession, getSessionId, forceRefreshSession } from './auth-session';
 
 function safeLoginReturn(path: string | null | undefined): string | null {
   if (!path || !path.startsWith('/') || path.startsWith('//') || /[\\\r\n\t]/.test(path)) return null;
@@ -179,7 +180,7 @@ export const authService = {
     let user = normalizeUser(res?.result?.user || res?.data?.user || res?.user);
 
     if (accessToken) {
-      localStorage.setItem('token', accessToken);
+      saveLoginSession(res);
       try {
         const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
         user = normalizeUser(meRes?.result || meRes?.data || meRes);
@@ -220,7 +221,7 @@ export const authService = {
     let user = normalizeUser(res?.result?.user || res?.data?.user || res?.user);
 
     if (accessToken) {
-      localStorage.setItem('token', accessToken);
+      saveLoginSession(res);
       try {
         const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
         user = normalizeUser(meRes?.result || meRes?.data || meRes);
@@ -247,25 +248,39 @@ export const authService = {
   },
 
   async getMe(): Promise<UserProfile> {
-    const token = localStorage.getItem('token');
+    const session = getSessionId();
     const res: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
-    if (token !== localStorage.getItem('token')) throw new Error('Phiên đăng nhập đã thay đổi.');
+    if (session !== getSessionId()) throw new Error('Phiên đăng nhập đã thay đổi.');
     let user = normalizeUser(res?.result || res?.data || res);
     if (user && (user.id || user.userId)) {
-      const previousUserId = this.getCurrentUser()?.id;
+      const previousUser = this.getCurrentUser();
       user = await attachOwnedStores(user);
+      if (session !== getSessionId()) throw new Error('Phiên đăng nhập đã thay đổi.');
       localStorage.setItem('user', JSON.stringify(user));
       const uiRole = workspaceKeyFromRole(user.role);
-      if (!localStorage.getItem('scanms-active-workspace') || user.role === 'SHOP_MANAGER') {
+      if (!localStorage.getItem('scanms-active-workspace')) {
         localStorage.setItem('scanms-current-role', uiRole);
         localStorage.setItem('scanms-active-workspace', uiRole);
       }
       if (user.stores?.[0]?.id) {
         localStorage.setItem('current_store_id', user.stores[0].id);
       }
-      if (previousUserId !== user.id) window.dispatchEvent(new Event('auth-user-updated'));
+      const rolesChanged = JSON.stringify(previousUser?.roles || []) !== JSON.stringify(user.roles || []);
+      if (previousUser?.id !== user.id || previousUser?.role !== user.role || rolesChanged)
+        window.dispatchEvent(new Event('auth-user-updated'));
     }
     return user;
+  },
+
+  async enterKolWorkspace(navigate?: (path: string) => void) {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Vui lòng đăng nhập lại để cập nhật quyền KOL.');
+    await forceRefreshSession();
+    const user = await this.getMe();
+    if (!this.getUserAvailableWorkspaces(user).some((workspace) => workspace.key === 'kol')) {
+      throw new Error('Hồ sơ đã duyệt nhưng quyền KOL chưa được đồng bộ. Nhờ quản trị viên bấm “Đồng bộ quyền KOL” trong mục Thẩm định hồ sơ.');
+    }
+    this.switchWorkspace('kol', navigate);
   },
 
   async updateAvatar(avatarUrl: string): Promise<any> {
@@ -280,6 +295,7 @@ export const authService = {
   },
 
   logout(returnTo?: string) {
+    clearSession(undefined, false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('scanms-current-role');

@@ -21,6 +21,8 @@ export interface CustomerProfileResponse {
     fullName: string;
     phoneNumber?: string | null;
     avatarUrl?: string | null;
+    dateOfBirth?: string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
     role: string;
     createdAt: string;
   };
@@ -284,6 +286,8 @@ export const customerService = {
         fullName: me?.fullName || '',
         phoneNumber: me?.phoneNumber,
         avatarUrl: me?.avatarUrl,
+        dateOfBirth: me?.dateOfBirth,
+        gender: me?.gender,
         role: Array.isArray(me?.roles) ? me.roles[0] : me?.role || 'CUSTOMER',
         createdAt: me?.createdAt || new Date().toISOString(),
       },
@@ -301,13 +305,22 @@ export const customerService = {
     phoneNumber?: string;
     avatarUrl?: string;
     address?: string | null;
+    dateOfBirth?: string;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
   }): Promise<any> {
     const payload: Record<string, unknown> = {};
     if (data.fullName !== undefined) payload.fullName = data.fullName;
     if (data.phoneNumber !== undefined) payload.phoneNumber = data.phoneNumber;
     if (data.avatarUrl !== undefined) payload.avatarUrl = data.avatarUrl;
     if (data.address !== undefined) payload.address = data.address;
-    const updated = unwrap(await api.patch('/users/me', payload));
+    if (data.dateOfBirth !== undefined) payload.dateOfBirth = data.dateOfBirth;
+    if (data.gender !== undefined) payload.gender = data.gender;
+    await api.patch('/users/me', payload);
+    const saved = unwrap(await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } }));
+    if (!(saved?.userId || saved?.id) || Object.entries(payload).some(([key, value]) => (saved[key] ?? null) !== (value ?? null))) {
+      throw new Error('Máy chủ chưa lưu đầy đủ thông tin hồ sơ. Nội dung bạn nhập vẫn được giữ để kiểm tra và thử lại.');
+    }
+    const updated = saved;
     try {
       const current = authService.getCurrentUser();
       if (current && updated) {
@@ -372,7 +385,7 @@ export const customerService = {
           ? me.address
           : '';
     return {
-      isVerified: Boolean(profile?.user?.fullName && (me?.status === 'ACTIVE' || profile.user.fullName)),
+      isVerified: false,
       fullName: profile?.user?.fullName || me?.fullName || '',
       idCardNumber: '',
       address: addressText,
@@ -380,9 +393,8 @@ export const customerService = {
     };
   },
 
-  async verifyIdentity(data: { fullName: string; idCardNumber: string; address: string }): Promise<any> {
-    await this.updateProfile({ fullName: data.fullName, address: data.address });
-    return { message: 'Đã lưu thông tin định danh vào hồ sơ', success: true };
+  async verifyIdentity(_data: { fullName: string; idCardNumber: string; address: string }): Promise<any> {
+    throw new Error('Xác minh định danh được thực hiện trong hồ sơ đăng ký KOL hoặc gian hàng. Thao tác này chưa lưu số CCCD.');
   },
 
   // 2. Orders
@@ -392,12 +404,12 @@ export const customerService = {
     let orders = (Array.isArray(payload) ? payload : payload?.orders || []).map(mapOrder);
     if (params?.status) {
       const status = params.status.toUpperCase();
-      orders = orders.filter((o) => String(o.status).toUpperCase() === status);
+      orders = orders.filter((o: any) => String(o.status).toUpperCase() === status);
     }
     if (params?.search) {
       const q = params.search.toLowerCase();
       orders = orders.filter(
-        (o) =>
+        (o: any) =>
           o.id?.toLowerCase().includes(q) ||
           o.externalOrderSn?.toLowerCase().includes(q) ||
           o.customerName?.toLowerCase().includes(q),
@@ -559,7 +571,7 @@ export const customerService = {
 
   // 4. Wishlist — BE chưa có resource; lưu local theo user
   _wishlistKey() {
-    const userId = authService.getCurrentUser()?.id || authService.getCurrentUser()?.userId || 'guest';
+    const userId = authService.getCurrentUser()?.id || (authService.getCurrentUser() as any)?.userId || 'guest';
     return `scanms_wishlist_${userId}`;
   },
 

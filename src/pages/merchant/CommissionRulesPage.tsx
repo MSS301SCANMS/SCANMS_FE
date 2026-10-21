@@ -384,13 +384,6 @@ export const CommissionRulesPage: React.FC = () => {
 
       {/* BLOCK 1: PERFORMANCE TIERS GRID */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#7D715E]">
-            Bảng bậc thưởng KPI ({rules.length} bậc)
-          </h3>
-          <span className="text-[11px] text-[#7D715E]">Áp dụng tự động theo chu kỳ tháng</span>
-        </div>
-
         {loading ? (
           <div className="rounded-2xl border border-[#EAE4D7] bg-white p-8 text-center text-xs text-[#7D715E]">
             Đang tải chính sách thưởng…

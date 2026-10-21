@@ -145,62 +145,60 @@ export const commissionRulesService = {
     throw new Error('BE chưa hỗ trợ cập nhật commission policy.');
   },
 
-  async updateStatus(_storeId: string, ruleId: string, isActive: boolean) {
-    return { id: ruleId, name: '', isActive, message: 'BE chưa hỗ trợ đổi status policy' };
+  async updateStatus(_storeId: string, _ruleId: string, _isActive: boolean) {
+    throw new Error('Chưa hỗ trợ thay đổi trạng thái chính sách từ khu vực gian hàng. Thao tác chưa được lưu.');
   },
 
   async deleteRule(_storeId: string, _ruleId: string) {
     throw new Error('BE chưa hỗ trợ xóa commission policy.');
   },
 
-  async previewBonus(_storeId: string, monthlyRevenue: string): Promise<BonusPreviewResult> {
-    return {
-      monthlyRevenue,
-      highestReachedRule: null,
-      achievementBonus: '0',
-      rangeBonuses: [],
-      totalBonus: '0',
-      formula: 'BE chỉ lưu commission-policies, chưa có preview bonus.',
-    };
+  async previewBonus(_storeId: string, _monthlyRevenue: string): Promise<BonusPreviewResult> {
+    throw new Error('Chưa có chức năng tính thử thưởng KPI. Không thể dùng kết quả này để chốt thưởng.');
   },
 
-  async settleMonthlyBonus(): Promise<SettlementResponse> {
+  async settleMonthlyBonus(
+    _storeId?: string,
+    _collaboratorId?: string,
+    _yearMonth?: string,
+    _allowUnfinishedMonth?: boolean,
+  ): Promise<any> {
     throw new Error('BE chưa hỗ trợ settle bonus tháng.');
   },
 
-  async getSettlementHistory(): Promise<SettlementHistoryItem[]> {
+  async getSettlementHistory(_storeId?: string, _yearMonth?: string): Promise<SettlementHistoryItem[]> {
     return [];
   },
 
-  async approveSettlement() {
+  async approveSettlement(_storeId?: string, _settlementId?: string): Promise<any> {
     throw new Error('BE chưa hỗ trợ approve settlement.');
   },
 
-  async payoutSettlement() {
+  async payoutSettlement(_storeId?: string, _settlementId?: string): Promise<any> {
     throw new Error('BE chưa hỗ trợ payout settlement.');
   },
 
-  async restoreRule(_storeId: string, ruleId: string) {
-    return { success: false, message: 'BE chưa hỗ trợ restore', id: ruleId };
+  async restoreRule(_storeId: string, _ruleId: string) {
+    throw new Error('Chưa hỗ trợ khôi phục chính sách. Thao tác chưa được lưu.');
   },
 
-  async handleRefund() {
+  async handleRefund(_storeId?: string, _data?: any): Promise<any> {
     throw new Error('BE chưa hỗ trợ adjustment refund hoa hồng.');
   },
 
-  async getKolProgress() {
-    return {};
+  async getKolProgress(_storeId?: string, _collaboratorId?: string, _yearMonth?: string): Promise<any> {
+    return null;
   },
 
-  async getMyBonusProgress() {
-    return {};
+  async getMyBonusProgress(_storeId?: string, _yearMonth?: string): Promise<any> {
+    return null;
   },
 
-  async getMyBonusHistory() {
+  async getMyBonusHistory(_storeId?: string, _yearMonth?: string): Promise<any[]> {
     return [];
   },
 
-  async getCollaboratorStores(): Promise<any[]> {
+  async getCollaboratorStores(_discovery?: boolean): Promise<any[]> {
     const res: any = await api.get('/stores/marketplace');
     return res?.result ?? res?.data ?? [];
   },

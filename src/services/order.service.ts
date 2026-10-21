@@ -83,10 +83,6 @@ export interface ExcelImportResult {
   errors: ExcelImportError[];
 }
 
-interface ApiEnvelope<T> {
-  data: T;
-}
-
 export interface StoreOrderItem {
   productId: string;
   title: string;
@@ -200,7 +196,9 @@ export const orderService = {
     if (data.trackingNumber) {
       try {
         const shipment: any = await api.get(`/shipments/by-seller-order/${orderId}`);
-        const shipmentId = shipment?.result?.shipmentId || shipment?.result?.id || shipment?.data?.id;
+        const shipmentData = shipment?.result ?? shipment?.data ?? shipment;
+        const shipmentId = shipmentData?.shipmentId || shipmentData?.id;
+        if (!shipmentId) throw new Error('Chưa có vận đơn để lưu mã theo dõi.');
         if (shipmentId) {
           await api.patch(`/shipments/${shipmentId}/status`, null, {
             params: {
@@ -211,7 +209,7 @@ export const orderService = {
           });
         }
       } catch {
-        // shipment may not exist yet
+        throw new Error('Trạng thái đơn đã cập nhật nhưng thông tin vận đơn chưa lưu. Hãy kiểm tra vận đơn trước khi gửi lại.');
       }
     }
     return {
@@ -253,14 +251,14 @@ export const orderService = {
     };
   },
 
-  async downloadExcelTemplate() {
+  async downloadExcelTemplate(): Promise<any> {
     throw new Error('BE chưa hỗ trợ import Excel đơn hàng.');
   },
-  async createManualOrder(_data: ManualOrderInput) {
+  async createManualOrder(_data: ManualOrderInput): Promise<{ message: string; order: any }> {
     throw new Error('BE chưa hỗ trợ tạo đơn thủ công. Dùng luồng checkout.');
   },
 
-  async importExcel(_file: File, _storeId?: string) {
+  async importExcel(_file: File, _storeId?: string): Promise<ExcelImportResult> {
     throw new Error('BE chưa hỗ trợ import Excel đơn hàng.');
   },
 

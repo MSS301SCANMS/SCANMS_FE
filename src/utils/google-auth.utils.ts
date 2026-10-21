@@ -11,7 +11,7 @@ let activeErrorHandler: ((errorMsg: string) => void) | null = null;
 
 const DEFAULT_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  '1028788240521-ujoshj82g60v811p5fkqv3hh4iirqbt3.apps.googleusercontent.com';
+  '281102364785-etm73id59t8qvrbgrd16gpqg12plr21b.apps.googleusercontent.com';
 const GOOGLE_IDENTITY_SCRIPT_ID = 'google-identity-services-sdk';
 const GOOGLE_IDENTITY_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 let googleIdentityScriptPromise: Promise<void> | null = null;
@@ -170,7 +170,7 @@ export function renderGoogleButton(
       theme: 'outline',
       size: 'large',
       type: 'standard',
-      shape: 'pill',
+      shape: 'rectangular',
       text: options?.text || 'continue_with',
       logo_alignment: 'left',
       width: Math.min(400, Math.max(200, Math.floor(options?.width || 200))),

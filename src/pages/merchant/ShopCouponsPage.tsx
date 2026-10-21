@@ -31,6 +31,7 @@ import {
 } from '../../services/coupon.service';
 import { toast } from '../../utils/toast';
 import api from '../../services/api';
+import { usesLegacyCheckout } from '../../services/checkout.service';
 import { CreateCampaignModal } from '../../components/common/CreateCampaignModal';
 
 export interface CustomSandSelectOption<T extends string> {
@@ -292,10 +293,10 @@ export const ShopCouponsPage: React.FC = () => {
           fetchStoreCoupons(foundStore.id),
           couponService.getStorePlatformSubsidies(foundStore.id).then((rows) => setPlatformSubsidy(rows[0] || null)).catch(() => setPlatformSubsidy(null)),
           fetchStoreProducts(foundStore.id),
-          api.get('/campaigns/shop').then((res: any) => {
+          usesLegacyCheckout ? api.get('/campaigns/shop').then((res: any) => {
             const payload = res?.data?.data || res?.data || res;
             setStoreCampaigns((Array.isArray(payload) ? payload : []).filter((campaign: any) => campaign.storeId === foundStore.id && campaign.isActive && new Date(campaign.endDate) > new Date()));
-          }).catch(() => setStoreCampaigns([])),
+          }).catch(() => setStoreCampaigns([])) : Promise.resolve(),
         ]);
       } else {
         setLoading(false);
@@ -346,7 +347,7 @@ export const ShopCouponsPage: React.FC = () => {
       fetchStoreProducts(selected.id);
       setStoreCampaigns([]);
       setCreateForm(form => ({ ...form, campaignId: undefined, scopeType: 'STORE_WIDE' }));
-      api.get('/campaigns/shop').then((res: any) => {
+      if (usesLegacyCheckout) api.get('/campaigns/shop').then((res: any) => {
         const payload = res?.data?.data || res?.data || res;
         setStoreCampaigns((Array.isArray(payload) ? payload : []).filter((campaign: any) => campaign.storeId === selected.id && campaign.isActive && new Date(campaign.endDate) > new Date()));
       }).catch(() => setStoreCampaigns([]));
@@ -669,6 +670,8 @@ export const ShopCouponsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCampaignModalOpen(true)}
+              disabled={!usesLegacyCheckout}
+              title={!usesLegacyCheckout ? 'Tạo chiến dịch chưa được hỗ trợ trên hệ thống hiện tại.' : undefined}
               className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 text-xs font-semibold text-[#1A1612] transition-colors hover:bg-[#F3EFE6] cursor-pointer"
             >
               <Calendar className="h-4 w-4 text-[#B88E4F]" />
@@ -1957,7 +1960,7 @@ export const ShopCouponsPage: React.FC = () => {
           </div>
         </div>
       )}
-      {isCampaignModalOpen && (
+      {isCampaignModalOpen && usesLegacyCheckout && (
         <CreateCampaignModal
           onClose={() => setIsCampaignModalOpen(false)}
           onSuccess={(campaign) => {
