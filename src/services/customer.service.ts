@@ -190,38 +190,57 @@ function unwrap(res: any) {
 
 function mapOrder(raw: any): CustomerOrder {
   const ship = raw?.shippingSnapshot || {};
+  const sellerOrders = Array.isArray(raw?.sellerOrders) ? raw.sellerOrders : [];
+  const firstSeller = sellerOrders[0];
+  const nativeItems = sellerOrders.flatMap((seller: any) => seller.items || []).map((item: any) => {
+    const product = item.productSnapshot || {};
+    return {
+      id: item.orderItemId, productId: item.productId, variantId: item.variantId,
+      quantity: item.quantity, unitPrice: item.unitPrice,
+      product: { id: item.productId, title: product.title || product.name || 'Sản phẩm', imageUrl: product.imageUrl, sku: product.sku },
+    };
+  });
+  const nativePaid = ['PAID', 'PROCESSING', 'COMPLETED'].includes(raw?.status);
+  const status = ({ PAID: 'PENDING', AWAITING_PAYMENT: 'PENDING', EXPIRED: 'CANCELLED', PROCESSING: 'SHIPPING' } as Record<string, string>)[raw?.status] || raw?.status || 'PENDING';
   const shippingAddress =
     typeof raw?.shippingAddress === 'string'
       ? raw.shippingAddress
       : [ship.address, ship.name, ship.phone].filter(Boolean).join(' · ') || '';
   return {
     id: raw?.id || raw?.orderId,
-    storeId: raw?.storeId || '',
+    storeId: raw?.storeId || firstSeller?.storeId || '',
     externalOrderSn: raw?.externalOrderSn || raw?.orderId || raw?.id || '',
     customerName: raw?.customerName || ship.name || null,
     customerPhone: raw?.customerPhone || ship.phone || null,
     customerEmail: raw?.customerEmail || null,
     shippingAddress,
-    subtotalAmount: raw?.subtotalAmount ?? raw?.payableVnd ?? 0,
-    discountAmount: raw?.discountAmount ?? 0,
-    shippingFee: raw?.shippingFee ?? 0,
+    subtotalAmount: raw?.subtotalAmount ?? raw?.totalGrossVnd ?? raw?.payableVnd ?? 0,
+    discountAmount: raw?.discountAmount ?? raw?.totalDiscountVnd ?? 0,
+    shippingFee: raw?.shippingFee ?? raw?.sagaState?.shippingFeeVnd ?? 0,
     finalAmount: raw?.finalAmount ?? raw?.payableVnd ?? 0,
-    status: raw?.status || 'PENDING',
+    status,
     overrideReason: raw?.overrideReason ?? null,
     completedAt: raw?.completedAt ?? null,
     deliveredAt: raw?.deliveredAt ?? null,
     policyAcceptedAt: raw?.policyAcceptedAt ?? null,
     policySnapshot: raw?.policySnapshot ?? null,
     returnRequest: raw?.returnRequest ?? null,
-    rawPayload: raw,
+    rawPayload: { ...raw, paymentMethod: raw?.paymentMethod || raw?.sagaState?.paymentMethod,
+      paymentStatus: raw?.paymentStatus || (nativePaid ? 'PAID' : 'UNPAID') },
     createdAt: raw?.createdAt || new Date().toISOString(),
     updatedAt: raw?.updatedAt || raw?.createdAt || new Date().toISOString(),
-    store: raw?.store,
-    orderItems: Array.isArray(raw?.orderItems) ? raw.orderItems : [],
+    store: raw?.store || (firstSeller ? { id: firstSeller.storeId, name: firstSeller.totalsSnapshot?.storeName || 'Gian hàng' } : undefined),
+    orderItems: Array.isArray(raw?.orderItems) ? raw.orderItems : nativeItems,
     coupon: raw?.coupon ?? null,
     paymentTransactions: raw?.paymentTransactions,
     productReviews: raw?.productReviews,
   };
+}
+
+async function enrichOrder(raw: any) {
+  if (!raw?.orderId || raw.orderItems || raw.sellerOrders) return raw;
+  const details = unwrap(await api.get(`/orders/${raw.orderId}/checkout-details`, { headers: { 'x-skip-cache': 'true' } }));
+  return { ...raw, ...details };
 }
 
 function parseStoredAddresses(me: any): CustomerAddress[] {
@@ -401,7 +420,7 @@ export const customerService = {
   async getOrders(params?: { status?: string; search?: string }): Promise<{ total: number; orders: CustomerOrder[] }> {
     const res: any = await api.get('/orders/my-orders', { params, headers: { 'x-skip-cache': 'true' } });
     const payload = unwrap(res);
-    let orders = (Array.isArray(payload) ? payload : payload?.orders || []).map(mapOrder);
+    let orders = (await Promise.all((Array.isArray(payload) ? payload : payload?.orders || []).map(enrichOrder))).map(mapOrder);
     if (params?.status) {
       const status = params.status.toUpperCase();
       orders = orders.filter((o: any) => String(o.status).toUpperCase() === status);
@@ -420,7 +439,7 @@ export const customerService = {
 
   async getOrderDetails(orderId: string): Promise<CustomerOrder> {
     const res: any = await api.get(`/orders/${orderId}`, { headers: { 'x-skip-cache': 'true' } });
-    return mapOrder(unwrap(res));
+    return mapOrder(await enrichOrder(unwrap(res)));
   },
 
   async cancelOrder(_orderId: string, _reason?: string): Promise<any> {
@@ -531,11 +550,7 @@ export const customerService = {
     const next = entry.isDefault
       ? [...list.map((a) => ({ ...a, isDefault: false })), entry]
       : [...list, entry];
-    return this.updateProfile({
-      fullName: entry.fullName,
-      phoneNumber: entry.phoneNumber,
-      address: JSON.stringify(next),
-    });
+    return this.updateProfile({ address: JSON.stringify(next) });
   },
 
   async updateAddress(id: string, data: Partial<CustomerAddress>): Promise<any> {
@@ -560,7 +575,7 @@ export const customerService = {
     const me: any = unwrap(await api.get('/users/me'));
     const next = parseStoredAddresses(me).filter((a) => a.id !== id);
     if (next.length && !next.some((a) => a.isDefault)) next[0].isDefault = true;
-    return this.updateProfile({ address: next.length ? JSON.stringify(next) : null });
+    return this.updateProfile({ address: JSON.stringify(next) });
   },
 
   async setDefaultAddress(id: string): Promise<any> {

@@ -613,7 +613,7 @@ export default function ProductManagementPage() {
   }, []);
 
   const openProductLanding = (product: Product) => {
-    const productSlug = product.sku || product.id;
+    const productSlug = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? product.sku || product.id : product.id;
     window.open(
       `/products/${encodeURIComponent(productSlug)}`,
       '_blank',

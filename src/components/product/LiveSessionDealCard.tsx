@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Clock3, Copy, Radio, TicketCheck } from 'lucide-react';
 import api from '../../services/api';
+import { usesLegacyCheckout } from '../../services/checkout.service';
 import { toast } from '../../utils/toast';
 
 type LiveSession = {
@@ -48,6 +49,7 @@ export function LiveSessionDealCard({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!usesLegacyCheckout) return;
     let mounted = true;
     const load = async () => {
       try {
