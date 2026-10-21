@@ -377,7 +377,7 @@ export const authService = {
         key: 'admin',
         label: isSuperAdmin ? 'Ban Quản Trị Tối Cao' : 'Vận Hành & Tuân Thủ',
         badge: isSuperAdmin ? 'SuperAdmin' : 'Operations',
-        route: isSuperAdmin ? '/admin/users' : '/admin/ops-dashboard',
+        route: isSuperAdmin ? '/admin/dashboard' : '/admin/ops-dashboard',
         description: isSuperAdmin
           ? 'Tài khoản, phân quyền, ví hệ thống & giám sát service'
           : 'Duyệt shop/KOL, chính sách hoa hồng, voucher & dashboard vận hành',
@@ -421,7 +421,7 @@ export const authService = {
         : target === 'admin'
         ? user?.role === 'SYSTEM_MANAGER'
           ? '/admin/ops-dashboard'
-          : '/admin/users'
+          : '/admin/dashboard'
         : target === 'kol'
         ? '/collaborator/dashboard'
         : '/customer/orders';

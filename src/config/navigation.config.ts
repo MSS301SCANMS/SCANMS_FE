@@ -18,6 +18,7 @@ import {
   Handshake,
   MapPin,
   Heart,
+  LayoutDashboard,
   type LucideProps,
 } from 'lucide-react';
 
@@ -82,6 +83,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     title: 'QUẢN TRỊ HỆ THỐNG',
     subTitle: 'Admin',
     items: [
+      { path: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard, section: 'TỔNG QUAN' },
       { path: '/admin/users', label: 'Tài khoản & Phân quyền', icon: Users, section: 'NGƯỜI DÙNG' },
       { path: '/admin/system-wallet', label: 'Ví hệ thống', icon: Wallet, section: 'TÀI CHÍNH' },
       { path: '/admin/system-health', label: 'Giám sát hệ thống', icon: Activity, section: 'VẬN HÀNH' },

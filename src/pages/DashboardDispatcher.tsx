@@ -21,7 +21,7 @@ export default function DashboardDispatcher() {
   if (activeWs === 'admin' && available.includes('admin')) {
     return (
       <Navigate
-        to={user.role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/users'}
+        to={user.role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard'}
         replace
       />
     );
