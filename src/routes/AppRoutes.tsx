@@ -44,6 +44,7 @@ const AdminProfilePage = lazyRetry(() => import('../pages/admin/AdminProfilePage
 const ProductModerationPage = lazy(() => import('../pages/admin/ProductModerationPage'));
 const ManagerOpsDashboardPage = lazy(() => import('../pages/admin/ManagerOpsDashboardPage'));
 const AdminSystemHealthPage = lazy(() => import('../pages/admin/AdminSystemHealthPage'));
+const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage'));
 const AdminSystemWalletPage = lazy(() => import('../pages/admin/AdminSystemWalletPage'));
 const AdminStatsPage = lazy(() => import('../pages/admin/AdminStatsPage'));
 const AdminCommissionPoliciesPage = lazy(() => import('../pages/admin/AdminCommissionPoliciesPage'));
@@ -252,6 +253,7 @@ function AppRoutes() {
                     <Route path="admin/collaborations" element={<CollaborationsPage mode="admin" />} />
                     <Route path="admin/stats" element={<AdminStatsPage />} />
                     <Route path="admin/system-wallet" element={<AdminSystemWalletPage />} />
+                    <Route path="admin/dashboard" element={<AdminDashboardPage />} />
                     <Route path="admin/system-health" element={<AdminSystemHealthPage />} />
                     <Route path="admin/referral-links" element={<Navigate to="/admin/affiliate-oversight?tab=links" replace />} />
                     <Route path="admin/coupons" element={<Navigate to="/admin/affiliate-oversight?tab=coupons" replace />} />

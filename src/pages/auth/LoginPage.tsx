@@ -107,7 +107,7 @@ export default function LoginPage() {
     } else if (role === 'SYSTEM_MANAGER') {
       navigate('/admin/ops-dashboard');
     } else if (role === 'SYSTEM_ADMIN') {
-      navigate('/admin/users');
+      navigate('/admin/dashboard');
     } else if (role === 'COLLABORATOR' || workspaces.includes('kol')) {
       navigate('/collaborator/dashboard');
     } else {
