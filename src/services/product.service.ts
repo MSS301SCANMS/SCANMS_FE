@@ -86,6 +86,7 @@ function stockFromSizes(sizesStock: any): number {
 
 function normalizeProduct(raw: any): Product {
   if (!raw) return raw;
+  const metadata = raw.attributes && typeof raw.attributes === 'object' ? raw.attributes : {};
   const id = raw.id || raw.productId;
   const title = raw.title || raw.name || '';
   const price = Number(raw.price ?? raw.priceVnd ?? 0);
@@ -95,13 +96,15 @@ function normalizeProduct(raw: any): Product {
   );
   const status = String(raw.status || raw.moderationStatus || '').toUpperCase();
   return {
+    ...metadata,
     ...raw,
     id,
-    sku: raw.sku || id,
+    sku: raw.sku || metadata.sku || id,
     title,
     price,
     imageUrl,
     stockQuantity,
+    ingredients: raw.ingredients ?? raw.material ?? metadata.ingredients,
     isActive: raw.isActive ?? (status === 'ACTIVE' || status === 'APPROVED'),
     moderationStatus:
       status === 'ACTIVE' || status === 'APPROVED'
@@ -112,6 +115,54 @@ function normalizeProduct(raw: any): Product {
   } as Product;
 }
 
+function productMetadata(data: any) {
+  const attributes = { ...(data.attributes || {}) };
+  for (const key of ['sku', 'origin', 'labelInfo', 'barcode', 'packageWeight', 'packageLength', 'packageWidth',
+    'packageHeight', 'originProofLinks', 'originProofImages', 'labelProofLinks', 'labelProofImages', 'originalPrice']) {
+    if (data[key] !== undefined) attributes[key] = data[key];
+  }
+  return attributes;
+}
+
+function variantOptions(variant: ProductVariantDraft) {
+  const options = Object.entries(variant.attributes || {});
+  const read = (keys: string[]) => options.find(([key]) => keys.includes(
+    key.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, ''),
+  ))?.[1];
+  return {
+    size: read(['size', 'kichco', 'kichthuoc', 'specification', 'quycach']) || (!options.length ? variant.name : undefined),
+    color: read(['color', 'mau', 'mausac']),
+  };
+}
+
+async function hydrateProducts(rows: any[]): Promise<Product[]> {
+  if (!rows.length || import.meta.env.VITE_COMMERCE_BACKEND === 'legacy') return rows.map(normalizeProduct);
+  const [variantResponse, imageResponse] = await Promise.all([
+    api.get('/product-variants', { headers: { 'x-skip-cache': 'true' } }),
+    api.get('/product-images', { headers: { 'x-skip-cache': 'true' } }),
+  ]);
+  const allVariants = unwrapList(variantResponse);
+  const allImages = unwrapList(imageResponse);
+  return rows.map(raw => {
+    const id = raw.productId || raw.id;
+    const variants = allVariants.filter((v: any) => v.productId === id).map((v: any) => ({
+      ...v, id: v.variantId || v.id,
+      name: [v.color, v.size].filter(Boolean).join(' / ') || v.sku,
+      attributes: { ...(v.color ? { color: v.color } : {}), ...(v.size ? { size: v.size } : {}) },
+      price: Number(v.priceVnd ?? v.price ?? 0),
+      stockQuantity: Math.max(0, Number(v.stockQuantity) || 0),
+      isActive: v.status === 'ACTIVE', sampleEnabled: null, sampleQuota: null, sampleGrantedCount: 0,
+    }));
+    const gallery = allImages.filter((i: any) => i.productId === id)
+      .sort((a: any, b: any) => Number(b.primaryImage) - Number(a.primaryImage) || (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    const hydratedVariants = variants.map((v: any) => ({ ...v, imageUrl: v.imageUrl || gallery[0]?.imageUrl || firstImage(raw.imageRefs) || '' }));
+    return normalizeProduct({ ...raw, variants: hydratedVariants,
+      ...(variants.length ? { stockQuantity: variants.filter((v: any) => v.isActive).reduce((sum: number, v: any) => sum + v.stockQuantity, 0) } : {}),
+      ...(gallery.length ? { imageUrl: gallery[0].imageUrl, subImages: gallery.slice(1).map((i: any) => i.imageUrl) } : {}),
+    });
+  });
+}
+
 function toCreateBody(data: any) {
   return {
     storeId: data.storeId,
@@ -120,7 +171,7 @@ function toCreateBody(data: any) {
     description: data.description,
     category: data.category || data.categoryName,
     material: data.material || data.ingredients,
-    attributes: data.attributes,
+    attributes: productMetadata(data),
     sizesStock: data.sizesStock || { DEFAULT: data.stockQuantity ?? 0 },
     sizeGuide: data.sizeGuide,
     imageRefs: data.imageRefs || (data.imageUrl ? { primary: data.imageUrl } : undefined),
@@ -135,7 +186,8 @@ function toUpdateBody(data: any) {
   if (data.description != null) body.description = data.description;
   if (data.category != null || data.categoryName != null) body.category = data.category || data.categoryName;
   if (data.material != null || data.ingredients != null) body.material = data.material || data.ingredients;
-  if (data.attributes != null) body.attributes = data.attributes;
+  const metadata = productMetadata(data);
+  if (Object.keys(metadata).length) body.attributes = metadata;
   if (data.sizesStock != null || data.stockQuantity != null) {
     body.sizesStock = data.sizesStock || { DEFAULT: data.stockQuantity };
   }
@@ -150,7 +202,7 @@ function toUpdateBody(data: any) {
         ? 'ACTIVE'
         : data.moderationStatus === 'REJECTED'
           ? 'INACTIVE'
-          : 'DRAFT');
+          : 'INACTIVE');
   }
   return body;
 }
@@ -167,7 +219,7 @@ export const productService = {
       params,
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
-    let items = unwrapList(res).map(normalizeProduct);
+    let items = await hydrateProducts(unwrapList(res));
     if (params?.storeId) items = items.filter((p) => p.storeId === params.storeId);
     if (params?.search) {
       const q = params.search.toLowerCase();
@@ -190,7 +242,7 @@ export const productService = {
 
   async getProduct(id: string): Promise<Product> {
     const res: any = await api.get(`/products/${id}`);
-    return normalizeProduct(unwrapApi(res));
+    return (await hydrateProducts([unwrapApi(res)]))[0];
   },
 
   async getModerationProducts(status: 'DRAFT' | 'APPROVED' | 'REJECTED' | 'ALL' = 'DRAFT') {
@@ -214,15 +266,45 @@ export const productService = {
   ) {
     const res: any = await api.post('/products', toCreateBody(data));
     const created = normalizeProduct(unwrapApi(res));
-    if (data.variants?.length && created.id) {
-      await this.syncProductVariants(created.id, data.variants);
+    if (created.id) {
+      const variants = data.variants?.length ? data.variants : [{
+        sku: data.sku || `SKU-${created.id.slice(0, 8)}`, name: 'Tiêu chuẩn',
+        price: Number(data.price) || 0, stockQuantity: data.stockQuantity || 0, imageUrl: data.imageUrl || '',
+      }];
+      await this.syncProductVariants(created.id, variants);
+      await this.syncProductImages(created.id, data.imageUrl, data.subImages, data.title);
+      return this.getProduct(created.id);
     }
     return created;
   },
 
   async updateProduct(id: string, data: Partial<Product>) {
-    const res: any = await api.patch(`/products/${id}`, toUpdateBody(data));
+    const body = toUpdateBody(data);
+    if (body.attributes) {
+      const current = unwrapApi<any>(await api.get(`/products/${id}`, { headers: { 'x-skip-cache': 'true' } }));
+      body.attributes = { ...(current?.attributes || {}), ...(body.attributes as Record<string, unknown>) };
+    }
+    const res: any = await api.patch(`/products/${id}`, body);
+    if (data.imageUrl !== undefined || data.subImages !== undefined) {
+      await this.syncProductImages(id, data.imageUrl, data.subImages, data.title);
+    }
     return normalizeProduct(unwrapApi(res));
+  },
+
+  async syncProductImages(productId: string, primary?: string, additional?: string[], title?: string) {
+    if (import.meta.env.VITE_COMMERCE_BACKEND === 'legacy') return;
+    const desired = [...new Set([primary, ...(additional || [])].filter((url): url is string => Boolean(url?.trim())))];
+    const existing = unwrapList(await api.get('/product-images', { headers: { 'x-skip-cache': 'true' } }))
+      .filter((image: any) => image.productId === productId);
+    for (const [sortOrder, imageUrl] of desired.entries()) {
+      const old: any = existing.find((image: any) => image.imageUrl === imageUrl);
+      const body = { objectKey: imageUrl, imageUrl, primaryImage: sortOrder === 0, sortOrder, altText: title || 'Ảnh sản phẩm' };
+      if (old) await api.patch(`/product-images/${old.imageId || old.id}`, body);
+      else await api.post('/product-images', { productId, ...body });
+    }
+    for (const image of existing as any[]) {
+      if (!desired.includes(image.imageUrl)) await api.delete(`/product-images/${image.imageId || image.id}`);
+    }
   },
 
   async updateVariantSamplePolicy(
@@ -244,15 +326,14 @@ export const productService = {
   async syncProductVariants(productId: string, variants: ProductVariantDraft[]) {
     const results = [];
     for (const variant of variants) {
+      const options = variantOptions(variant);
       if (variant.id) {
         results.push(
           unwrapApi(
             await api.patch(`/product-variants/${variant.id}`, {
-              sku: variant.sku,
-              name: variant.name,
-              attributes: variant.attributes,
+              ...options,
               priceVnd: variant.price,
-              imageRefs: variant.imageUrl ? { primary: variant.imageUrl } : undefined,
+              stockQuantity: variant.stockQuantity,
             }),
           ),
         );
@@ -262,11 +343,10 @@ export const productService = {
             await api.post('/product-variants', {
               productId,
               sku: variant.sku,
-              name: variant.name,
-              attributes: variant.attributes,
+              ...options,
               priceVnd: variant.price,
               stockQuantity: variant.stockQuantity,
-              imageRefs: variant.imageUrl ? { primary: variant.imageUrl } : undefined,
+              status: 'ACTIVE',
             }),
           ),
         );

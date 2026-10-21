@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarDays, Eye, Gift, Radio, RotateCcw, Play, User } from 'lucide-react';
 import api from '@/services/api';
+import { usesLegacyCheckout } from '@/services/checkout.service';
 import { formatMoney, getSafeProductImageUrl } from '@/utils/marketplace.utils';
 
 interface LiveProduct { id: string; title: string; imageUrl?: string; price?: number | string }
@@ -31,6 +32,7 @@ export function LiveNowSection({ onOpenHub }: { onOpenHub: () => void }) {
   const { data = [], isLoading, isError, refetch, isFetching } = useQuery<LiveSession[]>({
     queryKey: ['marketplace-live-sessions'],
     queryFn: async () => {
+      if (!usesLegacyCheckout && !localStorage.getItem('token')) return [];
       try {
         const response = await api.get('/livestreams');
         const payload = response?.data?.data ?? response?.data ?? response;
