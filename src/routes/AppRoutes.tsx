@@ -31,7 +31,8 @@ const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsP
 const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
-const PayoutApprovalPage = lazyRetry(() => import('../pages/merchant/PayoutApprovalPage'));
+const FinanceWalletPage = lazyRetry(() => import('../pages/finance/FinanceWalletPage'));
+const SettlementPage = lazyRetry(() => import('../pages/finance/SettlementPage'));
 const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
 const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
 const CustomerPortalPage = lazyRetry(() => import('../pages/customer/CustomerPortalPage'));
@@ -197,10 +198,11 @@ function AppRoutes() {
                     <Route path="merchant/returns/:id" element={<ReturnDetailPage mode="shop" />} />
                     <Route path="merchant/returns" element={<ShopReturnRequestsPage />} />
                     <Route path="merchant/return-requests" element={<ShopReturnRequestsPage />} />
-                    <Route path="merchant/payouts" element={<PayoutApprovalPage />} />
-                    <Route path="merchant/wallet" element={<WalletPage />} />
-                    <Route path="shop/wallet" element={<WalletPage />} />
-                    <Route path="stores/:storeId/payouts" element={<PayoutApprovalPage />} />
+                    <Route path="merchant/payouts" element={<FinanceWalletPage />} />
+                    <Route path="merchant/wallet" element={<FinanceWalletPage />} />
+                    <Route path="merchant/settlements" element={<SettlementPage />} />
+                    <Route path="shop/wallet" element={<FinanceWalletPage />} />
+                    <Route path="stores/:storeId/payouts" element={<FinanceWalletPage />} />
                     <Route path="merchant/settings" element={<ShopSettingsPage />} />
                     <Route path="merchant/promotions" element={<ShopPromotionsHubPage />} />
                     <Route path="merchant/live-sessions" element={<LiveSessionsPage />} />

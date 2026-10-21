@@ -43,7 +43,7 @@ export default function DashboardDispatcher() {
     return <Navigate to="/admin/ops-dashboard" replace />;
   }
   if (user.role === 'SYSTEM_ADMIN') {
-    return <Navigate to="/admin/users" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   if (user.role === 'COLLABORATOR' && available.includes('kol')) {

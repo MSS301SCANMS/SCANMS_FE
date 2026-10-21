@@ -13,7 +13,7 @@ import {
   type OwnerType,
 } from '../../services/finance.service';
 import { kycService } from '../../services/kyc.service';
-import { checkoutService, usesLegacyCheckout } from '../../services/checkout.service';
+import { checkoutService } from '../../services/checkout.service';
 import { commandKey, completeCommand } from './commandKey';
 import { amountVnd, money, when, statusLabels, typeLabels } from './money';
 import { CustomDateTimePicker } from '../../components/ui/CustomDateTimePicker';
@@ -56,7 +56,7 @@ export default function FinanceWalletPage() {
   const selectedStore =
     params.get('storeId') || routeParams.storeId || localStorage.getItem('current_store_id') || '';
   const ownerType: OwnerType =
-    location.pathname.startsWith('/merchant') || location.pathname.startsWith('/stores/')
+    location.pathname.startsWith('/merchant') || location.pathname.startsWith('/stores/') || location.pathname.startsWith('/shop/')
       ? 'STORE'
       : location.pathname.startsWith('/collaborator')
       ? 'COLLABORATOR'
@@ -226,7 +226,7 @@ export default function FinanceWalletPage() {
       setKycReference('');
       setAddingBank(false);
       setAccountNumber('');
-      setSuccess('Đã lưu tài khoản ngân hàng thành công! Vui lòng bấm "Xác minh tài khoản" để kích hoạt rút tiền.');
+      setSuccess('Đã lưu tài khoản ngân hàng. Tài khoản đang chờ quản trị viên xác minh trước khi sử dụng để rút tiền.');
     });
   }
 
@@ -278,14 +278,12 @@ export default function FinanceWalletPage() {
 
   return (
     <div className="space-y-6 text-[#1A1612] pb-10">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      {ownerType !== 'STORE' && <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold text-[#7D715E]">TÀI CHÍNH SCANMS</p>
           <h1 className="mt-1 text-2xl font-bold flex items-center gap-2">
             <Wallet className="text-[#B88E4F]" />
-            {ownerType === 'STORE'
-              ? 'Ví doanh thu gian hàng'
-              : ownerType === 'COLLABORATOR'
+            {ownerType === 'COLLABORATOR'
               ? 'Ví hoa hồng KOL'
               : 'Ví khách hàng'}
           </h1>
@@ -299,22 +297,23 @@ export default function FinanceWalletPage() {
           <RefreshCw className="inline h-4 w-4 mr-2" />
           Tải lại
         </button>
-      </header>
+      </header>}
 
       {ownerType === 'STORE' && (
         <form
-          className="flex gap-2 max-w-xl"
+          aria-label="Chọn ví gian hàng"
+          className="grid w-full grid-cols-2 items-end gap-3 rounded-2xl border border-[#EAE4D7] bg-white p-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]"
           onSubmit={(e) => {
             e.preventDefault();
             setParams({ storeId });
-            void load();
+            if (storeId === selectedStore) void load();
           }}
         >
-          <label className="flex-1 text-sm font-semibold">
-            Mã gian hàng
+          <label className="col-span-2 grid min-w-0 gap-2 text-sm font-semibold sm:col-span-1">
+            Gian hàng
             <select
               aria-label="Chọn gian hàng"
-              className={field}
+              className={`${field} h-12 min-w-0`}
               value={storeId}
               onChange={(e) => {
                 setStoreId(e.target.value);
@@ -333,11 +332,11 @@ export default function FinanceWalletPage() {
               )}
             </select>
           </label>
-          <button className={`${button} self-end bg-[#FAF8F5] hover:bg-[#F3EFE6]`} disabled={loading}>
+          <button type="submit" className={`${button} flex h-12 w-full items-center justify-center bg-[#FAF8F5] hover:bg-[#F3EFE6]`} disabled={busy || loading || !storeId}>
             Xem ví
           </button>
           <Link
-            className={`${button} self-end whitespace-nowrap bg-[#FAF8F5] hover:bg-[#F3EFE6]`}
+            className={`${button} flex h-12 w-full items-center justify-center whitespace-nowrap bg-[#FAF8F5] hover:bg-[#F3EFE6]`}
             to={`/merchant/settlements?storeId=${encodeURIComponent(storeId)}`}
           >
             Đối soát
@@ -350,7 +349,7 @@ export default function FinanceWalletPage() {
           Vui lòng{' '}
           <Link
             className="underline font-semibold"
-            to={`${usesLegacyCheckout ? '/login' : '/finance/login'}?redirect=${encodeURIComponent(
+            to={`/login?redirect=${encodeURIComponent(
               location.pathname
             )}`}
           >
@@ -522,7 +521,7 @@ export default function FinanceWalletPage() {
               <div className="p-6 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] text-center space-y-2">
                 <p className="text-sm font-semibold text-[#1A1612]">Chưa có tài khoản nhận tiền</p>
                 <p className="text-xs text-[#7D715E]">
-                  Bấm &quot;Thêm ngân hàng&quot; hoặc &quot;Nhập từ KYC&quot; để liên kết tài khoản ngân hàng và rút tiền về ví.
+                  Thêm tài khoản ngân hàng nhận tiền. Sau khi được xác minh, bạn có thể dùng tài khoản này để rút tiền.
                 </p>
               </div>
             )}
@@ -576,22 +575,8 @@ export default function FinanceWalletPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-[#EAE4D7]">
-                    {/* Instant verification button */}
                     {!isVerified && b.active && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () => {
-                            await financeService.verifyBank(b.bankAccountId, 'VERIFIED');
-                            setSuccess('Đã xác minh tài khoản thành công! Bây giờ bạn có thể chọn tài khoản này để gửi lệnh rút tiền.');
-                          })
-                        }
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
-                      >
-                        <CheckCircle2 size={13} />
-                        <span>Xác minh tài khoản ngay</span>
-                      </button>
+                      <p className="text-xs text-[#7D715E]">Tài khoản cần được quản trị viên xác minh trước khi rút tiền.</p>
                     )}
 
                     <div className="flex items-center gap-3 text-xs ml-auto">

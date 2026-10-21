@@ -1,7 +1,5 @@
 .shop-application-page { display: grid; min-width: 0; gap: 16px; padding: 0 0 24px; text-align: left; color: #231f19; }
-.shop-application-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 2px 0 14px; border-bottom: 1px solid #e8e3d9; }
-.shop-application-page-header h1 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 650; letter-spacing: -.35px; }
-.shop-application-page-header p { margin: 4px 0 0; color: #837969; font-size: 12px; line-height: 1.6; }
+.shop-application-page-header { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
 .shop-application-back { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #e7e1d7; border-radius: 7px; background: white; color: #645b4d; font-size: 12px; font-weight: 550; line-height: 1.4; white-space: nowrap; cursor: pointer; }
 .shop-application-back:hover { border-color: #c9b48e; color: #795a2d; }
 .shop-application-back:disabled { cursor: default; opacity: .5; }
@@ -36,8 +34,6 @@
 
 @media (max-width: 639px) {
   .shop-application-page-header { align-items: flex-start; }
-  .shop-application-page-header h1 { font-size: 18px; }
-  .shop-application-page-header p { max-width: 200px; }
   .shop-application-back { min-height: 34px; padding: 7px 9px; font-size: 11px; }
   .shop-application-status-bar { padding: 11px 13px; gap: 7px; }
   .shop-application-status-bar h2 { font-size: 13px; }
