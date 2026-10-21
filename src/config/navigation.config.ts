@@ -59,7 +59,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     subTitle: 'KOL / CTV Tiếp Thị',
     items: [
       { path: '/collaborator/dashboard', label: 'Tổng quan doanh số', icon: TrendingUp, section: 'TỔNG QUAN' },
-      { path: '/collaborator/marketing', label: 'Referral & Livestream', icon: Link2, section: 'TIẾP THỊ' },
+      { path: '/collaborator/marketing', label: 'Tiếp thị liên kết và phát trực tiếp', icon: Link2, section: 'TIẾP THỊ' },
       { path: '/collaborator/wallet', label: 'Ví & Rút tiền', icon: Wallet, section: 'TÀI CHÍNH' },
       { path: '/collaborator/profile', label: 'Hồ sơ của tôi', icon: User, section: 'HỒ SƠ' },
     ],
@@ -75,8 +75,9 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
       { path: '/merchant/promotions', label: 'Voucher & Hoa hồng', icon: Tag, section: 'KHUYẾN MÃI' },
       { path: '/merchant/live-sessions', label: 'Livestream', icon: Radio, section: 'KHUYẾN MÃI' },
       { path: '/merchant/collaborations', label: 'Hợp tác KOL', icon: Handshake, section: 'KHUYẾN MÃI' },
-      { path: '/merchant/payouts', label: 'Ví & Settlement', icon: Wallet, section: 'TÀI CHÍNH' },
+      { path: '/merchant/payouts', label: 'Ví và đối soát', icon: Wallet, section: 'TÀI CHÍNH' },
       { path: '/merchant/settings', label: 'Cài đặt gian hàng', icon: Settings, section: 'TÀI CHÍNH' },
+      { path: '/merchant/store-application', label: 'Hồ sơ gian hàng', icon: ShieldCheck, section: 'HỒ SƠ' },
     ],
   },
   SYSTEM_ADMIN: {
@@ -94,13 +95,13 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     subTitle: 'Manager',
     items: [
       { path: '/admin/ops-dashboard', label: 'Dashboard vận hành', icon: BarChart3, section: 'TỔNG QUAN' },
-      { path: '/admin/users', label: 'Duyệt Shop & nâng cấp KOL', icon: Users, section: 'THẨM ĐỊNH' },
+      { path: '/admin/kyc-approval', label: 'Duyệt Shop & nâng cấp KOL', icon: Users, section: 'THẨM ĐỊNH' },
       { path: '/admin/commission-policies', label: 'Chiết khấu hoa hồng HT', icon: Percent, section: 'CHÍNH SÁCH' },
       { path: '/admin/affiliate-oversight', label: 'Voucher hệ thống', icon: Tag, section: 'CHÍNH SÁCH' },
       { path: '/admin/collaborations', label: 'Hợp tác Shop–KOL', icon: Handshake, section: 'TIẾP THỊ' },
       { path: '/admin/stats', label: 'Thống kê & Top 10', icon: TrendingUp, section: 'THỐNG KÊ' },
       { path: '/admin/product-moderation', label: 'Kiểm duyệt sản phẩm', icon: Box, section: 'THẨM ĐỊNH' },
-      { path: '/admin/return-disputes', label: 'Hỗ trợ Return/Dispute', icon: ShieldCheck, section: 'HỖ TRỢ' },
+      { path: '/admin/return-disputes', label: 'Đổi trả & Khiếu nại', icon: ShieldCheck, section: 'HỖ TRỢ' },
     ],
   },
 };

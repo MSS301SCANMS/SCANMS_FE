@@ -25,6 +25,7 @@ import {
 } from '../../services/coupon.service';
 import { toast as sonnerToast } from '../../utils/toast';
 import api from '../../services/api';
+import './KolCouponsPage.css';
 
 interface EligibleStore {
   id?: string;
@@ -480,19 +481,33 @@ export const KolCouponsPage: React.FC = () => {
         </div>
 
 
-        <div className="kol-coupon-toolbar bg-white p-4 rounded-xl border border-[#EAE4D7] shadow-xs mb-6">
+        <div className="kol-coupon-toolbar">
+          <div className="kol-coupon-toolbar-controls">
           <div className="kol-coupon-search relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7D715E]" />
+            <Search aria-hidden="true" />
             <input
               type="text"
+              aria-label="Tìm mã giảm giá hoặc gian hàng"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm kiếm mã coupon hoặc tên gian hàng..."
-              className="w-full pl-10 pr-4 py-2 text-sm bg-[#FAF8F5] border border-[#EAE4D7] rounded-lg focus:outline-none focus:border-[#C59B58] transition-colors"
+              placeholder="Tìm mã giảm giá hoặc tên gian hàng…"
             />
           </div>
 
-          <div className="kol-coupon-status-tabs">
+          <button
+            type="button"
+            onClick={() => {
+              setIsModalOpen(true);
+              setModalError(null);
+              setModalSuccess(null);
+            }}
+            className="kol-coupon-propose-button"
+          >
+            <Plus aria-hidden="true" />
+            Đề xuất mã mới
+          </button>
+
+          <div className="kol-coupon-status-tabs" role="group" aria-label="Lọc trạng thái mã giảm giá">
             {[
               { key: 'ALL', label: 'Tất cả' },
               { key: 'ACTIVE', label: 'Đang chạy' },
@@ -506,29 +521,14 @@ export const KolCouponsPage: React.FC = () => {
                 type="button"
                 aria-pressed={statusFilter === tab.key}
                 onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                  statusFilter === tab.key
-                    ? 'bg-[#ECE1CD] text-[#1A1612] border border-[#DEBE85] font-bold shadow-xs'
-                    : 'bg-[#F3EFE6] text-[#7D715E] hover:bg-[#EAE4D7] hover:text-[#1A1612]'
-                }`}
+                className="kol-coupon-status-button"
               >
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setIsModalOpen(true);
-              setModalError(null);
-              setModalSuccess(null);
-            }}
-            className="inline-flex items-center justify-center gap-2 min-h-[40px] shrink-0 px-3.5 py-2 border border-[#EEDFC6] rounded-xl bg-[#FBF5EB] text-[#B88E4F] text-xs font-semibold whitespace-nowrap cursor-pointer hover:bg-[#F3EFE6] hover:border-[#C59B58] transition"
-          >
-            <Plus className="w-4 h-4" />
-            Đề xuất mã mới
-          </button>
+          </div>
         </div>
 
 

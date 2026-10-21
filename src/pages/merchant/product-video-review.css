@@ -1,0 +1,69 @@
+.kol-video-review-modal { font-size: 14px; line-height: 1.5; color: #241f19; }
+.kol-video-review-header { gap: 16px; padding: 20px 24px; }
+.kol-video-review-header h3 { font-size: 20px; }
+.kol-video-review-header p { margin-top: 5px; font-size: 13px; }
+.kol-video-review-header > button { width: 40px; height: 40px; flex-shrink: 0; }
+.kol-video-review-list { min-height: 0; padding: 20px; background: #faf8f5; }
+.kol-video-workspace { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
+.kol-video-picker { min-width: 0; max-height: min(620px, calc(100dvh - 240px)); overflow-y: auto; overscroll-behavior: contain; border: 1px solid #eae4d7; border-radius: 14px; background: white; padding: 0 10px 10px; }
+.kol-video-picker-count { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 1; margin: 0; padding: 16px 6px; background: white; font-size: 14px; font-weight: 600; }
+.kol-video-picker-count strong { display: grid; min-width: 26px; height: 26px; padding: 0 7px; place-items: center; background: #f5eee2; border-radius: 7px; color: #8c632c; font-size: 12px; }
+.kol-video-picker-item { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; margin-top: 6px; padding: 10px; border: 1px solid transparent; border-radius: 10px; background: white; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+.kol-video-picker-item:hover { background: #faf8f5; }
+.kol-video-picker-item[aria-pressed="true"] { border-color: #c89b59; background: #fbf5eb; }
+.kol-video-picker-thumb { display: grid; position: relative; flex: 0 0 68px; width: 68px; height: 64px; overflow: hidden; place-items: center; border: 1px solid #eae4d7; border-radius: 8px; background: #f2eee6; color: #9b7d52; }
+.kol-video-picker-thumb img { display: block; width: 100%; height: 100%; max-width: 100%; object-fit: cover; }
+.kol-video-picker-thumb > span { position: absolute; bottom: 3px; left: 3px; min-width: 18px; border-radius: 4px; background: #261f17cc; color: white; padding: 1px 4px; text-align: center; font-size: 10px; }
+.kol-video-picker-text { display: grid; min-width: 0; gap: 4px; }
+.kol-video-picker-text strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.kol-video-picker-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7d715e; font-size: 12px; }
+.kol-video-picker-text small { color: #956a30; font-size: 11px; }
+.kol-video-selected { min-width: 0; }
+.kol-video-review-card { padding: 18px; border-radius: 14px; }
+.kol-video-review-modal .kol-video-review-layout { display: flex; flex-direction: column; gap: 18px; }
+.kol-video-review-modal .kol-video-player { width: 100%; max-width: none; border-radius: 10px; background: #211e19; }
+.kol-video-player video { display: block; width: 100%; max-height: 370px; aspect-ratio: 16 / 9; object-fit: contain; }
+.kol-video-info { width: 100%; gap: 16px; }
+.kol-video-title { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.kol-video-featured { border: 1px solid #eedfc6; background: #fbf5eb; color: #956a30; }
+.kol-video-product-name { margin: 8px 0; color: #7d715e; font-size: 13px; }
+.kol-video-details { padding-top: 12px; border-top: 1px solid #eee8de; }
+.kol-video-details summary { cursor: pointer; font-size: 13px; color: #795a2d; font-weight: 600; }
+.kol-video-metadata { display: grid; gap: 7px; padding-top: 12px; font-size: 13px; overflow-wrap: anywhere; }
+.kol-video-metadata p { margin: 0; }
+.kol-video-caption { margin-top: 10px; font-size: 13px; line-height: 1.7; }
+.kol-video-actions { gap: 8px; padding-top: 15px; border-top: 1px solid #eee8de; }
+.kol-video-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 9px 14px; font-size: 13px; }
+.kol-video-approve { border: 1px solid #ba8d48; background: #b78a43; color: white; }
+.kol-video-approve:hover { background: #9f7636; }
+.kol-video-state { display: flex; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; border: 1px solid #eae4d7; border-radius: 14px; background: white; text-align: center; color: #9b7d52; }
+.kol-video-state h4 { margin: 0; color: #241f19; font-size: 18px; font-weight: 650; }
+.kol-video-state p { max-width: 480px; margin: 0; color: #7d715e; font-size: 14px; line-height: 1.7; }
+.kol-video-empty-icon { display: grid; width: 66px; height: 66px; place-items: center; border: 1px solid #eddfc9; border-radius: 18px; background: #fbf5eb; }
+.kol-video-state-error { border-color: #f1d5cf; }
+.kol-video-state-error > svg { color: #c36a54; }
+.kol-video-playback-error { display: flex; min-height: 240px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px; color: #f1e9dc; text-align: center; }
+.kol-video-playback-error p { max-width: 340px; margin: 0; font-size: 13px; color: #cbbda8; }
+.kol-video-playback-error button { margin-top: 6px; padding: 7px 14px; border: 1px solid #6e5e48; border-radius: 8px; background: #403629; font-size: 13px; cursor: pointer; }
+.kol-video-review-footer { flex-shrink: 0; padding: 14px 24px; font-size: 12px; color: #7d715e; }
+.kol-video-review-footer button { min-height: 40px; min-width: 90px; }
+
+@media (max-width: 900px) {
+  .kol-video-workspace { grid-template-columns: 240px minmax(0, 1fr); gap: 14px; }
+  .kol-video-picker-item { gap: 8px; padding: 8px; }
+  .kol-video-picker-thumb { flex-basis: 54px; width: 54px; height: 58px; }
+}
+@media (max-width: 639px) {
+  .kol-video-review-header { padding: 16px; }
+  .kol-video-review-header h3 { font-size: 17px; }
+  .kol-video-review-list { padding: 12px; }
+  .kol-video-workspace { grid-template-columns: minmax(0, 1fr); }
+  .kol-video-picker { max-height: 230px; }
+  .kol-video-picker-count { padding: 10px 6px; }
+  .kol-video-picker-item { margin-top: 4px; }
+  .kol-video-review-card { padding: 12px; }
+  .kol-video-title { font-size: 15px; }
+  .kol-video-review-footer { padding: 12px 16px; }
+  .kol-video-review-footer > span { max-width: 210px; }
+  .kol-video-state { min-height: 270px; padding: 30px 16px; }
+}

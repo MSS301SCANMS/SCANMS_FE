@@ -1,4 +1,4 @@
-import { financeService, type OwnerType } from './finance.service';
+import { financeService, type OwnerType, type MoneyPayment } from './finance.service';
 import type {
   WalletSummary,
   WithdrawalRequest,
@@ -34,17 +34,51 @@ function mapWallet(w: Awaited<ReturnType<typeof financeService.wallet>>): Wallet
   };
 }
 
+function mapTopUp(payment: MoneyPayment): PayosWalletTopUp {
+  return {
+    id: payment.paymentId,
+    orderCode: payment.providerOrderCode,
+    amount: payment.amountVnd,
+    status: payment.status === 'SUCCESS' ? 'PAID' : payment.status as PayosWalletTopUp['status'],
+    paymentLinkId: null,
+    checkoutUrl: payment.checkoutUrl,
+    qrCode: payment.qrCode,
+    bin: payment.bin ?? null,
+    accountNumber: payment.accountNumber ?? null,
+    accountName: payment.accountName ?? null,
+    description: payment.description ?? null,
+    expiresAt: payment.expiresAt ? `${payment.expiresAt}${/[Zz]|[+-]\d\d:\d\d$/.test(payment.expiresAt) ? '' : 'Z'}` : '',
+    paidAt: payment.verifiedAt,
+  };
+}
+
+// Retain the same command after a lost response, including a page reload.
+function topUpCommand(walletId: string, amount: number, channel: string) {
+  const storageKey = `scanms-topup:${channel}:${walletId}:${amount}`;
+  let key = sessionStorage.getItem(storageKey);
+  if (!key) { key = crypto.randomUUID(); sessionStorage.setItem(storageKey, key); }
+  return { key, complete: () => sessionStorage.removeItem(storageKey) };
+}
+
 function mapWithdrawal(w: Awaited<ReturnType<typeof financeService.withdrawals>>['items'][number]): WithdrawalRequest {
   return {
     id: w.withdrawalId,
     amount: String(w.amountVnd ?? 0),
-    status: w.status as any,
+    status: (w.status as any) || 'PENDING',
     requestedAt: w.requestedAt,
     completedAt: w.completedAt,
     failureReason: w.failureReason,
     bankAccountId: w.bankAccountId,
     walletId: w.walletId,
-  } as WithdrawalRequest;
+    createdAt: w.requestedAt || new Date().toISOString(),
+    processedAt: w.completedAt,
+    taxAmount: '0',
+    netAmount: String(w.amountVnd ?? 0),
+    taxCalculated: false,
+    storeId: null,
+    store: null,
+    batchId: null,
+  } as unknown as WithdrawalRequest;
 }
 
 export const walletService = {
@@ -53,78 +87,72 @@ export const walletService = {
     return { available: caps.paymentAvailable === true };
   },
 
+  async sandboxAvailability() {
+    return (await financeService.capabilities()).sandboxTopUpAvailable === true;
+  },
+
   async createPayosTopUp(amount: number) {
     const wallet = await financeService.wallet('CUSTOMER');
+    const command = topUpCommand(wallet.walletId, amount, 'payos');
     const payment = await financeService.topup(
       wallet.walletId,
       amount,
-      `topup-${wallet.walletId}-${Date.now()}`,
+      command.key,
     );
-    return {
-      id: payment.paymentId,
-      amount,
-      status: payment.status,
-      checkoutUrl: payment.checkoutUrl,
-      qrCode: payment.qrCode,
-    } as PayosWalletTopUp;
+    command.complete();
+    return mapTopUp(payment);
   },
 
   async pendingPayosTopUp() {
     const page = await financeService.payments(0);
     const pending = page.items.find((p) =>
+      p.purpose === 'TOP_UP' &&
       ['PENDING', 'PROCESSING', 'WAITING_PAYMENT'].includes(String(p.status).toUpperCase()),
     );
     if (!pending) return null;
-    return {
-      id: pending.paymentId,
-      amount: pending.amountVnd,
-      status: pending.status,
-      checkoutUrl: pending.checkoutUrl,
-      qrCode: pending.qrCode,
-    } as PayosWalletTopUp;
+    return mapTopUp(pending);
   },
 
   async payosTopUpStatus(id: string) {
     const payment = await financeService.paymentStatus(id, true);
-    return {
-      id: payment.paymentId,
-      amount: payment.amountVnd,
-      status: payment.status,
-      checkoutUrl: payment.checkoutUrl,
-      qrCode: payment.qrCode,
-    } as PayosWalletTopUp;
+    if (payment.purpose !== 'TOP_UP') throw new Error('Giao dịch này không phải nạp tiền vào ví.');
+    return mapTopUp(payment);
   },
 
   async getMyLedger(page = 1): Promise<LedgerHistory> {
     const wallet = await financeService.wallet('CUSTOMER');
     const ledger = await financeService.ledger(wallet.walletId, Math.max(0, page - 1));
+    const entries = ledger.items.map((e) => ({
+      id: e.transactionId,
+      type: e.type,
+      direction: e.direction,
+      amount: String(e.amountVnd),
+      balanceBefore: String(e.balanceBeforeVnd),
+      balanceAfter: String(e.balanceAfterVnd),
+      createdAt: e.createdAt,
+      referenceType: e.type === 'TOP_UP' && e.referenceType !== 'TOPUP_DEMO' ? 'TOPUP_PAYOS' : e.type === 'REFUND' ? 'ORDER_REFUND' : e.type === 'ORDER_PAYMENT' ? 'ORDER_PAYMENT' : e.referenceType,
+      referenceId: e.referenceId,
+      transactionType: (e.type || 'PAYOUT_WITHDRAW') as any,
+      balanceBucket: (e.direction === 'CREDIT' ? 'AVAILABLE' : 'PENDING') as any,
+    }));
     return {
-      items: ledger.items.map((e) => ({
-        id: e.transactionId,
-        type: e.type,
-        direction: e.direction,
-        amount: String(e.amountVnd),
-        balanceAfter: String(e.balanceAfterVnd),
-        createdAt: e.createdAt,
-        referenceType: e.referenceType,
-        referenceId: e.referenceId,
-      })),
+      entries: entries as any,
+      items: entries,
+      total: ledger.total,
+      page: ledger.page + 1,
+      limit: ledger.size,
       pagination: {
         total: ledger.total,
         page: ledger.page + 1,
         limit: ledger.size,
         totalPages: Math.max(1, Math.ceil(ledger.total / ledger.size)),
       },
-    } as LedgerHistory;
+    } as unknown as LedgerHistory;
   },
 
   async cancelPayosTopUp(id: string) {
     const payment = await financeService.cancelPayment(id);
-    return {
-      id: payment.paymentId,
-      amount: payment.amountVnd,
-      status: payment.status,
-    } as PayosWalletTopUp;
+    return mapTopUp(payment);
   },
 
   async getMyWallet(ownerType: OwnerType = 'CUSTOMER', storeId?: string): Promise<WalletSummary> {
@@ -134,15 +162,20 @@ export const walletService = {
   async getMyWithdrawals(page = 1): Promise<WithdrawalHistory> {
     const wallet = await financeService.wallet('CUSTOMER');
     const result = await financeService.withdrawals(wallet.walletId, Math.max(0, page - 1));
+    const requests = result.items.map(mapWithdrawal);
     return {
-      items: result.items.map(mapWithdrawal),
+      requests,
+      items: requests,
+      total: result.total,
+      page: result.page + 1,
+      limit: result.size,
       pagination: {
         total: result.total,
         page: result.page + 1,
         limit: result.size,
         totalPages: Math.max(1, Math.ceil(result.total / result.size)),
       },
-    } as WithdrawalHistory;
+    } as unknown as WithdrawalHistory;
   },
 
   async createWithdrawal(amount: string, storeId: string) {
@@ -195,12 +228,14 @@ export const walletService = {
   },
 
   async topUpDemo(amount: number) {
-    const topup = await this.createPayosTopUp(amount);
+    const wallet = await financeService.wallet('CUSTOMER');
+    const command = topUpCommand(wallet.walletId, amount, 'sandbox');
+    const entry = await financeService.sandboxTopup(wallet.walletId, amount, command.key);
+    command.complete();
     return {
-      message: 'Đã tạo yêu cầu nạp tiền',
+      message: 'Đã nạp tiền thử nghiệm',
       amount,
-      availableBalance: '0',
-      payment: topup,
+      availableBalance: String(entry.balanceAfterVnd),
     };
   },
 };

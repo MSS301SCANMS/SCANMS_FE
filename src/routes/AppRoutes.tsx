@@ -26,8 +26,10 @@ const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'
 const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
 const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
+const ShopApplicationPage = lazyRetry(() => import('../pages/merchant/ShopApplicationPage'));
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
 const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
+const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
 const PayoutApprovalPage = lazyRetry(() => import('../pages/merchant/PayoutApprovalPage'));
 const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
@@ -62,8 +64,20 @@ import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { CartDrawer } from '../components/cart/CartDrawer';
 import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
 import { StorePresenceHeartbeat } from '../components/store/StorePresenceHeartbeat';
-import { ScanmsFloatingChatWidget } from '../components/chat/ScanmsFloatingChatWidget';
 import { canAccessShopping } from '../utils/shopping-access';
+import { authService } from '../services/auth.service';
+
+function AdminUsersEntry() {
+  const role = authService.getCurrentUser()?.role;
+  return role === 'SYSTEM_MANAGER' || role === 'MANAGER'
+    ? <Navigate to="/admin/kyc-approval" replace /> : <AdminUsersPage />;
+}
+
+function ShopApplicationEntry() {
+  const user = authService.getCurrentUser();
+  const hasShopWorkspace = user && authService.getUserAvailableWorkspaces(user).some(workspace => workspace.key === 'shop');
+  return hasShopWorkspace ? <Navigate to="/merchant/store-application" replace /> : <CustomerPortalPage />;
+}
 
 function GlobalCheckoutModal() {
   const { isCheckoutOpen, closeCheckout, checkoutItems, checkoutCouponCode } = useCart();
@@ -160,7 +174,7 @@ function AppRoutes() {
               <Route path="/customer/addresses" element={<CustomerPortalPage />} />
               <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
               <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
-              <Route path="/customer/upgrade/shop" element={<CustomerPortalPage />} />
+              <Route path="/customer/upgrade/shop" element={<ShopApplicationEntry />} />
               <Route path="/customer/returns/:id" element={<ReturnDetailPage mode="customer" />} />
               <Route path="/customer/vouchers" element={<CustomerPortalPage />} />
               <Route path="/customer/security" element={<CustomerPortalPage />} />
@@ -177,6 +191,7 @@ function AppRoutes() {
                 <Route element={<RoleGuard requiredWorkspace="shop" />}>
                   <Route element={<RouteContent />}>
                     <Route path="merchant/dashboard" element={<ShopDashboardPage />} />
+                    <Route path="merchant/store-application" element={<ShopApplicationPage />} />
                     <Route path="merchant/products" element={<ProductManagementPage />} />
                     <Route path="merchant/orders" element={<OrdersManagementPage />} />
                     <Route path="merchant/returns/:id" element={<ReturnDetailPage mode="shop" />} />
@@ -208,7 +223,7 @@ function AppRoutes() {
                     <Route path="merchant/leaderboard" element={<Navigate to="/merchant/dashboard" replace />} />
                     <Route path="merchant/fraud-sentinel" element={<Navigate to="/merchant/dashboard" replace />} />
                     <Route path="merchant/audit-logs" element={<Navigate to="/merchant/dashboard" replace />} />
-                    <Route path="merchant/kyc-approval" element={<Navigate to="/admin/users" replace />} />
+                    <Route path="merchant/kyc-approval" element={<Navigate to="/admin/kyc-approval" replace />} />
                   </Route>
                 </Route>
 
@@ -242,7 +257,8 @@ function AppRoutes() {
                 {/* Admin / Manager */}
                 <Route element={<RoleGuard requiredWorkspace="admin" />}>
                   <Route element={<RouteContent />}>
-                    <Route path="admin/users" element={<AdminUsersPage />} />
+                    <Route path="admin/users" element={<AdminUsersEntry />} />
+                    <Route path="admin/kyc-approval" element={<KycApprovalPage />} />
                     <Route path="admin/profile" element={<AdminProfilePage />} />
                     <Route path="admin/product-moderation" element={<ProductModerationPage />} />
                     <Route path="admin/affiliate-oversight" element={<AdminOversightHubPage />} />
@@ -275,7 +291,6 @@ function AppRoutes() {
           </Suspense>
         </ErrorBoundary>
         <ShoppingChrome />
-        <ScanmsFloatingChatWidget />
       </CartProvider>
     </Router>
   );

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Radio, ShoppingBag, Store, Users } from 'lucide-react';
+import { Radio, ShoppingBag, Store, Users } from 'lucide-react';
 import api from '../../services/api';
-import { PageHeader } from '../../components/ui/PageHeader';
 
 type OpsSummary = {
   stores: number;
@@ -38,7 +37,6 @@ export default function ManagerOpsDashboardPage() {
           orders: Array.isArray(orders) ? orders.length : orders?.items?.length || 0,
           livestreams: Array.isArray(lives) ? lives.length : lives?.items?.length || 0,
         });
-        setNote('Số liệu tổng hợp từ các API hiện có trên Spring (chưa có realtime Nest dashboard).');
       } catch {
         if (alive) setNote('Không tải được một phần số liệu — kiểm tra gateway/services.');
       } finally {
@@ -59,11 +57,6 @@ export default function ManagerOpsDashboardPage() {
 
   return (
     <div className="flex flex-col gap-4 w-full min-w-0 pb-10">
-      <PageHeader
-        title="Dashboard vận hành"
-        description="Theo dõi shop, KOL, đơn hàng và livestream toàn sàn"
-        icon={<BarChart3 className="w-5 h-5" />}
-      />
       {note && <p className="text-xs text-[#6F768A]">{note}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-busy={loading}>
         {cards.map((c) => (

@@ -53,8 +53,9 @@ export default function AdminProfilePage() {
     setSaving(true); setError(''); setSaved(false);
     try {
       const result = await customerService.updateProfile({ fullName: fullName.trim(), phoneNumber: phone.trim() });
-      if (!result?.user?.id) throw new Error('Máy chủ chưa xác nhận cập nhật hồ sơ.');
-      const updated = { ...(authService.getCurrentUser() || user), ...result.user } as UserProfile;
+      const savedUser = result?.user || result;
+      if (!(savedUser?.userId || savedUser?.id)) throw new Error('Máy chủ chưa xác nhận cập nhật hồ sơ.');
+      const updated = { ...(authService.getCurrentUser() || user), ...savedUser, id: savedUser.userId || savedUser.id } as UserProfile;
       localStorage.setItem('user', JSON.stringify(updated));
       setUser(updated); setFullName(updated.fullName); setPhone(updated.phoneNumber || '');
       window.dispatchEvent(new Event('auth-user-updated'));

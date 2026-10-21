@@ -32,7 +32,7 @@ export const BankSelectTrigger: React.FC<BankSelectTriggerProps> = ({
   };
 
   return (
-    <div className={`text-left ${className || 'w-full'}`}>
+    <div className={`relative text-left ${className || 'w-full'}`}>
       {label && (
         <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
           {label} {required && <strong className="text-rose-600">*</strong>}
@@ -47,7 +47,7 @@ export const BankSelectTrigger: React.FC<BankSelectTriggerProps> = ({
           value={value}
           onChange={() => {}}
           required={required}
-          className="sr-only"
+          className="sr-only top-0 left-0"
         />
       )}
 

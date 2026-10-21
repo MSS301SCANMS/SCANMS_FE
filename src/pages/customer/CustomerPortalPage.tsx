@@ -352,6 +352,10 @@ export default function CustomerPortalPage() {
     const handleUserUpdated = () => {
       const u = authService.getCurrentUser();
       setCurrentUser(u);
+      if (!u && !localStorage.getItem('token')) {
+        const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        navigate(`/login?role=customer&redirect=${encodeURIComponent(path)}`, { replace: true });
+      }
     };
     window.addEventListener('auth-user-updated', handleUserUpdated);
     return () => window.removeEventListener('auth-user-updated', handleUserUpdated);

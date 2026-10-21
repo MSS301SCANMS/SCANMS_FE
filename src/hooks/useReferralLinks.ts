@@ -61,6 +61,7 @@ export function useMyExclusiveDeals() {
   return useQuery({
     queryKey: referralLinkKeys.myDeals,
     queryFn: () => referralLinksService.getMyExclusiveDeals(),
+    enabled: referralLinksService.supportsExclusiveDeals,
   });
 }
 
@@ -68,6 +69,7 @@ export function useShopExclusiveDeals() {
   return useQuery({
     queryKey: referralLinkKeys.shopDeals,
     queryFn: () => referralLinksService.getShopExclusiveDeals(),
+    enabled: referralLinksService.supportsExclusiveDeals,
   });
 }
 
@@ -75,6 +77,7 @@ export function useMyDealStatus() {
   return useQuery({
     queryKey: referralLinkKeys.myDealStatus,
     queryFn: () => referralLinksService.getMyDealStatus(),
+    enabled: referralLinksService.supportsExclusiveDeals,
   });
 }
 

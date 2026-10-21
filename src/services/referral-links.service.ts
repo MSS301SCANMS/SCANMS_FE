@@ -124,6 +124,8 @@ export interface QueryReferralLinksParams {
 function mapReferral(raw: any): ReferralLinkItem {
   const id = raw.id || raw.referralLinkId;
   const token = raw.token || raw.shortCode || id;
+  const expiry = raw.expiresAt && (/Z$|[+-]\d{2}:\d{2}$/.test(raw.expiresAt) ? raw.expiresAt : `${raw.expiresAt}Z`);
+  const status = expiry && Date.parse(expiry) <= Date.now() ? 'EXPIRED' : raw.status === 'INACTIVE' ? 'PAUSED' : raw.status || 'ACTIVE';
   return {
     id,
     collaboratorId: raw.collaboratorId,
@@ -131,17 +133,17 @@ function mapReferral(raw: any): ReferralLinkItem {
     productId: raw.productId,
     campaignId: null,
     shortCode: token,
-    shortUrl: `/r/${token}`,
-    label: null,
-    channel: null,
+    shortUrl: new URL(`/r/${encodeURIComponent(token)}`, window.location.origin).href,
+    label: raw.label || null,
+    channel: raw.channel || null,
     destinationPath: `/products/${raw.productId}`,
     utmSource: null,
     utmMedium: null,
     utmCampaign: null,
     utmContent: null,
-    status: (raw.status || 'ACTIVE') as ReferralLinkItem['status'],
-    isActive: String(raw.status || 'ACTIVE').toUpperCase() === 'ACTIVE',
-    expiresAt: raw.expiresAt || null,
+    status,
+    isActive: status === 'ACTIVE',
+    expiresAt: expiry || null,
     disabledReason: null,
     disabledBy: null,
     disabledAt: null,
@@ -155,28 +157,30 @@ function mapReferral(raw: any): ReferralLinkItem {
     product: {
       id: raw.productId,
       title: raw.productName || raw.productId,
-      imageUrl: null,
-      price: 0,
+      imageUrl: raw.productImageUrl || raw.product?.imageUrl || null,
+      price: raw.productPrice ?? raw.product?.price ?? 0,
     },
     store: { id: raw.storeId || '', name: '', slug: '' },
   };
 }
 
+export const EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE = 'Thỏa thuận độc quyền chưa được hỗ trợ';
+
 const noDeal = () => {
-  throw new Error('BE chưa hỗ trợ affiliate-deals. Dùng /referrals.');
+  throw new Error(EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE);
 };
 
 /** Map Nest referral/affiliate → Spring /referrals */
 export const referralLinksService = {
-  async getMyExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return []; },
-  async createExclusiveDeal(): Promise<ExclusiveDealProposal> { return noDeal(); },
-  async getShopExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return []; },
-  async approveExclusiveDeal() { return noDeal(); },
-  async rejectExclusiveDeal() { return noDeal(); },
-  async terminateExclusiveDeal() { return noDeal(); },
-  async deleteExclusiveDeal(id: string) {
-    return { success: false, message: 'BE chưa hỗ trợ affiliate-deals', deletedId: id };
-  },
+  // Enable only when the configured backend implements the complete deal API.
+  supportsExclusiveDeals: false,
+  async getMyExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return noDeal(); },
+  async createExclusiveDeal(_payload?: any): Promise<ExclusiveDealProposal> { return noDeal(); },
+  async getShopExclusiveDeals(): Promise<ExclusiveDealProposal[]> { return noDeal(); },
+  async approveExclusiveDeal(_id?: string, _voucher?: any) { return noDeal(); },
+  async rejectExclusiveDeal(_id?: string, _reason?: string) { return noDeal(); },
+  async terminateExclusiveDeal(_id?: string, _payload?: any) { return noDeal(); },
+  async deleteExclusiveDeal(_id: string) { return noDeal(); },
   async getMyDealStatus() {
     return {
       isBlocked: false,
@@ -190,10 +194,10 @@ export const referralLinksService = {
   },
 
   async getEligibleProducts(params?: { search?: string; storeId?: string; page?: number; limit?: number }): Promise<EligibleProduct[]> {
-    const res: any = await api.get('/public/products', { params });
+    const res: any = await api.get('/public/products', { params: { ...params, eligibleForReferral: true } });
     const payload = res?.result ?? res?.data ?? res;
     const list = Array.isArray(payload) ? payload : payload?.items || [];
-    return list.map((p: any) => ({
+    return list.filter((p: any) => p.status === 'ACTIVE').map((p: any) => ({
       id: p.id || p.productId,
       title: p.title || p.name,
       sku: p.sku || '',
@@ -204,8 +208,8 @@ export const referralLinksService = {
       customCommissionRate: null,
       stockQuantity: p.stockQuantity ?? 0,
       store: {
-        id: p.storeId || '',
-        name: p.storeName || '',
+        id: p.storeId || p.store?.id || '',
+        name: p.storeName || p.store?.name || 'Gian hàng',
         slug: p.storeId || '',
         defaultCommissionRate: 0,
       },
@@ -225,17 +229,14 @@ export const referralLinksService = {
     return mapReferral(res?.result ?? res?.data ?? res);
   },
 
-  async createLink(payload: CreateReferralLinkPayload): Promise<ReferralLinkItem> {
-    const me: any = await api.get('/collaborators/me');
-    const collaboratorId = me?.result?.collaboratorId || me?.result?.id || me?.data?.id;
-    if (!collaboratorId) throw new Error('Không tìm thấy hồ sơ collaborator.');
-    const token = `ref-${payload.productId.slice(0, 8)}-${Date.now().toString(36)}`;
+  async createLink(payload: CreateReferralLinkPayload, requestToken: string = crypto.randomUUID()): Promise<ReferralLinkItem> {
     const res: any = await api.post('/referrals', {
-      collaboratorId,
       productId: payload.productId,
-      token,
+      token: requestToken,
+      label: payload.label?.trim() || undefined,
+      channel: payload.channel,
       status: 'ACTIVE',
-      expiresAt: payload.expiresAt,
+      expiresAt: payload.expiresAt ? new Date(payload.expiresAt).toISOString().replace(/Z$/, '') : undefined,
     });
     return mapReferral(res?.result ?? res?.data ?? res);
   },
@@ -252,8 +253,22 @@ export const referralLinksService = {
     throw new Error('BE chưa hỗ trợ xóa referral link.');
   },
 
-  async getStoreLinks(_storeId: string, params?: QueryReferralLinksParams) {
-    return this.getMyLinks(params);
+  async getStoreLinks(storeId: string, params?: QueryReferralLinksParams) {
+    if (!storeId) throw new Error('Chưa xác định được gian hàng. Vui lòng thử lại.');
+    const res: any = await api.get(`/referrals/store/${encodeURIComponent(storeId)}`, { headers: { 'x-skip-cache': 'true' } });
+    const payload = res?.result ?? res?.data ?? res;
+    if (!Array.isArray(payload)) throw new Error('Danh sách liên kết chưa hợp lệ. Vui lòng thử lại.');
+    let list = payload.map(mapReferral).filter(link => link.storeId === storeId);
+    if (params?.status) list = list.filter(link => link.status === params.status);
+    if (params?.channel) list = list.filter(link => link.channel === params.channel);
+    if (params?.search) {
+      const query = params.search.trim().toLocaleLowerCase('vi-VN');
+      list = list.filter(link => [link.shortCode, link.product.title, link.collaboratorId, link.collaborator?.fullName, link.label]
+        .some(value => value?.toLocaleLowerCase('vi-VN').includes(query)));
+    }
+    list.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const page = Math.max(1, params?.page || 1), limit = Math.max(1, params?.limit || 30);
+    return { data: list.slice((page - 1) * limit, page * limit), meta: { total: list.length, page, limit, totalPages: Math.max(1, Math.ceil(list.length / limit)) } };
   },
 
   async blockLink(_storeId: string, _linkId: string, _reason: string) {
@@ -276,9 +291,13 @@ export const referralLinksService = {
     return `${window.location.origin}/r/${id}`;
   },
 
-  async downloadQrCode(id: string, shortCode: string): Promise<void> {
+  async downloadQrCode(id: string, shortCode: string, _format?: 'png' | 'svg', _size?: number): Promise<void> {
     const text = `${window.location.origin}/r/${shortCode || id}`;
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore
+    }
   },
 };
 

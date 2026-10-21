@@ -462,18 +462,18 @@ export function ScanmsFloatingChatWidget() {
     }
   };
 
-  const totalUnread = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  const totalUnread = conversations.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
   const isShopManager = currentUserIsShopManager();
   const canSeeAffiliateDeals = currentUserCanSeeAffiliateDeals();
   const visibleMessages = useMemo(() => {
     const messages = activeConversation?.messages || [];
     return canSeeAffiliateDeals
       ? messages
-      : messages.filter((message) => !parseExclusiveDealMessage(message.content));
+      : messages.filter((message: any) => !parseExclusiveDealMessage(message.content));
   }, [activeConversation?.messages, canSeeAffiliateDeals]);
 
   // Filter conversations in left list
-  const filteredConversations = conversations.filter((conversation) => {
+  const filteredConversations = conversations.filter((conversation: any) => {
     const matchesName = conversation.store.name.toLocaleLowerCase('vi').includes(searchLeftQuery.trim().toLocaleLowerCase('vi'));
     const unread = (conversation.unreadCount || 0) > 0;
     return matchesName && (conversationFilter === 'ALL' || (conversationFilter === 'UNREAD' ? unread : !unread));
@@ -1007,7 +1007,7 @@ export function ScanmsFloatingChatWidget() {
                 <p>{conversations.length ? 'Không có cuộc trò chuyện phù hợp với bộ lọc.' : 'Chưa có cuộc trò chuyện nào.'}</p>
               </div>
             ) : (
-              filteredConversations.map((c) => {
+              filteredConversations.map((c: any) => {
                 const isSelected = c.id === activeConversation?.id;
                 const snippetText = (() => {
                   const msg = c.lastMessage || 'Bắt đầu cuộc trò chuyện';
@@ -1204,7 +1204,7 @@ export function ScanmsFloatingChatWidget() {
           </div>
 
           {/* Message Bubbles */}
-          {visibleMessages.map((msg) => {
+          {visibleMessages.map((msg: any) => {
             const isUser = msg.sender === 'user';
             const hasProducts = msg.products && msg.products.length > 0;
             const exclusiveDeal = parseExclusiveDealMessage(msg.content);
@@ -1270,7 +1270,7 @@ export function ScanmsFloatingChatWidget() {
                         Sản phẩm
                       </div>
                       <div className="divide-y divide-[#F3F4F6] px-3 pb-2.5">
-                        {msg.products!.map((p) => {
+                        {msg.products!.map((p: any) => {
                           const discountPercent =
                             p.originalPrice && p.originalPrice > p.price
                               ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)

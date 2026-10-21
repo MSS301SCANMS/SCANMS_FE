@@ -49,7 +49,7 @@ export function SidebarShell({
   return (
     <aside
       data-workspace-role={role}
-      className={`workspace-sidebar w-full lg:w-[250px] shrink-0 px-3.5 pt-4 sm:pt-5 pb-3.5 lg:h-full self-start text-left select-none flex flex-col gap-2.5 z-30 rounded-2xl border ${theme.shellBorder} bg-white/80`}
+      className="workspace-sidebar w-full lg:w-[250px] shrink-0 px-3.5 pt-4 sm:pt-5 pb-3.5 lg:h-full self-start text-left select-none flex flex-col gap-2.5 z-30 bg-transparent"
     >
       <input
         type="file"

@@ -321,7 +321,7 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
         setIsOpen(false);
         setIsMinimized(false);
       }
-      if (!localStorage.getItem('token')) return;
+      if (import.meta.env.VITE_COMMERCE_BACKEND !== 'legacy' || !localStorage.getItem('token')) return;
       const requestedScope = currentScope;
       api.get('/chat/conversations')
         .then((result: any) => {
@@ -548,8 +548,9 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
     if (UUID_REGEX.test(conversationId) && localStorage.getItem('token')) {
       try {
         await api.delete(`/chat/conversations/${conversationId}`);
-      } catch (err: any) {
-        console.warn('Backend delete conversation failed, proceeding with local removal:', err);
+      } catch {
+        toast.error('Chưa xóa được cuộc trò chuyện trên máy chủ. Vui lòng thử lại.');
+        return false;
       }
     }
 
@@ -576,8 +577,9 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
     if (UUID_REGEX.test(conversationId) && localStorage.getItem('token')) {
       try {
         await api.delete(`/chat/conversations/${conversationId}/messages`);
-      } catch (err: any) {
-        console.warn('Backend clear messages failed:', err);
+      } catch {
+        toast.error('Chưa xóa được lịch sử tin nhắn trên máy chủ. Vui lòng thử lại.');
+        return false;
       }
     }
 
@@ -604,7 +606,7 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
     try {
       localStorage.removeItem(getChatStorageKey(scope));
     } catch {}
-    toast.success('Đã xóa toàn bộ lịch sử các cuộc trò chuyện.');
+    toast.success('Đã xóa lịch sử trò chuyện lưu trên thiết bị này.');
   };
 
   const sendMessage = (content: string) => {
@@ -617,54 +619,7 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const userMsg: ChatMessageItem = {
-      id: `msg-${Date.now()}`,
-      sender: 'user',
-      content: content.trim(),
-      timestamp: timeStr,
-      product: activeProduct || undefined,
-    };
-
-    setConversations((prev) =>
-      prev.map((conv) => {
-        if (conv.id !== activeConversationId) return conv;
-        return {
-          ...conv,
-          lastMessage: userMsg.content,
-          lastTime: timeStr,
-          messages: [...conv.messages, userMsg],
-        };
-      })
-    );
-
-    const currentStoreName = activeConversation.store.name;
-    setTimeout(() => {
-      const replies = [
-        `Dạ ${currentStoreName} xin chào bạn! Shop đã ghi nhận tin nhắn: "${content.trim()}". Shop sẽ kiểm tra và phản hồi kỹ hơn cho bạn ngay nhé!`,
-        `Dạ sản phẩm chính hãng 100% được bảo hành đổi trả trong 14 ngày ạ. Bạn cần Shop hướng dẫn cách đặt mã giảm giá không ạ?`,
-        `Dạ hàng có sẵn tại kho và đóng gói bàn giao đơn vị vận chuyển ngay trong ngày hôm nay bạn nhé!`,
-      ];
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      const shopMsg: ChatMessageItem = {
-        id: `msg-shop-${Date.now()}`,
-        sender: 'shop',
-        content: randomReply,
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      setConversations((prev) =>
-        prev.map((conv) => {
-          if (conv.id !== activeConversationId) return conv;
-          return {
-            ...conv,
-            lastMessage: shopMsg.content,
-            lastTime: shopMsg.timestamp,
-            messages: [...conv.messages, shopMsg],
-          };
-        })
-      );
-    }, 1200);
+    toast.error('Chat chưa kết nối máy chủ. Tin nhắn chưa được gửi đến shop.');
   };
 
   const sendAttachment = async (file: File, type: ChatAttachmentType, caption = '') => {
@@ -697,30 +652,9 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
   const sendProductsInquiry = (productsToSend: ChatProductInfo[]) => {
     if (!productsToSend || productsToSend.length === 0 || !activeConversation) return false;
 
-    // Guest / Offline fallback: Append product card locally into chat history
     if (!localStorage.getItem('token') || !UUID_REGEX.test(activeConversation.id)) {
-      const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-      const userMsg: ChatMessageItem = {
-        id: `msg-${Date.now()}`,
-        sender: 'user',
-        content: `Khách đang quan tâm sản phẩm này.`,
-        timestamp: timeStr,
-        products: productsToSend,
-        product: productsToSend[0],
-      };
-      setConversations((prev) =>
-        prev.map((conv) => {
-          if (conv.id !== activeConversationId) return conv;
-          return {
-            ...conv,
-            lastMessage: `[Sản phẩm] ${productsToSend[0].title}`,
-            lastTime: timeStr,
-            messages: [...conv.messages, userMsg],
-          };
-        })
-      );
-      toast.success(`Đã gửi ${productsToSend.length} sản phẩm vào cuộc trò chuyện.`);
-      return true;
+      toast.error('Chưa kết nối chat. Sản phẩm chưa được gửi đến shop.');
+      return false;
     }
 
     const socket = ensureSocket();

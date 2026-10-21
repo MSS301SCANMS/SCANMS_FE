@@ -126,12 +126,17 @@ export default function OrdersManagementPage({
   onClose,
   onCompleted,
 }: Props = {}) {
-  const [searchParams] = useSearchParams();
-  const [activeOrderView, setActiveOrderView] = useState<'COMMERCIAL' | 'SAMPLES'>(
-    searchParams.get('tab') === 'samples' || searchParams.get('view') === 'samples'
-      ? 'SAMPLES'
-      : 'COMMERCIAL'
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get('tab') ?? searchParams.get('view');
+  const activeOrderView = requestedView === 'samples' ? 'SAMPLES' : 'COMMERCIAL';
+  const setActiveOrderView = (view: 'COMMERCIAL' | 'SAMPLES') => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete('view');
+      next.set('tab', view === 'SAMPLES' ? 'samples' : 'commercial');
+      return next;
+    }, { replace: true });
+  };
   const deepLinkHandledRef = useRef<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const noticeRef = useRef<HTMLDivElement>(null);

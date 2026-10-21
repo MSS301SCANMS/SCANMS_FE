@@ -24,9 +24,7 @@ import { OrderTrackingShortcut } from '../../components/marketplace/OrderTrackin
 import { QuickCustomerAuth } from '../../components/marketplace/QuickCustomerAuth';
 import { MarketplaceProductCard } from '../../components/marketplace/MarketplaceProductCard';
 import { LiveNowSection } from '../../components/marketplace/LiveNowSection';
-import { CategoryQuickNav } from '../../components/marketplace/CategoryQuickNav';
 import { SponsoredStores } from '../../components/marketplace/SponsoredStores';
-import { FeaturedStores } from '../../components/marketplace/FeaturedStores';
 import type { MarketplaceStore } from '@/types/marketplace-home.types';
 import { MarketplaceHero } from '../../components/marketplace/MarketplaceHero';
 
@@ -87,7 +85,7 @@ export default function MarketplacePage() {
   });
   const { deals: liveDeals, now: liveDealsNow } = useLiveSessionDeals(items.map((product) => product.id));
 
-  const { data: featuredStores = [], isLoading: storesLoading, isError: storesFailed, refetch: retryStores } = useQuery<MarketplaceStore[]>({
+  const { data: featuredStores = [] } = useQuery<MarketplaceStore[]>({
     queryKey: ['marketplace-featured-stores'],
     queryFn: async () => {
       const res: any = await api.get('/stores/marketplace');
@@ -112,7 +110,7 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     const targetId = location.hash.slice(1);
-    if (!['catalog-section', 'featured-stores', 'live', 'tracking-section'].includes(targetId)) return;
+    if (!['catalog-section', 'live', 'tracking-section'].includes(targetId)) return;
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -245,10 +243,6 @@ export default function MarketplacePage() {
       <MarketplaceShortcuts onOpenLive={() => setIsLiveModalOpen(true)} />
 
       <MarketplaceHero stores={marketplaceStores} onOpenLive={() => setIsLiveModalOpen(true)} />
-
-      <CategoryQuickNav />
-
-      <FeaturedStores stores={marketplaceStores} loading={storesLoading} failed={storesFailed} onRetry={() => void retryStores()} />
 
       <SponsoredStores />
 

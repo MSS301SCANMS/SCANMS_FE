@@ -19,6 +19,7 @@ export function storeActivityLabel(presence?: Presence) {
 export function StoreActivityStatus({ storeId, className = '' }: { storeId?: string; className?: string }) {
   const { data, isError, isFetching, dataUpdatedAt } = useQuery<Presence>({
     queryKey: ['store-presence', storeId], enabled: Boolean(storeId), staleTime: 0, refetchInterval: 30_000,
+    retry: false,
     queryFn: async ({ signal }) => {
       const res: any = await api.get(`/stores/public/id/${storeId}/presence`, { signal, headers: { 'x-skip-cache': 'true' } });
       return res?.data?.data ?? res?.data ?? res;

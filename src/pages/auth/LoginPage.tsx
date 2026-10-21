@@ -93,7 +93,7 @@ export default function LoginPage() {
     setIsRoleDropdownOpen(false);
   };
 
-  const navigateAfterLogin = (userRole?: string, fromGoogle = false) => {
+  const navigateAfterLogin = (userRole?: string, _fromGoogle = false) => {
     if (returnTo) {
       navigate(returnTo);
       return;

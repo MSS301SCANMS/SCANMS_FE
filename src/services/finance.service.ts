@@ -1,11 +1,8 @@
 import axios from 'axios';
+import { installRawSessionAuth } from './auth-session';
 
 const client = axios.create({ baseURL: import.meta.env.VITE_FINANCE_API_URL || 'http://localhost:8080/api/v1/finance', timeout: 20000 });
-client.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+installRawSessionAuth(client);
 client.interceptors.response.use(response => response, error => {
   if (error.response?.status === 401) return Promise.reject(new Error('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Đăng nhập lại để tiếp tục.'));
   if (error.response?.status === 403) return Promise.reject(new Error(error.response?.data?.message || 'Bạn không có quyền truy cập tài khoản hoặc chức năng này.'));
@@ -21,7 +18,7 @@ export interface MoneySettlement { settlementId: string; sellerOrderId: string; 
 export interface MoneyPayment { paymentId: string; orderId: string | null; purpose: string; amountVnd: number; currency: string; status: string; checkoutUrl: string | null; qrCode: string | null; providerOrderCode: number; failureReason: string | null; verifiedAt: string | null; expiresAt: string | null; orderSyncStatus?: string; resolutionReference?: string; receivedAmountVnd?: number | null; resolutionAmountVnd?: number | null; surplusRefundedAmountVnd?: number | null; surplusReference?: string | null; bin?: string | null; accountNumber?: string | null; accountName?: string | null; description?: string | null; }
 export interface MoneyFee { feeConfigId: string; feeType: string; calculationType: 'PERCENTAGE' | 'FIXED'; ratePercent: number | null; fixedAmountVnd: number | null; minFeeVnd: number | null; maxFeeVnd: number | null; validFrom: string; validTo: string | null; status: string }
 export interface MoneyPage<T> { items: T[]; total: number; page: number; size: number }
-export interface Capabilities { minimumWithdrawalVnd: number; currency: string; paymentAvailable: boolean; payoutAvailable: boolean }
+export interface Capabilities { minimumWithdrawalVnd: number; currency: string; paymentAvailable: boolean; payoutAvailable: boolean; sandboxTopUpAvailable: boolean }
 export interface PendingFinanceEvents { configured: boolean; total: number; items: { eventId: string; eventKey: string; attempts: number; createdAt: string; nextAttemptAt: string; lastError?: string; lastHttpStatus?: number; blocked?: boolean }[] }
 export interface FinanceSourceOrder { orderId: string; publicOrderCode: string; storeName: string; status: string; paymentStatus: string; amountVnd: number; returnRequestId: string | null; returnStatus: string | null; commissionId: string | null; returnWindowClosesAt: string | null }
 async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>): Promise<T> {
@@ -71,6 +68,7 @@ export const financeService = {
   refundUnapplied: (id: string, reason: string) => request<MoneyPayment>('POST', `/payments/${id}/refund-unapplied`, { reason }),
   refundSurplus: (id: string, reason: string) => request<MoneyPayment>('POST', `/payments/${id}/refund-surplus`, { reason }),
   topup: (walletId: string, amountVnd: number, idempotencyKey: string) => request<MoneyPayment>('POST', '/top-ups', { walletId, amountVnd, idempotencyKey }),
+  sandboxTopup: (walletId: string, amountVnd: number, idempotencyKey: string) => request<MoneyLedger>('POST', '/sandbox/top-ups', { walletId, amountVnd, idempotencyKey }),
   payWallet: (orderId: string, walletId: string, idempotencyKey: string) => request<MoneyPayment>('POST', '/wallet-payments', { orderId, walletId, idempotencyKey }),
   paymentStatus: (id: string, refresh = true) => request<MoneyPayment>('GET', `/payments/${id}`, undefined, { refresh }),
   cancelPayment: (id: string) => request<MoneyPayment>('POST', `/payments/${id}/cancel`),

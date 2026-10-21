@@ -256,10 +256,15 @@ export const couponService = {
     } as ValidateCouponResponse;
   },
 
-  getKolCoupons: async (_params?: CouponFilterParams) => {
+  getKolCoupons: async (_params?: CouponFilterParams): Promise<any> => {
     const res: any = await api.get('/vouchers');
     const list = (res?.result ?? res?.data ?? []).map(mapVoucher);
-    return { data: list, items: list };
+    return {
+      data: list,
+      items: list,
+      coupons: list,
+      summary: { total: list.length, active: list.length, pending: 0, rejected: 0 },
+    };
   },
 
   getKolCouponDetail: async (id: string): Promise<CouponItem> => {
@@ -267,67 +272,67 @@ export const couponService = {
     return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
-  proposeCoupon: async (payload: CreateCouponPayload) => {
+  proposeCoupon: async (payload: CreateCouponPayload): Promise<any> => {
     const res: any = await api.post('/vouchers', toCreateVoucherBody((payload as any).storeId, payload));
     return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
-  togglePauseCoupon: async (_id: string) => {
+  togglePauseCoupon: async (_id: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ pause voucher.');
   },
 
-  deleteCoupon: async (_id: string, _reason?: string) => {
+  deleteCoupon: async (_id: string, _reason?: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ xóa voucher.');
   },
 
-  createStoreCoupon: async (storeId: string, payload: CreateStoreCouponPayload) => {
+  createStoreCoupon: async (storeId: string, payload: CreateStoreCouponPayload): Promise<any> => {
     const res: any = await api.post('/vouchers', toCreateVoucherBody(storeId, payload));
     return mapVoucher(res?.result ?? res?.data ?? res);
   },
 
-  getStoreCoupons: async (storeId: string, _params?: CouponFilterParams) => {
+  getStoreCoupons: async (storeId: string, _params?: CouponFilterParams): Promise<any> => {
     const res: any = await api.get('/vouchers');
     const list = (res?.result ?? res?.data ?? [])
       .filter((v: any) => v.storeId === storeId)
       .map(mapVoucher);
-    return { data: list, items: list };
+    return { data: list, items: list, coupons: list, summary: { total: list.length } };
   },
 
-  approveCoupon: async (_storeId: string, _couponId: string, _payload: ApproveCouponPayload) => {
+  approveCoupon: async (_storeId: string, _couponId: string, _payload: ApproveCouponPayload): Promise<any> => {
     throw new Error('BE chưa hỗ trợ duyệt voucher.');
   },
 
-  rejectCoupon: async (_storeId: string, _couponId: string, _reason: string) => {
+  rejectCoupon: async (_storeId: string, _couponId: string, _reason: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ từ chối voucher.');
   },
 
-  updatePolicy: async (_storeId: string, _couponId: string, _payload: Partial<ApproveCouponPayload>) => {
+  updatePolicy: async (_storeId: string, _couponId: string, _payload: Partial<ApproveCouponPayload>): Promise<any> => {
     throw new Error('BE chưa hỗ trợ cập nhật policy voucher.');
   },
 
-  blockCoupon: async (_storeId: string, _couponId: string, _reason: string) => {
+  blockCoupon: async (_storeId: string, _couponId: string, _reason: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ block voucher.');
   },
 
-  getAdminCoupons: async (_params?: CouponFilterParams) => {
+  getAdminCoupons: async (_params?: CouponFilterParams): Promise<any> => {
     const res: any = await api.get('/vouchers');
     const list = (res?.result ?? res?.data ?? []).map(mapVoucher);
-    return { data: list, items: list };
+    return { data: list, items: list, coupons: list, summary: { total: list.length } };
   },
 
-  createPlatformCoupon: async (payload: { storeId: string; code: string; benefitType: 'GOODS' | 'SHIPPING'; discountType: DiscountType; discountValue: number; budgetTotal: number; usageLimitTotal: number; maximumDiscountAmount?: number; minimumOrderAmount?: number; expiresAt?: string }) => {
+  createPlatformCoupon: async (payload: { storeId: string; code: string; benefitType: 'GOODS' | 'SHIPPING'; discountType: DiscountType; discountValue: number; budgetTotal: number; usageLimitTotal: number; maximumDiscountAmount?: number; minimumOrderAmount?: number; expiresAt?: string }): Promise<any> => {
     const res: any = await api.post('/vouchers', toCreateVoucherBody(payload.storeId, payload));
     return mapVoucher(res?.result ?? res?.data ?? res);
   },
   getPlatformSubsidies: async (): Promise<PlatformSubsidySummary[]> => [],
-  recordPlatformReimbursement: async (_orderId: string, _amount: number, _bankReference: string) => {
+  recordPlatformReimbursement: async (_orderId: string, _amount: number, _bankReference: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ hoàn trợ cấp voucher.');
   },
   getStorePlatformSubsidies: async (_storeId: string): Promise<PlatformSubsidySummary[]> => [],
-  adminBlockCoupon: async (_id: string, _reason: string) => {
+  adminBlockCoupon: async (_id: string, _reason: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ block voucher.');
   },
-  adminUnblockCoupon: async (_id: string) => {
+  adminUnblockCoupon: async (_id: string): Promise<any> => {
     throw new Error('BE chưa hỗ trợ unblock voucher.');
   },
 };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, AlertTriangle, Check, Loader2, MessageSquare, ShieldAlert, Sparkles, X } from 'lucide-react';
-import { referralLinksService } from '../../services/referral-links.service';
+import { referralLinksService, EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE } from '../../services/referral-links.service';
 import { Select } from '../ui/Select';
 
 export interface ExclusiveDealInboxProps {
@@ -24,6 +24,7 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
   const [voucherTermsById, setVoucherTermsById] = useState<Record<string, VipTerms>>({});
 
   const load = useCallback(async () => {
+    if (!referralLinksService.supportsExclusiveDeals) { setLoading(false); return; }
     setLoading(true);
     try {
       setItems(await referralLinksService.getShopExclusiveDeals());
@@ -92,6 +93,13 @@ export function ExclusiveDealInbox({ onChat }: ExclusiveDealInboxProps = {}) {
   };
 
   const pendingCount = items.filter((item) => item.status === 'PENDING').length;
+
+  if (!referralLinksService.supportsExclusiveDeals) return (
+    <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 text-left">
+      <h2 className="flex items-center gap-2 text-base font-bold text-[#1A1612]"><Sparkles className="h-4 w-4 text-[#B88E4F]" />Thỏa thuận độc quyền</h2>
+      <p role="note" className="mt-3 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB]/60 p-4 text-sm text-[#795A2D]">{EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE}</p>
+    </section>
+  );
 
   return (
     <section className="rounded-2xl border border-[#EAE4D7] bg-white p-3 shadow-sm">
