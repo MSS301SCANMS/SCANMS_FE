@@ -1,5 +1,5 @@
 import api from './api';
-import { saveLoginSession, clearSession, getSessionId, forceRefreshSession } from './auth-session';
+import { saveLoginSession, clearSession, getSessionId, forceRefreshSession, endServerSession } from './auth-session';
 
 function safeLoginReturn(path: string | null | undefined): string | null {
   if (!path || !path.startsWith('/') || path.startsWith('//') || /[\\\r\n\t]/.test(path)) return null;
@@ -294,7 +294,11 @@ export const authService = {
     return normalizeUser(res?.result || res?.data || res);
   },
 
-  logout(returnTo?: string) {
+  /**
+   * Đăng xuất: xoá phiên trên trình duyệt ngay, gọi BE huỷ phiên Keycloak + xoá cookie refresh token,
+   * rồi mới chuyển trang (chuyển trang sớm sẽ huỷ request logout).
+   */
+  async logout(returnTo?: string) {
     clearSession(undefined, false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -308,6 +312,7 @@ export const authService = {
     localStorage.removeItem('scanms_pending_checkout');
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     window.dispatchEvent(new Event('auth-user-updated'));
+    await endServerSession();
     window.location.href = returnTo ? productLoginUrl(returnTo) : '/login';
   },
 

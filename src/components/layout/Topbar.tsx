@@ -65,6 +65,8 @@ export function Topbar({
   const isShop = role === 'SHOP_MANAGER';
   const isCustomer = role === 'CUSTOMER';
   const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
+  // Trang chủ khu quản trị — khớp với điều hướng sau đăng nhập.
+  const adminHomePath = role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
 
   const displayName =
     currentUser?.fullName ||
@@ -132,7 +134,7 @@ export function Topbar({
         {/* Left: Brand Logo */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Link
-            to={isShop ? '/merchant/dashboard' : isAdmin ? '/admin/users' : isCustomer ? '/marketplace' : '/collaborator/dashboard'}
+            to={isShop ? '/merchant/dashboard' : isAdmin ? adminHomePath : isCustomer ? '/marketplace' : '/collaborator/dashboard'}
             className="flex items-center gap-2 group shrink-0"
             title={isCustomer ? 'Về sàn mua sắm' : 'Về trang làm việc'}
           >
@@ -211,7 +213,7 @@ export function Topbar({
 
                 <div className="py-1 flex flex-col gap-0.5">
                   <Link
-                    to={isShop ? '/merchant/orders' : isCustomer ? '/customer/orders' : isAdmin ? '/admin/users' : '/collaborator/dashboard'}
+                    to={isShop ? '/merchant/orders' : isCustomer ? '/customer/orders' : isAdmin ? adminHomePath : '/collaborator/dashboard'}
                     onClick={() => setIsMenuOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
                   >

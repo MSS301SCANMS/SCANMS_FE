@@ -12,6 +12,8 @@ export function shoppingHomeForRole(): string {
   const ws = authService.getActiveWorkspace();
   if (ws === 'shop') return '/merchant/dashboard';
   if (ws === 'kol') return '/collaborator/dashboard';
-  if (ws === 'admin') return '/admin/users';
+  if (ws === 'admin') {
+    return authService.getCurrentUser()?.role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
+  }
   return '/marketplace';
 }

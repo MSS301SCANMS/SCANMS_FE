@@ -2,9 +2,18 @@ import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axio
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 const sessionKey = 'scanms-session-id';
-const refreshKey = 'refresh_token';
+// Refresh token nằm trong cookie HttpOnly do user-service đặt (Path=/api/v1/auth), JS không đọc được.
+// Key cũ chỉ còn dùng để dọn dữ liệu của các phiên đăng nhập trước khi chuyển sang cookie.
+const legacyRefreshKey = 'refresh_token';
 const expiryKey = 'scanms-token-expires-at';
-const refreshHttp = axios.create({ baseURL: apiUrl, timeout: 15000, withCredentials: true });
+// Client riêng, không có interceptor: không gửi Authorization (token hết hạn sẽ bị gateway trả 401),
+// luôn gửi cookie và header chống CSRF mà BE yêu cầu cho refresh/logout.
+const refreshHttp = axios.create({
+  baseURL: apiUrl,
+  timeout: 15000,
+  withCredentials: true,
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
+});
 let refreshing: Promise<string | null> | null = null;
 
 export function getSessionId(): string | null {
@@ -20,12 +29,9 @@ function saveTokens(raw: any, rotating = false): string {
   const tokens = raw?.result ?? raw?.data ?? raw;
   const access = tokens?.access_token || tokens?.accessToken;
   if (typeof access !== 'string' || !access) throw new Error('Không nhận được thông tin phiên đăng nhập.');
-  const refresh = tokens.refresh_token || tokens.refreshToken;
-  if (!rotating) {
-    localStorage.setItem(sessionKey, crypto.randomUUID());
-    localStorage.removeItem(refreshKey);
-  }
-  if (typeof refresh === 'string' && refresh) localStorage.setItem(refreshKey, refresh);
+  if (!rotating) localStorage.setItem(sessionKey, crypto.randomUUID());
+  // Không bao giờ lưu refresh token phía JS nữa (BE đặt cookie HttpOnly).
+  localStorage.removeItem(legacyRefreshKey);
   localStorage.setItem('token', access);
   const seconds = Number(tokens.expires_in ?? tokens.expiresIn);
   if (seconds > 0) localStorage.setItem(expiryKey, String(Date.now() + seconds * 1000));
@@ -40,14 +46,24 @@ export function saveLoginSession(response: unknown): string {
 export function forceRefreshSession(): Promise<string | null> {
   const token = localStorage.getItem('token');
   if (!token) return Promise.resolve(null);
-  if (!localStorage.getItem(refreshKey))
-    return Promise.reject(new Error('Phiên đăng nhập cũ chưa hỗ trợ cập nhật quyền. Vui lòng đăng xuất rồi đăng nhập lại.'));
   return renewSession(token, true);
+}
+
+/**
+ * Huỷ phiên trên Keycloak và xoá cookie refresh token (chỉ server xoá được cookie HttpOnly).
+ * Không bao giờ ném lỗi: mất mạng/BE lỗi thì vẫn đăng xuất phía trình duyệt.
+ */
+export async function endServerSession(): Promise<void> {
+  try {
+    await refreshHttp.post('/auth/logout', null, { timeout: 5000 });
+  } catch {
+    /* Phiên Keycloak sẽ tự hết hạn; cookie hết hạn theo Max-Age. */
+  }
 }
 
 export function clearSession(expected?: string | null, notify = true) {
   if (expected !== undefined && getSessionId() !== expected) return;
-  for (const key of ['token', refreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id']) localStorage.removeItem(key);
+  for (const key of ['token', legacyRefreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id']) localStorage.removeItem(key);
   if (notify) {
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     window.dispatchEvent(new Event('auth-user-updated'));
@@ -69,27 +85,20 @@ export async function renewSession(failedToken?: string | null, force = false): 
   if (failedToken && token !== failedToken) return token;
   if (!failedToken && !force && !expiresSoon(token)) return token;
   const session = getSessionId();
-  if (!localStorage.getItem(refreshKey)) {
-    // Existing logins made before refresh-token persistence need one new login.
-    clearSession(session);
-    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-  }
   if (refreshing) return refreshing;
   const refresh = async () => {
     if (getSessionId() !== session) throw new axios.CanceledError('Phiên đăng nhập đã thay đổi.');
     const current = localStorage.getItem('token');
     if (current !== token) return current;
-    const refreshToken = localStorage.getItem(refreshKey);
-    if (!refreshToken) throw new axios.CanceledError('Phiên đăng nhập đã kết thúc.');
     try {
-      // Do not send an expired Authorization header to the public refresh endpoint.
-      const response = await refreshHttp.post('/auth/refresh-token', { refreshToken });
-      if (getSessionId() !== session || localStorage.getItem(refreshKey) !== refreshToken)
-        throw new axios.CanceledError('Phiên đăng nhập đã thay đổi.');
+      // Trình duyệt tự gửi cookie refresh token; BE trả access token mới và đặt cookie mới.
+      const response = await refreshHttp.post('/auth/refresh-token');
+      if (getSessionId() !== session) throw new axios.CanceledError('Phiên đăng nhập đã thay đổi.');
       return saveTokens(response.data, true);
     } catch (error) {
       if (getSessionId() !== session) throw new axios.CanceledError('Phiên đăng nhập đã thay đổi.');
       // A network/server outage must not erase the login or the current workspace.
+      // 401 = cookie thiếu/hết hạn (kể cả phiên cũ lưu refresh token trong localStorage): đăng nhập lại.
       if (axios.isAxiosError(error) && [400, 401].includes(error.response?.status || 0)) {
         clearSession(session);
         throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
