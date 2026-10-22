@@ -2,8 +2,11 @@ import type { ReturnStatus } from '../services/return.service';
 
 const labels: Record<ReturnStatus, string> = {
   PENDING: 'Chờ Shop phản hồi',
-  APPROVED: 'Shop đã duyệt',
-  REJECTED: 'Shop từ chối',
+  APPROVED: 'Đã duyệt · chờ gửi hàng trả',
+  REJECTED: 'Quản lý từ chối',
+  RETURNING: 'Đang gửi hàng trả',
+  RECEIVED: 'Shop đã nhận · chờ hoàn tiền',
+  CANCELLED: 'Khách đã hủy yêu cầu',
   REQUESTED: 'Chờ Shop phản hồi',
   SHOP_APPROVED: 'Shop đã duyệt · chờ đặt lấy hàng',
   PICKUP_BOOKED: 'Đã đặt shipper lấy hàng',

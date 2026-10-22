@@ -56,6 +56,10 @@ api.interceptors.response.use(
       // Khi có hành động thay đổi dữ liệu -> Invalidate cache của domain bị ảnh hưởng (targeted invalidation)
       const affectedDomain = apiCache.getAffectedDomain(url);
       apiCache.invalidate(affectedDomain);
+      if (url?.includes('/feedbacks')) {
+        apiCache.invalidate('/products');
+        apiCache.invalidate('/stores');
+      }
     }
 
     // Spring ApiResponse uses `result`; keep Nest-compatible `data` alias.

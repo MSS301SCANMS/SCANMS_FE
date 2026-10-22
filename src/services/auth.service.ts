@@ -317,6 +317,7 @@ export const authService = {
   },
 
   getCurrentUser(): UserProfile | null {
+    if (!localStorage.getItem('token')) return null;
     const raw = localStorage.getItem('user');
     if (!raw) return null;
     try {

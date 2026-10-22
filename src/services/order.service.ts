@@ -161,7 +161,7 @@ function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
   const discount = summary.items.reduce((sum: number, item: any) => sum + amount(item.discountAmountVnd), 0);
   // Spring checkout uses one configured shipping fee for each seller order.
   const shipping = amount(totals.shippingFeeVnd ?? (amount(order.sagaState?.shippingFeeVnd) / Math.max(1, checkout.sellerOrders.length)));
-  const statusMap: Record<string, ManagedOrderStatus> = { CONFIRMED: 'PENDING', PACKING: 'PENDING', SHIPPED: 'SHIPPING' };
+  const statusMap: Record<string, ManagedOrderStatus> = { CONFIRMED: 'PENDING', PROCESSING: 'PENDING', PACKING: 'PENDING', SHIPPED: 'SHIPPING' };
   return {
     id: raw.sellerOrderId,
     externalOrderSn: checkout.publicOrderCode || raw.orderId,
@@ -180,6 +180,7 @@ function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
     finalAmount: amount(totals.netPaidVnd ?? subtotal - discount) + shipping,
     paymentMethod: order.sagaState?.paymentMethod || ship.paymentMethod || '',
     paymentStatus: ['PAID', 'PROCESSING', 'COMPLETED'].includes(order.status) ? 'PAID' : 'UNPAID',
+    ghnEnvironment: totals.shippingEnvironment === 'TEST' ? 'TEST' : 'LIVE',
     trackingNumber: totals.trackingCode || null,
     carrierName: totals.carrier || null,
     store: { id: raw.storeId, name: totals.storeName || 'Gian hàng', slug: totals.storeSlug || raw.storeId },
@@ -253,40 +254,17 @@ export const orderService = {
       note?: string;
     },
   ) {
-    // Map FE statuses → SellerOrderStatus query param
-    const statusMap: Record<string, string> = {
-      PENDING: 'PENDING',
-      SHIPPING: 'SHIPPED',
-      DELIVERED: 'DELIVERED',
-      COMPLETED: 'COMPLETED',
-      CANCELLED: 'CANCELLED',
-      RETURN_REQUESTED: 'RETURN_REQUESTED',
-      RETURNED: 'RETURNED',
-      DISPUTED: 'DISPUTED',
-    };
-    const status = statusMap[data.status] || data.status;
-    const response: any = await api.patch(`/seller-orders/${orderId}/status`, null, {
-      params: { status },
-    });
-    if (data.trackingNumber) {
-      try {
-        const shipment: any = await api.get(`/shipments/by-seller-order/${orderId}`);
-        const shipmentData = shipment?.result ?? shipment?.data ?? shipment;
-        const shipmentId = shipmentData?.shipmentId || shipmentData?.id;
-        if (!shipmentId) throw new Error('Chưa có vận đơn để lưu mã theo dõi.');
-        if (shipmentId) {
-          await api.patch(`/shipments/${shipmentId}/status`, null, {
-            params: {
-              status: 'IN_TRANSIT',
-              carrier: data.carrierName,
-              trackingCode: data.trackingNumber,
-            },
-          });
-        }
-      } catch {
-        throw new Error('Trạng thái đơn đã cập nhật nhưng thông tin vận đơn chưa lưu. Hãy kiểm tra vận đơn trước khi gửi lại.');
-      }
+    let response: any;
+    if (data.status === 'SHIPPING') {
+      response = await api.post(`/commerce/seller-orders/${orderId}/dispatch`, {
+        environment: 'MANUAL', carrier: data.carrierName, trackingCode: data.trackingNumber,
+      });
+    } else if (data.status === 'DELIVERED') {
+      response = await api.post(`/commerce/seller-orders/${orderId}/delivered`);
+    } else {
+      throw new Error('Thao tác này chưa được hỗ trợ. Hãy xử lý theo trạng thái giao hàng hiện tại.');
     }
+
     return {
       message: 'Cập nhật trạng thái đơn thành công',
       order: response?.result || response?.data || response,

@@ -22,13 +22,13 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
       const url = new URL(request.url());
       if (url.pathname === '/session-harness.html') return request.respond({ contentType: 'text/html', body: '<main id="fixture-state">Unsent fixture form</main>' });
       if (url.pathname.startsWith('/api/')) {
-        const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
+        const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type,x-requested-with', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let status = 200, result = [];
         if (url.pathname.endsWith('/auth/refresh-token')) {
-          refreshes++; refreshHeaders.push(request.headers().authorization); refreshBodies.push(JSON.parse(request.postData()));
+          refreshes++; refreshHeaders.push(request.headers().authorization); refreshBodies.push(request.postData() ? JSON.parse(request.postData()) : null); assert.equal(request.headers()['x-requested-with'], 'XMLHttpRequest');
           await new Promise(resolve => setTimeout(resolve, delay)); status = refreshStatus;
-          result = { access_token: freshToken, refresh_token: nextRefresh, expires_in: 300 };
+          headers['Set-Cookie'] = 'fixture_refresh=' + nextRefresh + '; HttpOnly; Path=/api/v1/auth; SameSite=Lax'; result = { access_token: freshToken, refresh_token: nextRefresh, expires_in: 300 };
         } else if (url.pathname.endsWith('/auth/login') || url.pathname.endsWith('/auth/google')) {
           writes.push(url.pathname); result = { access_token: freshToken, refresh_token: 'fixture-login-refresh', expires_in: 300 };
         } else if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-user', roles: ['SHOP_OWNER'], fullName: 'Fixture owner', status: 'ACTIVE' };
@@ -42,7 +42,7 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
       if (url.origin !== origin && !['data:', 'blob:'].includes(url.protocol)) return request.abort();
       return request.continue();
     })(); });
-    await page.goto(`${base}/session-harness.html`);
+    await page.goto(`${base}/session-harness.html`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       window.fixture = {
         session: await import('/src/services/auth-session.ts'),
@@ -76,7 +76,7 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
       });
       assert.equal(refreshes, before + 1); assert.equal(result.session, identity.session);
       assert.equal(result.user.role, role); assert.equal(result.workspace, workspace);
-      assert.equal(result.refresh, nextRefresh); assert.equal(result.token, freshToken);
+      assert.equal(result.refresh, null); assert.equal(result.token, freshToken);
     }
 
     await seed(false); force401 = true;
@@ -98,7 +98,7 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
       try { await window.fixture.api.get('/session-fixture/outage'); } catch { /* expected */ }
       return { token: localStorage.token, user: localStorage.user, refresh: localStorage.getItem('refresh_token'), workspace: localStorage.getItem('scanms-active-workspace') };
     });
-    assert.ok(failed.token && failed.user && failed.refresh); assert.equal(failed.workspace, 'shop');
+    assert.ok(failed.token && failed.user); assert.equal(failed.refresh, null); assert.equal(failed.workspace, 'shop');
     refreshStatus = 200; await page.evaluate(() => window.fixture.api.get('/session-fixture/reconnected'));
 
     await seed(true); refreshStatus = 401;
@@ -120,6 +120,25 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
     assert.equal(await page.evaluate(() => localStorage.getItem('scanms-active-workspace')), 'shop');
     await page.evaluate(() => window.fixture.stop());
 
+    // Renew on the timer even when the user neither changes focus nor makes API calls.
+    await seed(false);
+    await page.evaluate(() => {
+      const original = window.setInterval;
+      window.setInterval = (callback, delay) => {
+        if (delay === 15000) window.fixture.tick = callback;
+        return original(callback, delay);
+      };
+      window.fixture.stop = window.fixture.session.startSessionRefresh();
+      window.setInterval = original;
+      const parts = localStorage.token.split('.');
+      const claims = JSON.parse(atob(parts[1])); claims.exp = Math.floor(Date.now() / 1000) + 10;
+      localStorage.token = `${parts[0]}.${btoa(JSON.stringify(claims))}.fixture`;
+      window.fixture.tick();
+    });
+    await page.waitForFunction(expected => localStorage.token === expected, {}, freshToken);
+    assert.equal(await page.evaluate(() => localStorage.getItem('scanms-active-workspace')), 'shop');
+    await page.evaluate(() => window.fixture.stop());
+
     // getMe must accept token rotation without resetting a shop owner's customer workspace.
     await seed(true, 'SHOP_MANAGER', 'customer');
     await page.evaluate(() => window.fixture.auth.getMe());
@@ -136,14 +155,14 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
     await page.evaluate(() => window.fixture.pending);
     assert.equal(await page.evaluate(() => localStorage.token), 'other-account-token'); delay = 80;
 
-    // Both login methods persist a refresh token, without reusing another account's token.
+    // Both login methods retain develop's HttpOnly contract and never persist JS refresh tokens.
     await page.evaluate(() => window.fixture.auth.login('fixture@example.test', 'fixture-password'));
-    assert.equal(await page.evaluate(() => localStorage.getItem('refresh_token')), 'fixture-login-refresh');
+    assert.equal(await page.evaluate(() => localStorage.getItem('refresh_token')), null);
     await page.evaluate(() => window.fixture.auth.googleLogin('fixture-identity-token'));
-    assert.equal(await page.evaluate(() => localStorage.getItem('refresh_token')), 'fixture-login-refresh');
+    assert.equal(await page.evaluate(() => localStorage.getItem('refresh_token')), null);
     assert.deepEqual(writes, ['/api/v1/auth/login', '/api/v1/auth/google']);
     assert.ok(refreshHeaders.every(value => !value), 'refresh endpoint never receives expired Authorization');
-    assert.ok(refreshBodies.every(value => value.refreshToken === 'fixture-refresh'));
+    assert.ok(refreshBodies.every(value => value === null), 'refresh tokens must not appear in request bodies'); const cookie = (await context.cookies()).find(cookie => cookie.name === 'fixture_refresh'); assert.ok(cookie?.httpOnly); assert.equal(cookie.value, nextRefresh);
 
     // Two open tabs share one rotated refresh token and keep their in-progress page state.
     const second = await newPage();

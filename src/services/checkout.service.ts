@@ -42,7 +42,7 @@ export const checkoutService = {
   async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal) {
     if (usesLegacyCheckout) return unwrap(await api.post('/shipping/ghn/quote-address', { storeId, address, items }, { signal, timeout: 20000 }));
     const response = await checkout.post('/checkout/quote', { items: items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })) }, { signal });
-    return { totalFee: response.data.result.shippingFeeVnd };
+    return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer };
   },
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));

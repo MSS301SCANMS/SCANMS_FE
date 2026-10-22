@@ -134,7 +134,7 @@ export function useSubmitVerifiedReview() {
       data,
     }: {
       orderId: string;
-      data: { productId: string; rating: number; comment: string; images?: string[] };
+      data: { productId: string; orderItemId: string; rating: number; comment: string; images?: string[] };
     }) => customerService.submitVerifiedReview(orderId, data),
   });
 }
