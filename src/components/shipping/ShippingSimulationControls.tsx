@@ -37,15 +37,15 @@ export function ShippingSimulationControls({ orderId, tracking, onStarted, onCom
 
   return (
     <section className="mt-3 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-sm text-[#231D15]" aria-label="Kiểm thử giao vận">
-      <p className="font-semibold">Chỉ kiểm thử đơn GHN TEST</p>
+      <p className="font-semibold">Giao hàng mô phỏng nội bộ</p>
       <p className="mt-1 text-xs text-[#7D715E]">
-        Không điều phối shipper hoặc xác nhận thanh toán thật. Mỗi mốc cách nhau 1 phút.
-        Khi timeline đã giao thử (sau 4 phút), bấm đồng bộ để khách kiểm thử nhận hàng/đổi trả.
+        Bấm bắt đầu để chuyển sang đang vận chuyển, sau đó bấm xác nhận giao thử thành công.
+        Không gọi GHN và không điều phối shipper thật.
       </p>
       {error && <p role="alert" className="mt-2 text-xs text-[#DC2626]">{error}</p>}
       <button type="button" disabled={busy} onClick={() => void submit()}
         className="mt-3 rounded-xl bg-[#C59B58] px-4 py-2 text-xs font-semibold text-[#231D15] hover:bg-[#B88E4F] disabled:opacity-50">
-        {busy ? 'Đang xử lý…' : tracking.isSimulation ? 'Đồng bộ kết quả giao thử' : 'Bắt đầu mô phỏng giao hàng'}
+        {busy ? 'Đang xử lý…' : tracking.isSimulation ? 'Xác nhận giao thử thành công' : 'Bắt đầu mô phỏng giao hàng'}
       </button>
     </section>
   );

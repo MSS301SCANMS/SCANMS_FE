@@ -29,8 +29,11 @@ function saveTokens(raw: any, rotating = false): string {
   const tokens = raw?.result ?? raw?.data ?? raw;
   const access = tokens?.access_token || tokens?.accessToken;
   if (typeof access !== 'string' || !access) throw new Error('Không nhận được thông tin phiên đăng nhập.');
-  if (!rotating) localStorage.setItem(sessionKey, crypto.randomUUID());
-  // Không bao giờ lưu refresh token phía JS nữa (BE đặt cookie HttpOnly).
+  if (!rotating) {
+    localStorage.setItem(sessionKey, crypto.randomUUID());
+    for (const key of ['user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id', 'scanms_cached_addresses']) localStorage.removeItem(key);
+  }
+  // Keep develop's HttpOnly refresh-cookie contract; discard legacy JS tokens.
   localStorage.removeItem(legacyRefreshKey);
   localStorage.setItem('token', access);
   const seconds = Number(tokens.expires_in ?? tokens.expiresIn);
@@ -63,7 +66,7 @@ export async function endServerSession(): Promise<void> {
 
 export function clearSession(expected?: string | null, notify = true) {
   if (expected !== undefined && getSessionId() !== expected) return;
-  for (const key of ['token', legacyRefreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id']) localStorage.removeItem(key);
+  for (const key of ['token', legacyRefreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id', 'scanms_cached_addresses']) localStorage.removeItem(key);
   if (notify) {
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     window.dispatchEvent(new Event('auth-user-updated'));
@@ -164,14 +167,18 @@ export function installRawSessionAuth(client: AxiosInstance) {
 }
 
 export function startSessionRefresh() {
+  // Retire the old shared address cache, including for already signed-out browsers.
+  localStorage.removeItem('scanms_cached_addresses');
   const resume = () => {
     if (!document.hidden) void renewSession().catch(() => { /* API requests display connection errors. */ });
   };
   resume();
+  const timer = window.setInterval(resume, 15000);
   window.addEventListener('focus', resume);
   window.addEventListener('online', resume);
   document.addEventListener('visibilitychange', resume);
   return () => {
+    window.clearInterval(timer);
     window.removeEventListener('focus', resume);
     window.removeEventListener('online', resume);
     document.removeEventListener('visibilitychange', resume);

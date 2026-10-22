@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ImagePlus, Loader2, Upload, Video, X } from 'lucide-react';
 import { customerService, type CustomerOrder, type CustomerReturnRequest } from '../../services/customer.service';
 import { uploadService } from '../../services/upload.service';
@@ -19,6 +19,12 @@ const reasons: Array<{ value: CustomerReturnRequest['reason']; label: string }> 
 ];
 
 export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
+  const eligible = order.orderItems.filter(item => (item.returnableQuantity ?? item.quantity) > 0);
+  const [itemId, setItemId] = useState(eligible[0]?.id || '');
+  const selectedItem = eligible.find(item => item.id === itemId);
+  const [quantity, setQuantity] = useState(1);
+  const requestKey = useRef(crypto.randomUUID());
+  const savedEvidence = useRef<{ imageUrls: string[]; unboxingVideoUrl: string } | null>(null);
   const [reason, setReason] = useState<CustomerReturnRequest['reason']>('DAMAGED');
   const [details, setDetails] = useState('');
   const [images, setImages] = useState<File[]>([]);
@@ -32,17 +38,22 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!selectedItem || quantity < 1 || quantity > (selectedItem.returnableQuantity ?? selectedItem.quantity)) { toast.error('Chọn sản phẩm và số lượng hợp lệ'); return; }
     if (images.length === 0 || !video) {
       toast.error('Vui lòng cung cấp ít nhất 1 ảnh và video mở hộp');
       return;
     }
     setSubmitting(true);
     try {
-      const imageUrls = await Promise.all(
+      const imageUrls = savedEvidence.current?.imageUrls || await Promise.all(
         images.map((file) => uploadService.uploadImage(file, `scanms/returns/${order.id}/images`)),
       );
-      const unboxingVideoUrl = await uploadService.uploadVideo(video, `scanms/returns/${order.id}/video`);
+      const unboxingVideoUrl = savedEvidence.current?.unboxingVideoUrl || await uploadService.uploadVideo(video, `scanms/returns/${order.id}/video`);
+      savedEvidence.current = { imageUrls, unboxingVideoUrl };
       const result = await customerService.createReturnRequest(order.id, {
+        orderItemId: itemId,
+        quantity,
+        idempotencyKey: requestKey.current,
         reason,
         details: details.trim() || undefined,
         imageUrls,
@@ -59,7 +70,7 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
 
   return (
     <div className="fixed inset-0 z-[70] bg-[#231D15]/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-[#EAE4D7] shadow-2xl p-6 text-left">
+      <form onChange={() => { requestKey.current = crypto.randomUUID(); savedEvidence.current = null; }} onSubmit={submit} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-[#EAE4D7] shadow-2xl p-6 text-left">
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAE4D7]">
           <div>
             <h2 className="text-lg font-black text-[#1A1612]">Yêu cầu trả hàng / hoàn tiền</h2>
@@ -74,6 +85,14 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
         </div>
 
         <div className="mt-4 space-y-4">
+          <label className="block text-xs font-bold">Sản phẩm cần trả
+            <select aria-label="Sản phẩm cần trả" disabled={submitting} value={itemId} onChange={e => { setItemId(e.target.value); setQuantity(1); }} className="mt-2 w-full rounded-xl border p-3">
+              {eligible.map(item => <option key={item.id} value={item.id}>{item.product?.title || item.productId} · còn được trả {item.returnableQuantity ?? item.quantity}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs font-bold">Số lượng trả
+            <input aria-label="Số lượng trả" type="number" min={1} max={selectedItem?.returnableQuantity ?? selectedItem?.quantity ?? 1} required disabled={submitting} value={quantity} onChange={e => setQuantity(Number(e.target.value))} className="mt-2 w-full rounded-xl border p-3" />
+          </label>
           <label className="block text-xs font-bold text-[#1A1612]">Lý do
             <div className="mt-1.5">
               <Select value={reason} onChange={(e) => setReason(e.target.value as CustomerReturnRequest['reason'])} className="w-full text-xs font-medium">

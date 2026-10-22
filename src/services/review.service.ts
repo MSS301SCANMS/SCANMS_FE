@@ -1,5 +1,6 @@
 import api from "./api";
 import axios from "axios";
+import { installRawSessionAuth } from './auth-session';
 
 
 const reviewApi = axios.create({
@@ -7,6 +8,7 @@ const reviewApi = axios.create({
   timeout: 10000,
   withCredentials: true,
 });
+installRawSessionAuth(reviewApi);
 reviewApi.interceptors.response.use(
   (response) => response.data,
   (error: unknown) => {
@@ -125,7 +127,7 @@ export const reviewService = {
     return url;
   },
   async submit(
-    order: VerifiedReviewOrder,
+    _order: VerifiedReviewOrder,
     payload: {
       productId: string;
       rating: number;
@@ -140,11 +142,7 @@ export const reviewService = {
       orderItemId: payload.orderItemId,
       rating: payload.rating,
       comment: payload.comment,
-      imageRefs: {
-        images: payload.images,
-        video: payload.video,
-        reviewToken: order.reviewToken,
-      },
+      imageRefs: payload.images,
     });
     const raw = response?.result || response?.data?.review || response?.data || response;
     return {

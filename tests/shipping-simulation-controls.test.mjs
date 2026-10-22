@@ -31,12 +31,12 @@ test('hides test controls when the server disables or omits the capability', () 
 test('an opted-in TEST purchase offers start with an explicit non-physical/non-payment warning', () => {
   const html = render({ environment: 'TEST', simulationAvailable: true });
   assert.match(html, /Bắt đầu mô phỏng giao hàng/);
-  assert.match(html, /Không điều phối shipper hoặc xác nhận thanh toán thật/);
-  assert.doesNotMatch(html, /Đồng bộ kết quả giao thử/);
+  assert.match(html, /Không gọi GHN và không điều phối shipper thật/);
+  assert.doesNotMatch(html, /Xác nhận giao thử thành công/);
 });
 test('a running TEST simulation offers the explicit delivery synchronization step', () => {
   const html = render({ environment: 'TEST', simulationAvailable: true, isSimulation: true });
-  assert.match(html, /Đồng bộ kết quả giao thử/);
-  assert.match(html, /sau 4 phút/);
+  assert.match(html, /Xác nhận giao thử thành công/);
+  assert.doesNotMatch(html, /sau 4 phút/);
   assert.doesNotMatch(html, /Bắt đầu mô phỏng giao hàng/);
 });

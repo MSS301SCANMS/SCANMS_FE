@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Truck, RefreshCw, Phone, Check, Clock, PackageCheck, UserRound, ChevronDown } from 'lucide-react';
 import './GhnTrackingTimeline.css';
 import api from '../../services/api';
+import { shippingService } from '../../services/shipping.service';
 import { GHN_MILESTONES } from '../../utils/ghn-tracking';
 
 interface TrackingEvent {
@@ -59,11 +60,7 @@ export function GhnTrackingTimeline({ orderCode, sampleRequestId, onSampleDelive
       let terminal = false;
       let pollInterval = simulation ? 5000 : 30000;
       try {
-        const response: any = await api.get(`/shipping/ghn/track/${encodeURIComponent(orderCode)}`, {
-          params: environment ? { environment } : undefined,
-          headers: { 'x-skip-cache': 'true' }, signal: controller.signal,
-        });
-        const data = response?.data?.data || response?.data || response;
+        const data = await shippingService.trackOrder(orderCode);
         if (!data || typeof data.status !== 'string' || !Array.isArray(data.timeline)) throw new Error('Invalid tracking response');
         if (!active) return;
         setTracking(data); setError('');
@@ -138,6 +135,12 @@ export function GhnTrackingTimeline({ orderCode, sampleRequestId, onSampleDelive
       : tracking.isSimulation && tracking.status !== 'delivered'
         ? 'Mỗi mốc cách nhau 1 phút; tự cập nhật khi đến mốc'
         : '';
+  if (orderCode.startsWith('SIM-')) return <section className="rounded-xl border border-[#EAE4D7] bg-white p-4 text-sm" aria-label="Hành trình giao hàng mô phỏng">
+    <strong>Giao hàng mô phỏng nội bộ</strong><p className="mt-2 break-all">{orderCode}</p>
+    <p className="mt-2">{({ shipped: 'Shop đã gửi hàng', in_transit: 'Đang vận chuyển mô phỏng', delivered: 'Đã giao hàng mô phỏng' } as Record<string, string>)[tracking?.status || ''] || 'Đang tải…'}</p>
+    {error && <p role="alert">{error}</p>}
+    <button type="button" className="mt-2 underline" disabled={busy} onClick={() => setReload(value => value + 1)}>Làm mới</button>
+  </section>;
   return (
     <section className="ghn-journey" aria-label={`Hành trình GHN ${orderCode}`}>
       <div className="ghn-journey__header">

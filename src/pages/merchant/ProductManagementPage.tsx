@@ -1753,7 +1753,6 @@ export default function ProductManagementPage() {
           <TableBody>
             {filtered.map((p: any) => {
               const title = p.title || p.name;
-              const sku = p.sku || 'SKU';
               const price = p.price || 0;
               const rate = 10;
               const stock = p.stockQuantity ?? p.stock ?? 0;
@@ -1789,9 +1788,6 @@ export default function ProductManagementPage() {
                         <strong title={title} className="text-sm font-semibold text-[#1A1612] block line-clamp-2 break-words">
                           {title}
                         </strong>
-                        <span className="text-[11px] text-slate-500 font-mono block mt-0.5">
-                          {sku}
-                        </span>
                       </div>
                     </div>
                   </TableCell>
