@@ -72,6 +72,7 @@ export interface PayosWalletTopUp {
 
 export interface LedgerEntry {
   id: string;
+  direction?: 'CREDIT' | 'DEBIT';
   transactionType:
     | "COMMISSION_PENDING"
     | "COMMISSION_APPROVED"

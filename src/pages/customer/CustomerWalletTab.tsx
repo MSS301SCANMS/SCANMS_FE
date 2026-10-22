@@ -72,11 +72,11 @@ export const CustomerWalletTab: React.FC = () => {
   };
 
   const getLedgerBadge = (entry: LedgerEntry) => {
-    const isPositive =
+    const isPositive = entry.direction ? entry.direction === 'CREDIT' : (
       entry.transactionType === 'COMMISSION_APPROVED' ||
       entry.referenceType === 'TOPUP_DEMO' ||
       entry.referenceType === 'TOPUP_PAYOS' ||
-      entry.referenceType === 'ORDER_REFUND';
+      entry.referenceType === 'ORDER_REFUND');
 
     if (entry.referenceType === 'TOPUP_PAYOS') {
       return { label: 'Nạp tiền qua payOS', badgeClass: 'bg-[#FBF5EB] text-[#7D715E] border-[#EEDFC6]', sign: '+', colorClass: 'text-[#1A1612] font-bold' };

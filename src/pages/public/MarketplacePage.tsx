@@ -203,7 +203,7 @@ export default function MarketplacePage() {
     return () => window.removeEventListener('keydown', close);
   }, [isGuideOpen]);
 
-  const handlePurchase = (product: Product, intent: 'cart' | 'buy', variantId?: string) => {
+  const handlePurchase = (product: Product, intent: 'cart' | 'buy', variantId?: string, quantity = 1) => {
     if (intent === 'buy') {
       navigate(`/products/${product.sku || product.id}`);
       return;
@@ -215,7 +215,7 @@ export default function MarketplacePage() {
     const payload = {
       product: { ...product, variants: product.variants?.filter((variant) => variant.isActive !== false) },
       store: { id: product.storeId, name: product.brand },
-      variantId, quantity: 1, openCartAfterAdd: false,
+      variantId, quantity, openCartAfterAdd: false,
     };
     if (!authService.getCurrentUser() || !localStorage.getItem('token')) {
       addItem(payload);
@@ -301,7 +301,7 @@ export default function MarketplacePage() {
               <MarketplaceProductCard
                 key={product.id} product={product} wished={wishlistIds.has(product.id)}
                 onWishlist={() => void handleToggleWishlist(product.id)}
-                onPurchase={(intent, variantId) => handlePurchase(product, intent, variantId)}
+                onPurchase={(intent, variantId, quantity) => handlePurchase(product, intent, variantId, quantity)}
                 deal={liveDeals[product.id]} now={liveDealsNow}
               />
             ))}

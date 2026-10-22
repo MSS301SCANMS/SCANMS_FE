@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
+import { usesLegacyCheckout } from '../../services/checkout.service';
 
 export type LiveSessionDeal = {
   id: string;
@@ -21,6 +22,8 @@ export function useLiveSessionDeals(productIds: string[]) {
   }, []);
 
   useEffect(() => {
+    // Session coupons and claim endpoints belong to the legacy commerce API.
+    if (!usesLegacyCheckout) return;
     let current = true;
     let refreshTimer: number | undefined;
     const load = async () => {

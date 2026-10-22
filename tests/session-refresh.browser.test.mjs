@@ -42,7 +42,7 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
       if (url.origin !== origin && !['data:', 'blob:'].includes(url.protocol)) return request.abort();
       return request.continue();
     })(); });
-    await page.goto(`${base}/session-harness.html`);
+    await page.goto(`${base}/session-harness.html`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       window.fixture = {
         session: await import('/src/services/auth-session.ts'),
@@ -116,6 +116,25 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
 
     await seed(true);
     await page.evaluate(() => { window.fixture.stop = window.fixture.session.startSessionRefresh(); window.dispatchEvent(new Event('focus')); });
+    await page.waitForFunction(expected => localStorage.token === expected, {}, freshToken);
+    assert.equal(await page.evaluate(() => localStorage.getItem('scanms-active-workspace')), 'shop');
+    await page.evaluate(() => window.fixture.stop());
+
+    // Renew on the timer even when the user neither changes focus nor makes API calls.
+    await seed(false);
+    await page.evaluate(() => {
+      const original = window.setInterval;
+      window.setInterval = (callback, delay) => {
+        if (delay === 15000) window.fixture.tick = callback;
+        return original(callback, delay);
+      };
+      window.fixture.stop = window.fixture.session.startSessionRefresh();
+      window.setInterval = original;
+      const parts = localStorage.token.split('.');
+      const claims = JSON.parse(atob(parts[1])); claims.exp = Math.floor(Date.now() / 1000) + 10;
+      localStorage.token = `${parts[0]}.${btoa(JSON.stringify(claims))}.fixture`;
+      window.fixture.tick();
+    });
     await page.waitForFunction(expected => localStorage.token === expected, {}, freshToken);
     assert.equal(await page.evaluate(() => localStorage.getItem('scanms-active-workspace')), 'shop');
     await page.evaluate(() => window.fixture.stop());

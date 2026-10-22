@@ -230,7 +230,7 @@ function toCreateVoucherBody(storeId: string | undefined, payload: any) {
 export const couponService = {
 
   getPublicStoreCoupons: async (storeId: string): Promise<PublicStoreCoupon[]> => {
-    const res: any = await api.get('/vouchers');
+    const res: any = await api.get('/vouchers/public', { params: { storeId } });
     const payload = res?.result ?? res?.data ?? res;
     const list = Array.isArray(payload) ? payload : [];
     return list.filter((v: any) => !storeId || v.storeId === storeId).map(mapVoucher);

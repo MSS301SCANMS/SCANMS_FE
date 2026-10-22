@@ -1,5 +1,6 @@
 import api from './api';
 import { unwrapApi, unwrapList } from '@/utils/api-response';
+import { serverDate } from '../utils/server-date';
 
 export type ReturnStatus =
   | 'REQUESTED' | 'SHOP_APPROVED' | 'PICKUP_BOOKED' | 'SHOP_REJECTED' | 'EXPIRED'
@@ -8,7 +9,7 @@ export type ReturnStatus =
   | 'REFUND_FAILED' | 'EXCHANGE_PENDING' | 'EXCHANGE_SHIPPED'
   | 'AWAITING_CUSTOMER_CONFIRMATION' | 'COMPLETED' | 'DISPUTED'
   | 'REFUNDED' | 'CLOSED'
-  | 'PENDING' | 'APPROVED' | 'REJECTED';
+  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RETURNING' | 'RECEIVED' | 'CANCELLED';
 
 export interface ReturnShipment {
   id: string;
@@ -41,6 +42,11 @@ export interface PickupBookingInput extends ReturnAddress {
 }
 
 export interface ReturnDetail {
+  refundReference?: string | null;
+  decisionReason?: string | null;
+  refundAmountVnd?: number;
+  simulationEnabled?: boolean;
+  logistics?: { environment: string; trackingCode: string; carrier: string; status: string; pickedUpAt?: string; deliveredAt?: string; receivedAt?: string } | null;
   id: string;
   orderId: string;
   reason: string;
@@ -96,7 +102,7 @@ export interface ReturnDisputeRecord {
   returnRequest: ReturnDetail;
 }
 
-function normalizeReturn(raw: any): ReturnDetail {
+export function normalizeReturn(raw: any): ReturnDetail {
   if (!raw) return raw;
   const id = raw.id || raw.returnRequestId;
   const evidence = raw.evidenceRefs || {};
@@ -108,14 +114,21 @@ function normalizeReturn(raw: any): ReturnDetail {
     imageUrls: evidence.images || evidence.imageUrls || [],
     unboxingVideoUrl: evidence.unboxingVideoUrl || evidence.videos?.[0] || '',
     status: (raw.status || 'REQUESTED') as ReturnStatus,
-    shopResponse: raw.decisionReason || null,
-    submittedAt: raw.requestedAt || raw.createdAt || new Date().toISOString(),
+    shopResponse: raw.shopResponse?.response || null,
+    decisionReason: raw.decisionReason,
+    refundReference: raw.refundReference,
+    refundAmountVnd: raw.refundAmountVnd,
+    simulationEnabled: raw.simulationEnabled,
+    logistics: raw.logistics,
+    submittedAt: serverDate(raw.requestedAt || raw.createdAt) || new Date().toISOString(),
     order: {
       id: raw.orderId || '',
       externalOrderSn: raw.orderId || '',
-      storeName: '',
+      storeName: raw.storeName || '',
     },
-    items: [],
+    items: [{ id: raw.orderItemId, quantity: raw.quantity, unitPrice: raw.unitPrice,
+      orderItem: { product: { title: raw.productSnapshot?.title || raw.productSnapshot?.name || 'Sản phẩm', imageUrl: raw.productSnapshot?.imageUrl } } }],
+    refund: { amount: raw.refundAmountVnd || 0, method: 'WALLET', status: raw.status === 'REFUNDED' && raw.refundReference ? 'SUCCEEDED' : 'PENDING', processedAt: raw.resolvedAt },
     events: [],
   } as ReturnDetail;
 }
@@ -126,7 +139,11 @@ const unsupported = (action: string) => {
 
 export const returnService = {
   getOne: async (id: string) =>
-    normalizeReturn(unwrapApi(await api.get(`/returns/${id}`, { headers: { 'x-skip-cache': 'true' } }))),
+    normalizeReturn(unwrapApi(await api.get(`/commerce/returns/${id}`, { headers: { 'x-skip-cache': 'true' } }))),
+
+  cancel: async (id: string) => normalizeReturn(unwrapApi(await api.post(`/commerce/returns/${id}/cancel`))),
+  send: async (id: string, data: { environment: 'TEST' | 'MANUAL'; carrier?: string; trackingCode?: string }) =>
+    normalizeReturn(unwrapApi(await api.post(`/commerce/returns/${id}/shipment`, data))),
 
   getShopQueue: async (page = 1, status?: ReturnStatus) => {
     let items = unwrapList(await api.get('/returns', { headers: { 'x-skip-cache': 'true' } })).map(
@@ -139,9 +156,10 @@ export const returnService = {
   create: async (data: {
     orderItemId: string;
     quantity: number;
+    idempotencyKey: string;
     reason: string;
     evidenceRefs?: Record<string, unknown>;
-  }) => normalizeReturn(unwrapApi(await api.post('/returns', data))),
+  }) => normalizeReturn(unwrapApi(await api.post('/commerce/returns', data))),
 
   decide: async (
     id: string,
@@ -160,14 +178,14 @@ export const returnService = {
     unsupported('returns/{id}/instructions'),
   saveWarehouse: async (_id: string, _data: ReturnAddress) => unsupported('returns/{id}/warehouse'),
   bookPickup: async (_id: string, _data: PickupBookingInput) => unsupported('returns/{id}/pickup'),
-  simulatePickup: async (_id: string, _data: { status: 'picked' | 'delivered' }) =>
-    unsupported('returns/{id}/pickup/simulate'),
+  simulatePickup: async (id: string, data: { status: 'picked' | 'delivered' }) =>
+    normalizeReturn(unwrapApi(await api.post(`/commerce/returns/${id}/simulation`, data))),
   syncPickup: async (_id: string) => unsupported('returns/{id}/pickup/sync'),
   submitShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string; receipt: File }) =>
     unsupported('returns/{id}/return-shipment'),
   correctShipment: async (_id: string, _data: { carrierName: string; trackingNumber: string }) =>
     unsupported('returns/{id}/return-shipment'),
-  confirmReceipt: async (_id: string) => unsupported('returns/{id}/receipt'),
+  confirmReceipt: async (id: string) => normalizeReturn(unwrapApi(await api.post(`/commerce/returns/${id}/receipt`))),
   startInspection: async (_id: string) => unsupported('returns/{id}/inspection/start'),
   submitInspection: async (
     _id: string,

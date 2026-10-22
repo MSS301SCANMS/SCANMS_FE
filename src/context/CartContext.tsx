@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { toast } from '../utils/toast';
 import { authService } from '../services/auth.service';
 import api from '../services/api';
+import { checkoutService } from '../services/checkout.service';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { customerService, type CartSessionRequest } from '../services/customer.service';
 import { mergeCartItems } from '@/utils/cart-merge.utils';
@@ -795,14 +796,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const revision = authRevisionRef.current;
     setIsValidatingStock(true);
     try {
-      const res: any = await api.post('/orders/validate-cart', {
-        items: cart.map((i) => ({
+      const res: any = await checkoutService.validateCart(cart.map((i) => ({
           productId: i.productId,
           variantId: normalizeOrderVariantId(i.variantId),
           quantity: i.quantity,
           clientPrice: i.price,
-        })),
-      });
+        })));
 
       if (authRevisionRef.current !== revision) return;
 

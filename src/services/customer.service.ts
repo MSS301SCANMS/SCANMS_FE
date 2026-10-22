@@ -1,5 +1,9 @@
 import api from './api';
 import { authService } from './auth.service';
+import { normalizeReturn, type ReturnDetail } from './return.service';
+import { matchesCustomerOrderStatus } from '../utils/customer-order-filter';
+import { serverDate } from '../utils/server-date';
+import { checkoutAmounts } from '../utils/order-amounts.utils';
 
 function notifyWishlistChanged(userId: string | undefined, token: string | null) {
   if (userId && token === localStorage.getItem('token')) {
@@ -30,6 +34,8 @@ export interface CustomerProfileResponse {
 }
 
 export interface CustomerOrderItem {
+  returnableQuantity?: number;
+  sellerOrderId?: string;
   id: string;
   productId: string;
   variantId?: string | null;
@@ -67,6 +73,7 @@ export interface CustomerOrder {
   policyAcceptedAt?: string | null;
   policySnapshot?: Record<string, unknown> | null;
   returnRequest?: CustomerReturnRequest | null;
+  returnRequests?: ReturnDetail[];
   rawPayload?: any;
   createdAt: string;
   updatedAt: string;
@@ -190,38 +197,69 @@ function unwrap(res: any) {
 
 function mapOrder(raw: any): CustomerOrder {
   const ship = raw?.shippingSnapshot || {};
+  const sellerOrders = Array.isArray(raw?.sellerOrders) ? raw.sellerOrders : [];
+  const firstSeller = sellerOrders[0];
+  const returnRequests = (Array.isArray(raw.returnRequests) ? raw.returnRequests : [])
+    .map(normalizeReturn).sort((a: ReturnDetail, b: ReturnDetail) => b.submittedAt.localeCompare(a.submittedAt));
+  const nativeItems = sellerOrders.flatMap((seller: any) => seller.items || []).map((item: any) => {
+    const product = item.productSnapshot || {};
+    return {
+      sellerOrderId: sellerOrders.find((s: any) => s.items?.some((i: any) => i.orderItemId === item.orderItemId))?.sellerOrderId,
+      returnableQuantity: Math.max(0, item.quantity - (raw.returnRequests || []).filter((r: any) => r.orderItemId === item.orderItemId && !['REJECTED', 'CANCELLED'].includes(r.status)).reduce((sum: number, r: any) => sum + r.quantity, 0)),
+      id: item.orderItemId, productId: item.productId, variantId: item.variantId,
+      quantity: item.quantity, unitPrice: item.unitPrice,
+      product: { id: item.productId, title: product.title || product.name || 'Sản phẩm', imageUrl: product.imageUrl, sku: product.sku },
+    };
+  });
+  const nativePaid = ['PAID', 'PROCESSING', 'COMPLETED'].includes(raw?.status);
+  const sellerStatuses = sellerOrders.map((s: any) => s.status);
+  const fulfillment = sellerStatuses.length && sellerStatuses.every((s: string) => s === 'COMPLETED') ? 'COMPLETED'
+    : sellerStatuses.length && sellerStatuses.every((s: string) => ['DELIVERED', 'COMPLETED'].includes(s)) ? 'DELIVERED'
+    : sellerStatuses.some((s: string) => s === 'SHIPPED') ? 'SHIPPING' : null;
+  const status = fulfillment || ({ PAID: 'PENDING', AWAITING_PAYMENT: 'PENDING', EXPIRED: 'CANCELLED', PROCESSING: 'SHIPPING' } as Record<string, string>)[raw?.status] || raw?.status || 'PENDING';
   const shippingAddress =
     typeof raw?.shippingAddress === 'string'
       ? raw.shippingAddress
       : [ship.address, ship.name, ship.phone].filter(Boolean).join(' · ') || '';
   return {
     id: raw?.id || raw?.orderId,
-    storeId: raw?.storeId || '',
+    storeId: raw?.storeId || firstSeller?.storeId || '',
     externalOrderSn: raw?.externalOrderSn || raw?.orderId || raw?.id || '',
     customerName: raw?.customerName || ship.name || null,
     customerPhone: raw?.customerPhone || ship.phone || null,
     customerEmail: raw?.customerEmail || null,
     shippingAddress,
-    subtotalAmount: raw?.subtotalAmount ?? raw?.payableVnd ?? 0,
-    discountAmount: raw?.discountAmount ?? 0,
-    shippingFee: raw?.shippingFee ?? 0,
-    finalAmount: raw?.finalAmount ?? raw?.payableVnd ?? 0,
-    status: raw?.status || 'PENDING',
+    ...checkoutAmounts(raw),
+    status,
     overrideReason: raw?.overrideReason ?? null,
     completedAt: raw?.completedAt ?? null,
-    deliveredAt: raw?.deliveredAt ?? null,
+    deliveredAt: serverDate(raw?.deliveredAt ?? firstSeller?.deliveredAt),
     policyAcceptedAt: raw?.policyAcceptedAt ?? null,
     policySnapshot: raw?.policySnapshot ?? null,
-    returnRequest: raw?.returnRequest ?? null,
-    rawPayload: raw,
+    returnRequest: raw?.returnRequest ?? returnRequests[0] ?? null,
+    returnRequests: returnRequests.length ? returnRequests : raw?.returnRequest ? [raw.returnRequest] : [],
+    rawPayload: { ...raw, paymentMethod: raw?.paymentMethod || raw?.sagaState?.paymentMethod,
+      paymentStatus: raw?.paymentStatus || (nativePaid ? 'PAID' : 'UNPAID') },
     createdAt: raw?.createdAt || new Date().toISOString(),
     updatedAt: raw?.updatedAt || raw?.createdAt || new Date().toISOString(),
-    store: raw?.store,
-    orderItems: Array.isArray(raw?.orderItems) ? raw.orderItems : [],
+    store: raw?.store || (firstSeller ? { id: firstSeller.storeId, name: firstSeller.totalsSnapshot?.storeName || 'Gian hàng' } : undefined),
+    orderItems: Array.isArray(raw?.orderItems) ? raw.orderItems : nativeItems,
     coupon: raw?.coupon ?? null,
     paymentTransactions: raw?.paymentTransactions,
     productReviews: raw?.productReviews,
   };
+}
+
+async function enrichOrder(raw: any) {
+  if (!raw?.orderId) return raw;
+  const details = raw.orderItems || raw.sellerOrders ? raw : unwrap(await api.get(`/orders/${raw.orderId}/checkout-details`, { headers: { 'x-skip-cache': 'true' } }));
+  const requests = unwrap(await api.get('/commerce/returns', { headers: { 'x-skip-cache': 'true' } }));
+  const orderItemIds = (details.sellerOrders || []).flatMap((seller: any) => (seller.items || []).map((item: any) => item.orderItemId));
+  const reviews = orderItemIds.length ? unwrap(await api.get('/feedbacks/mine', { params: { orderItemIds: orderItemIds.join(',') }, headers: { 'x-skip-cache': 'true' } }).catch(error => {
+    if (error.status === 404) return { result: [] }; // Allows the running backend to be restarted independently.
+    throw error;
+  })) : [];
+  return { ...raw, ...details, productReviews: Array.isArray(reviews) ? reviews : [], returnRequests: (Array.isArray(requests) ? requests : []).filter((r: any) => r.orderId === raw.orderId) };
 }
 
 function parseStoredAddresses(me: any): CustomerAddress[] {
@@ -401,10 +439,10 @@ export const customerService = {
   async getOrders(params?: { status?: string; search?: string }): Promise<{ total: number; orders: CustomerOrder[] }> {
     const res: any = await api.get('/orders/my-orders', { params, headers: { 'x-skip-cache': 'true' } });
     const payload = unwrap(res);
-    let orders = (Array.isArray(payload) ? payload : payload?.orders || []).map(mapOrder);
+    let orders = (await Promise.all((Array.isArray(payload) ? payload : payload?.orders || []).map(enrichOrder))).map(mapOrder);
     if (params?.status) {
       const status = params.status.toUpperCase();
-      orders = orders.filter((o: any) => String(o.status).toUpperCase() === status);
+      orders = orders.filter(order => matchesCustomerOrderStatus(order, status));
     }
     if (params?.search) {
       const q = params.search.toLowerCase();
@@ -420,7 +458,7 @@ export const customerService = {
 
   async getOrderDetails(orderId: string): Promise<CustomerOrder> {
     const res: any = await api.get(`/orders/${orderId}`, { headers: { 'x-skip-cache': 'true' } });
-    return mapOrder(unwrap(res));
+    return mapOrder(await enrichOrder(unwrap(res)));
   },
 
   async cancelOrder(_orderId: string, _reason?: string): Promise<any> {
@@ -432,9 +470,10 @@ export const customerService = {
     data: { reason: string; notes?: string; proofImages?: string[]; proofVideos?: string[]; orderItemId?: string; quantity?: number },
   ): Promise<any> {
     if (!data.orderItemId) throw new Error('Thiếu orderItemId để tạo yêu cầu trả hàng.');
-    const res: any = await api.post('/returns', {
+    const res: any = await api.post('/commerce/returns', {
       orderItemId: data.orderItemId,
       quantity: data.quantity || 1,
+      idempotencyKey: (data as any).idempotencyKey || crypto.randomUUID(),
       reason: data.reason,
       evidenceRefs: {
         notes: data.notes,
@@ -445,8 +484,8 @@ export const customerService = {
     return res?.result || res?.data || res;
   },
 
-  async confirmReceipt(_orderId: string): Promise<any> {
-    throw new Error('BE chưa hỗ trợ xác nhận nhận hàng từ phía khách.');
+  async confirmReceipt(orderId: string): Promise<any> {
+    return unwrap(await api.post(`/commerce/orders/${orderId}/receipt`));
   },
 
   async createReturnRequest(
@@ -458,12 +497,14 @@ export const customerService = {
       unboxingVideoUrl: string;
       orderItemId?: string;
       quantity?: number;
+      idempotencyKey?: string;
     },
   ): Promise<{ message: string; returnRequest: CustomerReturnRequest }> {
     if (!data.orderItemId) throw new Error('Thiếu orderItemId để tạo yêu cầu trả hàng.');
-    const res: any = await api.post('/returns', {
+    const res: any = await api.post('/commerce/returns', {
       orderItemId: data.orderItemId,
       quantity: data.quantity || 1,
+      idempotencyKey: (data as any).idempotencyKey || crypto.randomUUID(),
       reason: data.reason,
       evidenceRefs: {
         details: data.details,
@@ -471,20 +512,20 @@ export const customerService = {
         unboxingVideoUrl: data.unboxingVideoUrl,
       },
     });
-    const returnRequest = res?.result || res?.data || res;
+    const returnRequest = normalizeReturn(res?.result || res?.data || res) as unknown as CustomerReturnRequest;
     return { message: 'Đã gửi yêu cầu trả hàng', returnRequest };
   },
 
   async submitVerifiedReview(
     _orderId: string,
-    data: { productId: string; rating: number; comment: string; images?: string[]; orderItemId?: string },
+    data: { productId: string; rating: number; comment: string; images?: string[]; orderItemId: string },
   ): Promise<any> {
     const res: any = await api.post('/feedbacks', {
       productId: data.productId,
       orderItemId: data.orderItemId,
       rating: data.rating,
       comment: data.comment,
-      imageRefs: data.images ? { images: data.images } : undefined,
+      imageRefs: data.images || [],
     });
     return res?.result || res?.data || res;
   },
@@ -531,11 +572,7 @@ export const customerService = {
     const next = entry.isDefault
       ? [...list.map((a) => ({ ...a, isDefault: false })), entry]
       : [...list, entry];
-    return this.updateProfile({
-      fullName: entry.fullName,
-      phoneNumber: entry.phoneNumber,
-      address: JSON.stringify(next),
-    });
+    return this.updateProfile({ address: JSON.stringify(next) });
   },
 
   async updateAddress(id: string, data: Partial<CustomerAddress>): Promise<any> {
@@ -560,7 +597,7 @@ export const customerService = {
     const me: any = unwrap(await api.get('/users/me'));
     const next = parseStoredAddresses(me).filter((a) => a.id !== id);
     if (next.length && !next.some((a) => a.isDefault)) next[0].isDefault = true;
-    return this.updateProfile({ address: next.length ? JSON.stringify(next) : null });
+    return this.updateProfile({ address: JSON.stringify(next) });
   },
 
   async setDefaultAddress(id: string): Promise<any> {

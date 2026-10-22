@@ -10,7 +10,7 @@ interface Props {
   product: Product;
   wished: boolean;
   onWishlist: () => void;
-  onPurchase: (intent: 'cart' | 'buy', variantId?: string) => void;
+  onPurchase: (intent: 'cart' | 'buy', variantId?: string, quantity?: number) => void;
   deal: React.ComponentProps<typeof LiveSessionDealBadge>['deal'];
   now: number;
 }
@@ -31,6 +31,7 @@ function variantChoiceCopy(names: string[]) {
 export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase, deal, now }: Props) {
   const [variantId, setVariantId] = useState('');
   const [choosing, setChoosing] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const choiceId = useId();
   const choiceRef = useRef<HTMLDivElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
@@ -41,6 +42,11 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
   const available = variants.length ? variants.some((candidate) => candidate.stockQuantity > 0) : (product.stockQuantity ?? 0) > 0;
   const selectedAvailable = !variant || variant.stockQuantity > 0;
   const needsSelection = choosing && !variant;
+  const selectedStock = Math.max(0, variant?.stockQuantity ?? product.stockQuantity ?? 0);
+
+  useEffect(() => {
+    setQuantity(current => Math.max(1, Math.min(current, selectedStock || 1)));
+  }, [variantId, selectedStock]);
 
   useEffect(() => {
     if (!choosing) return;
@@ -61,7 +67,7 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
       choiceRef.current?.scrollIntoView({ block: 'nearest' });
       return;
     }
-    onPurchase(intent, variant?.id);
+    onPurchase(intent, variant?.id, quantity);
   };
 
   return (
@@ -79,13 +85,20 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
       <div className="flex flex-1 flex-col p-3 sm:p-4">
         <Link to={product.storeId ? `/shops/${product.storeId}` : '/search'} className="mb-2 inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-[#7D715E] hover:text-[#B88E4F]"><Store size={13} className="shrink-0" /><span className="truncate">{product.brand}</span></Link>
         <h3 className="m-0 line-clamp-2 min-h-10 text-xs font-semibold leading-5 sm:text-sm"><Link to={`/products/${product.sku || product.id}`} className="hover:text-[#B88E4F]">{product.name}</Link></h3>
-        <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{available ? 'Sẵn hàng' : 'Tạm hết hàng'}</p>
+        <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{available ? `Còn ${selectedStock} sản phẩm${variant ? ' ở phân loại này' : ''}` : 'Tạm hết hàng'}</p>
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 border-t border-[#EAE4D7] pt-3"><strong className="text-sm text-[#1A1612] sm:text-base">{formatMoney(price)}</strong>{product.origPrice > price && <del className="text-[10px] text-[#7D715E]">{formatMoney(product.origPrice)}</del>}</div>
         {variants.length > 0 && (choosing || variantId) && <div ref={choiceRef} className="marketplace-variant-choice mt-3" data-required={needsSelection}>
           <label htmlFor={choiceId} className="block text-[10px] text-[#7D715E]">{choiceCopy.label}</label>
           <select ref={selectRef} id={choiceId} aria-required="true" aria-invalid={needsSelection} aria-describedby={needsSelection ? `${choiceId}-hint` : undefined} value={variantId} onChange={(event) => setVariantId(event.target.value)} className="marketplace-variant-select mt-1 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-medium text-[#1A1612] outline-[#C59B58]"><option value="">{choiceCopy.prompt}</option>{variants.map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.stockQuantity <= 0}>{candidate.name}{candidate.stockQuantity <= 0 ? ' · Hết hàng' : ''}</option>)}</select>
           {needsSelection && <p id={`${choiceId}-hint`} className="marketplace-variant-hint" role="alert"><CircleAlert size={13} aria-hidden="true" /><span>Vui lòng {choiceCopy.prompt.toLocaleLowerCase('vi-VN')} để tiếp tục.</span></p>}
         </div>}
+        {variant && <label className="mt-3 flex items-center justify-between gap-2 text-[11px] text-[#7D715E]">
+          <span>Số lượng thêm vào giỏ</span>
+          <input type="number" min={1} max={selectedStock} step={1} value={quantity}
+            disabled={selectedStock <= 0} aria-label={`Số lượng ${product.name}`}
+            onChange={event => setQuantity(Math.max(1, Math.min(selectedStock || 1, Math.floor(Number(event.target.value)) || 1)))}
+            className="w-16 rounded-lg border border-[#EAE4D7] bg-white px-2 py-2 text-center text-xs text-[#1A1612]" />
+        </label>}
         <div className="mt-3 grid grid-cols-[44px_1fr] gap-2">
           <button type="button" onClick={() => buy('cart')} disabled={!available || !selectedAvailable} aria-label={`Thêm ${product.name} vào giỏ`} title="Thêm vào giỏ" className="flex h-11 items-center justify-center rounded-xl border border-[#C59B58] text-[#B88E4F] hover:bg-[#FBF5EB] disabled:border-[#EAE4D7] disabled:text-[#7D715E] disabled:opacity-50"><ShoppingCart size={17} /></button>
           <button type="button" onClick={() => buy('buy')} disabled={!available} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#C59B58] px-2 text-center text-[10px] font-semibold leading-4 text-[#231D15] hover:bg-[#B88E4F] disabled:bg-[#F3EFE6] disabled:text-[#7D715E] sm:text-[11px]">{!available ? 'Hết hàng' : 'Mua ngay'}</button>

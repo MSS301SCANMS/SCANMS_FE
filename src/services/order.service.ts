@@ -133,6 +133,64 @@ export interface StoreOrdersResponse {
   };
 }
 
+const unwrapOrderResponse = (response: any) => response?.result ?? response?.data ?? response;
+const amount = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
+  const summary = checkout.sellerOrders?.find((seller: any) => seller.sellerOrderId === raw.sellerOrderId);
+  if (!summary || !Array.isArray(summary.items)) throw new Error('Chưa tải được sản phẩm trong đơn hàng. Vui lòng thử lại.');
+  const totals = summary.totalsSnapshot || raw.totalsSnapshot || {};
+  const ship = order.shippingSnapshot || {};
+  const items: StoreOrderItem[] = summary.items.map((item: any) => {
+    const product = item.productSnapshot || {};
+    return {
+      productId: item.productId,
+      title: product.title || product.name || 'Sản phẩm',
+      sku: product.sku || item.variantId || item.productId,
+      imageUrl: product.imageUrl,
+      quantity: amount(item.quantity),
+      unitPrice: amount(item.unitPrice),
+      appliedCommissionRate: amount(item.ruleSnapshot?.commissionRate),
+      calculatedCommissionAmount: amount(item.ruleSnapshot?.commissionAmountVnd),
+    };
+  });
+  const subtotal = summary.items.reduce((sum: number, item: any) => sum + amount(item.grossAmountVnd ?? amount(item.unitPrice) * amount(item.quantity)), 0);
+  const discount = summary.items.reduce((sum: number, item: any) => sum + amount(item.discountAmountVnd), 0);
+  // Spring checkout uses one configured shipping fee for each seller order.
+  const shipping = amount(totals.shippingFeeVnd ?? (amount(order.sagaState?.shippingFeeVnd) / Math.max(1, checkout.sellerOrders.length)));
+  const statusMap: Record<string, ManagedOrderStatus> = { CONFIRMED: 'PENDING', PROCESSING: 'PENDING', PACKING: 'PENDING', SHIPPED: 'SHIPPING' };
+  return {
+    id: raw.sellerOrderId,
+    externalOrderSn: checkout.publicOrderCode || raw.orderId,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    completedAt: raw.status === 'COMPLETED' ? raw.updatedAt : null,
+    deliveredAt: raw.deliveredAt || null,
+    status: statusMap[raw.status] || raw.status,
+    customerName: ship.name || ship.customerName || 'Khách hàng',
+    customerPhone: ship.phone || ship.customerPhone || '',
+    customerEmail: ship.email || ship.customerEmail || null,
+    shippingAddress: ship.address || ship.shippingAddress || '',
+    subtotalAmount: subtotal,
+    discountAmount: discount,
+    shippingFee: shipping,
+    finalAmount: amount(totals.netPaidVnd ?? subtotal - discount) + shipping,
+    paymentMethod: order.sagaState?.paymentMethod || ship.paymentMethod || '',
+    paymentStatus: ['PAID', 'PROCESSING', 'COMPLETED'].includes(order.status) ? 'PAID' : 'UNPAID',
+    ghnEnvironment: totals.shippingEnvironment === 'TEST' ? 'TEST' : 'LIVE',
+    trackingNumber: totals.trackingCode || null,
+    carrierName: totals.carrier || null,
+    store: { id: raw.storeId, name: totals.storeName || 'Gian hàng', slug: totals.storeSlug || raw.storeId },
+    attributedCollaborator: null,
+    couponCode: null,
+    totalCommission: items.reduce((sum, item) => sum + item.calculatedCommissionAmount, 0),
+    items,
+  };
+}
+
 export const orderService = {
   async getMyStoreOrders(params?: {
     status?: string;
@@ -144,8 +202,7 @@ export const orderService = {
   }, fresh = false): Promise<StoreOrdersResponse> {
     const response: any = await api.get("/seller-orders", {
       params: {
-        storeId: params?.storeId,
-        status: params?.status,
+        storeId: params?.storeId || localStorage.getItem('current_store_id') || undefined,
       },
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
@@ -156,15 +213,34 @@ export const orderService = {
         : Array.isArray(response)
           ? response
           : [];
-    const page = params?.page || 1;
-    const limit = params?.limit || 20;
+    // SellerOrderResponse is a summary. Resolve its order and line items before
+    // passing it to dashboard cards or the merchant order table.
+    const details = new Map<string, Promise<{ order: any; checkout: any }>>();
+    let mapped: StoreOrderRecord[] = await Promise.all(list.map(async (raw: any) => {
+      if (!raw.sellerOrderId) return { ...raw, items: Array.isArray(raw.items) ? raw.items : [], finalAmount: amount(raw.finalAmount) };
+      if (!details.has(raw.orderId)) details.set(raw.orderId, Promise.all([
+        api.get(`/orders/${raw.orderId}`, { headers: fresh ? { 'x-skip-cache': 'true' } : undefined }),
+        api.get(`/orders/${raw.orderId}/checkout-details`, { headers: fresh ? { 'x-skip-cache': 'true' } : undefined }),
+      ]).then(([order, checkout]) => ({ order: unwrapOrderResponse(order), checkout: unwrapOrderResponse(checkout) })));
+      const detail = await details.get(raw.orderId)!;
+      return mapSellerOrder(raw, detail.order, detail.checkout);
+    }));
+    if (params?.status) mapped = mapped.filter(order => order.status === params.status);
+    if (params?.paymentStatus) mapped = mapped.filter(order => order.paymentStatus === params.paymentStatus);
+    if (params?.search?.trim()) {
+      const query = params.search.trim().toLocaleLowerCase();
+      mapped = mapped.filter(order => [order.id, order.externalOrderSn, order.customerName, order.customerPhone,
+        ...order.items.map(item => item.title)].some(value => value?.toLocaleLowerCase().includes(query)));
+    }
+    const page = Math.max(1, params?.page || 1);
+    const limit = Math.max(1, params?.limit || 20);
     return {
-      items: list,
+      items: mapped.slice((page - 1) * limit, page * limit),
       pagination: {
-        total: list.length,
+        total: mapped.length,
         page,
         limit,
-        totalPages: Math.max(1, Math.ceil(list.length / limit)),
+        totalPages: Math.max(1, Math.ceil(mapped.length / limit)),
       },
     };
   },
@@ -178,40 +254,17 @@ export const orderService = {
       note?: string;
     },
   ) {
-    // Map FE statuses → SellerOrderStatus query param
-    const statusMap: Record<string, string> = {
-      PENDING: 'PENDING',
-      SHIPPING: 'SHIPPED',
-      DELIVERED: 'DELIVERED',
-      COMPLETED: 'COMPLETED',
-      CANCELLED: 'CANCELLED',
-      RETURN_REQUESTED: 'RETURN_REQUESTED',
-      RETURNED: 'RETURNED',
-      DISPUTED: 'DISPUTED',
-    };
-    const status = statusMap[data.status] || data.status;
-    const response: any = await api.patch(`/seller-orders/${orderId}/status`, null, {
-      params: { status },
-    });
-    if (data.trackingNumber) {
-      try {
-        const shipment: any = await api.get(`/shipments/by-seller-order/${orderId}`);
-        const shipmentData = shipment?.result ?? shipment?.data ?? shipment;
-        const shipmentId = shipmentData?.shipmentId || shipmentData?.id;
-        if (!shipmentId) throw new Error('Chưa có vận đơn để lưu mã theo dõi.');
-        if (shipmentId) {
-          await api.patch(`/shipments/${shipmentId}/status`, null, {
-            params: {
-              status: 'IN_TRANSIT',
-              carrier: data.carrierName,
-              trackingCode: data.trackingNumber,
-            },
-          });
-        }
-      } catch {
-        throw new Error('Trạng thái đơn đã cập nhật nhưng thông tin vận đơn chưa lưu. Hãy kiểm tra vận đơn trước khi gửi lại.');
-      }
+    let response: any;
+    if (data.status === 'SHIPPING') {
+      response = await api.post(`/commerce/seller-orders/${orderId}/dispatch`, {
+        environment: 'MANUAL', carrier: data.carrierName, trackingCode: data.trackingNumber,
+      });
+    } else if (data.status === 'DELIVERED') {
+      response = await api.post(`/commerce/seller-orders/${orderId}/delivered`);
+    } else {
+      throw new Error('Thao tác này chưa được hỗ trợ. Hãy xử lý theo trạng thái giao hàng hiện tại.');
     }
+
     return {
       message: 'Cập nhật trạng thái đơn thành công',
       order: response?.result || response?.data || response,
