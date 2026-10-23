@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { getSessionId } from '../../services/auth-session';
-import { getProductReferral } from '../../utils/referral-attribution';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckoutOrderConfirmation, type CheckoutOrderResult } from './CheckoutOrderConfirmation';
 import { CheckoutItemsSection } from './CheckoutItemsSection';
@@ -107,7 +106,6 @@ interface GuestCheckoutModalProps {
   initialQuantity?: number;
   initialCouponCode?: string;
   initialVariantId?: string;
-  initialLiveSessionId?: string;
   onOrderPlaced?: (orderData: any) => void;
   onPaymentConfirmed?: (orderData: any) => void;
 }
@@ -138,7 +136,6 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   initialQuantity = 1,
   initialCouponCode = '',
   initialVariantId,
-  initialLiveSessionId,
   onOrderPlaced,
   onPaymentConfirmed,
 }) => {
@@ -389,7 +386,6 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
           cartItemId: `${product.id}_${selectedVariantId || 'base'}`,
           productId: product.id,
           variantId: selectedVariantId,
-          liveSessionId: initialLiveSessionId,
           variantName: matchedVariant?.name,
           title: product.title,
           sku: matchedVariant?.sku || product.sku || '',
@@ -414,7 +410,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     }
 
     return [];
-  }, [checkoutItems, product, store, selectedVariantId, singleQuantity, initialLiveSessionId]);
+  }, [checkoutItems, product, store, selectedVariantId, singleQuantity]);
 
   // Group active items by Shop
   const itemsGroupedByShop = useMemo(() => {
@@ -1153,7 +1149,6 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         activeItems.map(async (item) => ({
           productId: item.productId,
           liveSessionId: item.liveSessionId,
-          referralLinkId: getProductReferral(item.productId),
           variantId: await resolveOrderVariantId(item),
           quantity: item.quantity,
         })),

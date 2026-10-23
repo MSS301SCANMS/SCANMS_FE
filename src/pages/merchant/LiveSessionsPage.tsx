@@ -105,6 +105,16 @@ type Catalog = {
   defaultCommissionRate: number;
 };
 
+function CreatorAvatar({ creator, className }: { creator: Creator; className: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (creator.avatarUrl && !imageFailed) {
+    return <img src={creator.avatarUrl} alt={creator.fullName} onError={() => setImageFailed(true)} className={`${className} rounded-full border border-[#EEDFC6] object-cover bg-white`} />;
+  }
+  return <div role="img" aria-label={creator.fullName} className={`${className} flex items-center justify-center rounded-full border border-[#EEDFC6] bg-[#FBF5EB] font-bold text-[#9B7137]`}>
+    {(creator.fullName.trim().charAt(0) || 'K').toLocaleUpperCase('vi-VN')}
+  </div>;
+}
+
 const currency = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')} ₫`;
 const localDateTime = (value: string) =>
   new Date(value).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
@@ -194,6 +204,7 @@ export default function LiveSessionsPage({
   const [activeTab, setActiveTab] = useState<'history' | 'create'>('history');
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
   const [catalog, setCatalog] = useState<Catalog>({ products: [], creators: [], defaultCommissionRate: 10 });
+  const [collaboratorLoadError, setCollaboratorLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -324,10 +335,10 @@ export default function LiveSessionsPage({
           throw new Error('Tài khoản chưa có gian hàng. Hãy hoàn tất hồ sơ và chờ quản lý duyệt.');
         }
 
-        const [productsRes, partnerCatalog, invitations] = await Promise.all([
-          productService.getProducts({ storeId: sId }, true),
-          partnershipInvitationsService.catalog(),
-          partnershipInvitationsService.list('shop'),
+        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
+          api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
+          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
+          loadSessions(sId),
         ]);
         if (!active) return;
         const products = productsRes.items.filter(product => product.isActive).map(p => ({ ...p, variants: p.variants || [] }));
@@ -346,6 +357,29 @@ export default function LiveSessionsPage({
         catalogRef.current = nextCatalog;setCatalog(nextCatalog);
         const loadedSessions = await loadSessions(sId);
         if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
+        const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
+        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
+        const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
+          id: p.productId || p.id,
+          title: p.title || p.name || 'Sản phẩm',
+          imageUrl: p.imageUrl || p.thumbnailUrl || null,
+          price: p.price ?? p.basePrice ?? 0,
+        }));
+        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
+          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
+          .map((c: any) => ({
+            id: c.collaboratorId || c.id || c.userId,
+            fullName: c.displayName || c.fullName || c.username || 'KOL',
+            avatarUrl: c.avatarUrl || null,
+            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
+            socialChannels: c.socialChannels || [],
+            baseRate: c.baseRate ?? 10,
+            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
+            isExclusiveVip: Boolean(c.isExclusiveVip),
+            exclusiveDealRate: c.exclusiveDealRate,
+            campaignBonusRate: c.campaignBonusRate || 0,
+          }));
+        setCatalog({ products, creators, defaultCommissionRate: 10 });
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',
@@ -913,14 +947,7 @@ export default function LiveSessionsPage({
                       {/* KOL & Voucher Row */}
                       <div className="grid grid-cols-2 gap-2 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-2.5 text-xs">
                         <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={session.creator.avatarUrl || getFallbackAvatar(session.creator.id, session.creator.fullName)}
-                            alt={session.creator.fullName}
-                            className="h-7 w-7 rounded-full border border-[#EEDFC6] object-cover shrink-0"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = getFallbackAvatar(session.creator.id, session.creator.fullName);
-                            }}
-                          />
+                          <CreatorAvatar creator={session.creator} className="h-7 w-7 shrink-0 text-[10px]" />
                           <div className="min-w-0">
                             <span className="block text-[10px] text-[#7D715E]">KOL hợp tác</span>
                             <span className="mt-0.5 block truncate font-bold text-[#1A1612]">
@@ -1123,9 +1150,7 @@ export default function LiveSessionsPage({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <span className="text-xs font-bold text-[#1A1612]">Chọn KOL hợp tác phát sóng *</span>
-                  <p className="text-[11px] text-[#7D715E]">
-                    Ưu tiên hiển thị Đối tác VIP đã chốt Deal độc quyền hoặc đang trong Chiến dịch.
-                  </p>
+                  <p className="text-[11px] text-[#7D715E]">Chỉ hiển thị KOL đã đồng ý hợp tác với gian hàng này.</p>
                 </div>
                 {selectedCreator && !isChangingKol && (
                   <button
@@ -1144,14 +1169,7 @@ export default function LiveSessionsPage({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="relative shrink-0">
-                        <img
-                          src={selectedCreator.avatarUrl || getFallbackAvatar(selectedCreator.id, selectedCreator.fullName)}
-                          alt={selectedCreator.fullName}
-                          className="h-13 w-13 rounded-full border-2 border-[#C59B58] object-cover bg-white shadow-2xs"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = getFallbackAvatar(selectedCreator.id, selectedCreator.fullName);
-                          }}
-                        />
+                        <CreatorAvatar creator={selectedCreator} className="h-13 w-13 text-lg shadow-2xs" />
                         {selectedCreator.isExclusiveVip && (
                           <div className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#C59B58] text-white shadow-xs" title="Đối tác VIP có Deal riêng">
                             <Crown className="h-3 w-3 fill-current" />
@@ -1270,13 +1288,14 @@ export default function LiveSessionsPage({
                   {/* KOL Cards List */}
                   {filteredCreators.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[#EAE4D7] p-6 text-center text-xs text-[#7D715E]">
-                      Không tìm thấy KOL đối tác nào khớp với tìm kiếm.
+                      {collaboratorLoadError || (kolSearch.trim()
+                        ? 'Không tìm thấy KOL nào khớp với từ khóa.'
+                        : 'Chưa có KOL đồng ý hợp tác với gian hàng này.')}
                     </div>
                   ) : (
                     <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3 pr-1">
                       {filteredCreators.map((c) => {
                         const isSelected = form.creatorId === c.id;
-                        const avatarSrc = c.avatarUrl || getFallbackAvatar(c.id, c.fullName);
                         const effectiveRate = c.currentEffectiveRate ?? c.baseRate ?? catalog.defaultCommissionRate ?? 10;
 
                         return (
@@ -1296,14 +1315,7 @@ export default function LiveSessionsPage({
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="relative shrink-0">
-                                <img
-                                  src={avatarSrc}
-                                  alt={c.fullName}
-                                  className="h-10 w-10 rounded-full border border-[#EEDFC6] object-cover bg-white shadow-2xs"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = getFallbackAvatar(c.id, c.fullName);
-                                  }}
-                                />
+                                <CreatorAvatar creator={c} className="h-10 w-10 shrink-0 text-sm shadow-2xs" />
                                 {c.isExclusiveVip && (
                                   <div className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#C59B58] text-white" title="Đối tác VIP">
                                     <Crown className="h-2.5 w-2.5 fill-current" />
@@ -1699,14 +1711,7 @@ export default function LiveSessionsPage({
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#EAE4D7] p-5">
               <div className="flex items-center gap-3">
-                  <img
-                    src={detailModalSession.creator.avatarUrl || getFallbackAvatar(detailModalSession.creator.id, detailModalSession.creator.fullName)}
-                    alt={detailModalSession.creator.fullName}
-                    className="h-10 w-10 rounded-full border border-[#EEDFC6] object-cover shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = getFallbackAvatar(detailModalSession.creator.id, detailModalSession.creator.fullName);
-                    }}
-                  />
+                  <CreatorAvatar creator={detailModalSession.creator} className="h-10 w-10 shrink-0 text-sm" />
                 <div>
                   <h3 className="text-base font-extrabold text-[#1A1612]">{detailModalSession.title}</h3>
                   <p className="text-xs text-[#7D715E]">

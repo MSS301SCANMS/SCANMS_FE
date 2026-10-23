@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import puppeteer from 'puppeteer-core';
@@ -14,7 +14,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
  let failQuote=true;const creates=[],payments=[],errors=[];let page;
  try{
   page=await browser.newPage();page.on('pageerror',e=>{if(!e.message.includes('WebSocket closed without opened'))errors.push(e.message)});
-  await page.evaluateOnNewDocument((productId)=>{localStorage.clear();sessionStorage.clear();sessionStorage.setItem('scanms-product-referral:'+productId,'fixture-referral');localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));},productId);
+  await page.evaluateOnNewDocument(()=>{localStorage.clear();localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));});
   await page.setRequestInterception(true);
   page.on('request',request=>{
    const url=new URL(request.url());
@@ -39,7 +39,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
     const source=await(await fetch('/src/components/checkout/GuestCheckoutModal.tsx')).text();const main=await(await fetch('/src/main.tsx')).text();
     const React=await import(source.match(/["]([^"]*deps.react[.]js[^"]*)["]/)[1]);const dom=await import(main.match(/["]([^"]*react-dom_client[.]js[^"]*)["]/)[1]);const {BrowserRouter}=await import(source.match(/["]([^"]*react-router-dom[.]js[^"]*)["]/)[1]);
     const {CartProvider}=await import(source.match(/["]([^"]*CartContext[.]tsx[^"]*)["]/)[1]);const {ScanmsChatProvider}=await import(source.match(/["]([^"]*ScanmsChatContext[.]tsx[^"]*)["]/)[1]);const {GuestCheckoutModal}=await import('/src/components/checkout/GuestCheckoutModal.tsx');
-    const h=React.createElement||React.default.createElement;(dom.createRoot||dom.default.createRoot)(document.getElementById('root')).render(h(BrowserRouter,null,h(CartProvider,null,h(ScanmsChatProvider,null,h(GuestCheckoutModal,{isOpen:true,onClose:()=>{window.checkoutClosed=true},onOrderPlaced:order=>{window.placed=order},initialLiveSessionId:'live-checkout-fixture',initialVariantId:'${variantId}',product:{id:'${productId}',title:'Test shirt',price:269000,stockQuantity:10},store:{id:'${storeId}',name:'Test shop'}})))));
+    const h=React.createElement||React.default.createElement;(dom.createRoot||dom.default.createRoot)(document.getElementById('root')).render(h(BrowserRouter,null,h(CartProvider,null,h(ScanmsChatProvider,null,h(GuestCheckoutModal,{isOpen:true,onClose:()=>{window.checkoutClosed=true},onOrderPlaced:order=>{window.placed=order},initialVariantId:'${variantId}',product:{id:'${productId}',title:'Test shirt',price:269000,stockQuantity:10},store:{id:'${storeId}',name:'Test shop'}})))));
    </script></body></html>`});
    if(url.origin!==origin&&!['data:','blob:'].includes(url.protocol))return request.abort();return request.continue();
   });
@@ -52,10 +52,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
   assert.match(await page.$eval('.checkout-total-final',e=>e.textContent),/299\.000/);
   await page.$eval('button.checkout-submit',e=>e.click());await page.waitForFunction(()=>window.placed);
   assert.equal(creates.length,1);assert.equal(creates[0].expectedShippingFeeVnd,30000);assert.equal(creates[0].paymentMethod,'WALLET');
-  assert.equal(creates[0].items[0].referralLinkId,'fixture-referral','Checkout must carry the product referral to server validation');
-  assert.equal(creates[0].items[0].sourceLivestreamId,'live-checkout-fixture','Choosing a product variant after leaving live must retain the live source');
   assert.equal(payments.length,1);assert.equal(payments[0].orderId,'shipping-order');assert.equal(payments[0].amountVnd,undefined,'Payment must read total from order, not trust a browser amount');
   assert.equal(await page.evaluate(()=>window.placed.totalAmount),299000);assert.deepEqual(errors,[]);
  }catch(error){console.error('Shipping fixture:',errors,await page?.evaluate(()=>document.body.innerText.slice(-1600)));throw error;}finally{await browser.close();}
 });
-

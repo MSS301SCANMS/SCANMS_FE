@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, ImagePlus, Loader2, Upload, Video, X } from 'lucide-react';
 import { customerService, type CustomerOrder, type CustomerReturnRequest } from '../../services/customer.service';
 import { uploadService } from '../../services/upload.service';
@@ -19,17 +19,6 @@ const reasons: Array<{ value: CustomerReturnRequest['reason']; label: string }> 
 ];
 
 export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
-  const eligible = order.orderItems.filter(item => (item.returnableQuantity ?? item.quantity) > 0);
-  const [selectedIds, setSelectedIds] = useState<string[]>(eligible[0] ? [eligible[0].id] : []);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const allCheckbox = useRef<HTMLInputElement>(null);
-  const allSelected = eligible.length > 0 && selectedIds.length === eligible.length;
-  const [requestStarted, setRequestStarted] = useState(false);
-  const [completedIds, setCompletedIds] = useState<string[]>([]);
-  type ReturnInput = Parameters<typeof customerService.createReturnRequest>[1];
-  const submission = useRef<ReturnInput[] | null>(null);
-  const completed = useRef(new Map<string, CustomerReturnRequest>());
-  const savedEvidence = useRef<{ imageUrls: string[]; unboxingVideoUrl: string } | null>(null);
   const [reason, setReason] = useState<CustomerReturnRequest['reason']>('DAMAGED');
   const [details, setDetails] = useState('');
   const [images, setImages] = useState<File[]>([]);
@@ -52,12 +41,6 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (submitting) return;
-    const selected = eligible.filter(item => selectedIds.includes(item.id));
-    if (!selected.length || selected.some(item => {
-      const quantity = quantities[item.id] ?? 1;
-      return !Number.isInteger(quantity) || quantity < 1 || quantity > (item.returnableQuantity ?? item.quantity);
-    })) { toast.error('Chọn sản phẩm và số lượng hợp lệ'); return; }
     if (images.length === 0 || !video) {
       toast.error('Vui lòng cung cấp ít nhất 1 ảnh và video mở hộp');
       return;
@@ -67,28 +50,13 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
       const imageUrls = savedEvidence.current?.imageUrls || await Promise.all(
         images.map((file) => uploadService.uploadImage(file, `scanms/returns/${order.id}/images`)),
       );
-      const unboxingVideoUrl = savedEvidence.current?.unboxingVideoUrl || await uploadService.uploadVideo(video, `scanms/returns/${order.id}/video`);
-      savedEvidence.current = { imageUrls, unboxingVideoUrl };
-      if (!submission.current) {
-        submission.current = selected.map(item => ({
-          orderItemId: item.id,
-          quantity: quantities[item.id] ?? 1,
-          idempotencyKey: crypto.randomUUID(),
-          reason,
-          details: details.trim() || undefined,
-          imageUrls,
-          unboxingVideoUrl,
-        }));
-        setRequestStarted(true);
-      }
-      // Persist each item's key and completed response so a partial retry never creates it twice.
-      for (const input of submission.current) {
-        const id = input.orderItemId!;
-        if (completed.current.has(id)) continue;
-        const result = await customerService.createReturnRequest(order.id, input);
-        completed.current.set(id, result.returnRequest);
-        setCompletedIds([...completed.current.keys()]);
-      }
+      const unboxingVideoUrl = await uploadService.uploadVideo(video, `scanms/returns/${order.id}/video`);
+      const result = await customerService.createReturnRequest(order.id, {
+        reason,
+        details: details.trim() || undefined,
+        imageUrls,
+        unboxingVideoUrl,
+      });
       toast.success('Đã gửi yêu cầu trả hàng/hoàn tiền tới gian hàng');
       onSubmitted([...completed.current.values()].at(-1)!);
     } catch (error: any) {
@@ -100,7 +68,7 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
 
   return (
     <div className="fixed inset-0 z-[70] bg-[#231D15]/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-[#EAE4D7] shadow-2xl p-6 text-left">
+      <form onChange={() => { requestKey.current = crypto.randomUUID(); savedEvidence.current = null; }} onSubmit={submit} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-[#EAE4D7] shadow-2xl p-6 text-left">
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAE4D7]">
           <div>
             <h2 className="text-lg font-black text-[#1A1612]">Yêu cầu trả hàng / hoàn tiền</h2>
@@ -114,31 +82,7 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
           <span>Ảnh tình trạng sản phẩm và video mở hộp là bằng chứng bắt buộc. SCANMS lưu hồ sơ để gian hàng xử lý minh bạch.</span>
         </div>
 
-        <fieldset disabled={submitting || requestStarted} className="mt-4 space-y-4 min-w-0">
-          <fieldset className="min-w-0">
-            <legend className="text-xs font-bold">Sản phẩm cần trả</legend>
-            <label className="flex items-center gap-2 mt-3 mb-2 text-xs font-bold cursor-pointer">
-              <input ref={allCheckbox} type="checkbox" checked={allSelected} disabled={!eligible.length} onChange={e => setSelectedIds(e.target.checked ? eligible.map(item => item.id) : [])} className="h-4 w-4 accent-[#B88E4F]" />
-              Chọn tất cả ({eligible.length})
-            </label>
-            <div className="space-y-2">
-              {eligible.map(item => {
-                const title = item.product?.title || item.productId;
-                const selected = selectedIds.includes(item.id);
-                return <div key={item.id} className={`rounded-xl border p-3 ${selected ? 'border-[#C59B58] bg-[#FBF5EB]' : 'border-[#EAE4D7]'}`}>
-                  <label className="flex items-start gap-3 text-xs cursor-pointer">
-                    <input type="checkbox" aria-label={`Trả ${title}`} checked={selected} onChange={e => setSelectedIds(ids => e.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))} className="h-4 w-4 shrink-0 accent-[#B88E4F]" />
-                    <span className="min-w-0"><strong className="block">{title}</strong><span className="block mt-1 text-[#7D715E]">Còn được trả {item.returnableQuantity ?? item.quantity}</span></span>
-                  </label>
-                  {selected && <label className="flex items-center justify-between gap-3 mt-3 text-xs">Số lượng trả
-                    <input aria-label={`Số lượng trả ${title}`} type="number" min={1} max={item.returnableQuantity ?? item.quantity} required value={quantities[item.id] ?? 1} onChange={e => setQuantities(values => ({ ...values, [item.id]: Number(e.target.value) }))} className="w-20 rounded-lg border border-[#EAE4D7] bg-white p-2" />
-                  </label>}
-                  {completedIds.includes(item.id) && <p className="mt-2 text-xs font-bold text-green-700">Đã gửi yêu cầu</p>}
-                </div>;
-              })}
-            </div>
-            <p className="mt-2 text-xs text-[#7D715E]" role="status">Đã chọn {selectedIds.length}/{eligible.length} sản phẩm. Mỗi sản phẩm được theo dõi và tính tiền hoàn riêng.</p>
-          </fieldset>
+        <div className="mt-4 space-y-4">
           <label className="block text-xs font-bold text-[#1A1612]">Lý do
             <div className="mt-1.5">
               <Select value={reason} onChange={(e) => setReason(e.target.value as CustomerReturnRequest['reason'])} className="w-full text-xs font-medium">

@@ -156,13 +156,15 @@ export function PublicHeader({
   const isKol = role === 'COLLABORATOR';
   const isShop = role === 'SHOP_MANAGER';
   const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
+  // Trang chủ khu quản trị — khớp với điều hướng sau đăng nhập.
+  const adminHomePath = role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
 
   const workspacePath = isCustomer
     ? '/customer/orders'
     : isShop
     ? '/merchant/dashboard'
     : isAdmin
-    ? '/admin/users'
+    ? adminHomePath
     : '/collaborator/dashboard';
 
   const workspaceLabel = isCustomer

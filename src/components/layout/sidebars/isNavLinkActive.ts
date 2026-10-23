@@ -1,4 +1,8 @@
 export function isNavLinkActive(path: string, currentPath: string, search: string): boolean {
+  if (path === '/merchant/payouts') {
+    return ['/merchant/payouts', '/merchant/wallet', '/merchant/settlements', '/shop/wallet'].includes(currentPath)
+      || /^\/stores\/[^/]+\/payouts$/.test(currentPath);
+  }
   if (path.startsWith('/customer')) {
     if (path === '/customer/orders') {
       return (
