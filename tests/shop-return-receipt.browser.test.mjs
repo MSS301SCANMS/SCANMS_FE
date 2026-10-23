@@ -41,6 +41,12 @@ test('shop receipt queue separates arrived parcels, retries failures and waits f
     });
     await page.goto(origin+'/merchant/returns',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('[aria-label="Nhận hàng trả"] button');
+    assert.equal(await page.$$eval('[aria-label="Danh sách yêu cầu"]>button',nodes=>nodes.length),1,'arrived and in-transit items in the same order must share one card');
+    assert.equal(await page.$$eval('[aria-label="Chọn sản phẩm trả hàng"] input',nodes=>nodes.length),2);
+    await page.click('[aria-label="Sản phẩm trả trong đơn"] > label input');
+    assert.equal(await page.$$eval('[aria-label="Chi tiết yêu cầu"]',nodes=>nodes.length),2);
+    assert.equal(await page.$$eval('[aria-label="Nhận hàng trả"] button',nodes=>nodes.length),1,'selecting both cannot enable receipt of a parcel still in transit');
+    assert.deepEqual(writes,[],'select all must never confirm receipt or trigger a refund');
     const filter=label=>page.evaluate(label=>[...document.querySelectorAll('[aria-label="Lọc yêu cầu đổi trả"] button')].find(button=>button.textContent===label).click(),label);
     await filter('Đang trả về');
     assert.equal(await page.$$eval('[aria-label="Danh sách yêu cầu"]>button',nodes=>nodes.length),1);
@@ -54,6 +60,7 @@ test('shop receipt queue separates arrived parcels, retries failures and waits f
     await page.$eval('[aria-label="Nhận hàng trả"] button',button=>{button.click();button.click();});
     await page.waitForFunction(()=>!document.querySelector('[aria-label="Nhận hàng trả"]'));
     assert.equal(writes.length,2,'Double clicking must cause only one receipt retry');
+    assert.equal(rows[1].status,'RETURNING','receiving one item must not receive another item in the same order');
     await filter('Hoàn tiền');
     await page.waitForSelector('[aria-label="Chi tiết yêu cầu"]');
     const details=await page.$eval('[aria-label="Chi tiết yêu cầu"]',node=>node.innerText);

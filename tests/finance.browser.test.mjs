@@ -85,7 +85,7 @@ test('payment return ignores success query parameters and trusts the server stat
     if (url.pathname.endsWith('/payments/payment')) return { paymentId: 'payment', purpose: 'TOP_UP', amountVnd: 50000, currency: 'VND', status: state, checkoutUrl: 'https://pay.payos.vn/web/test', qrCode: 'test-qr', expiresAt: '2026-10-03T00:00:00' };
   });
   try {
-    await page.goto(`${base}/payment/payos-return?payment=payment&status=PAID&code=00`); await page.waitForFunction(() => document.body.textContent.includes('Đang xử lý'));
+    await page.goto(`${base}/payment/payos-return?payment=payment&order=untrusted-order&status=PAID&code=00`); await page.waitForFunction(() => document.body.textContent.includes('Đang xử lý'));
     assert.ok(!(await page.evaluate(() => document.body.textContent)).includes('đã xác minh thành công'));
     state = 'SUCCESS'; await clickText(page, 'Kiểm tra lại'); await page.waitForFunction(() => document.body.textContent.includes('Tiền đã được cộng vào ví'));
     assert.equal(await page.$('a[href="https://pay.payos.vn/web/test"]'), null);

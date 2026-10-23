@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { orderService } from '../../../services/order.service';
+import { storeService } from '../../../services/store.service';
 import { notificationsService } from '../../../services/notifications.service';
 import { useCustomerVouchers } from '../../../hooks/useCustomerVouchers';
 import { useCustomerWishlist } from '../../../hooks/useCustomerWishlist';
@@ -17,16 +18,21 @@ export function useSidebarBadges(role: WorkspaceNavRole, userId?: string, curren
 
   useEffect(() => {
     let mounted = true;
-    if (role === 'SHOP_MANAGER') {
-      orderService
-        .getMyStoreOrders({ status: 'PENDING', limit: 1 })
-        .then((res) => {
-          if (mounted && res?.pagination?.total !== undefined) {
-            setPendingOrdersCount(res.pagination.total);
-          }
-        })
-        .catch(() => {});
-    }
+    setPendingOrdersCount(null);
+    setUnreadNotifs({});
+    const loadShopOrders = async () => {
+      if (role !== 'SHOP_MANAGER' || !userId) return;
+      try {
+        const stores = await storeService.listMyStores(true);
+        if (!mounted) return;
+        const selected = localStorage.getItem('current_store_id');
+        const store = stores.find(item => item.id === selected) || stores[0];
+        if (!store) { setPendingOrdersCount(null); return; }
+        const result = await orderService.getMyStoreOrders({ storeId: store.id, status: 'PENDING', limit: 1 });
+        if (mounted) setPendingOrdersCount(result.pagination?.total ?? null);
+      } catch { if (mounted) setPendingOrdersCount(null); }
+    };
+    void loadShopOrders();
     notificationsService
       .getUnreadDetails()
       .then((res) => {
@@ -37,16 +43,7 @@ export function useSidebarBadges(role: WorkspaceNavRole, userId?: string, curren
       .catch(() => {});
 
     const handleOrderUpdate = () => {
-      if (role === 'SHOP_MANAGER') {
-        orderService
-          .getMyStoreOrders({ status: 'PENDING', limit: 1 })
-          .then((res) => {
-            if (mounted && res?.pagination?.total !== undefined) {
-              setPendingOrdersCount(res.pagination.total);
-            }
-          })
-          .catch(() => {});
-      }
+      void loadShopOrders();
     };
     window.addEventListener('scanms_order_updated', handleOrderUpdate);
     window.addEventListener('scanms_notification_received', handleOrderUpdate);
@@ -55,7 +52,7 @@ export function useSidebarBadges(role: WorkspaceNavRole, userId?: string, curren
       window.removeEventListener('scanms_order_updated', handleOrderUpdate);
       window.removeEventListener('scanms_notification_received', handleOrderUpdate);
     };
-  }, [role]);
+  }, [role, userId]);
 
   const getItemBadge = (path: string, staticBadge?: string) => {
     if (path === '/customer/wishlist') {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { captureProductReferral } from '../../utils/referral-attribution';
 import {
   ShoppingBag,
   ShieldCheck,
@@ -373,6 +374,11 @@ export default function ProductDetailPage() {
 
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const liveSource = searchParams.get('live') || '';
+  const sourceLivestreamId = /^[A-Za-z0-9_-]{1,100}$/.test(liveSource) ? liveSource : undefined;
+  useEffect(() => {
+    if (data?.product?.id) captureProductReferral(data.product.id, searchParams.get('ref'));
+  }, [data?.product?.id, searchParams]);
   const isCheckoutParam = searchParams.get('checkout') === '1' || searchParams.get('checkout') === 'true';
   const isCheckoutOpen = isCheckoutParam;
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -1029,6 +1035,7 @@ export default function ProductDetailPage() {
         policyShipping: policies?.shipping,
       },
       variantId: selectedVariant?.id,
+      liveSessionId: sourceLivestreamId,
       quantity,
       openCartAfterAdd: true,
     });
@@ -2154,6 +2161,7 @@ export default function ProductDetailPage() {
             policyShipping: policies?.shipping,
           }}
           initialVariantId={selectedVariant?.id}
+          initialLiveSessionId={sourceLivestreamId}
           initialQuantity={quantity}
           initialCouponCode={appliedCoupon?.code || ''}
           onOrderPlaced={(order) => {

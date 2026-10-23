@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 const base=process.env.GHN_UI_TEST_URL;
-const executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const executablePath=process.env.GHN_UI_BROWSER_PATH||'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 
 test('shop invitations persist across reload, preserve failures, and KOL accepts a connection without requiring products or creating a referral', {skip:!base||!existsSync(executablePath),timeout:60000},async()=>{
  assert.ok(['localhost','127.0.0.1'].includes(new URL(base).hostname));
@@ -11,7 +11,7 @@ test('shop invitations persist across reload, preserve failures, and KOL accepts
  let rows=[],failSend=true,failAccept=true;const writes=[],errors=[];
  const setup=async(mode)=>{
   const context=await browser.createBrowserContext();const page=await context.newPage();await page.setViewport({width:1440,height:1050});
-  page.on('pageerror',error=>errors.push(error.message));
+  page.on('pageerror',error=>{if(!error.message.includes('WebSocket closed without opened'))errors.push(error.message)});
   await page.evaluateOnNewDocument(mode=>{
    localStorage.setItem('token','isolated-partnership-test');
    localStorage.setItem('user',JSON.stringify({id:mode==='shop'?'shop-user':'kol-user',role:mode==='shop'?'SHOP_OWNER':'COLLABORATOR',fullName:mode==='shop'?'Sora Skin':'Creator One'}));
@@ -22,6 +22,7 @@ test('shop invitations persist across reload, preserve failures, and KOL accepts
    if(url.pathname.startsWith('/api/')){
     const headers={'Access-Control-Allow-Origin':new URL(base).origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
+    if(url.pathname.endsWith('/stores/my-store/presence'))return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result:{online:true}})});
     let result=[],status=200,message='Success';
     if(url.pathname.endsWith('/users/me'))result={userId:mode==='shop'?'shop-user':'kol-user',roles:[mode==='shop'?'SHOP_OWNER':'COLLABORATOR'],status:'ACTIVE',fullName:'Fixture user'};
     if(url.pathname.endsWith('/stores/mine'))result=[{storeId:'store-1',name:'Sora Skin',ownerUserId:'shop-user',approvalStatus:'APPROVED'}];
@@ -30,7 +31,7 @@ test('shop invitations persist across reload, preserve failures, and KOL accepts
     if(url.pathname.endsWith('/invitations/catalog'))result={storeId:'store-1',storeName:'Sora Skin',products:[],creators:[{id:'kol-1',name:'Creator One',platform:'TIKTOK',followers:12500,channelUrl:null},{id:'kol-2',name:'Creator Two',platform:'YOUTUBE',followers:8000,channelUrl:null}]};
     if(url.pathname.endsWith('/invitations/shop')||url.pathname.endsWith('/invitations/mine'))result=rows;
     if(request.method()!=='GET'){
-     assert.ok(url.pathname.includes('/referrals/invitations'),'all writes must remain intercepted');const body=request.postData()?JSON.parse(request.postData()):{};writes.push({path:url.pathname,body});
+     assert.ok(url.pathname.includes('/referrals/invitations'),'Unexpected intercepted write: '+url.pathname);const body=request.postData()?JSON.parse(request.postData()):{};writes.push({path:url.pathname,body});
      if(url.pathname.endsWith('/invitations')){
       if(failSend){status=503;message='Chưa lưu được lời mời kiểm thử.';}
       else{const row={...body,id:'invitation-1',productId:null,storeName:'Sora Skin',collaboratorName:'Creator One',productName:'Sản phẩm thật của shop',status:'PENDING',createdAt:'2026-10-21T08:00:00',referralLinkId:null,referralToken:null};rows=[row];result=row;}

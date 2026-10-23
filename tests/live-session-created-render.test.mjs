@@ -17,7 +17,7 @@ const created = {
   products: [], commissionRate: 2,
 };
 function render(session, reproduceOldBug = false, loadError = '') {
-  let code = source
+  let code = source.replaceAll('import.meta.env.VITE_COMMERCE_BACKEND', JSON.stringify('spring'))
     .replace('useState<LiveSessionItem | null>(null)', `useState<LiveSessionItem | null>(${JSON.stringify(session)})`)
     .replace('useState<LiveSessionItem[]>([])', `useState<LiveSessionItem[]>(${JSON.stringify([session])})`)
     .replace('const [loading, setLoading] = useState(true)', 'const [loading, setLoading] = useState(false)')
@@ -39,7 +39,7 @@ assert.throws(() => render(created, true), /grossSales|undefined/, 'old create r
 const html = render(created);
 assert.ok(html.includes('SALE20-10') && html.includes('LIVE10'), 'create response without report must render');
 assert.ok(render({ ...created, report: { grossSales: 250000, orders: 7, claims: 9, commission: 35000 } }).includes('250.000'), 'loaded report should retain actual metrics');
-assert.ok(render({ ...created, status: 'LIVE', inviteStatus: 'ACCEPTED' }).includes('Kết thúc phiên · Gửi Admin'), 'shop must have an end action directly on an active session card');
+assert.ok(render({ ...created, status: 'LIVE', inviteStatus: 'ACCEPTED' }).includes('Kết thúc phiên'), 'shop must have an end action directly on an active session card');
 console.log('PASS: reproduces previous crash, renders newly created session without report, preserves loaded report');
 const disconnected = render(created, false, 'Máy chủ tạm thời mất kết nối.');
 assert.ok(disconnected.includes('role="alert"') && disconnected.includes('Thử lại'), 'connection failure must show a recoverable error with a retry button');

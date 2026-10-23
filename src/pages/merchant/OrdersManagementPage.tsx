@@ -329,6 +329,9 @@ export default function OrdersManagementPage({
       queryStatus = undefined;
     } else if (statusFilter === "UNPAID") {
       queryPaymentStatus = "UNPAID";
+    } else if (statusFilter === "PENDING") {
+      queryStatus = "PENDING";
+      queryPaymentStatus = "PAID";
     } else if (statusFilter === "RETURNS") {
       queryStatus = "RETURNS";
     } else {
@@ -1205,6 +1208,13 @@ export default function OrdersManagementPage({
                         string,
                         { label: string; bg: string; text: string; border: string; dot: string }
                       > = {
+                        UNPAID: {
+                          label: "Chờ xác nhận thanh toán",
+                          bg: "bg-slate-50",
+                          text: "text-slate-700",
+                          border: "border-slate-200",
+                          dot: "bg-slate-400",
+                        },
                         PENDING: {
                           label: "Chờ lấy hàng",
                           bg: "bg-amber-50",
@@ -1263,7 +1273,8 @@ export default function OrdersManagementPage({
                         },
                       };
 
-                      const badge = statusBadgeConfig[order.status] || {
+                      const badgeStatus = order.status === "PENDING" && order.paymentStatus !== "PAID" ? "UNPAID" : order.status;
+                      const badge = statusBadgeConfig[badgeStatus] || {
                         label: order.status,
                         bg: "bg-gray-50",
                         text: "text-gray-700",

@@ -23,7 +23,7 @@ export interface SidebarTheme {
 
 export const SIDEBAR_THEMES: Record<WorkspaceNavRole, SidebarTheme> = {
   CUSTOMER: {
-    badgeLabel: 'Khách',
+    badgeLabel: 'Mua sắm',
     shellBorder: 'border-[#D8E8DC]',
     headerBorder: 'border-[#D8E8DC]/70',
     avatarBorder: 'border-[#B7D4C0]',

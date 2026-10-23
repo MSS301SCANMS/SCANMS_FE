@@ -21,6 +21,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import api from '../../services/api';
+import { liveSessionService } from '../../services/live-session.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 
@@ -86,10 +87,7 @@ export default function CollaboratorLiveSessionsPage() {
   const load = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true);
-      const response: any = await api.get('/livestreams', {
-        headers: { 'x-skip-cache': 'true' },
-      });
-      const result = response?.data || response?.result || response;
+      const result = await liveSessionService.mine();
       const list = (Array.isArray(result) ? result : []).map((raw: any): Session => {
         const participants = raw?.participantRefs || {};
         const productIds = raw?.productRefs?.productIds || [];
@@ -98,7 +96,8 @@ export default function CollaboratorLiveSessionsPage() {
           title: raw.title || 'Phiên live',
           description: raw.description,
           platform: participants.platform || 'SCANMS',
-          liveUrl: raw.playbackRef || participants.liveUrl || '',
+          liveUrl: (participants.platform || 'SCANMS') === 'SCANMS'
+            ? `/live/${encodeURIComponent(raw.livestreamId || raw.id)}` : raw.playbackRef || participants.liveUrl || '',
           externalChannels: participants.externalChannels || [],
           startsAt: raw.scheduledAt || raw.startsAt || raw.createdAt,
           endsAt: participants.endsAt || raw.endedAt || raw.scheduledAt || raw.createdAt,

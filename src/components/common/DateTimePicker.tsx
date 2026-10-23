@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { parsePickerDate as parseSafeDate, pickerBoundary } from '../../utils/datetime-picker.utils';
 import {
   Calendar,
   Clock,
@@ -39,29 +40,6 @@ function padZero(num: number): string {
   return num < 10 ? `0${num}` : `${num}`;
 }
 
-/**
- * Phân tích chuỗi ngày giờ an toàn theo giờ Local, tránh lệch múi giờ UTC
- */
-function parseSafeDate(val?: string | null): Date | null {
-  if (!val) return null;
-  const trimmed = val.trim();
-  if (!trimmed) return null;
-
-  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
-  if (match) {
-    const year = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1;
-    const day = parseInt(match[3], 10);
-    const hour = match[4] ? parseInt(match[4], 10) : 0;
-    const min = match[5] ? parseInt(match[5], 10) : 0;
-    const d = new Date(year, month, day, hour, min, 0);
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  const d = new Date(trimmed);
-  return isNaN(d.getTime()) ? null : d;
-}
-
 export function DateTimePicker({
   value,
   onChange,
@@ -86,13 +64,17 @@ export function DateTimePicker({
   const minuteScrollRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const validationRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (disabled) setIsOpen(false); }, [disabled]);
 
   // Parse parsed dates
   const parsedValue = useMemo(() => parseSafeDate(value), [value]);
-  const minDate = useMemo(() => parseSafeDate(minDateTime), [minDateTime]);
-  const maxDate = useMemo(() => parseSafeDate(maxDateTime), [maxDateTime]);
+  const minDate = useMemo(() => pickerBoundary(minDateTime, 'min', mode), [minDateTime, mode]);
+  const maxDate = useMemo(() => pickerBoundary(maxDateTime, 'max', mode), [maxDateTime, mode]);
+  const comparableValue = parsedValue && (mode === 'date' ? new Date(parsedValue.getFullYear(), parsedValue.getMonth(), parsedValue.getDate()) : parsedValue);
+  const invalidSelection = Boolean(value && (!comparableValue || (minDate && comparableValue < minDate) || (maxDate && comparableValue > maxDate)));
+  useEffect(() => { validationRef.current?.setCustomValidity(invalidSelection ? 'Thời điểm đã chọn nằm ngoài khoảng cho phép. Vui lòng chọn lại.' : ''); }, [invalidSelection, required]);
 
   const defaultRefDate = parsedValue || minDate || new Date();
 
@@ -180,89 +162,60 @@ export function DateTimePicker({
   };
 
   const isDayDisabled = (year: number, month: number, day: number) => {
-    const checkDate = new Date(year, month, day, 23, 59, 59, 999);
-    if (minDate) {
-      const minDayStart = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate(), 0, 0, 0, 0);
-      const targetDayStart = new Date(year, month, day, 0, 0, 0, 0);
-      if (targetDayStart < minDayStart) return true;
-    }
-    if (maxDate && checkDate > maxDate) {
-      return true;
-    }
-    return false;
+    const start = new Date(year, month, day);
+    const end = new Date(year, month, day, 23, 59, 59, 999);
+    return Boolean((minDate && end < minDate) || (maxDate && start > maxDate));
   };
 
   const isTimeDisabled = (h: number, m: number) => {
-    if (!selectedDate || !minDate) return false;
+    const date = selectedDate || minDate || new Date();
     const target = new Date(
-      selectedDate.getFullYear(),
-      selectedDate.getMonth(),
-      selectedDate.getDate(),
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
       h,
       m,
       0,
     );
-    if (target < minDate) return true;
+    if (minDate && target < minDate) return true;
     if (maxDate && target > maxDate) return true;
     return false;
+  };
+  const isHourDisabled = (hour: number) => Array.from({ length: 60 }, (_, minute) => minute).every(minute => isTimeDisabled(hour, minute));
+  const commitSelection = (date: Date) => {
+    if (minDate && maxDate && minDate > maxDate) return;
+    let next = new Date(date);
+    next.setSeconds(0, 0);
+    if (mode === 'date') next.setHours(0, 0, 0, 0);
+    if (minDate && next < minDate) next = new Date(minDate);
+    if (maxDate && next > maxDate) next = new Date(maxDate);
+    setSelectedDate(next);setSelectedHour(next.getHours());setSelectedMinute(next.getMinutes());
+    setCurrentYear(next.getFullYear());setCurrentMonth(next.getMonth());
+    emitChange(next, next.getHours(), next.getMinutes());
   };
 
   const handleSelectDay = (day: number) => {
     if (isDayDisabled(currentYear, currentMonth, day)) return;
-    const newDate = new Date(currentYear, currentMonth, day);
-    setSelectedDate(newDate);
-
-    let nextH = selectedHour;
-    let nextM = selectedMinute;
-    if (minDate) {
-      const targetTime = new Date(currentYear, currentMonth, day, nextH, nextM);
-      if (targetTime < minDate) {
-        nextH = minDate.getHours();
-        nextM = minDate.getMinutes();
-        setSelectedHour(nextH);
-        setSelectedMinute(nextM);
-      }
-    }
-
-    emitChange(newDate, nextH, nextM);
+    commitSelection(new Date(currentYear, currentMonth, day, selectedHour, selectedMinute));
     if (mode === 'datetime' && window.innerWidth < 640) {
       setActiveTab('time');
     }
   };
 
   const handleSelectHour = (h: number) => {
-    if (isTimeDisabled(h, selectedMinute)) return;
-    setSelectedHour(h);
-    const baseDate = selectedDate || new Date();
-    setSelectedDate(baseDate);
-    emitChange(baseDate, h, selectedMinute);
+    if (isHourDisabled(h)) return;
+    const date = selectedDate || minDate || new Date();
+    commitSelection(new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, selectedMinute));
   };
 
   const handleSelectMinute = (m: number) => {
     if (isTimeDisabled(selectedHour, m)) return;
-    setSelectedMinute(m);
-    const baseDate = selectedDate || new Date();
-    setSelectedDate(baseDate);
-    emitChange(baseDate, selectedHour, m);
+    const date = selectedDate || minDate || new Date();
+    commitSelection(new Date(date.getFullYear(), date.getMonth(), date.getDate(), selectedHour, m));
   };
 
   const handleSetNow = () => {
-    const now = new Date();
-    if (minDate && now < minDate) {
-      setSelectedDate(minDate);
-      setSelectedHour(minDate.getHours());
-      setSelectedMinute(minDate.getMinutes());
-      setCurrentYear(minDate.getFullYear());
-      setCurrentMonth(minDate.getMonth());
-      emitChange(minDate, minDate.getHours(), minDate.getMinutes());
-      return;
-    }
-    setSelectedDate(now);
-    setSelectedHour(now.getHours());
-    setSelectedMinute(now.getMinutes());
-    setCurrentYear(now.getFullYear());
-    setCurrentMonth(now.getMonth());
-    emitChange(now, now.getHours(), now.getMinutes());
+    commitSelection(new Date());
   };
 
   const handleClear = () => {
@@ -331,6 +284,7 @@ export function DateTimePicker({
         aria-expanded={isOpen}
         aria-label={label || popoverTitle || placeholder}
         aria-disabled={disabled}
+        aria-invalid={invalidSelection || undefined}
         onKeyDown={(e) => {
           if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
@@ -383,10 +337,13 @@ export function DateTimePicker({
         </div>
       </div>
 
+      {invalidSelection && !disabled && <p role="alert" className="mt-1 text-xs text-red-700">Thời điểm đã chọn nằm ngoài khoảng cho phép. Vui lòng chọn lại.</p>}
       {/* Hidden real input for native form validity if required */}
       {required && (
         <input
+          ref={validationRef}
           type="text"
+          disabled={disabled}
           value={displayLabel}
           required={required}
           onChange={() => {}}
@@ -567,7 +524,7 @@ export function DateTimePicker({
                       className="scanms-datetime-time-list h-56 w-full overflow-y-auto rounded-xl border border-[#EEDFC6] bg-[#FAF8F5]/60 p-1 space-y-1 no-scrollbar"
                     >
                       {Array.from({ length: 24 }).map((_, h) => {
-                        const disabled = isTimeDisabled(h, selectedMinute);
+                        const disabled = isHourDisabled(h);
                         const isSelected = selectedHour === h;
                         return (
                           <button

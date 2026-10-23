@@ -5,8 +5,16 @@ import api from '../../services/api';
 import { authService } from '../../services/auth.service';
 import { PayosOrderPayment } from '../../components/checkout/PayosOrderPayment';
 import { toast } from '../../utils/toast';
+import PaymentStatusPage from '../finance/PaymentStatusPage';
+import { usesLegacyCheckout } from '../../services/checkout.service';
 
 export default function PayosReturnPage() {
+  const [params] = useSearchParams();
+  if (params.get('payment')) return <PaymentStatusPage />;
+  return <OrderPayosReturnPage />;
+}
+
+function OrderPayosReturnPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const orderCode = params.get('order') || '';
@@ -15,7 +23,7 @@ export default function PayosReturnPage() {
   const loggedIn = Boolean(localStorage.getItem('token') && authService.getCurrentUser());
 
   useEffect(() => {
-    if (!loggedIn || !orderCode) return;
+    if (!usesLegacyCheckout || !loggedIn || !orderCode) return;
     let active = true;
     const refresh = async () => {
       try {
@@ -61,7 +69,7 @@ export default function PayosReturnPage() {
             : status === 'PAID' ? `Đơn ${orderCode} đã được xác nhận thanh toán.`
             : 'Trang PayOS chuyển hướng về không tự xác nhận tiền. SCANMS đang kiểm tra kết quả từ máy chủ PayOS.'}
         </p>
-        {loggedIn && orderCode && (status === 'WAITING_PAYMENT' || status === 'error') && (
+        {loggedIn && orderCode && ((!usesLegacyCheckout && status === 'loading') || status === 'WAITING_PAYMENT' || status === 'error') && (
           <div className="mt-5"><PayosOrderPayment key={orderCode} orderCode={orderCode} onPaid={() => { setConfirmedOrderCode(orderCode); setStatus('PAID'); }} /></div>
         )}
         <div className="mt-7 flex flex-wrap justify-center gap-3">
