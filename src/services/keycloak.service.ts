@@ -14,7 +14,7 @@ export async function startKeycloakLogin(returnTo = '/customer/wallet') {
   window.location.assign(`${issuer}/protocol/openid-connect/auth?${params}`);
 }
 export async function keycloakProfile(token: string): Promise<UserProfile> {
-  const { data } = await axios.get(`${gateway}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+  const { data } = await axios.get(`${gateway}/users`, { headers: { Authorization: `Bearer ${token}` } });
   const source = data.result; const roles: string[] = source?.roles || [];
   if (!source?.userId || source.status !== 'ACTIVE') throw new Error('Hồ sơ người dùng chưa được cấp hoặc đang bị khóa. Liên hệ người quản lý tài khoản.');
   const role: UserProfile['role'] = roles.includes('ADMIN') ? 'SYSTEM_ADMIN' : roles.includes('MANAGER') ? 'SYSTEM_MANAGER' : roles.includes('SHOP_OWNER') ? 'SHOP_MANAGER' : roles.includes('KOL_CTV') ? 'COLLABORATOR' : 'CUSTOMER';

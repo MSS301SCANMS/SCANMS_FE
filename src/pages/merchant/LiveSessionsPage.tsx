@@ -304,7 +304,7 @@ export default function LiveSessionsPage({
       try {
         setLoading(true);
         setLoadError('');
-        const meRes: any = await api.get('/users/me');
+        const meRes: any = await api.get('/users');
         const user = meRes?.result || meRes?.data || meRes;
         const myStore = user?.stores?.[0] || user?.ownedStores?.[0] || user?.store;
         const sId = myStore?.id || localStorage.getItem('current_store_id') || '';
