@@ -313,7 +313,7 @@ export const kycService = {
   async getMyUpgradeStatus(): Promise<UpgradeStatusResponse> {
     let user: any = null;
     try {
-      const me: any = await api.get('/users/me');
+      const me: any = await api.get('/users');
       user = me?.result ?? me?.data ?? me;
     } catch {
       user = null;

@@ -246,13 +246,13 @@ export const ShopCouponsPage: React.FC = () => {
       setLoading(true);
       let availableStores: any[] = [];
       try {
-        const res: any = await api.get('/users/me');
+        const res: any = await api.get('/users');
         const user = res?.result || res?.data || res;
         if (user?.stores && user.stores.length > 0) {
           availableStores = user.stores;
         }
       } catch (e) {
-        console.warn('Cannot fetch /users/me stores:', e);
+        console.warn('Cannot fetch /users stores:', e);
       }
 
       if (availableStores.length === 0) {
