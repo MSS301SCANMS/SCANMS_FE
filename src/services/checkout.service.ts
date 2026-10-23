@@ -4,6 +4,7 @@ import { financeService } from './finance.service';
 import { installRawSessionAuth } from './auth-session';
 
 export const usesLegacyCheckout = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
+export interface CheckoutLine { productId: string; variantId?: string; quantity: number; clientPrice?: number }
 const unwrap = (response: any) => response?.result ?? response?.data?.data ?? response?.data ?? response;
 const legacyFinance = axios.create({ baseURL: import.meta.env.VITE_LEGACY_FINANCE_URL || 'http://127.0.0.1:3000/api', timeout: 60000 });
 legacyFinance.interceptors.request.use(config => {
@@ -19,12 +20,36 @@ legacyFinance.interceptors.response.use(response => response, error => {
 const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || 'http://localhost:8080/api/v1', timeout: 60000 });
 installRawSessionAuth(checkout);
 export const checkoutService = {
+  async validateCart(items: CheckoutLine[]) {
+    if (usesLegacyCheckout) return unwrap(await api.post('/orders/validate-cart', { items }));
+    const products = new Map(await Promise.all([...new Set(items.map(item => item.productId))].map(async id => {
+      const response = await api.get(`/public/products/${encodeURIComponent(id)}/landing`, { headers: { 'x-skip-cache': 'true' } });
+      return [id, unwrap(response).product] as const;
+    })));
+    const warnings: string[] = [];
+    const validated = items.map(item => {
+      const product = products.get(item.productId);
+      const variant = product?.variants?.find((v: any) => (v.id || v.variantId) === item.variantId);
+      const available = product?.canPurchase === true && (!item.variantId || variant?.isActive === true);
+      const stockQuantity = available ? Number(variant?.stockQuantity ?? product.stockQuantity ?? 0) : 0;
+      const currentPrice = Number(variant?.price ?? product?.price ?? 0);
+      if (stockQuantity < item.quantity) warnings.push(`Sản phẩm "${product?.title || product?.name || item.productId}" chỉ còn ${stockQuantity} sản phẩm.`);
+      if (item.clientPrice != null && item.clientPrice !== currentPrice) warnings.push('Giá sản phẩm đã thay đổi. Vui lòng kiểm tra lại giỏ hàng.');
+      return { ...item, currentPrice, stockQuantity, isActive: available, outOfStock: stockQuantity <= 0 };
+    });
+    return { items: validated, warnings };
+  },
+  async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal) {
+    if (usesLegacyCheckout) return unwrap(await api.post('/shipping/ghn/quote-address', { storeId, address, items }, { signal, timeout: 20000 }));
+    const response = await checkout.post('/checkout/quote', { items: items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })) }, { signal });
+    return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer };
+  },
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));
     const response = await checkout.post('/checkout', input);
     return response.data.result;
   },
-  async quote(input: { couponCode: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
+  async quote(input: { couponCode?: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
     if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {
       couponCode: input.couponCode,
       items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),

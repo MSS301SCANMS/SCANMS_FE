@@ -35,6 +35,8 @@ export interface StoreSettings {
   contactPhone?: string;
   contactEmail?: string;
   warehouseAddress?: string;
+  businessAddress?: string;
+  returnWarehouseAddress?: string;
   payoutBankName?: string | null;
   payoutBankAccountNumber?: string | null;
   payoutBankAccountName?: string | null;
@@ -50,6 +52,8 @@ export interface StoreSettings {
     bankAccountNumber?: string | null;
     bankAccountName?: string | null;
     warehouseAddress?: string | null;
+    businessAddress?: string | null;
+    returnWarehouseAddress?: string | null;
     payoutBankName?: string | null;
     payoutBankAccountNumber?: string | null;
     payoutBankAccountName?: string | null;
@@ -92,14 +96,21 @@ export const storeService = {
       throw new MissingOwnedStoreError();
     }
     // `/mine` returns summary; enrich from detail when possible
+    let store = normalizeStore(first);
     try {
       const detail: any = await api.get(`/stores/${first.storeId || first.id}`, {
         headers: { 'x-skip-cache': 'true' },
       });
-      return normalizeStore(unwrapApi(detail));
+      store = normalizeStore(unwrapApi(detail));
     } catch {
-      return normalizeStore(first);
+      // The summary remains useful when the public detail request is unavailable.
     }
+    const ownerResponse = await api.get(`/stores/${store.id}/owner-details`, { headers: { 'x-skip-cache': 'true' } }).catch(error => {
+      if (error.status === 404) return {}; // Backend may still be running its previous build.
+      throw error;
+    });
+    const ownerDetails = unwrapApi(ownerResponse);
+    return { ...store, onboardingData: { ...store.onboardingData, ...ownerDetails } };
   },
 
   async listMyStores(fresh = false): Promise<StoreSettings[]> {
@@ -117,8 +128,18 @@ export const storeService = {
       logoRef: data.logoUrl,
       websiteUrl: data.websiteUrl,
     };
-    const res: any = await api.patch(`/stores/${storeId}`, body);
-    return normalizeStore(unwrapApi(res));
+    const ownerKeys = ['representativeName', 'businessType', 'taxCode', 'contactPhone', 'contactEmail', 'businessAddress', 'warehouseAddress', 'returnWarehouseAddress'] as const;
+    let ownerDetails: Record<string, string> | undefined;
+    if (data.warehouseAddress !== undefined) {
+      ownerDetails = Object.fromEntries(ownerKeys.map(key => [key, String(data[key] ?? '').trim()]));
+      await api.put(`/stores/${storeId}/owner-details`, ownerDetails);
+    }
+    if (Object.values(body).some(value => value !== undefined)) await api.patch(`/stores/${storeId}`, body);
+    const saved = await this.getMyStore(true);
+    if (ownerDetails && Object.entries(ownerDetails).some(([key, value]) => (saved.onboardingData as Record<string, unknown>)?.[key] !== value)) {
+      throw new Error('Chưa xác nhận được thông tin kho đã lưu. Vui lòng tải lại và kiểm tra.');
+    }
+    return saved;
   },
 
   async getPublicStore(shopId: string) {

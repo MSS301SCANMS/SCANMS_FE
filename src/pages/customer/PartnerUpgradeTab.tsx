@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -109,6 +109,8 @@ export const PartnerUpgradeTab: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [editingPendingShop, setEditingPendingShop] = useState(false);
   const [editingKol, setEditingKol] = useState(false);
+  const [openingKol, setOpeningKol] = useState(false);
+  const openingKolRef = useRef(false);
 
   const [kolForm, setKolForm] = useState(createEmptyKolForm);
   const [shopForm, setShopForm] = useState(createEmptyShopForm);
@@ -309,12 +311,14 @@ export const PartnerUpgradeTab: React.FC<{
     }
   };
 
-  const openKolWorkspace = async () => {
+  const openKolWorkspace = async (destination?: '/collaborator/marketing?tab=invitations' | '/collaborator/marketing?tab=live') => {
+    if (openingKolRef.current) return;
+    openingKolRef.current = true;setOpeningKol(true);
     try {
-      await authService.enterKolWorkspace(navigate);
+      await authService.enterKolWorkspace(destination ? () => navigate(destination) : navigate);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || err?.message || 'Chưa thể mở không gian KOL. Vui lòng thử lại.');
-    }
+    } finally { openingKolRef.current = false;setOpeningKol(false); }
   };
 
   if (loading) {
@@ -377,6 +381,14 @@ export const PartnerUpgradeTab: React.FC<{
 
   return (
     <div className={`grid gap-[16px] text-left min-w-0 text-[#1A1612] max-[640px]:gap-[12px] ${isShopWorkspace ? '' : 'max-[767px]:pb-[64px]'}`}>
+      {!isShopWorkspace && kolApp?.status === 'VERIFIED' && <section aria-label="Không gian KOL đã được duyệt" className="grid gap-3 rounded-2xl border border-[#B5DED7] bg-[#F0FAF8] p-4">
+        <div><h2 className="m-0 text-sm font-semibold text-[#0F766E]">Hồ sơ KOL của bạn đã được duyệt</h2><p className="mb-0 mt-1 text-xs leading-6 text-[#5F716D]">Bạn đang ở không gian mua sắm. Nhãn “Mua sắm” ở thanh bên thể hiện khu vực đang dùng; bạn vẫn có thể chuyển sang KOL để nhận và phản hồi lời mời từ shop.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={openingKol} onClick={() => void openKolWorkspace('/collaborator/marketing?tab=invitations')} className="min-h-11 rounded-xl bg-[#0F766E] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Lời mời hợp tác từ shop</button>
+          <button type="button" disabled={openingKol} onClick={() => void openKolWorkspace('/collaborator/marketing?tab=live')} className="min-h-11 rounded-xl border border-[#B5DED7] bg-white px-4 py-2 text-xs font-semibold text-[#0F766E] disabled:opacity-50">Lời mời livestream</button>
+        </div>
+        <p className="m-0 text-xs leading-5 text-[#5F716D]">Hai loại lời mời được xem trong các mục riêng của không gian KOL. Hiện chưa có thông báo qua chuông cho các lời mời này.</p>
+      </section>}
       {!isShopWorkspace && <div className="grid grid-cols-2 gap-[14px] max-[640px]:grid-cols-1 max-[640px]:gap-[10px]" aria-label="Chọn loại đối tác">
         {choices.map((choice) => (
           <article
@@ -404,6 +416,7 @@ export const PartnerUpgradeTab: React.FC<{
             </button>
             <button
               type="button"
+              disabled={openingKol && choice.type === 'kol'}
               className={`flex items-center justify-between w-full mt-[14px] rounded-[10px] border p-[9px_12px] text-[12px] font-[600] cursor-pointer transition ${activePartnerType === choice.type ? 'text-[#8F682E] bg-[#FBF5EB] border-[#EEDFC6]' : 'border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58]'}`}
               onClick={() =>
                 choice.status === 'VERIFIED'

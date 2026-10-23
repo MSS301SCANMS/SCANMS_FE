@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
   Download,
@@ -126,6 +126,7 @@ export default function OrdersManagementPage({
   onClose,
   onCompleted,
 }: Props = {}) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get('tab') ?? searchParams.get('view');
   const activeOrderView = requestedView === 'samples' ? 'SAMPLES' : 'COMMERCIAL';
@@ -328,6 +329,9 @@ export default function OrdersManagementPage({
       queryStatus = undefined;
     } else if (statusFilter === "UNPAID") {
       queryPaymentStatus = "UNPAID";
+    } else if (statusFilter === "PENDING") {
+      queryStatus = "PENDING";
+      queryPaymentStatus = "PAID";
     } else if (statusFilter === "RETURNS") {
       queryStatus = "RETURNS";
     } else {
@@ -436,7 +440,7 @@ export default function OrdersManagementPage({
       setShippingCarrier("GHN");
       setShippingTrackingNumber(trackingNumber);
       setActionSuccessMsg(targetEnvironment === "TEST"
-        ? `Đã tạo vận đơn GHN sandbox ${trackingNumber}. Đây không phải chuyến giao hàng thật; mở Chi tiết đơn để tra cứu trạng thái do GHN trả về.`
+        ? `Đã tạo vận đơn mô phỏng ${trackingNumber}. Mở Tra cứu để bắt đầu và xác nhận giao thử thành công.`
         : targetEnvironment === "LIVE"
           ? `Đã tạo vận đơn GHN thật thành công. Mã vận đơn: ${trackingNumber}`
           : `Đã lưu vận đơn GHN: ${trackingNumber}. Mở hành trình để kiểm tra môi trường và tiến độ.`);
@@ -459,7 +463,7 @@ export default function OrdersManagementPage({
       try {
         const refreshed = await orderService.getMyStoreOrders({ search: targetOrder.externalOrderSn, limit: 10 }, true);
         const saved = refreshed.items.find(item => item.id === targetOrder.id);
-        if (saved?.status === 'SHIPPING' && saved.trackingNumber && /GHN|Giao Hàng Nhanh/i.test(saved.carrierName || '') && !isGeneratedGhnTestTrackingCode(saved.trackingNumber)) {
+        if (saved?.status === 'SHIPPING' && saved.trackingNumber) {
           completeCreation(saved.trackingNumber, saved.ghnEnvironment);
           return;
         }
@@ -1057,6 +1061,7 @@ export default function OrdersManagementPage({
                     type="button"
                     aria-pressed={active}
                     onClick={() => {
+                      if (tab.id === 'RETURNS') { navigate('/merchant/returns'); return; }
                       setStatusFilter(tab.id);
                       setOrdersPage(1);
                     }}
@@ -1203,6 +1208,13 @@ export default function OrdersManagementPage({
                         string,
                         { label: string; bg: string; text: string; border: string; dot: string }
                       > = {
+                        UNPAID: {
+                          label: "Chờ xác nhận thanh toán",
+                          bg: "bg-slate-50",
+                          text: "text-slate-700",
+                          border: "border-slate-200",
+                          dot: "bg-slate-400",
+                        },
                         PENDING: {
                           label: "Chờ lấy hàng",
                           bg: "bg-amber-50",
@@ -1261,7 +1273,8 @@ export default function OrdersManagementPage({
                         },
                       };
 
-                      const badge = statusBadgeConfig[order.status] || {
+                      const badgeStatus = order.status === "PENDING" && order.paymentStatus !== "PAID" ? "UNPAID" : order.status;
+                      const badge = statusBadgeConfig[badgeStatus] || {
                         label: order.status,
                         bg: "bg-gray-50",
                         text: "text-gray-700",
@@ -1273,8 +1286,8 @@ export default function OrdersManagementPage({
                         <tr key={order.id} className="group even:bg-[#FFFEFC] hover:bg-[#FBF5EB]/55 transition-colors duration-150">
                           {/* Mã đơn */}
                           <td data-label="Mã đơn & Ngày tạo" className="py-3 px-3 align-middle">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className="font-mono font-bold text-xs text-[#1A1612] bg-[#FAF8F5] px-2 py-0.5 rounded-lg border border-[#EAE4D7] shadow-2xs group-hover:border-[#C59B58]/40 transition-colors whitespace-nowrap inline-block tracking-tight">
+                            <div className="flex min-w-0 flex-col items-start gap-1">
+                              <span title={order.externalOrderSn} className="max-w-full truncate font-mono font-bold text-xs text-[#1A1612] bg-[#FAF8F5] px-2 py-0.5 rounded-lg border border-[#EAE4D7] shadow-2xs group-hover:border-[#C59B58]/40 transition-colors inline-block tracking-tight">
                                 #{order.externalOrderSn}
                               </span>
                               <span className="flex items-center gap-1 text-[11px] text-[#7D715E] whitespace-nowrap">
@@ -1428,7 +1441,7 @@ export default function OrdersManagementPage({
                           <td data-label="Thao tác" className="py-3 px-3 align-middle text-right">
                             <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
                               {/* 1. Nút Thao tác chính theo chu kỳ đơn hàng */}
-                              {order.status === "PENDING" && (
+                              {order.status === "PENDING" && order.paymentStatus === "PAID" && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenShippingModal(order)}
@@ -1685,16 +1698,16 @@ export default function OrdersManagementPage({
                     )}
                     <span className="min-w-0">
                       <span className="shipping-dispatch-choice-title">
-                        {creatingGhnEnvironment === "TEST" ? "Đang tạo vận đơn sandbox…" : "Tạo vận đơn GHN sandbox"}
+                        {creatingGhnEnvironment === "TEST" ? "Đang tạo vận đơn mô phỏng…" : "Giao hàng mô phỏng"}
                       </span>
                       <span className="shipping-dispatch-choice-description">
-                        Môi trường test · Trạng thái lấy từ GHN
+                        Mô phỏng nội bộ · Không gọi GHN
                       </span>
                     </span>
                   </button>
                   <button
                     type="button"
-                    disabled={creatingGhnEnvironment !== null || updatingFulfillment}
+                    disabled
                     onClick={() => handleCreateGhnShippingOrder("LIVE")}
                     className="shipping-dispatch-choice shipping-dispatch-choice-live"
                     title="Tạo vận đơn thật trên GHN Production"
@@ -1709,7 +1722,7 @@ export default function OrdersManagementPage({
                         {creatingGhnEnvironment === "LIVE" ? "Đang tạo vận đơn…" : "Tạo vận đơn GHN thật"}
                       </span>
                       <span className="shipping-dispatch-choice-description">
-                        Production · Giao hàng thực tế
+                        Chưa kết nối API giao hàng thật
                       </span>
                     </span>
                   </button>
@@ -1717,7 +1730,7 @@ export default function OrdersManagementPage({
                 <div className="shipping-dispatch-note">
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#B88E4F]" />
                   <p className="m-0 text-[11px] leading-relaxed text-[#7D715E]">
-                    Chọn đúng môi trường trước khi tạo. GHN thật sẽ nhận thông tin người nhận để xử lý giao hàng.
+                    Dùng mô phỏng để test luồng. Nếu đã có vận đơn thật, nhập mã thủ công bên dưới.
                   </p>
                 </div>
                 {creatingGhnEnvironment !== null && <p role="status" className="mt-3 rounded-lg bg-[#FBF5EB] px-3 py-2 text-[11px] leading-relaxed text-[#795A2D]">Đang chờ GHN cấp mã vận đơn. Hệ thống sẽ tự cập nhật khi hoàn tất; vui lòng không bấm tạo lại.</p>}
@@ -2881,6 +2894,7 @@ export default function OrdersManagementPage({
               orderId={trackingGhnOrderId} tracking={trackingGhnDetail} onStarted={setTrackingGhnDetail}
               onCompleted={() => {
                 setTrackingGhnDetail(null);
+                setOrdersRefreshCount(value => value + 1);
                 setReload(value => value + 1);
                 toast.success('Đã đồng bộ giao thử', { description: 'Khách có thể tải lại Đơn mua để kiểm thử nhận hàng/đổi trả.' });
               }} />}

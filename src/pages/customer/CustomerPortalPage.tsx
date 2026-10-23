@@ -56,6 +56,8 @@ import { CustomerOrderTotals } from './CustomerOrderTotals';
 import { CustomerOrderProgress } from './CustomerOrderProgress';
 import { CustomerOrderDetailActions } from './CustomerOrderDetailActions';
 import { getCustomerOrderActions } from '../../utils/customer-order-actions';
+import { hasCustomerReturn } from '../../utils/customer-order-filter';
+import { returnStatusLabel } from '../../utils/return-status.utils';
 import { useCustomerWishlist } from '../../hooks/useCustomerWishlist';
 import { CustomerVouchersTab } from './CustomerVouchersTab';
 import { CustomerNotificationsTab } from './CustomerNotificationsTab';
@@ -69,8 +71,10 @@ import {
   type NotificationCategory,
 } from '../../services/notifications.service';
 import { ReturnRequestModal } from '../../components/customer/ReturnRequestModal';
+import { CustomerReturnShipments } from '../../components/customer/CustomerReturnShipments';
 import { CustomerCancelOrderModal } from '../../components/customer/CustomerCancelOrderModal';
 import { VerifiedReviewModal } from '../../components/customer/VerifiedReviewModal';
+import { OrderShipmentPanel } from '../../components/shipping/OrderShipmentPanel';
 import { GhnTrackingTimeline } from '../../components/shipping/GhnTrackingTimeline';
 import { isGeneratedGhnTestTrackingCode } from '../../utils/ghn-tracking-code';
 import { getGhnTrackingCode } from '../../utils/ghn-tracking';
@@ -1217,7 +1221,9 @@ export default function CustomerPortalPage() {
                           ? `Không có đơn mua nào của bạn khớp với “${appliedOrderSearch}” trong bộ lọc hiện tại. Hãy kiểm tra số điện thoại người nhận đã lưu trên đơn hoặc chọn mục Tất cả.`
                           : orderStatusFilter === 'ALL'
                           ? 'Bạn chưa có đơn mua nào trên SCANMS. Hãy khám phá ngay các sản phẩm chính hãng với nhiều ưu đãi nhé!'
-                          : `Không tìm thấy đơn hàng nào ở mục "${orderStatusFilter}".`}
+                          : orderStatusFilter === 'RETURNED'
+                          ? 'Bạn chưa có yêu cầu trả hàng hoặc hoàn tiền.'
+                          : 'Không có đơn mua nào ở trạng thái đã chọn.'}
                       </p>
                     </div>
                     <Link
@@ -1237,13 +1243,10 @@ export default function CustomerPortalPage() {
                       const isCompleted = order.status === 'COMPLETED';
                       const isCancelled = order.status === 'CANCELLED';
                       const isReturned = order.status === 'RETURNED' || order.status === 'RETURN_REQUESTED';
-                      const hasReturnRequest = Boolean(order.returnRequest) || ['RETURN_REQUESTED', 'DISPUTED', 'RETURNED'].includes(order.status);
+                      const hasReturnRequest = hasCustomerReturn(order);
                       const canRequestReturn = getCustomerOrderActions(order).requestReturn;
                       const statusLabel = hasReturnRequest
-                        ? order.returnRequest?.status === 'SHOP_APPROVED' ? 'Shop đã duyệt · chờ xử lý tiền/hàng'
-                          : order.returnRequest?.status === 'SHOP_REJECTED' ? 'Shop đã từ chối đổi trả'
-                          : order.returnRequest?.status === 'REFUNDED' ? 'Đã hoàn tiền'
-                          : 'Đang xử lý trả hàng'
+                        ? order.returnRequest?.status ? returnStatusLabel(order.returnRequest.status) : 'Đang xử lý trả hàng'
                         : isCancelled ? 'Đã hủy đơn' : isCompleted ? 'Hoàn thành' : isDelivered ? 'Đã giao hàng'
                         : isShipping ? 'Đang vận chuyển' : awaitingPayment ? 'Chờ thanh toán' : isPending ? 'Chờ Shop xác nhận' : 'Đang xử lý';
                       const StatusIcon = hasReturnRequest ? RotateCcw : isCancelled ? XCircle : isCompleted || isDelivered ? CheckCircle2 : isShipping ? Truck : Clock;
@@ -1352,7 +1355,13 @@ export default function CustomerPortalPage() {
                               ))}
                             </div>
 
-                            {/* Dispute / Return Banner if Returned */}
+                            {!!order.returnRequests?.length && <CustomerReturnShipments requests={order.returnRequests} onUpdated={request => setOrders(previous => previous.map(current => current.id === order.id ? {
+                              ...current,
+                              returnRequests: current.returnRequests?.map(row => row.id === request.id ? request : row),
+                              returnRequest: current.returnRequest?.id === request.id ? { ...current.returnRequest, status: request.status, shopResponse: request.shopResponse } : current.returnRequest,
+                            } : current))} />}
+
+{/* Dispute / Return Banner if Returned */}
                             {isReturned && (
                               <div className="mx-[16px] @max-[499px]:mx-[12px] my-[10px] p-[12px] rounded-[8px] bg-[#FBF5EB] border border-[#EEDFC6] text-[12px] text-[#7D715E] flex items-start gap-[10px]">
                                 <AlertCircle className="w-[16px] h-[16px] text-[#B88E4F] shrink-0 mt-[1px]" />
@@ -1951,6 +1960,8 @@ export default function CustomerPortalPage() {
             )}
 
             {/* Dispute / Return Banner if Returned */}
+            {(selectedOrderDetails.rawPayload?.sellerOrders || []).filter((s: any) => ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(s.status)).map((s: any) => <OrderShipmentPanel key={s.sellerOrderId} sellerOrderId={s.sellerOrderId} onDelivered={() => { void fetchOrders(); void customerService.getOrderDetails(selectedOrderDetails.id).then(setSelectedOrderDetails); }} />)}
+            {(selectedOrderDetails.rawPayload?.returnRequests || []).map((r: any) => <a key={r.returnRequestId} className="block rounded-xl border p-3 underline" href={`/customer/returns/${r.returnRequestId}`}>Theo dõi trả hàng: {r.status} · {r.quantity} sản phẩm</a>)}
             {selectedOrderDetails.status === 'RETURNED' && (
               <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex flex-col gap-2">
                 <div className="flex items-center justify-between">

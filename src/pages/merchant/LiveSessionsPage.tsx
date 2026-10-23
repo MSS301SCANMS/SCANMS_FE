@@ -30,22 +30,15 @@ import { DateTimePicker } from '../../components/common/DateTimePicker';
 import { Select } from '../../components/ui/Select';
 import { HubTabs, type HubTabItem } from '../../components/common/HubTabs';
 import { liveBroadcastService } from '@/services/live-broadcast.service';
+import { productService } from '../../services/product.service';
+import { storeService } from '../../services/store.service';
+import { partnershipInvitationsService } from '../../services/partnership-invitations.service';
+import { unwrapApi } from '../../utils/api-response';
+import { serverDate } from '../../utils/server-date';
 
-const getFallbackAvatar = (id: string, name: string) => {
-  const avatars = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80',
-  ];
-  let sum = 0;
-  for (let i = 0; i < (id || name || '').length; i++) {
-    sum += (id || name).charCodeAt(i);
-  }
-  return avatars[sum % avatars.length];
+const getFallbackAvatar = (_id: string, name: string) => {
+  const initial = (Array.from(name.trim())[0] || 'K').toLocaleUpperCase('vi').replace(/[<>&"']/g, '') || 'K';
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#F0FAF8"/><text x="32" y="40" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#0F766E">${initial}</text></svg>`)}`;
 };
 
 type LiveProduct = {
@@ -187,7 +180,7 @@ const getLiveDurationInfo = (startStr: string, endStr: string) => {
   };
 };
 
-const isShortScanmsLiveUrl = (url: string) => Boolean(url && /^https?:\/\/[^/]+\/live\/[A-Za-z0-9_-]{12}$/.test(url));
+const legacyLive = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 
 export default function LiveSessionsPage({
   isActive: _isActive = true,
@@ -205,6 +198,14 @@ export default function LiveSessionsPage({
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [scheduleNow, setScheduleNow] = useState(Date.now);
+  useEffect(() => {
+    const refresh = () => setScheduleNow(Date.now());
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(timer);window.removeEventListener('focus', refresh); };
+  }, []);
+  const minimumStart = new Date(Math.ceil((scheduleNow + 1) / 60000) * 60000).toISOString();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'SCHEDULED' | 'ENDED'>('ALL');
   const [detailModalSession, setDetailModalSession] = useState<LiveSessionItem | null>(null);
@@ -238,9 +239,6 @@ export default function LiveSessionsPage({
   const [kolFilterTab, setKolFilterTab] = useState<'ALL' | 'VIP'>('ALL');
   const [kolSortByFollowers, setKolSortByFollowers] = useState(false);
   const [isChangingKol, setIsChangingKol] = useState(false);
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [linkError, setLinkError] = useState('');
-  const [linkRetry, setLinkRetry] = useState(0);
   const [showProductError, setShowProductError] = useState(false);
 
   const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -248,6 +246,10 @@ export default function LiveSessionsPage({
 
 
   const lastRefreshKey = useRef(refreshKey);
+  const catalogRef = useRef(catalog);
+  const storeNameRef = useRef('');
+  const changing = useRef(new Set<string>());
+  const [changingId, setChangingId] = useState<string | null>(null);
 
   const mapLivestream = useCallback((raw: any): LiveSessionItem => {
     const participants = raw?.participantRefs || {};
@@ -258,17 +260,18 @@ export default function LiveSessionsPage({
       title: raw.title || 'Phiên live',
       description: raw.description,
       platform: participants.platform || 'SCANMS',
-      liveUrl: raw.playbackRef || participants.liveUrl || '',
+      liveUrl: (participants.platform || 'SCANMS') === 'SCANMS'
+        ? `${window.location.origin}/live/${encodeURIComponent(raw.livestreamId || raw.id)}` : raw.playbackRef || participants.liveUrl || '',
       externalChannels: participants.externalChannels || [],
-      startsAt: raw.scheduledAt || raw.startsAt || raw.createdAt,
-      endsAt: raw.endedAt || raw.endsAt || raw.scheduledAt || raw.createdAt,
+      startsAt: serverDate(raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
+      endsAt: serverDate(raw.endedAt || participants.endsAt || raw.endsAt || raw.scheduledAt || raw.createdAt) || '',
       status: raw.status || 'SCHEDULED',
       inviteStatus: participants.inviteStatus || 'PENDING',
       commissionRate: participants.commissionRate ?? 0,
-      store: raw.store || { name: currentStoreName || 'Shop', slug: '', logoUrl: null },
+      store: raw.store || { name: storeNameRef.current || 'Shop', slug: '', logoUrl: null },
       creator: raw.creator || {
         id: collabIds[0] || '',
-        fullName: participants.creatorName || 'KOL',
+        fullName: catalogRef.current.creators.find(creator => creator.id === collabIds[0])?.fullName || participants.creatorName || 'KOL',
         avatarUrl: null,
       },
       coupon: raw.coupon || {
@@ -279,11 +282,11 @@ export default function LiveSessionsPage({
         usageCount: 0,
       },
       products: (productIds as string[]).map((pid) => ({
-        product: { id: pid, title: pid, imageUrl: null },
+        product: catalogRef.current.products.find(product => product.id === pid) || { id: pid, title: 'Sản phẩm trong phiên', imageUrl: null },
       })),
       report: raw.report,
     } as LiveSessionItem;
-  }, [currentStoreName]);
+  }, []);
 
   const loadSessions = useCallback(async (currentStore: string) => {
     try {
@@ -291,9 +294,10 @@ export default function LiveSessionsPage({
         params: { storeId: currentStore },
         headers: { 'x-skip-cache': 'true' },
       });
-      const rawList = response?.data || response?.result || response || [];
-      const list = (Array.isArray(rawList) ? rawList : [])
-        .filter((item: any) => !currentStore || item.storeId === currentStore || !item.storeId)
+      const rawList = unwrapApi<any>(response);
+      if (!Array.isArray(rawList)) throw new Error('Dữ liệu phiên live chưa hợp lệ. Vui lòng thử lại.');
+      const list = rawList
+        .filter((item: any) => item.storeId === currentStore)
         .map(mapLivestream);
       setSessions(list);
       setDetailModalSession((current) => current ? list.find((session) => session.id === current.id) || current : current);
@@ -309,54 +313,45 @@ export default function LiveSessionsPage({
       try {
         setLoading(true);
         setLoadError('');
-        const meRes: any = await api.get('/users/me');
-        const user = meRes?.result || meRes?.data || meRes;
-        const myStore = user?.stores?.[0] || user?.ownedStores?.[0] || user?.store;
-        const sId = myStore?.id || localStorage.getItem('current_store_id') || '';
+        const stores = await storeService.listMyStores(true);
+        const myStore = stores.find(store => store.id === localStorage.getItem('current_store_id')) || stores[0];
+        const sId = myStore?.id || '';
         if (!active) return;
         setStoreId(sId);
         setCurrentStoreName(myStore?.name || '');
+        storeNameRef.current = myStore?.name || '';
         if (!sId) {
-          setLoading(false);
-          return;
+          throw new Error('Tài khoản chưa có gian hàng. Hãy hoàn tất hồ sơ và chờ quản lý duyệt.');
         }
 
-        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
-          api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          loadSessions(sId),
+        const [productsRes, partnerCatalog, invitations] = await Promise.all([
+          productService.getProducts({ storeId: sId }, true),
+          partnershipInvitationsService.catalog(),
+          partnershipInvitationsService.list('shop'),
         ]);
         if (!active) return;
-        if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
-        const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
-        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
-        const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
-          id: p.productId || p.id,
-          title: p.title || p.name || 'Sản phẩm',
-          imageUrl: p.imageUrl || p.thumbnailUrl || null,
-          price: p.price ?? p.basePrice ?? 0,
-        }));
-        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
-          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
-          .map((c: any) => ({
-            id: c.collaboratorId || c.id || c.userId,
-            fullName: c.displayName || c.fullName || c.username || 'KOL',
-            avatarUrl: c.avatarUrl || null,
-            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
-            socialChannels: c.socialChannels || [],
-            baseRate: c.baseRate ?? 10,
-            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
-            isExclusiveVip: Boolean(c.isExclusiveVip),
-            exclusiveDealRate: c.exclusiveDealRate,
-            campaignBonusRate: c.campaignBonusRate || 0,
+        const products = productsRes.items.filter(product => product.isActive).map(p => ({ ...p, variants: p.variants || [] }));
+        if (!Array.isArray(partnerCatalog?.creators)) throw new Error('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
+        const accepted = new Set(invitations.filter(invitation => invitation.storeId === sId && invitation.status === 'ACCEPTED').map(invitation => invitation.collaboratorId));
+        const creators = partnerCatalog.creators
+          .filter(creator => accepted.has(creator.id))
+          .map(creator => ({
+            id: creator.id,
+            fullName: creator.name,
+            avatarUrl: null,
+            collaboratorProfile: { totalFollowers: creator.followers, kycStatus: 'VERIFIED' },
+            socialChannels: [{ platformName: creator.platform, channelName: creator.name, followerCount: creator.followers, channelUrl: creator.channelUrl || '' }],
           }));
-        setCatalog({ products, creators, defaultCommissionRate: 10 });
+        const nextCatalog = { products, creators, defaultCommissionRate: 10 } as Catalog;
+        catalogRef.current = nextCatalog;setCatalog(nextCatalog);
+        const loadedSessions = await loadSessions(sId);
+        if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',
         }));
       } catch (err: any) {
-        if (active) setLoadError(err?.response?.data?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
+        if (active) setLoadError(err?.response?.data?.message || err?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
         if (active) toast.error(err?.response?.data?.message || err?.message || 'Không khởi tạo được dữ liệu.');
       } finally {
         if (active) setLoading(false);
@@ -374,31 +369,6 @@ export default function LiveSessionsPage({
     window.addEventListener('online', retry);
     return () => window.removeEventListener('online', retry);
   }, [loadError]);
-
-  useEffect(() => {
-    if (!storeId || !form.creatorId || isShortScanmsLiveUrl(form.scanmsLiveUrl)) return;
-    let active = true;
-    setLinkLoading(true);
-    setLinkError('');
-    // Spring livestream API không cấp mã phòng riêng — sinh mã local ổn định theo store+KOL
-    const seed = `${storeId}:${form.creatorId}:${Date.now().toString(36)}`;
-    const code = btoa(unescape(encodeURIComponent(seed)))
-      .replace(/[^A-Za-z0-9]/g, '')
-      .slice(0, 12)
-      .padEnd(12, '0');
-    queueMicrotask(() => {
-      if (!active) return;
-      setLinkLoading(false);
-      setForm((prev) =>
-        prev.creatorId === form.creatorId
-          ? { ...prev, scanmsLiveUrl: `${window.location.origin}/live/${code}` }
-          : prev
-      );
-    });
-    return () => {
-      active = false;
-    };
-  }, [storeId, form.creatorId, form.scanmsLiveUrl, linkRetry]);
 
   useEffect(() => {
     if (refreshKey === lastRefreshKey.current) return;
@@ -589,7 +559,12 @@ export default function LiveSessionsPage({
       toast.error('Giờ kết thúc phải sau giờ bắt đầu phiên Live.');
       return;
     }
-    if (!form.discountValue || !form.usageLimitTotal || !form.usageLimitPerCustomer) {
+    if (new Date(form.startsAt).getTime() <= Date.now()) {
+      setScheduleNow(Date.now());
+      toast.error('Giờ bắt đầu đã qua. Vui lòng chọn thời điểm trong tương lai.');
+      return;
+    }
+    if (legacyLive && (!form.discountValue || !form.usageLimitTotal || !form.usageLimitPerCustomer)) {
       toast.error('Nhập mức giảm, tổng lượt dùng và lượt dùng mỗi khách.');
       return;
     }
@@ -616,11 +591,7 @@ export default function LiveSessionsPage({
       toast.error('Mỗi kênh cần link riêng và số người theo dõi hợp lệ.');
       return;
     }
-    if (form.platform === 'SCANMS' && !form.scanmsLiveUrl) {
-      toast.error(linkLoading ? 'Link phòng đang được tạo. Vui lòng chờ một chút.' : 'Chưa tạo được link phòng. Bấm Thử lại ở mục Link phòng live.');
-      return;
-    }
-    const finalLiveUrl = form.platform === 'SCANMS' ? form.scanmsLiveUrl : externalChannels[0].channelUrl;
+    const finalLiveUrl = form.platform === 'SCANMS' ? undefined : externalChannels[0].channelUrl;
 
     try {
       setSaving(true);
@@ -673,7 +644,7 @@ export default function LiveSessionsPage({
       setIsChangingKol(false);
       const refreshedSessions = await loadSessions(storeId);
       setActiveTab('history');
-      const createdItem = (res?.data || res) as LiveSessionItem;
+      const createdItem = mapLivestream(unwrapApi(res));
       if (createdItem?.id) setDetailModalSession(refreshedSessions?.find(item => item.id === createdItem.id) || createdItem);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message || 'Không tạo được phiên livestream.');
@@ -683,11 +654,17 @@ export default function LiveSessionsPage({
   };
 
   const changeState = async (session: LiveSessionItem, action: 'PAUSED' | 'RESUME' | 'CANCELLED' | 'START_NOW' | string) => {
+    if (changing.current.has(session.id)) return;
+    changing.current.add(session.id);setChangingId(session.id);
     try {
-      if (action === 'start' || action === 'START' || action === 'go_live') {
-        await api.post(`/livestreams/${session.id}/start`);
+      if (action === 'START_NOW' || action === 'start' || action === 'START' || action === 'go_live') {
+        const saved = unwrapApi<any>(await api.post(`/livestreams/${session.id}/start`));
+        if (saved.status !== 'LIVE') throw new Error('Máy chủ chưa xác nhận bắt đầu phiên.');
       } else if (action === 'end' || action === 'END' || action === 'stop') {
-        await api.post(`/livestreams/${session.id}/end`);
+        const saved = unwrapApi<any>(await api.post(`/livestreams/${session.id}/end`));
+        if (saved.status !== 'ENDED') throw new Error('Máy chủ chưa xác nhận kết thúc phiên.');
+      } else if (!legacyLive) {
+        throw new Error('Phiên hiện hỗ trợ bắt đầu và kết thúc.');
       } else {
         await api.patch(`/livestreams/${session.id}`, { status: action });
       }
@@ -701,7 +678,7 @@ export default function LiveSessionsPage({
           discountText: session.coupon?.discountValue ? `Giảm ${session.coupon.discountValue}%` : 'Ưu đãi live',
           endsAt: session.endsAt,
         });
-      } else if (action === 'CANCELLED') {
+      } else if (['CANCELLED', 'end', 'END', 'stop'].includes(action)) {
         liveBroadcastService.endBroadcast(session.id);
       }
 
@@ -712,12 +689,12 @@ export default function LiveSessionsPage({
           ? 'Đã tạm dừng phiên live.'
           : action === 'RESUME'
           ? 'Đã mở lại phiên live.'
-          : 'Đã hủy phiên live.'
+          : ['end', 'END', 'stop'].includes(action) ? 'Đã kết thúc phiên live.' : 'Đã hủy phiên live.'
       );
       await loadSessions(storeId);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message || 'Không cập nhật được trạng thái.');
-    }
+    } finally { changing.current.delete(session.id);setChangingId(null); }
   };
 
   const copyCouponCode = async (code: string) => {
@@ -729,14 +706,9 @@ export default function LiveSessionsPage({
     }
   };
 
-  const copyScanmsLiveUrl = async () => {
-    if (!form.scanmsLiveUrl) return;
-    try {
-      await navigator.clipboard.writeText(form.scanmsLiveUrl);
-      toast.success('Đã sao chép link phòng live.');
-    } catch {
-      toast.error('Không sao chép được link.');
-    }
+  const endSession = (session: LiveSessionItem) => {
+    if (legacyLive) { setEndingSessionId(session.id);setDetailModalSession(session); return; }
+    if (window.confirm('Kết thúc phiên livestream? Camera của người phát và video của người xem sẽ dừng.')) void changeState(session, 'end');
   };
 
   const liveCount = useMemo(() => sessions.filter((s) => s.status === 'LIVE').length, [sessions]);
@@ -773,7 +745,7 @@ export default function LiveSessionsPage({
     },
     {
       id: 'create',
-      label: 'Tạo phiên live & Voucher mới',
+      label: legacyLive ? 'Tạo phiên live & Voucher mới' : 'Tạo phiên live mới',
       icon: Plus,
     },
   ];
@@ -879,7 +851,7 @@ export default function LiveSessionsPage({
             <div className="rounded-3xl border border-dashed border-[#EAE4D7] bg-white p-12 text-center">
               <CalendarClock className="mx-auto mb-3 h-8 w-8 text-[#C59B58]/60" />
               <h3 className="text-sm font-bold text-[#1A1612]">Chưa có phiên livestream nào</h3>
-              <p className="mt-1 text-xs text-[#7D715E]">Tạo phiên mới để gắn voucher độc quyền và mời KOL phát sóng.</p>
+              <p className="mt-1 text-xs text-[#7D715E]">Tạo phiên mới, chọn sản phẩm và mời KOL phát sóng.</p>
               <button
                 type="button"
                 onClick={() => setActiveTab('create')}
@@ -959,11 +931,12 @@ export default function LiveSessionsPage({
                         <div className="min-w-0">
                           <span className="block text-[10px] text-[#7D715E]">Voucher live</span>
                           <span className="mt-0.5 block truncate font-mono font-bold text-[#B88E4F]">
+                            {session.coupon.displayCode === '—' ? 'Chưa gắn voucher' : <>
                             {session.coupon.displayCode} (
                             {session.coupon.discountType === 'PERCENTAGE'
                               ? `-${session.coupon.discountValue}%`
                               : `-${currency(Number(session.coupon.discountValue))}`}
-                            )
+                            )</>}
                           </span>
                         </div>
                       </div>
@@ -987,7 +960,7 @@ export default function LiveSessionsPage({
 
                     {/* Action buttons */}
                     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#F0EAE0] pt-3">
-                      {['LIVE', 'PAUSED'].includes(session.status) && session.inviteStatus === 'ACCEPTED' && <button type="button" onClick={() => { setEndingSessionId(session.id); setDetailModalSession(session); }} className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[11px] font-semibold text-[#1A1612] hover:bg-[#F3EFE6] cursor-pointer"><StopCircle className="h-3.5 w-3.5" /> Kết thúc phiên · Gửi Admin</button>}
+                      {['LIVE', 'PAUSED'].includes(session.status) && <button type="button" disabled={changingId === session.id} onClick={() => endSession(session)} className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[11px] font-semibold text-[#1A1612] hover:bg-[#F3EFE6] cursor-pointer"><StopCircle className="h-3.5 w-3.5" /> Kết thúc phiên</button>}
                       {session.liveUrl && (
                         <a
                           href={session.liveUrl}
@@ -1007,10 +980,11 @@ export default function LiveSessionsPage({
                         Chi tiết
                       </button>
 
-                      {session.inviteStatus === 'ACCEPTED' && session.status !== 'LIVE' && session.status !== 'ENDED' && (
+                      {session.inviteStatus === 'ACCEPTED' && session.status === 'SCHEDULED' && (
                         <button
                           type="button"
                           onClick={() => void changeState(session, 'START_NOW')}
+                          disabled={changingId === session.id}
                           className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-[#C59B58] px-2.5 text-[11px] font-bold text-white transition hover:bg-[#B88E4F]"
                           title="Bắt đầu phiên live ngay"
                         >
@@ -1035,7 +1009,7 @@ export default function LiveSessionsPage({
           {/* Header */}
           <div className="flex flex-col gap-2 border-b border-[#EAE4D7] pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-extrabold sm:text-lg">Tạo phiên livestream & Voucher độc quyền</h2>
+              <h2 className="text-base font-extrabold sm:text-lg">{legacyLive ? 'Tạo phiên livestream & Voucher độc quyền' : 'Tạo phiên livestream'}</h2>
             </div>
             <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] px-3 py-1.5 text-xs font-semibold text-[#7D715E]">
               <Users className="h-3.5 w-3.5 text-[#B88E4F]" /> {catalog.creators.length} KOL đối tác sẵn sàng
@@ -1085,25 +1059,8 @@ export default function LiveSessionsPage({
 
               {form.platform === 'SCANMS' ? (
                 <div className="grid gap-1 text-xs font-bold text-[#5F5547]">
-                  Link phòng live (Tự sinh)
-                  <div className="flex h-10 items-center rounded-xl border border-[#EEDFC6] bg-white pl-3 pr-1">
-                    <input
-                      readOnly
-                      value={form.scanmsLiveUrl}
-                      placeholder={form.creatorId ? linkError ? 'Chưa tạo được link phòng' : linkLoading ? 'Đang tạo mã phòng...' : 'Chờ tạo link phòng' : 'Chọn KOL để tạo link'}
-                      className="min-w-0 flex-1 bg-transparent text-xs font-normal outline-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={!form.scanmsLiveUrl}
-                      onClick={() => void copyScanmsLiveUrl()}
-                      className="flex h-7 w-7 items-center justify-center rounded text-[#B88E4F] hover:bg-[#FBF5EB] disabled:opacity-40 cursor-pointer"
-                      title="Sao chép link"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  {linkError && <div className="flex flex-wrap items-center gap-2 text-[11px] font-normal text-[#DC2626]" role="alert"><span>{linkError}</span><button type="button" onClick={() => setLinkRetry(previous => previous + 1)} className="shrink-0 underline cursor-pointer">Thử lại</button></div>}
+                  Phòng livestream trên SCANMS
+                  <p className="m-0 rounded-xl border border-[#EEDFC6] bg-white p-3 text-xs font-normal leading-5">Link phòng được cấp sau khi lưu phiên. KOL nhận lời mời, shop bắt đầu phiên, rồi KOL vào phòng bật camera và micro.</p>
                 </div>
               ) : null}
             </div>
@@ -1363,7 +1320,8 @@ export default function LiveSessionsPage({
                                   )}
                                 </div>
                                 <p className="text-[10px] text-[#7D715E]">
-                                  {(c.collaboratorProfile?.totalFollowers || 0).toLocaleString('vi-VN')} flw
+                                  {(c.collaboratorProfile?.totalFollowers || 0).toLocaleString('vi-VN')} người theo dõi
+                                  {c.socialChannels[0]?.platformName && ` · ${c.socialChannels[0].platformName}`}
                                   {(c.campaignBonusRate || 0) > 0 && <span className="text-amber-700 font-semibold"> · +{c.campaignBonusRate}% Cam</span>}
                                 </p>
                               </div>
@@ -1399,7 +1357,7 @@ export default function LiveSessionsPage({
                   required
                   value={form.startsAt}
                   onChange={(val) => setField('startsAt', val)}
-                  minDateTime={new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()}
+                  minDateTime={minimumStart}
                   placeholder="Chọn thời gian bắt đầu"
                 />
               </div>
@@ -1427,7 +1385,7 @@ export default function LiveSessionsPage({
                   required
                   value={form.endsAt}
                   onChange={(val) => setField('endsAt', val)}
-                  minDateTime={form.startsAt || new Date().toISOString()}
+                  minDateTime={form.startsAt ? new Date(new Date(form.startsAt).getTime() + 60000).toISOString() : minimumStart}
                   placeholder="Chọn thời gian kết thúc"
                   popoverAlign="end"
                 />
@@ -1615,7 +1573,7 @@ export default function LiveSessionsPage({
           </section>
 
           {/* Block 4: Live Voucher Rules */}
-          <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 space-y-3">
+          {legacyLive && <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#FBF5EB] text-xs font-extrabold text-[#B88E4F]">4</span>
               <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#1A1612]">Voucher Live độc quyền</h3>
@@ -1672,7 +1630,7 @@ export default function LiveSessionsPage({
                 />
               </label>
             </div>
-          </section>
+          </section>}
 
           {/* Note: đã bỏ block cộng dồn hoa hồng — chỉ giữ lời nhắn KOL */}
           <section className="rounded-2xl border border-[#EAE4D7] bg-white p-4 space-y-3">
@@ -1701,7 +1659,7 @@ export default function LiveSessionsPage({
               </div>
               <p className="text-[11px] text-[#7D715E] flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-[#B88E4F] shrink-0" />
-                <span>💡 Nếu để trống, hệ thống sẽ tự động tạo mẫu thư mời trang trọng gồm lịch live, hoa hồng và danh sách sản phẩm gửi thẳng vào Chat.</span>
+                <span>KOL xem lịch phát sóng, sản phẩm và lời nhắn trong danh sách lời mời livestream.</span>
               </p>
             </div>
           </section>
@@ -1727,7 +1685,7 @@ export default function LiveSessionsPage({
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#C59B58] px-5 text-xs font-bold text-white transition hover:bg-[#B88E4F] disabled:opacity-50 cursor-pointer shadow-2xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                {saving ? 'Đang tạo…' : 'Tạo phiên & Kích hoạt Voucher'}
+                {saving ? 'Đang tạo…' : legacyLive ? 'Tạo phiên & Kích hoạt Voucher' : 'Tạo phiên & Mời KOL'}
               </button>
             </div>
           </div>
@@ -1758,6 +1716,7 @@ export default function LiveSessionsPage({
               </div>
               <button
                 type="button"
+                aria-label="Đóng chi tiết phiên live"
                 onClick={() => { setDetailModalSession(null); setEndingSessionId(null); }}
                 className="rounded-xl p-2 text-[#7D715E] hover:bg-[#FAF8F5] cursor-pointer"
               >
@@ -1857,7 +1816,7 @@ export default function LiveSessionsPage({
               )}
 
               {/* Governance Panel */}
-              {(
+              {legacyLive && (
                 <LiveGovernancePanel
                   key={`${detailModalSession.id}:${endingSessionId === detailModalSession.id ? 'end' : 'detail'}`}
                   session={detailModalSession}
@@ -1887,10 +1846,11 @@ export default function LiveSessionsPage({
               </div>
 
               <div className="flex items-center gap-2">
-                {detailModalSession.inviteStatus === 'ACCEPTED' && detailModalSession.status !== 'LIVE' && detailModalSession.status !== 'ENDED' && (
+                {detailModalSession.inviteStatus === 'ACCEPTED' && detailModalSession.status === 'SCHEDULED' && (
                   <button
                     type="button"
                     onClick={() => void changeState(detailModalSession, 'START_NOW')}
+                    disabled={changingId === detailModalSession.id}
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#C59B58] px-4 text-xs font-bold text-white hover:bg-[#B88E4F]"
                   >
                     <Play className="h-3.5 w-3.5" /> Bắt đầu phát sóng
@@ -1899,16 +1859,17 @@ export default function LiveSessionsPage({
 
                 {detailModalSession.status === 'LIVE' && (
                   <>
-                    <button
+                    {legacyLive && <button
                       type="button"
                       onClick={() => void changeState(detailModalSession, 'PAUSED')}
                       className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 text-xs font-bold text-amber-800 hover:bg-amber-100"
                     >
                       <Pause className="h-3.5 w-3.5" /> Tạm dừng
-                    </button>
+                    </button>}
                     <button
                       type="button"
-                      onClick={() => setEndingSessionId(detailModalSession.id)}
+                      disabled={changingId === detailModalSession.id}
+                      onClick={() => endSession(detailModalSession)}
                       className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-50 px-3.5 text-xs font-bold text-rose-700 hover:bg-rose-100"
                     >
                       <StopCircle className="h-3.5 w-3.5" /> Kết thúc
@@ -1916,7 +1877,7 @@ export default function LiveSessionsPage({
                   </>
                 )}
 
-                {detailModalSession.status === 'PAUSED' && (
+                {legacyLive && detailModalSession.status === 'PAUSED' && (
                   <button
                     type="button"
                     onClick={() => void changeState(detailModalSession, 'RESUME')}

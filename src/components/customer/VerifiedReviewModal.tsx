@@ -12,9 +12,9 @@ interface Props {
 }
 
 export function VerifiedReviewModal({ order, onClose, onSubmitted }: Props) {
-  const reviewedIds = new Set((order.productReviews || []).map((review: any) => review.productId));
-  const products = order.orderItems.filter((item) => item.product && !reviewedIds.has(item.productId));
-  const [productId, setProductId] = useState(products[0]?.productId || '');
+  const reviewedIds = new Set((order.productReviews || []).map((review: any) => review.orderItemId));
+  const products = order.orderItems.filter((item) => item.product && item.id && !reviewedIds.has(item.id));
+  const [orderItemId, setOrderItemId] = useState(products[0]?.id || '');
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [images, setImages] = useState<File[]>([]);
@@ -22,11 +22,14 @@ export function VerifiedReviewModal({ order, onClose, onSubmitted }: Props) {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
+    const item = products.find(item => item.id === orderItemId);
+    if (!item) return toast.error('Vui lòng chọn sản phẩm trong đơn hàng để đánh giá.');
     if (comment.trim().length < 10) return toast.error('Nội dung đánh giá cần ít nhất 10 ký tự');
     setSubmitting(true);
     try {
       const imageUrls = await Promise.all(images.map((file) => uploadService.uploadImage(file, `scanms/reviews/${order.id}`)));
-      await customerService.submitVerifiedReview(order.id, { productId, rating, comment: comment.trim(), images: imageUrls });
+      await customerService.submitVerifiedReview(order.id, { productId: item.productId, orderItemId: item.id, rating, comment: comment.trim(), images: imageUrls });
       toast.success('Đã đăng đánh giá từ người mua đã xác minh');
       onSubmitted();
     } catch (error: any) {
@@ -46,8 +49,8 @@ export function VerifiedReviewModal({ order, onClose, onSubmitted }: Props) {
         {products.length === 0 ? <p className="py-8 text-center text-sm text-[#7D715E]">Bạn đã đánh giá tất cả sản phẩm trong đơn này.</p> : <div className="space-y-4 mt-5">
           <label className="block text-xs font-bold">Sản phẩm
             <div className="mt-1.5">
-              <Select value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full text-xs font-medium">
-                {products.map((item) => <option key={item.productId} value={item.productId}>{item.product?.title}</option>)}
+              <Select value={orderItemId} onChange={(e) => setOrderItemId(e.target.value)} className="w-full text-xs font-medium" disabled={submitting}>
+                {products.map((item) => <option key={item.id} value={item.id}>{item.product?.title}</option>)}
               </Select>
             </div>
           </label>
@@ -57,7 +60,7 @@ export function VerifiedReviewModal({ order, onClose, onSubmitted }: Props) {
           </label>
           <label className="block rounded-xl border border-dashed border-[#C59B58] bg-[#FBF5EB] p-3 cursor-pointer"><span className="flex items-center gap-2 text-xs font-bold"><ImagePlus className="w-4 h-4 text-[#B88E4F]" />Ảnh trải nghiệm (không bắt buộc, tối đa 5)</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(e) => setImages(Array.from(e.target.files || []).slice(0, 5))} />{images.length > 0 && <span className="text-[11px] text-[#B88E4F] block mt-1">Đã chọn {images.length} ảnh</span>}</label>
         </div>}
-        <div className="flex gap-2 mt-6 pt-4 border-t border-[#EAE4D7]"><button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#F3EFE6] text-xs font-bold text-[#7D715E]">Đóng</button>{products.length > 0 && <button type="submit" disabled={submitting || !productId} className="flex-[2] py-3 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] disabled:opacity-50 text-white text-xs font-bold flex justify-center items-center gap-2">{submitting && <Loader2 className="w-4 h-4 animate-spin" />}Đăng đánh giá</button>}</div>
+        <div className="flex gap-2 mt-6 pt-4 border-t border-[#EAE4D7]"><button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#F3EFE6] text-xs font-bold text-[#7D715E]">Đóng</button>{products.length > 0 && <button type="submit" disabled={submitting || !orderItemId} className="flex-[2] py-3 rounded-xl bg-[#C59B58] hover:bg-[#B88E4F] disabled:opacity-50 text-white text-xs font-bold flex justify-center items-center gap-2">{submitting && <Loader2 className="w-4 h-4 animate-spin" />}Đăng đánh giá</button>}</div>
       </form>
     </div>
   );

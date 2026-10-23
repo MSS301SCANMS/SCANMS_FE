@@ -24,6 +24,7 @@ function saveTokens(raw: any, rotating = false): string {
   if (!rotating) {
     localStorage.setItem(sessionKey, crypto.randomUUID());
     localStorage.removeItem(refreshKey);
+    for (const key of ['user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id', 'scanms_cached_addresses']) localStorage.removeItem(key);
   }
   if (typeof refresh === 'string' && refresh) localStorage.setItem(refreshKey, refresh);
   localStorage.setItem('token', access);
@@ -47,7 +48,7 @@ export function forceRefreshSession(): Promise<string | null> {
 
 export function clearSession(expected?: string | null, notify = true) {
   if (expected !== undefined && getSessionId() !== expected) return;
-  for (const key of ['token', refreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id']) localStorage.removeItem(key);
+  for (const key of ['token', refreshKey, expiryKey, sessionKey, 'user', 'scanms-current-role', 'scanms-active-workspace', 'current_store_id', 'scanms_cached_addresses']) localStorage.removeItem(key);
   if (notify) {
     window.dispatchEvent(new CustomEvent('scanms_auth_changed', { detail: { userId: null } }));
     window.dispatchEvent(new Event('auth-user-updated'));
@@ -155,14 +156,18 @@ export function installRawSessionAuth(client: AxiosInstance) {
 }
 
 export function startSessionRefresh() {
+  // Retire the old shared address cache, including for already signed-out browsers.
+  localStorage.removeItem('scanms_cached_addresses');
   const resume = () => {
     if (!document.hidden) void renewSession().catch(() => { /* API requests display connection errors. */ });
   };
   resume();
+  const timer = window.setInterval(resume, 15000);
   window.addEventListener('focus', resume);
   window.addEventListener('online', resume);
   document.addEventListener('visibilitychange', resume);
   return () => {
+    window.clearInterval(timer);
     window.removeEventListener('focus', resume);
     window.removeEventListener('online', resume);
     document.removeEventListener('visibilitychange', resume);

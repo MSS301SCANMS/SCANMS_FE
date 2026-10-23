@@ -27,6 +27,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Select } from '../../components/ui/Select';
 import { StorefrontSettingsSection } from '../../components/stores/StorefrontSettingsSection';
+import { isCompleteWarehouseAddress, WAREHOUSE_ADDRESS_HINT } from '../../utils/warehouse-address.utils';
 
 export default function ShopSettingsPage() {
   const navigate = useNavigate();
@@ -152,7 +153,7 @@ export default function ShopSettingsPage() {
     const warehouseAddress = detailsToSave.warehouseAddress.trim();
     const returnWarehouseAddress = sameReturnAddress
       ? warehouseAddress
-      : (detailsToSave.returnWarehouseAddress || warehouseAddress).trim();
+      : detailsToSave.returnWarehouseAddress.trim();
 
     if (isEditingOwnerDetails) {
       if (!detailsToSave.representativeName.trim() || !detailsToSave.businessType ||
@@ -169,8 +170,8 @@ export default function ShopSettingsPage() {
         showToast('Email đối soát chưa đúng định dạng.');
         return;
       }
-      if (warehouseAddress.split(',').map((part) => part.trim()).filter(Boolean).length < 4) {
-        showToast('Địa chỉ kho cần đủ số nhà/đường, phường/xã, quận/huyện, tỉnh/thành, ngăn cách bằng dấu phẩy.');
+      if (!isCompleteWarehouseAddress(warehouseAddress) || !isCompleteWarehouseAddress(returnWarehouseAddress)) {
+        showToast('Địa chỉ kho lấy hàng và kho hoàn trả cần có số nhà/đường, phường/xã, tỉnh/thành, ngăn cách bằng dấu phẩy. Quận/huyện không bắt buộc.');
         return;
       }
     }
@@ -198,7 +199,7 @@ export default function ShopSettingsPage() {
           taxCode: detailsToSave.taxCode || '0316892451',
           contactPhone: detailsToSave.contactPhone || '0902345678',
           contactEmail: detailsToSave.contactEmail || 'shop@scanms.vn',
-          businessAddress: detailsToSave.businessAddress || 'Tòa nhà Bitexco, 2 Hải Triều, P. Bến Nghé, Q.1, TP. Hồ Chí Minh',
+          businessAddress: detailsToSave.businessAddress.trim(),
           warehouseAddress,
           returnWarehouseAddress,
         }),
@@ -220,7 +221,7 @@ export default function ShopSettingsPage() {
   const handleSaveOwnerDetails = async () => {
     const returnWarehouseAddr = sameReturnAddress
       ? ownerDetailsDraft.warehouseAddress.trim()
-      : (ownerDetailsDraft.returnWarehouseAddress || ownerDetailsDraft.warehouseAddress).trim();
+      : ownerDetailsDraft.returnWarehouseAddress.trim();
 
     const details = {
       representativeName: ownerDetailsDraft.representativeName.trim(),
@@ -228,7 +229,7 @@ export default function ShopSettingsPage() {
       contactPhone: ownerDetailsDraft.contactPhone.trim(),
       contactEmail: ownerDetailsDraft.contactEmail.trim(),
       taxCode: ownerDetailsDraft.taxCode.trim(),
-      businessAddress: ownerDetailsDraft.businessAddress.trim() || 'Tòa nhà Bitexco, 2 Hải Triều, P. Bến Nghé, Q.1, TP. Hồ Chí Minh',
+      businessAddress: ownerDetailsDraft.businessAddress.trim(),
       warehouseAddress: ownerDetailsDraft.warehouseAddress.trim(),
       returnWarehouseAddress: returnWarehouseAddr,
     };
@@ -246,8 +247,8 @@ export default function ShopSettingsPage() {
       showToast('Email đối soát chưa đúng định dạng.');
       return;
     }
-    if (details.warehouseAddress.split(',').map((part) => part.trim()).filter(Boolean).length < 4) {
-      showToast('Địa chỉ kho cần đủ số nhà/đường, phường/xã, quận/huyện, tỉnh/thành, ngăn cách bằng dấu phẩy.');
+    if (!isCompleteWarehouseAddress(details.warehouseAddress) || !isCompleteWarehouseAddress(details.returnWarehouseAddress)) {
+      showToast('Địa chỉ kho lấy hàng và kho hoàn trả cần có số nhà/đường, phường/xã, tỉnh/thành, ngăn cách bằng dấu phẩy. Quận/huyện không bắt buộc.');
       return;
     }
 
@@ -567,10 +568,10 @@ export default function ShopSettingsPage() {
                           maxLength={500}
                           rows={2}
                           onChange={(event) => setOwnerDetailsDraft({ ...ownerDetailsDraft, warehouseAddress: event.target.value })}
-                          placeholder="Nhập địa chỉ kho thật: số nhà/đường, phường/xã, quận/huyện, tỉnh/thành"
+                          placeholder="100/31 Bình Giã, phường Tam Thắng, Thành phố Hồ Chí Minh"
                           className="mt-1.5 w-full resize-y rounded-xl border border-[#EAE4D7] bg-white px-3 py-2.5 text-sm font-normal outline-none transition placeholder:text-[#A99D8A] focus:border-[#C59B58]"
                         />
-                        <span className="mt-1 block font-normal text-[#7D715E]">Địa chỉ này được dùng làm điểm lấy hàng để GHN tính cước. Hãy nhập kho thực tế của Shop.</span>
+                        <span className="mt-1 block font-normal text-[#7D715E]">{WAREHOUSE_ADDRESS_HINT}</span>
                       </label>
                       <div className="sm:col-span-2 space-y-2 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-3">
                         <label className="flex items-center gap-2 text-xs font-semibold text-[#1A1612] cursor-pointer">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { captureProductReferral } from '../../utils/referral-attribution';
 import {
   ShoppingBag,
   ShieldCheck,
@@ -373,6 +374,11 @@ export default function ProductDetailPage() {
 
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const liveSource = searchParams.get('live') || '';
+  const sourceLivestreamId = /^[A-Za-z0-9_-]{1,100}$/.test(liveSource) ? liveSource : undefined;
+  useEffect(() => {
+    if (data?.product?.id) captureProductReferral(data.product.id, searchParams.get('ref'));
+  }, [data?.product?.id, searchParams]);
   const isCheckoutParam = searchParams.get('checkout') === '1' || searchParams.get('checkout') === 'true';
   const isCheckoutOpen = isCheckoutParam;
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -1029,6 +1035,7 @@ export default function ProductDetailPage() {
         policyShipping: policies?.shipping,
       },
       variantId: selectedVariant?.id,
+      liveSessionId: sourceLivestreamId,
       quantity,
       openCartAfterAdd: true,
     });
@@ -1255,7 +1262,8 @@ export default function ProductDetailPage() {
                     strokeWidth={1.65}
                   />
                   <span className="font-normal text-[#1A1612]">
-                    Đã thích ({(product as any)?.likesCount ?? (isWishlisted ? 155 : 154)})
+                    {isWishlisted ? 'Đã yêu thích' : 'Yêu thích'}
+                    {typeof (product as any)?.likesCount === 'number' ? ` (${(product as any).likesCount})` : ''}
                   </span>
                 </button>
               </div>
@@ -1266,7 +1274,7 @@ export default function ProductDetailPage() {
             <div data-product-shop-card className="lg:max-w-[460px] lg:mx-auto p-3.5 sm:p-4 rounded-xl bg-white border border-[#EAE4D7] shadow-xs grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 gap-y-3.5 sm:gap-x-4 min-w-0">
               {/* Left Column: Original Shop Avatar */}
               <Link
-                to={`/shop/${store.slug || store.id}`}
+                to={import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? `/shop/${store.slug || store.id}` : `/shops/${store.id}`}
                 className="shrink-0 no-underline group block"
                 title={`Xem gian hàng ${store.name}`}
               >
@@ -1289,7 +1297,7 @@ export default function ProductDetailPage() {
               {/* Right Column: Name + Online Status + Action Buttons */}
               <div className="min-w-0 flex-1">
                 <Link
-                  to={`/shop/${store.slug || store.id}`}
+                  to={import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? `/shop/${store.slug || store.id}` : `/shops/${store.id}`}
                   className="no-underline block group"
                   title={`Xem gian hàng ${store.name}`}
                 >
@@ -1306,7 +1314,7 @@ export default function ProductDetailPage() {
               </div>
                 <div className="col-span-2 grid grid-cols-2 gap-2">
                   <Link
-                    to={`/shop/${store.slug || store.id}`}
+                    to={import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? `/shop/${store.slug || store.id}` : `/shops/${store.id}`}
                     className="h-10 min-w-0 px-2.5 border border-[#EAE4D7] bg-white hover:bg-[#FAF8F5] text-[#1A1612] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer select-none no-underline focus-visible:outline-[#C59B58]"
                     title="Xem tất cả sản phẩm của gian hàng"
                   >
@@ -1338,11 +1346,11 @@ export default function ProductDetailPage() {
               <div className="flex flex-wrap items-center gap-3 text-xs text-[#7D715E] mb-3 pb-3 border-b border-[#EAE4D7]">
                 <div className="flex items-center gap-1.5">
                   <span className="font-extrabold text-[#B88E4F] underline text-sm">
-                    {reviews.averageRating ? reviews.averageRating.toFixed(1) : '4.9'}
+                    {reviews.totalReviews > 0 && reviews.averageRating !== null ? reviews.averageRating.toFixed(1) : 'Chưa có đánh giá'}
                   </span>
                   <div className="flex items-center text-[#B88E4F]">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-[#C59B58] text-[#B88E4F]" />
+                      <Star key={i} className={`w-3.5 h-3.5 ${reviews.totalReviews > 0 && i < Math.round(reviews.averageRating || 0) ? 'fill-[#C59B58] text-[#B88E4F]' : 'text-[#EAE4D7]'}`} />
                     ))}
                   </div>
                 </div>
@@ -1351,7 +1359,7 @@ export default function ProductDetailPage() {
 
                 <div className="flex items-center gap-1">
                   <span className="font-extrabold text-[#1A1612] underline">
-                    {reviews.totalReviews > 0 ? reviews.totalReviews : '1,3k'}
+                    {reviews.totalReviews}
                   </span>
                   <span>Đánh Giá</span>
                 </div>
@@ -2153,6 +2161,7 @@ export default function ProductDetailPage() {
             policyShipping: policies?.shipping,
           }}
           initialVariantId={selectedVariant?.id}
+          initialLiveSessionId={sourceLivestreamId}
           initialQuantity={quantity}
           initialCouponCode={appliedCoupon?.code || ''}
           onOrderPlaced={(order) => {

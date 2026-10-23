@@ -102,7 +102,7 @@ test('KOL and Shop document uploads stay styled, fit small screens and report up
     const nativePath = url => decodeURIComponent(url.pathname).replace(/^\/([A-Za-z]:)/, '$1');
     await input.uploadFile(nativePath(imagePath));
     await page.waitForSelector(`${selector}[aria-busy="true"]`);
-    assert.equal(await page.$eval(`${selector} .upgrade-document-choose`, button => button.disabled), true);
+    assert.equal(await page.$eval(`${selector} .upgrade-document-upload-area`, button => button.disabled), true);
     await page.waitForSelector(`${selector} .upgrade-document-error`);
     assert.equal(await page.$(`${selector} .has-image`), null, 'failed upload must never become an attached data URL');
     uploadFails = false;

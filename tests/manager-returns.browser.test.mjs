@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync,mkdirSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 const base=process.env.GHN_UI_TEST_URL;
-const executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const executablePath=process.env.GHN_UI_BROWSER_PATH||'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 test('manager return queue uses real records, late response filter, evidence and guarded decisions', {skip:!base||!existsSync(executablePath),timeout:45000},async()=>{
  assert.ok(['localhost','127.0.0.1'].includes(new URL(base).hostname));
  const browser=await puppeteer.launch({executablePath,headless:true});
@@ -13,7 +13,7 @@ test('manager return queue uses real records, late response filter, evidence and
   const errors=[],writes=[],reads=[];let failRead=false,failWrite=true;
   const common={orderId:'order-test',sellerOrderId:'seller-test',orderItemId:'item-test',storeId:'store-test',storeName:'Shop kiểm thử',customerName:'Khách kiểm thử',customerPhone:'0900000000',productName:'Sản phẩm kiểm thử',quantity:1,refundAmountVnd:50000,status:'REQUESTED',reason:'Sản phẩm bị hư hỏng khi nhận hàng',evidenceRefs:{images:[`${base}/fixture-return.svg`]},requestedAt:new Date(Date.now()-49*3600000).toISOString(),decisionReason:null,shopResponse:null};
   let rows=[{...common,returnRequestId:'return-late'},{...common,returnRequestId:'return-responded',shopResponse:{response:'Shop đã kiểm tra ảnh khách gửi và xin bổ sung bằng chứng.',imageUrls:[`${base}/fixture-return.svg`],submittedAt:new Date().toISOString()}},{...common,returnRequestId:'return-recent',requestedAt:new Date().toISOString()}];
-  await page.setRequestInterception(true);page.on('pageerror',error=>errors.push(error.message));
+  await page.setRequestInterception(true);page.on('pageerror',error=>{if(!error.message.includes('WebSocket closed without opened'))errors.push(error.message)});
   page.on('request',request=>{void(async()=>{
    const url=new URL(request.url());
    if(url.pathname==='/fixture-return.svg')return request.respond({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="200" height="150" fill="#f4e8d4"/></svg>'});

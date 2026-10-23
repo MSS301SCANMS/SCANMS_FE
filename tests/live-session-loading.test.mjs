@@ -18,10 +18,11 @@ async function simulateModalRefresh(oldDependencies = false) {
   let selected = { id: 'created-session', report: undefined };
   let list = [];
   const context = vm.createContext({
+    mapLivestream: value => value,
     detailModalSession: selected,
     api: { get: async () => {
       requests++;
-      return { data: [{ id: 'created-session', report: { orders: 3 } }] };
+      return { data: [{ id: 'created-session', storeId: 'store', report: { orders: 3 } }] };
     } },
     setSessions: value => { list = value; },
     setDetailModalSession: value => {
@@ -29,13 +30,14 @@ async function simulateModalRefresh(oldDependencies = false) {
       context.detailModalSession = selected;
     },
     toast: { error: () => {} },
+    unwrapApi: value => value.data,
     useCallback: (callback, dependencies) => {
       if (!lastDependencies || dependencies.some((value, index) => value !== lastDependencies[index])) memo = callback;
       lastDependencies = dependencies;
       return memo;
     },
   });
-  const code = ts.transpileModule(oldDependencies ? declaration.replace(/\[\]\);$/, '[detailModalSession]);') : declaration,
+  const code = ts.transpileModule(oldDependencies ? declaration.replace(/\[mapLivestream\]\);$/, '[mapLivestream, detailModalSession]);') : declaration,
     { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const render = vm.runInContext(`(function () { ${code}; return loadSessions; })`, context);
   let callback;

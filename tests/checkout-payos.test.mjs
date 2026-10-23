@@ -28,6 +28,7 @@ compiled = compiled
   .replace("'axios'", JSON.stringify(moduleUrl('export default globalThis.__checkoutTestAxios;')))
   .replace("'./api'", JSON.stringify(moduleUrl('export default {};')))
   .replace("'./finance.service'", JSON.stringify(moduleUrl('export const financeService = {};')))
+  .replace("'./auth-session'", JSON.stringify(moduleUrl('export const installRawSessionAuth = () => {};')))
   .replaceAll('import.meta.env', JSON.stringify({ VITE_COMMERCE_BACKEND: 'legacy', VITE_LEGACY_FINANCE_URL: 'http://127.0.0.1:3302/api' }));
 const { checkoutService } = await import(moduleUrl(compiled));
 

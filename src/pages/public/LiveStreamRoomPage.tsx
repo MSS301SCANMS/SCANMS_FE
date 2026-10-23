@@ -37,6 +37,7 @@ import {
   Store,
 } from 'lucide-react';
 import api from '../../services/api';
+import { liveSessionService } from '../../services/live-session.service';
 import { authService } from '../../services/auth.service';
 import { LiveGovernancePanel } from '../../components/live/LiveGovernancePanel';
 import { useCart } from '../../context/CartContext';
@@ -47,6 +48,7 @@ import { useLiveStreamTransport } from '../../hooks/useLiveStreamTransport';
 import { FACE_FILTERS, useLiveFaceFilter, type FaceFilter } from '../../hooks/useLiveFaceFilter';
 import { FaceFilterPreview } from '../../components/live/FaceFilterPreview';
 import type { FilterCategory } from '@/components/live/faceFilters';
+const legacyLive = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 
 interface LiveProduct {
   id: string;
@@ -384,10 +386,12 @@ export default function LiveStreamRoomPage() {
 
   // Live session state
   const [sessionData, setSessionData] = useState<any>(null);
+  const [sessionLoadError, setSessionLoadError] = useState('');
   const isSessionHost =
     currentUser?.role === 'COLLABORATOR' &&
     Boolean(currentUser.id) &&
-    currentUser.id === sessionData?.creator?.id;
+    ((currentUser.id === sessionData?.creator?.id && sessionData?.creator?.canHost !== false)
+      || sessionData?.creators?.some((creator: any) => creator.id === currentUser.id && creator.canHost !== false));
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -459,6 +463,9 @@ export default function LiveStreamRoomPage() {
   // Real-time Transport hook (WebRTC P2P + Socket.IO Chat/Reaction/Pinning)
   const {
     remoteStream,
+    roomJoined,
+    viewerCount: realtimeViewerCount,
+    businessStatus,
     hostOnline,
     isStreamLive,
     streamError,
@@ -489,9 +496,10 @@ export default function LiveStreamRoomPage() {
     },
     onPinnedProductChange: (data) => {
       if (typeof data.productIndex === 'number') {
-        setPinnedIndex(data.productIndex);
+        setPinnedIndex(Math.max(0, data.productIndex));
+        if (!legacyLive) setSessionData((previous: any) => previous ? { ...previous, pinnedProductId: data.productId ?? null } : previous);
         setIsPinnedDealCollapsed(false);
-        toast.info(`Host đã ghim sản phẩm #${data.productIndex + 1}!`);
+        toast.info(data.productIndex < 0 ? 'Host đã bỏ ghim sản phẩm.' : `Host đã ghim sản phẩm #${data.productIndex + 1}!`);
       }
     },
     onReactionBroadcast: (data) => {
@@ -500,6 +508,10 @@ export default function LiveStreamRoomPage() {
       }
     },
   });
+  useEffect(() => { if (!legacyLive) setViewerCount(realtimeViewerCount); }, [realtimeViewerCount]);
+  useEffect(() => {
+    if (businessStatus) setSessionData((previous: any) => previous && previous.status !== businessStatus ? { ...previous, status: businessStatus } : previous);
+  }, [businessStatus]);
 
   useEffect(() => {
     if (!sessionEnded) return;
@@ -683,13 +695,13 @@ export default function LiveStreamRoomPage() {
     async function load() {
       try {
         setLoading(true);
-        const res: any = await api.get(`/livestreams/${encodeURIComponent(identifier)}`);
-        const data = res?.data || res;
+        if (active) { setSessionData(null); setSessionLoadError(''); }
+        const data = await liveSessionService.room(identifier);
         if (active && data?.id) {
           setSessionData(data);
         }
-      } catch {
-        // Fallback demo mode is active
+      } catch (error: any) {
+        if (active) setSessionLoadError(error?.message || 'Chưa tải được phiên livestream. Vui lòng thử lại.');
       } finally {
         if (active) setLoading(false);
       }
@@ -752,6 +764,10 @@ export default function LiveStreamRoomPage() {
       setCameraError('Chỉ KOL được mời vào phiên mới có thể phát camera.');
       return;
     }
+    if (!legacyLive && (sessionData?.status !== 'LIVE' || !roomJoined)) {
+      const message = sessionData?.status !== 'LIVE' ? 'Chờ shop bắt đầu phiên livestream trước khi bật camera.' : 'Đang kết nối phòng livestream. Vui lòng chờ kết nối rồi bật camera.';
+      setCameraError(message);toast.error(message);return;
+    }
 
     if (!navigator?.mediaDevices?.getUserMedia) {
       const msg = 'Trình duyệt không hỗ trợ hoặc kết nối chưa an toàn (cần HTTPS hoặc localhost).';
@@ -801,7 +817,8 @@ export default function LiveStreamRoomPage() {
         }
       }
 
-      toast.success('Đã bật camera phát sóng');
+      if (!stream.getAudioTracks().length) toast.info('Camera đã bật nhưng chưa có âm thanh. Hãy cấp quyền micro rồi bật lại camera.');
+      else toast.success('Đã bật camera và micro');
     } catch (err: any) {
       console.error('Camera access error:', err);
       setIsCameraActive(false);
@@ -868,7 +885,7 @@ export default function LiveStreamRoomPage() {
 
   // REAL LIVE STATS SYNC & PRESENCE HEARTBEAT (Đồng bộ số người xem và tim thực tế)
   useEffect(() => {
-    if (sessionEnded) return;
+    if (sessionEnded || !legacyLive) return;
     let active = true;
 
     const syncLiveStats = async () => {
@@ -939,7 +956,7 @@ export default function LiveStreamRoomPage() {
       return sessionData.products.map((p: any, idx: number) => {
         const prod = p.product || {};
         const basePrice = Number(p.variant?.price ?? prod.price ?? 0);
-        const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 15;
+        const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 0;
         const discountType = sessionData.coupon?.discountType || 'PERCENTAGE';
         const livePrice =
           discountType === 'PERCENTAGE'
@@ -957,8 +974,8 @@ export default function LiveStreamRoomPage() {
           storeName: sessionData.store?.name || 'Gian Hàng Đối Tác',
           storeId: sessionData.store?.id,
           soldPercent: Math.min(96, 65 + ((idx * 7) % 30)),
-          stockLeft: p.variant?.stockQuantity ?? prod.stockQuantity ?? Math.max(3, 20 - idx * 2),
-          category: prod.category || 'Mỹ phẩm & Làm đẹp',
+          stockLeft: p.variant?.stockQuantity ?? prod.stockQuantity ?? 0,
+          category: prod.categoryName || prod.category || 'Sản phẩm',
           badge: idx === 0 ? 'Mall' : idx % 2 === 1 ? 'Deal Hot' : 'Xu Hướng',
         };
       });
@@ -973,7 +990,7 @@ export default function LiveStreamRoomPage() {
     }
   }, [sessionData?.pinnedProductId, products]);
 
-  const pinnedProduct = products[pinnedIndex];
+  const pinnedProduct = !legacyLive && sessionData?.pinnedProductId === null ? undefined : products[pinnedIndex];
 
   const handlePinChange = async (productId: string | null) => {
     if (!sessionData?.id || pinPendingId !== null) return;
@@ -983,7 +1000,9 @@ export default function LiveStreamRoomPage() {
     pinRevision.current += 1;
     try {
       const url = `/livestreams/${sessionData.id}/pinned-product`;
-      if (productId === null) {
+      if (!legacyLive) {
+        await pinProduct(productId === null ? -1 : products.findIndex(product => product.id === productId), productId || undefined);
+      } else if (productId === null) {
         await api.delete(url);
       } else {
         await api.post(url, { productId });
@@ -1091,7 +1110,7 @@ export default function LiveStreamRoomPage() {
       likeDeltaTimerRef.current = setTimeout(() => setLikeDelta(null), 1000);
 
       // Gửi tương tác thực tế lên server backend để cộng dồn
-      api
+      if (legacyLive) api
         .post(`/livestreams/${encodeURIComponent(identifier)}/interaction`, {
           action: 'LIKE',
           clientId: clientIdRef.current,
@@ -1203,13 +1222,14 @@ export default function LiveStreamRoomPage() {
       text,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
-    setChatMessages((prev) => [...prev, newMsg]);
+    if (legacyLive) setChatMessages((prev) => [...prev, newMsg]);
     sendLiveChat(text, { sender, avatar, role });
     setInputComment('');
   };
 
   // Add to cart
   const handleAddToCart = (product: LiveProduct) => {
+    if (!product.variantId) { navigate(`/products/${encodeURIComponent(product.id)}?live=${encodeURIComponent(sessionData.id)}`); return; }
     addItem({
       variantId: product.variantId,
       liveSessionId: sessionData?.id,
@@ -1233,6 +1253,7 @@ export default function LiveStreamRoomPage() {
 
   // Instant Buy (Chốt đơn trực tiếp tại phiên live)
   const handleInstantBuy = (product: LiveProduct) => {
+    if (!product.variantId) { navigate(`/products/${encodeURIComponent(product.id)}?live=${encodeURIComponent(sessionData.id)}`); return; }
     buyNow(
       {
         variantId: product.variantId,
@@ -1270,6 +1291,7 @@ export default function LiveStreamRoomPage() {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[#FAF8F5] text-[#1A1612]">
         <p className="text-lg font-bold">Không tìm thấy phiên SCANMS Live này.</p>
+        {sessionLoadError && <p role="alert" className="max-w-lg px-4 text-center text-sm text-[#7D715E]">{sessionLoadError}</p>}
         <button type="button" onClick={() => navigate('/')} className="rounded-xl bg-[#C59B58] px-4 py-2 font-semibold text-white">Về trang chủ</button>
       </div>
     );
@@ -2418,7 +2440,7 @@ export default function LiveStreamRoomPage() {
                 >
                   🎥 Thiết Bị & Sân Khấu Live
                 </button>
-                {isSessionHost && (
+                {legacyLive && isSessionHost && (
                   <button
                     type="button"
                     onClick={() => setStudioTab('GOVERNANCE')}
@@ -2546,14 +2568,14 @@ export default function LiveStreamRoomPage() {
             )}
 
             {/* NỘI DUNG TAB 3: BIÊN BẢN HỢP TÁC & PHÂN QUYỀN GOVERNANCE */}
-            {studioTab === 'GOVERNANCE' && isSessionHost && sessionData?.id && (
+            {legacyLive && studioTab === 'GOVERNANCE' && isSessionHost && sessionData?.id && (
               <div className="px-6 py-4 max-h-[350px] overflow-y-auto">
                 <LiveGovernancePanel session={sessionData} audience="kol" liveRoom />
               </div>
             )}
 
             {/* THANH TÁC VỤ DƯỚI CÙNG (FOOTER ACTIONS) */}
-            <div className="flex shrink-0 justify-start px-6 pt-3">
+            {legacyLive && <div className="flex shrink-0 justify-start px-6 pt-3">
               <button
                 type="button"
                 onClick={() => setIsVoucherDropOpen(true)}
@@ -2563,10 +2585,10 @@ export default function LiveStreamRoomPage() {
                 <Ticket size={16} className="text-[#B88E4F]" />
                 <span>{'Tung Voucher Live'}</span>
               </button>
-            </div>
+            </div>}
             <div className={cn('mt-3 grid shrink-0 items-end gap-3 border-t border-[#EAE4D7] bg-[#FAF8F5] px-6 py-4', isSessionHost && sessionData?.id ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
-              {isSessionHost && sessionData?.id && <LiveGovernancePanel session={sessionData} audience="kol" liveRoom compact onChanged={() => {
-                void api.get(`/livestreams/${sessionData.id}`, { headers: { 'x-skip-cache': '1' } }).then((response: any) => setSessionData(response?.data || response)).catch(() => {});
+              {legacyLive && isSessionHost && sessionData?.id && <LiveGovernancePanel session={sessionData} audience="kol" liveRoom compact onChanged={() => {
+                void liveSessionService.room(sessionData.id).then(setSessionData).catch(() => {});
               }} />}
               <button
                 type="button"

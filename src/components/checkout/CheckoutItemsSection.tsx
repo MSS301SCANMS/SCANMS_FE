@@ -36,7 +36,7 @@ export function CheckoutItemsSection({ groups, shippingFees, notes, onNotesChang
           <div className="checkout-product-quantity"><span>Số lượng</span><strong>×{item.quantity}</strong></div>
           <div className="checkout-product-line-total"><span>Thành tiền</span><strong>{formatMoney(item.price * item.quantity)}</strong></div>
         </article>)}</div>
-        <footer className="checkout-shop-footer"><span><Truck size={15} aria-hidden="true" />Vận chuyển GHN{shippingFees[group.store.id] !== undefined && <strong>{formatMoney(shippingFees[group.store.id])}</strong>}</span><span>Tiền hàng ({group.items.reduce((sum, item) => sum + item.quantity, 0)} sản phẩm)<strong>{formatMoney(group.subtotal)}</strong></span></footer>
+        <footer className="checkout-shop-footer"><span><Truck size={15} aria-hidden="true" />Phí vận chuyển{shippingFees[group.store.id] !== undefined && <strong>{formatMoney(shippingFees[group.store.id])}</strong>}</span><span>Tiền hàng ({group.items.reduce((sum, item) => sum + item.quantity, 0)} sản phẩm)<strong>{formatMoney(group.subtotal)}</strong></span></footer>
       </section>)}
       <div className="checkout-notes"><label htmlFor="checkout-order-notes">{groups.length > 1 ? 'Lời nhắn cho các gian hàng' : 'Lời nhắn cho shop'}</label><input id="checkout-order-notes" value={notes} onChange={event => onNotesChange(event.target.value)} placeholder="Ghi chú giao hàng, gọi trước khi giao…" />{groups.length > 1 && <p>Lời nhắn này được gửi tới các gian hàng trong đơn.</p>}</div>
     </section>

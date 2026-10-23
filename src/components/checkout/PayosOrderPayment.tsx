@@ -2,24 +2,32 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { CheckCircle2, Clock3, ExternalLink, Loader2, QrCode, RefreshCw, ShieldCheck } from 'lucide-react';
 import api from '../../services/api';
+import { usesLegacyCheckout } from '../../services/checkout.service';
+import { orderPayosService } from '../../services/order-payos.service';
+import { getSessionId } from '../../services/auth-session';
 import { formatMoney } from '../../utils/marketplace.utils';
 
 type PaymentLink = {
   qrCode?: string; checkoutUrl?: string; accountNumber?: string;
   accountName?: string; amount?: number; paymentStatus?: string;
+  providerStatus?: string; orderStatus?: string;
 };
 const requests = new Map<string, Promise<PaymentLink>>();
 const unwrap = (response: any) => response?.data?.data || response?.data || response;
 
 // React StrictMode and repeated mounts share the same in-flight request.
 function createLink(code: string) {
-  const active = requests.get(code);
+  const key = `${getSessionId()}:${code}`;
+  const active = requests.get(key);
   if (active) return active;
-  const request = api.post(`/orders/payos/${encodeURIComponent(code)}/link`, {}, { timeout: 30000 })
-    .then(unwrap).finally(() => requests.delete(code));
-  requests.set(code, request);
+  const request = (usesLegacyCheckout ? api.post(`/orders/payos/${encodeURIComponent(code)}/link`, {}, { timeout: 30000 }).then(unwrap) : orderPayosService.prepare(code))
+    .finally(() => requests.delete(key));
+  requests.set(key, request);
   return request;
 }
+const paymentStatus = (code: string) => usesLegacyCheckout
+  ? api.get(`/orders/payos/${encodeURIComponent(code)}/status`, { headers: { 'x-skip-cache': 'true' }, timeout: 30000 }).then(unwrap)
+  : orderPayosService.status(code);
 
 export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeading = true }: {
   orderCode: string; storeName?: string; onPaid?: () => void; showOrderHeading?: boolean;
@@ -41,6 +49,10 @@ export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeadi
       if (!mounted.current) return;
       if (result.paymentStatus === 'PAID') {
         setStatus('PAID'); paidCallback.current?.();
+      } else if (result.providerStatus === 'SUCCESS') {
+        setStatus('SYNCING');
+      } else if (result.orderStatus === 'CANCELLED') {
+        setStatus('CANCELLED');
       } else if (!result.qrCode || !result.checkoutUrl) {
         throw new Error('Chưa nhận được mã QR PayOS. Vui lòng thử lại.');
       }
@@ -48,7 +60,7 @@ export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeadi
     } catch (err: any) {
       if (err.status === 409) {
         try {
-          const result = unwrap(await api.get(`/orders/payos/${encodeURIComponent(orderCode)}/status`, { headers: { 'x-skip-cache': 'true' }, timeout: 30000 }));
+          const result = await paymentStatus(orderCode);
           if (mounted.current && result.paymentStatus === 'PAID') {
             setStatus('PAID'); paidCallback.current?.(); return;
           }
@@ -81,13 +93,13 @@ export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeadi
     const check = async () => {
       let finished = false;
       try {
-        const result = unwrap(await api.get(`/orders/payos/${encodeURIComponent(orderCode)}/status`, {
-          headers: { 'x-skip-cache': 'true' }, timeout: 30000,
-        }));
+        const result = await paymentStatus(orderCode);
         if (!active) return;
         setError(''); setProviderStatus(result.providerStatus || '');
         if (result.paymentStatus === 'PAID') {
           setStatus('PAID'); paidCallback.current?.(); finished = true;
+        } else if (result.providerStatus === 'SUCCESS') {
+          setStatus('SYNCING');
         } else if (result.orderStatus === 'CANCELLED') {
           setStatus('CANCELLED'); finished = true;
         } else if (['CANCELLED', 'EXPIRED'].includes(result.providerStatus)) {
@@ -129,7 +141,7 @@ export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeadi
           Đang tạo mã thanh toán…
         </p>
       )}
-      {status !== 'PAID' && status !== 'CANCELLED' && !loading && link && !expired && (
+      {status === 'WAITING_PAYMENT' && !loading && link && !expired && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-[234px_minmax(0,1fr)] gap-4 sm:gap-4.5 pt-3.5">
             <div className="flex flex-col items-center self-start bg-white">
@@ -170,7 +182,8 @@ export function PayosOrderPayment({ orderCode, storeName, onPaid, showOrderHeadi
         </>
       )}
       {status === 'PAID' && <p className="pt-3 m-0 text-xs text-[#059669]">PayOS đã xác nhận nhận đủ tiền cho đơn hàng này.</p>}
-      {status === 'CANCELLED' && <p className="pt-3 m-0 text-xs text-[#DC2626]">Đơn hàng đã hủy.</p>}
+      {status === 'SYNCING' && <p role="status" className="pt-3 m-0 text-xs text-[#7D715E]">Đã nhận tiền, đang đồng bộ kết quả sang đơn hàng. Vui lòng chờ và không chuyển khoản thêm.</p>}
+      {status === 'CANCELLED' && <p className="pt-3 m-0 text-xs text-[#DC2626]">Giao dịch đã hủy hoặc hết hiệu lực.</p>}
       {expired && status !== 'PAID' && status !== 'CANCELLED' && <p className="pt-3 m-0 text-xs text-[#7D715E]">Mã thanh toán đã hết hạn hoặc bị hủy. Bạn có thể tạo mã mới cho đơn này.</p>}
       {error && <p role="alert" className="p-2.5 mt-3 border border-[#EAE4D7] rounded-lg text-xs leading-relaxed text-[#DC2626]">{error}</p>}
       {!loading && status !== 'PAID' && status !== 'CANCELLED' && (!link || expired) && (

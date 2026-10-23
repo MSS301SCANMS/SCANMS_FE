@@ -49,6 +49,7 @@ export const apiCache = {
     // Không cache các endpoint auth hoặc nhạy cảm
     if (
       url.includes('/auth/') ||
+      url.includes('/owner-details') ||
       url.includes('/refresh') ||
       url.includes('/otp') ||
       url.includes('/sample-requests') ||

@@ -7,7 +7,7 @@ import LegacyPayosReturnPage from './LegacyPayosReturnPage';
 
 export default function PaymentStatusPage() {
   const [params] = useSearchParams();
-  return params.get('order') ? <LegacyPayosReturnPage /> : <SpringPaymentStatusPage />;
+  return params.get('payment') || !params.get('order') ? <SpringPaymentStatusPage /> : <LegacyPayosReturnPage />;
 }
 
 function SpringPaymentStatusPage() {

@@ -43,7 +43,7 @@ export interface RoleNavigationGroup {
 export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
   CUSTOMER: {
     title: 'TÀI KHOẢN KHÁCH HÀNG',
-    subTitle: 'Khách Mua Sắm',
+    subTitle: 'Không gian mua sắm',
     items: [
       { path: '/customer/orders', label: 'Đơn mua của tôi', icon: ShoppingBag, section: 'MUA SẮM & VÍ' },
       { path: '/customer/addresses', label: 'Sổ địa chỉ nhận hàng', icon: MapPin, section: 'MUA SẮM & VÍ' },

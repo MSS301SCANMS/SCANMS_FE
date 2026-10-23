@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
+import { getSessionId } from '../../services/auth-session';
+import { getProductReferral } from '../../utils/referral-attribution';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckoutOrderConfirmation, type CheckoutOrderResult } from './CheckoutOrderConfirmation';
 import { CheckoutItemsSection } from './CheckoutItemsSection';
@@ -50,6 +52,8 @@ import { resolveSavedShippingAddress, resolveMapShippingAddress } from '@/utils/
 import { AddressLocationPicker, type AddressLocationResult } from '../customer/AddressLocationPicker';
 import { walletService, type WalletSummary } from '../../services/wallet.service';
 import { normalizeOrderVariantId } from '../../utils/order-variant.utils';
+import { checkoutService, usesLegacyCheckout } from '../../services/checkout.service';
+import { financeService } from '../../services/finance.service';
 
 const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -103,11 +107,29 @@ interface GuestCheckoutModalProps {
   initialQuantity?: number;
   initialCouponCode?: string;
   initialVariantId?: string;
+  initialLiveSessionId?: string;
   onOrderPlaced?: (orderData: any) => void;
   onPaymentConfirmed?: (orderData: any) => void;
 }
 
-export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
+function subscribeCheckoutSession(callback: () => void) {
+  window.addEventListener('scanms_auth_changed', callback);
+  window.addEventListener('auth-user-updated', callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener('scanms_auth_changed', callback);
+    window.removeEventListener('auth-user-updated', callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+
+export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = (props) => {
+  const session = useSyncExternalStore(subscribeCheckoutSession, getSessionId, () => null);
+  // Account changes discard private form state; access-token renewal keeps it.
+  return <CheckoutForm key={session || 'guest'} {...props} />;
+};
+
+const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   isOpen,
   onClose,
   product,
@@ -116,6 +138,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   initialQuantity = 1,
   initialCouponCode = '',
   initialVariantId,
+  initialLiveSessionId,
   onOrderPlaced,
   onPaymentConfirmed,
 }) => {
@@ -132,9 +155,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       const user = authService.getCurrentUser();
-      if (user) {
-        setCurrentUser(user);
-      }
+      setCurrentUser(user);
     }
   }, [isOpen]);
 
@@ -149,29 +170,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     }
   }, [isOpen]);
 
-  // Khởi tạo sổ địa chỉ từ LocalStorage để render tức thì ngay khi mở modal
-  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string>(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          return def?.id || '';
-        }
-      }
-    } catch {}
-    return '';
-  });
+  // Saved addresses are fetched for the authenticated session, never persisted globally.
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState('');
 
   const [showPasswordLogin, setShowPasswordLogin] = useState(false);
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -190,19 +191,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         setCustomerName(user.fullName || '');
         setCustomerEmail(user.email || '');
         if (user.phoneNumber) setCustomerPhone(user.phoneNumber);
-        customerService.getAddresses().then((addrs) => {
-          if (Array.isArray(addrs) && addrs.length > 0) {
-            setCustomerAddresses(addrs);
-            try { localStorage.setItem('scanms_cached_addresses', JSON.stringify(addrs)); } catch {}
-            const def = addrs.find((a) => a.isDefault) || addrs[0];
-            if (def) {
-              setSelectedSavedAddressId(def.id);
-              if (def.fullName) setCustomerName(def.fullName);
-              if (def.phoneNumber) setCustomerPhone(def.phoneNumber);
-              setShippingAddress(def.detailAddress || '');
-            }
-          }
-        }).catch(() => {});
       }
       toast.success('Đăng nhập thành công! Vui lòng hoàn tất thông tin đặt hàng.');
     } catch (err: any) {
@@ -228,19 +216,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         setCustomerName(user.fullName || '');
         setCustomerEmail(user.email || '');
         if (user.phoneNumber) setCustomerPhone(user.phoneNumber);
-        customerService.getAddresses().then((addrs) => {
-          if (Array.isArray(addrs) && addrs.length > 0) {
-            setCustomerAddresses(addrs);
-            try { localStorage.setItem('scanms_cached_addresses', JSON.stringify(addrs)); } catch {}
-            const def = addrs.find((a) => a.isDefault) || addrs[0];
-            if (def) {
-              setSelectedSavedAddressId(def.id);
-              if (def.fullName) setCustomerName(def.fullName);
-              if (def.phoneNumber) setCustomerPhone(def.phoneNumber);
-              setShippingAddress(def.detailAddress || '');
-            }
-          }
-        }).catch(() => {});
       }
       toast.success('Đăng nhập thành công! Vui lòng hoàn tất thông tin đặt hàng.');
     } catch (err: any) {
@@ -250,107 +225,26 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     }
   };
 
-  // Khởi tạo các trường thông tin từ địa chỉ mặc định đã lưu nếu có
-  const [customerName, setCustomerName] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.fullName) return def.fullName;
-        }
-      }
-      const user = authService.getCurrentUser();
-      return user?.fullName || '';
-    } catch {
-      return '';
-    }
-  });
-
-  const [customerPhone, setCustomerPhone] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.phoneNumber) return def.phoneNumber;
-        }
-      }
-      const user = authService.getCurrentUser();
-      return user?.phoneNumber || '';
-    } catch {
-      return '';
-    }
-  });
+  const [customerName, setCustomerName] = useState(() => authService.getCurrentUser()?.fullName || '');
+  const [customerPhone, setCustomerPhone] = useState(() => authService.getCurrentUser()?.phoneNumber || '');
 
   const [customerEmail, setCustomerEmail] = useState(() => {
     const user = authService.getCurrentUser();
     return user?.email || '';
   });
 
-  const [shippingAddress, setShippingAddress] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.detailAddress) return def.detailAddress;
-        }
-      }
-    } catch {}
-    return '';
-  });
+  const [shippingAddress, setShippingAddress] = useState('');
 
   const [shippingProvinces, setShippingProvinces] = useState<ShippingProvince[]>([]);
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [shippingFeesByStore, setShippingFeesByStore] = useState<Record<string, number>>({});
+  const [shippingQuoteMode, setShippingQuoteMode] = useState<string | null>(null);
   const [shippingFeeError, setShippingFeeError] = useState<string | null>(null);
   const [shippingFeeLoading, setShippingFeeLoading] = useState(false);
   const [shippingQuoteRetry, setShippingQuoteRetry] = useState(0);
-  const [provinceCode, setProvinceCode] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.provinceCode) return String(def.provinceCode);
-        }
-      }
-    } catch {}
-    return '';
-  });
-
-  const [districtCode, setDistrictCode] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.districtCode) return String(def.districtCode);
-        }
-      }
-    } catch {}
-    return '';
-  });
-
-  const [wardCode, setWardCode] = useState(() => {
-    try {
-      const cached = localStorage.getItem('scanms_cached_addresses');
-      if (cached) {
-        const list = JSON.parse(cached);
-        if (Array.isArray(list) && list.length > 0) {
-          const def = list.find((a: any) => a.isDefault) || list[0];
-          if (def?.wardCode) return String(def.wardCode);
-        }
-      }
-    } catch {}
-    return '';
-  });
+  const [provinceCode, setProvinceCode] = useState('');
+  const [districtCode, setDistrictCode] = useState('');
+  const [wardCode, setWardCode] = useState('');
 
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
@@ -495,6 +389,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
           cartItemId: `${product.id}_${selectedVariantId || 'base'}`,
           productId: product.id,
           variantId: selectedVariantId,
+          liveSessionId: initialLiveSessionId,
           variantName: matchedVariant?.name,
           title: product.title,
           sku: matchedVariant?.sku || product.sku || '',
@@ -519,7 +414,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     }
 
     return [];
-  }, [checkoutItems, product, store, selectedVariantId, singleQuantity]);
+  }, [checkoutItems, product, store, selectedVariantId, singleQuantity, initialLiveSessionId]);
 
   // Group active items by Shop
   const itemsGroupedByShop = useMemo(() => {
@@ -615,11 +510,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     if (!isOpen || !isSignedIn) return;
     let active = true;
     setPayosAvailable(null);
-    api
-      .get('/orders/payos/availability', { headers: { 'x-skip-cache': 'true' } })
-      .then((response: any) => {
-        const data = response?.data?.data || response?.data || response;
-        if (active) setPayosAvailable(data?.available === true);
+    checkoutService.paymentAvailable()
+      .then((available) => {
+        if (active) setPayosAvailable(available);
       })
       .catch(() => {
         if (active) setPayosAvailable(false);
@@ -643,6 +536,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
   // Pre-fill user data & addresses on open
   useEffect(() => {
     let active = true;
+    const session = getSessionId();
     if (isOpen) {
       addressDraftEdited.current = false;
       setPolicyAccepted(true);
@@ -657,12 +551,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         customerService
           .getAddresses()
           .then((addrs) => {
-            if (!active) return;
+            if (!active || session !== getSessionId()) return;
+            setCustomerAddresses(Array.isArray(addrs) ? addrs : []);
             if (Array.isArray(addrs) && addrs.length > 0) {
-              setCustomerAddresses(addrs);
-              try {
-                localStorage.setItem('scanms_cached_addresses', JSON.stringify(addrs));
-              } catch {}
 
               const def = addrs.find((a) => a.id === selectedSavedAddressId) || addrs.find((a) => a.isDefault) || addrs[0];
               if (def && !addressDraftEdited.current) {
@@ -692,15 +583,12 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       // Pre-checkout validation (Requirement 6)
       if (activeItems.length > 0) {
         setIsValidatingCart(true);
-        api
-          .post('/orders/validate-cart', {
-            items: activeItems.map((i) => ({
+        checkoutService.validateCart(activeItems.map((i) => ({
               productId: i.productId,
               variantId: i.variantId || undefined,
               quantity: i.quantity,
               clientPrice: i.price,
-            })),
-          })
+            })))
           .then((res: any) => {
             const data = res?.data || res;
             if (data?.warnings && data.warnings.length > 0) {
@@ -771,9 +659,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     : null);
 
   useEffect(() => {
-    if (!isOpen || !selectedProvince || !selectedDistrict || !selectedWard || shippingAddress.trim().length < 5 || !itemsGroupedByShop.length) {
+    if (!isOpen || !isSignedIn || !selectedProvince || !selectedDistrict || !selectedWard || shippingAddress.trim().length < 5 || !itemsGroupedByShop.length) {
       setShippingFee(null);
       setShippingFeesByStore({});
+      setShippingQuoteMode(null);
       setAppliedShippingCoupon(null);
       setShippingFeeError(null);
       setShippingFeeLoading(false);
@@ -783,6 +672,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     const address = [shippingAddress.trim(), selectedWard.name, selectedDistrict.name, selectedProvince.name].join(', ');
     setShippingFee(null);
     setShippingFeesByStore({});
+    setShippingQuoteMode(null);
     setAppliedShippingCoupon(null);
     setShippingFeeError(null);
     setShippingFeeLoading(true);
@@ -790,25 +680,24 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     const timer = setTimeout(() => { void Promise.all(itemsGroupedByShop.map(async (group) => {
       let response: any;
       try {
-        response = await api.post('/shipping/ghn/quote-address', {
-          storeId: group.store.id,
-          address,
-          items: group.items.map((item) => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })),
-        }, { signal: controller.signal, timeout: 20000 });
+        response = await checkoutService.shippingQuote(
+          group.items.map((item) => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })),
+          group.store.id, address, controller.signal,
+        );
       } catch (error: any) {
         const detail = error?.response?.data?.message || error?.message;
         const message = Array.isArray(detail) ? detail.join(' ') : detail;
         throw new Error(`Chưa tính được phí giao hàng của ${group.store.name || 'gian hàng'}: ${message || 'Vui lòng thử lại sau.'}`);
       }
       const quote = response?.data?.data || response?.data || response;
-      if (typeof quote.totalFee !== 'number' || !Number.isFinite(quote.totalFee) || quote.totalFee < 0) throw new Error('Cước GHN không hợp lệ. Vui lòng thử tính lại phí vận chuyển.');
-      return { storeId: group.store.id, fee: Number(quote.totalFee) };
+      if (typeof quote.totalFee !== 'number' || !Number.isFinite(quote.totalFee) || quote.totalFee < 0) throw new Error('Phí vận chuyển không hợp lệ. Vui lòng thử tính lại phí vận chuyển.');
+      return { storeId: group.store.id, fee: Number(quote.totalFee), mode: quote.mode };
     }))
-      .then((fees) => { if (active) { setShippingFeesByStore(Object.fromEntries(fees.map((item) => [item.storeId, item.fee]))); setShippingFee(fees.reduce((sum, item) => sum + item.fee, 0)); } })
-      .catch((error: any) => { if (active) setShippingFeeError(error?.message || 'Chưa lấy được cước GHN. Vui lòng thử lại sau.'); })
+      .then((fees) => { if (active) { setShippingFeesByStore(Object.fromEntries(fees.map((item) => [item.storeId, item.fee]))); setShippingFee(fees.reduce((sum, item) => sum + item.fee, 0)); setShippingQuoteMode(fees.some(fee => fee.mode === 'SIMULATED') ? 'SIMULATED' : 'FIXED'); } })
+      .catch((error: any) => { if (active) setShippingFeeError(error?.message || 'Chưa lấy được phí vận chuyển. Vui lòng thử lại sau.'); })
       .finally(() => { if (active) setShippingFeeLoading(false); }); }, 350);
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [isOpen, shippingAddress, selectedProvince?.name, selectedDistrict?.name, selectedWard?.name, itemsGroupedByShop, shippingQuoteRetry]);
+  }, [isOpen, isSignedIn, shippingAddress, selectedProvince?.name, selectedDistrict?.name, selectedWard?.name, itemsGroupedByShop, shippingQuoteRetry]);
 
   // Remove an address validation message as soon as its field is corrected.
   useEffect(() => {
@@ -971,7 +860,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       const updated = await customerService.getAddresses();
       const newAddresses = Array.isArray(updated) ? updated : [];
       setCustomerAddresses(newAddresses);
-      try { localStorage.setItem('scanms_cached_addresses', JSON.stringify(newAddresses)); } catch {}
 
       // Nếu địa chỉ vừa xóa là địa chỉ đang được chọn
       if (selectedSavedAddressId === addr.id) {
@@ -1047,7 +935,6 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       const updated = await customerService.getAddresses();
       if (Array.isArray(updated)) {
         setCustomerAddresses(updated);
-        try { localStorage.setItem('scanms_cached_addresses', JSON.stringify(updated)); } catch {}
         if (newAddr?.id) {
           setSelectedSavedAddressId(newAddr.id);
         }
@@ -1064,26 +951,19 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     !email.trim() || /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim());
 
   // Validate coupon
+  const validateCheckoutCoupon = (code: string) => usesLegacyCheckout
+    ? api.post('/coupons/validate', {
+        code, storeId: targetVoucherStoreId, customerPhone: customerPhone.trim() || undefined,
+        items: activeItems.filter(item => item.store.id === targetVoucherStoreId).map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity, unitPrice: item.price })),
+        hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: Boolean(appliedPlatformCoupon),
+      })
+    : checkoutService.quote({ couponCode: code, items: activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })) });
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) return;
     setCouponLoading(true);
     setCouponMessage(null);
     try {
-      const targetStoreId = targetVoucherStoreId;
-      const res: any = await api.post('/coupons/validate', {
-        code: couponCode.trim(),
-        storeId: targetStoreId,
-        customerPhone: customerPhone.trim() || undefined,
-        items: activeItems.filter((item) => item.store.id === targetStoreId).map((item) => ({
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          unitPrice: item.price,
-        })),
-        hasProductDiscount: false,
-        hasShopVoucher: false,
-        hasPlatformVoucher: Boolean(appliedPlatformCoupon),
-      });
+      const res: any = await validateCheckoutCoupon(couponCode.trim());
 
       const data = res?.data || res;
       setAppliedCoupon({
@@ -1131,13 +1011,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     const timer = window.setTimeout(() => {
       setCouponCode(autoCouponCode);
       setCouponLoading(true);
-      void api.post('/coupons/validate', {
-        code: autoCouponCode,
-        storeId: targetVoucherStoreId,
-        customerPhone: customerPhone.trim() || undefined,
-        items: activeItems.filter((item) => item.store.id === targetVoucherStoreId).map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity, unitPrice: item.price })),
-        hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: false,
-      }).then((response: any) => {
+      void validateCheckoutCoupon(autoCouponCode).then((response: any) => {
         if (!active) return;
         const data = response?.data || response;
         setAppliedCoupon({ code: data.code, discountAmount: Number(data.discountAmount) || 0, discountType: data.discountType });
@@ -1190,6 +1064,10 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
       );
       return;
     }
+    if (paymentMethod === 'WALLET' && (walletLoading || !wallet || Number(wallet.availableBalance) < finalTotal)) {
+      setErrorMessage('Số dư ví chưa đủ hoặc chưa tải xong. Vui lòng kiểm tra ví trước khi đặt hàng.');
+      return;
+    }
 
     const trimmedName = customerName.trim();
     if (!trimmedName || trimmedName.length < 2) {
@@ -1232,7 +1110,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
     }
 
     if (shippingFee === null || shippingFeeError) {
-      setErrorMessage(shippingFeeError || 'Đang tính cước GHN. Vui lòng đợi trước khi đặt hàng.');
+      setErrorMessage(shippingFeeError || 'Đang tính phí vận chuyển. Vui lòng đợi trước khi đặt hàng.');
       return;
     }
 
@@ -1275,6 +1153,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         activeItems.map(async (item) => ({
           productId: item.productId,
           liveSessionId: item.liveSessionId,
+          referralLinkId: getProductReferral(item.productId),
           variantId: await resolveOrderVariantId(item),
           quantity: item.quantity,
         })),
@@ -1286,10 +1165,11 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         customerPhone: customerPhone.trim(),
         customerEmail: orderEmail.trim().toLowerCase() || undefined,
         shippingAddress: fullShippingAddress,
+        ...(!usesLegacyCheckout && { expectedShippingFeeVnd: shippingFee }),
         policyAccepted: true,
         orderNotes: orderNotes.trim() || undefined,
         paymentMethod,
-        couponCode: itemsGroupedByShop.length === 1 ? appliedCoupon?.code || undefined : undefined,
+        couponCode: !usesLegacyCheckout || itemsGroupedByShop.length === 1 ? appliedCoupon?.code || undefined : undefined,
         couponsByStore: appliedCoupon ? { [targetVoucherStoreId]: appliedCoupon.code } : undefined,
         platformCouponsByStore: appliedPlatformCoupon ? { [targetVoucherStoreId]: appliedPlatformCoupon.code } : undefined,
         shippingCouponsByStore: appliedShippingCoupon ? { [targetVoucherStoreId]: appliedShippingCoupon.code } : undefined,
@@ -1299,9 +1179,22 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         items: normalizedItems,
       };
 
-      const res = await api.post('/orders', payload, { timeout: 45000 });
+      const res = await checkoutService.create(usesLegacyCheckout ? payload : {
+        ...payload,
+        items: normalizedItems.map(({ liveSessionId, ...item }) => ({ ...item, sourceLivestreamId: liveSessionId })),
+      });
       const rawResponse = res as any;
       const resData = rawResponse?.data?.data || rawResponse?.data || rawResponse;
+      if (!usesLegacyCheckout && Number(resData.finalAmount) !== finalTotal) {
+        throw new Error('Giá hoặc phí vận chuyển đã thay đổi. Đơn đang chờ thanh toán; hãy kiểm tra tổng tiền trong Đơn mua trước khi trả tiền.');
+      }
+      if (!usesLegacyCheckout && paymentMethod === 'WALLET') {
+        const customerWallet = await financeService.wallet('CUSTOMER');
+        const payment = await financeService.payWallet(resData.orderId, customerWallet.walletId, `checkout-wallet:${idempotencyKey}`);
+        if (payment.status !== 'SUCCESS') throw new Error('Chưa xác nhận được thanh toán ví. Vui lòng kiểm tra đơn mua trước khi thử lại.');
+        resData.paymentStatus = 'PAID';
+        resData.orders?.forEach((order: any) => { order.paymentStatus = 'PAID'; });
+      }
 
       // Extract created orders list (Requirement 8 & 10)
       const isMultiStore = Boolean(resData.isMultiStore);
@@ -1367,7 +1260,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         onOrderPlaced(orderResult);
       }
       if (localStorage.getItem('token') && authService.getCurrentUser()) {
-        if (orderResult.paymentMethod === 'PAYOS' && orderResult.paymentStatus === 'PAID') onPaymentConfirmed?.(orderResult);
+        if (orderResult.paymentStatus === 'PAID') onPaymentConfirmed?.(orderResult);
         onClose();
         navigate('/customer/orders', {
           replace: true,
@@ -1904,6 +1797,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               onContinueShopping={() => { continueShoppingFromCheckout(activeItems); onClose(); navigate('/marketplace#catalog-section'); }}
             />
             <CheckoutVoucherSection
+              supportsStacked={usesLegacyCheckout}
               groups={itemsGroupedByShop}
               targetStoreId={targetVoucherStoreId}
               onTargetChange={id => { setVoucherTargetStoreId(id); setAppliedCoupon(null); setAppliedPlatformCoupon(null); setAppliedShippingCoupon(null); setCouponMessage(null); }}
@@ -1921,12 +1815,13 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
               <CheckoutPaymentMethods method={paymentMethod} onChange={setPaymentMethod} balance={Number(wallet?.availableBalance || 0)} loading={walletLoading} total={finalTotal} payosAvailable={payosAvailable} />
               <dl className="checkout-totals" aria-label="Chi tiết thanh toán">
                 <div><dt>Tổng tiền hàng ({activeUnitCount} sản phẩm)</dt><dd>{formatMoney(rawSubtotal)}</dd></div>
-                <div><dt>Phí vận chuyển GHN</dt><dd role="status">{shippingAddressHint || shippingFeeError || (shippingFeeLoading ? 'Đang tính cước…' : shippingFee === null ? 'Chưa có phí vận chuyển.' : formatMoney(shippingFee))}{shippingFeeError && !shippingAddressHint && <button type="button" onClick={() => setShippingQuoteRetry(value => value + 1)} className="ml-2 text-[#795A2D] underline underline-offset-2">Tính lại</button>}</dd></div>
+                <div><dt>Phí vận chuyển</dt><dd role="status">{shippingAddressHint || shippingFeeError || (shippingFeeLoading ? 'Đang tính cước…' : shippingFee === null ? 'Chưa có phí vận chuyển.' : formatMoney(shippingFee))}{shippingFeeError && !shippingAddressHint && <button type="button" onClick={() => setShippingQuoteRetry(value => value + 1)} className="ml-2 text-[#795A2D] underline underline-offset-2">Tính lại</button>}</dd></div>
                 {appliedCoupon && <div className="checkout-total-discount"><dt>Voucher Shop / KOL ({appliedCoupon.code})</dt><dd>−{formatMoney(discountAmount)}</dd></div>}
                 {appliedPlatformCoupon && <div className="checkout-total-discount"><dt>Voucher SCANMS ({appliedPlatformCoupon.code})</dt><dd>−{formatMoney(appliedPlatformCoupon.discountAmount)}</dd></div>}
                 {appliedShippingCoupon && <div className="checkout-total-discount"><dt>Voucher vận chuyển ({appliedShippingCoupon.code})</dt><dd>−{formatMoney(appliedShippingCoupon.discountAmount)}</dd></div>}
                 <div className="checkout-total-final"><dt>Tổng thanh toán</dt><dd>{shippingFee === null || shippingFeeError || shippingAddressHint || shippingFeeLoading ? <span>Chờ tính phí ship</span> : formatMoney(finalTotal)}</dd></div>
               </dl>
+              {shippingQuoteMode === 'SIMULATED' && <p className="text-xs text-[#795A2D]" role="note">Phí giao hàng mô phỏng: {formatMoney(shippingFee || 0)} cho {itemsGroupedByShop.length} shop. Khách thanh toán cùng tiền hàng; chưa phát sinh phí với hãng vận chuyển.</p>}
 
               <details className="checkout-policy-details" id="checkout-return-policies">
                 <summary><span><ShieldCheck size={16} aria-hidden="true" />Chính sách đổi trả & giao hàng của các gian hàng</span><ChevronDown size={15} aria-hidden="true" /></summary>

@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import api from '../services/api';
-import { isChatSocketEnabled } from '../services/chat-socket.service';
+import { getSessionId, renewSession } from '../services/auth-session';
 
 type LiveSignal = {
   description?: RTCSessionDescriptionInit;
@@ -17,10 +17,14 @@ type LiveStreamTransportOptions = {
   onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 
-const SOCKET_URL = String(import.meta.env.VITE_SOCKET_URL || '').trim();
-const ICE_SERVERS: RTCIceServer[] = [
+const SOCKET_URL = String(import.meta.env.VITE_LIVE_SOCKET_URL || import.meta.env.VITE_SOCKET_URL || '').trim();
+const ICE_SERVERS: RTCIceServer[] = (() => { try {
+  const servers = JSON.parse(import.meta.env.VITE_LIVE_ICE_SERVERS || 'null');
+  if (Array.isArray(servers) && servers.length) return servers;
+} catch { /* Use the default STUN server when no deployment-specific TURN is configured. */ }
+return [
   { urls: 'stun:stun.l.google.com:19302' },
-];
+]; })();
 
 export function useLiveStreamTransport({
   sessionId,
@@ -44,6 +48,9 @@ export function useLiveStreamTransport({
   const [isStreamLive, setIsStreamLive] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [viewerCount, setViewerCount] = useState(0);
+  const [businessStatus, setBusinessStatus] = useState<string | null>(null);
+  const publishingRef = useRef(false);
 
   const onNewChatMessageRef = useRef(onNewChatMessage);
   onNewChatMessageRef.current = onNewChatMessage;
@@ -62,6 +69,7 @@ export function useLiveStreamTransport({
       try {
         const response: any = await api.get(`/livestreams/${sessionId}`, { headers: { 'x-skip-cache': 'true' } });
         const session = response?.data || response;
+        if (alive && session?.status) setBusinessStatus(session.status);
         if (alive && session && (['ENDED', 'CANCELLED'].includes(session.status) || new Date(session.endsAt).getTime() <= Date.now())) {
           setSessionEnded(true);
           setRoomJoined(false);
@@ -238,15 +246,16 @@ export function useLiveStreamTransport({
   useEffect(() => {
     if (!sessionId) return undefined;
 
-    if (!isChatSocketEnabled() || !SOCKET_URL) {
-      setStreamError('Livestream realtime chưa bật (thiếu VITE_SOCKET_URL).');
+    if (!SOCKET_URL) {
+      setStreamError('Chưa kết nối máy chủ livestream.');
       setRoomJoined(false);
       return undefined;
     }
 
     let active = true;
+    const identity = getSessionId();
     const socket = io(`${SOCKET_URL}/live-stream`, {
-      auth: { token: localStorage.getItem('token') },
+      auth: callback => { void renewSession().then(token => callback({ token })).catch(() => callback({ token: null })); },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -274,6 +283,11 @@ export function useLiveStreamTransport({
     socket.on('disconnect', () => {
       if (!active) return;
       setRoomJoined(false);
+      wasPublishingRef.current = false; publishingRef.current = false;
+      hostPeersRef.current.forEach(peer => peer.close());hostPeersRef.current.clear();
+      viewerPeersRef.current.forEach(peer => peer.close());viewerPeersRef.current.clear();
+      pendingViewersRef.current.clear();pendingIceRef.current.clear();
+      remoteStreamRef.current = null;setRemoteStream(null);
       if (!isHost) setIsStreamLive(false);
     });
     socket.on('connect_error', (error) => {
@@ -288,7 +302,7 @@ export function useLiveStreamTransport({
     socket.on('live_viewer_joined', ({ viewerSocketId }: { viewerSocketId?: string }) => {
       if (!active || !isHost || !viewerSocketId) return;
       pendingViewersRef.current.add(viewerSocketId);
-      if (localStreamRef.current) void createHostPeer(viewerSocketId);
+      if (localStreamRef.current && wasPublishingRef.current) void createHostPeer(viewerSocketId);
     });
     socket.on('live_viewer_left', ({ viewerSocketId }: { viewerSocketId?: string }) => {
       if (!viewerSocketId) return;
@@ -300,6 +314,7 @@ export function useLiveStreamTransport({
     socket.on('live_host_available', () => {
       if (!isHost) setHostOnline(true);
     });
+    socket.on('live_viewer_count', ({ count }: { count: number }) => { if (active) setViewerCount(count); });
     socket.on('live_stream_started', () => {
       if (!isHost) {
         setHostOnline(true);
@@ -363,8 +378,23 @@ export function useLiveStreamTransport({
     const viewerPeers = viewerPeersRef.current;
     const pendingViewers = pendingViewersRef.current;
     const pendingIce = pendingIceRef.current;
+    const checkIdentity = () => {
+      if (getSessionId() === identity) return;
+      socket.disconnect();localStreamRef.current?.getTracks().forEach(track => track.stop());
+      setRoomJoined(false);setStreamError('Tài khoản đã thay đổi. Hãy mở lại phòng livestream.');
+    };
+    const authTimer = window.setInterval(() => {
+      checkIdentity();
+      if (getSessionId() !== identity || !socket.connected) return;
+      void renewSession().then(token => { if (active && getSessionId() === identity && token) socket.emit('refresh_live_auth', { token }); }).catch(() => {});
+    }, 15000);
+    window.addEventListener('scanms_auth_changed', checkIdentity);
+    window.addEventListener('storage', checkIdentity);
     return () => {
       active = false;
+      window.clearInterval(authTimer);
+      window.removeEventListener('scanms_auth_changed', checkIdentity);window.removeEventListener('storage', checkIdentity);
+      wasPublishingRef.current = false;publishingRef.current = false;
       socket.removeAllListeners();
       socket.disconnect();
       if (socketRef.current === socket) socketRef.current = null;
@@ -394,11 +424,17 @@ export function useLiveStreamTransport({
           }
         });
       });
-      wasPublishingRef.current = true;
-      socket.emit('live_stream_started', { sessionId });
-      pendingViewersRef.current.forEach((viewerSocketId) => {
-        void createHostPeer(viewerSocketId);
-      });
+      if (!wasPublishingRef.current && !publishingRef.current) {
+        publishingRef.current = true;
+        socket.timeout(10000).emit('live_stream_started', { sessionId }, (error: Error | null, result: { ok?: boolean; message?: string }) => {
+          publishingRef.current = false;
+          if (!socket.connected) return;
+          if (error || !result?.ok) { setStreamError(result?.message || 'Máy chủ chưa xác nhận phát sóng. Hãy thử bật lại camera.'); return; }
+          if (!localStreamRef.current) { socket.emit('live_stream_stopped', { sessionId }); return; }
+          wasPublishingRef.current = true;setStreamError(null);
+          pendingViewersRef.current.forEach(viewerSocketId => { void createHostPeer(viewerSocketId); });
+        });
+      }
       return;
     }
 
@@ -418,8 +454,13 @@ export function useLiveStreamTransport({
     socketRef.current?.emit('send_live_chat', { sessionId, text, ...senderInfo });
   }, [sessionId]);
 
-  const pinProduct = useCallback((productIndex: number, productId?: string) => {
-    socketRef.current?.emit('host_pin_product', { sessionId, productIndex, productId });
+  const pinProduct = useCallback((productIndex: number, productId?: string): Promise<void> => {
+    const socket = socketRef.current;
+    if (!socket?.connected) return Promise.reject(new Error('Chưa kết nối phòng livestream.'));
+    return new Promise((resolve, reject) => socket.timeout(10000).emit('host_pin_product', { sessionId, productIndex, productId }, (error: Error | null, result: { ok?: boolean; message?: string }) => {
+      if (error || !result?.ok) reject(new Error(result?.message || 'Chưa xác nhận được sản phẩm ghim.'));
+      else resolve();
+    }));
   }, [sessionId]);
 
   const sendReaction = useCallback((emoji: string, iconUrl?: string) => {
@@ -428,6 +469,9 @@ export function useLiveStreamTransport({
 
   return {
     remoteStream,
+    roomJoined,
+    viewerCount,
+    businessStatus,
     hostOnline,
     isStreamLive,
     streamError,

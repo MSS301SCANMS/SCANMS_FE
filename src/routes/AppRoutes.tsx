@@ -144,14 +144,14 @@ function AppRoutes() {
                 <Route path="/shop" element={<ShopStorefrontPage />} />
                 <Route path="/shop/:slug" element={<ShopStorefrontPage />} />
                 <Route path="/stores/:slug" element={<ShopStorefrontPage />} />
-                <Route path="/live/:slug" element={<LiveStreamRoomPage />} />
-                <Route path="/live/:id" element={<LiveStreamRoomPage />} />
-                <Route path="/live" element={<LiveStreamRoomPage />} />
                 <Route path="/products/:slug" element={<ProductDetailPage />} />
                 <Route path="/tracking" element={<OrderTrackingPage />} />
                 <Route path="/order-tracking" element={<OrderTrackingPage />} />
               </Route>
 
+              {/* Hosts and viewers share the live room across workspaces. */}
+              <Route path="/live/:slug" element={<LiveStreamRoomPage />} />
+              <Route path="/live" element={<LiveStreamRoomPage />} />
               <Route path="/payment/payos-return" element={<PayosReturnPage />} />
               <Route path="/r/:shortCode" element={<RedirectHandlerPage />} />
               <Route path="/login" element={<LoginPage />} />

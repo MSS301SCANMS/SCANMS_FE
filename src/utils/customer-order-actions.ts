@@ -7,7 +7,7 @@ export function getCustomerOrderActions(order: CustomerOrder, now = Date.now(), 
   return {
     cancel: order.status === 'PENDING',
     confirmReceipt: order.status === 'DELIVERED' && !hasReturn,
-    requestReturn: delivered && !hasReturn && Number.isFinite(deliveredAt) && deliveredAt <= now && now <= deliveredAt + 14 * 86400000,
+    requestReturn: delivered && order.orderItems.some(item => (item.returnableQuantity ?? item.quantity) > 0) && Number.isFinite(deliveredAt) && deliveredAt <= now && now <= deliveredAt + 14 * 86400000,
     review: order.status === 'COMPLETED' && !hasReturn,
     reorder: ['DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED'].includes(order.status) ||
       (order.status === 'SHIPPING' && trackingStatus === 'delivered'),
