@@ -165,7 +165,7 @@ export const authService = {
 
   async login(identifier: string, password: string) {
     // BE LoginRequest expects `email` (Keycloak username = email)
-    // AuthResponse chỉ có token — luôn gọi /users/me để lấy roles (SHOP_OWNER → SHOP_MANAGER)
+    // AuthResponse chỉ có token — luôn gọi /users để lấy roles (SHOP_OWNER → SHOP_MANAGER)
     const res: any = await api.post('/auth/login', {
       email: identifier.trim(),
       password,
@@ -182,7 +182,7 @@ export const authService = {
     if (accessToken) {
       saveLoginSession(res);
       try {
-        const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
+        const meRes: any = await api.get('/users', { headers: { 'x-skip-cache': 'true' } });
         user = normalizeUser(meRes?.result || meRes?.data || meRes);
       } catch (e) {
         console.warn('Failed to fetch user profile after login:', e);
@@ -223,7 +223,7 @@ export const authService = {
     if (accessToken) {
       saveLoginSession(res);
       try {
-        const meRes: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
+        const meRes: any = await api.get('/users', { headers: { 'x-skip-cache': 'true' } });
         user = normalizeUser(meRes?.result || meRes?.data || meRes);
       } catch (e) {
         console.warn('Failed to fetch user profile after google login:', e);
@@ -249,7 +249,7 @@ export const authService = {
 
   async getMe(): Promise<UserProfile> {
     const session = getSessionId();
-    const res: any = await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } });
+    const res: any = await api.get('/users', { headers: { 'x-skip-cache': 'true' } });
     if (session !== getSessionId()) throw new Error('Phiên đăng nhập đã thay đổi.');
     let user = normalizeUser(res?.result || res?.data || res);
     if (user && (user.id || user.userId)) {
@@ -284,7 +284,7 @@ export const authService = {
   },
 
   async updateAvatar(avatarUrl: string): Promise<any> {
-    const res: any = await api.patch('/users/me', { avatarUrl });
+    const res: any = await api.patch('/users', { avatarUrl });
     const user = this.getCurrentUser();
     if (user) {
       user.avatarUrl = avatarUrl;

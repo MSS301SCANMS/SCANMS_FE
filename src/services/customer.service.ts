@@ -313,7 +313,7 @@ function parseStoredAddresses(me: any): CustomerAddress[] {
 export const customerService = {
   // 1. Profile & Settings
   async getProfile(): Promise<CustomerProfileResponse> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const orders = await this.getOrders().catch(() => ({ total: 0, orders: [] as CustomerOrder[] }));
     const wishlist = await this.getWishlist().catch(() => []);
     const pendingStatuses = new Set(['PENDING', 'AWAITING_PAYMENT', 'PROCESSING', 'CONFIRMED']);
@@ -353,8 +353,8 @@ export const customerService = {
     if (data.address !== undefined) payload.address = data.address;
     if (data.dateOfBirth !== undefined) payload.dateOfBirth = data.dateOfBirth;
     if (data.gender !== undefined) payload.gender = data.gender;
-    await api.patch('/users/me', payload);
-    const saved = unwrap(await api.get('/users/me', { headers: { 'x-skip-cache': 'true' } }));
+    await api.patch('/users', payload);
+    const saved = unwrap(await api.get('/users', { headers: { 'x-skip-cache': 'true' } }));
     if (!(saved?.userId || saved?.id) || Object.entries(payload).some(([key, value]) => (saved[key] ?? null) !== (value ?? null))) {
       throw new Error('Máy chủ chưa lưu đầy đủ thông tin hồ sơ. Nội dung bạn nhập vẫn được giữ để kiểm tra và thử lại.');
     }
@@ -409,9 +409,9 @@ export const customerService = {
   },
 
   async getIdentity(): Promise<{ isVerified: boolean; fullName: string; idCardNumber: string; address: string; verifiedAt?: string }> {
-    // getProfile() trả { user, stats }; identity lấy thêm address thô từ /users/me
+    // getProfile() trả { user, stats }; identity lấy thêm address thô từ /users
     const profile = await this.getProfile();
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const addresses = parseStoredAddresses(me);
     const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
     const addressText =
@@ -544,12 +544,12 @@ export const customerService = {
 
   // 3. Addresses — BE lưu JSON list trong users.address
   async getAddresses(): Promise<CustomerAddress[]> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     return parseStoredAddresses(me);
   },
 
   async createAddress(data: Omit<CustomerAddress, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<any> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const list = parseStoredAddresses(me);
     const entry: CustomerAddress = {
       id: `addr-${Date.now()}`,
@@ -576,7 +576,7 @@ export const customerService = {
   },
 
   async updateAddress(id: string, data: Partial<CustomerAddress>): Promise<any> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const list = parseStoredAddresses(me);
     const next = list.map((a) =>
       a.id === id
@@ -594,14 +594,14 @@ export const customerService = {
   },
 
   async deleteAddress(id: string): Promise<any> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const next = parseStoredAddresses(me).filter((a) => a.id !== id);
     if (next.length && !next.some((a) => a.isDefault)) next[0].isDefault = true;
     return this.updateProfile({ address: JSON.stringify(next) });
   },
 
   async setDefaultAddress(id: string): Promise<any> {
-    const me: any = unwrap(await api.get('/users/me'));
+    const me: any = unwrap(await api.get('/users'));
     const next = parseStoredAddresses(me).map((a) => ({ ...a, isDefault: a.id === id }));
     return this.updateProfile({ address: JSON.stringify(next) });
   },
