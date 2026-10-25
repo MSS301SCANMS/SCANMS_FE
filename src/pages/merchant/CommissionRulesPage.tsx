@@ -172,7 +172,7 @@ export const CommissionRulesPage: React.FC = () => {
     const init = async () => {
       try {
         let sId = localStorage.getItem('current_store_id') || '';
-        const userRes: any = await api.get('/users/me');
+        const userRes: any = await api.get('/users');
         const user = userRes?.result || userRes?.data || userRes;
         if (!active) return;
         if (user?.role) setCurrentUserRole(user.role);
