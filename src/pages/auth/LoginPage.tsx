@@ -20,7 +20,7 @@ import { ShoppingScene } from '../../components/auth/ShoppingScene';
 import { AnimatedPasswordField, type PasswordAuthState } from '../../components/auth/AnimatedPasswordField';
 import './LoginPage.css';
 import { getDemoLogin } from '../../utils/demo-login';
-import { getRememberedIdentifier, getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
+import { getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
 import { safeLoginReturn } from '../../utils/login-return';
 
 type RoleType = 'customer' | 'kol' | 'shop' | 'manager' | 'admin';
@@ -34,11 +34,11 @@ interface RoleOption {
 }
 
 const ROLES: RoleOption[] = [
-  { id: 'customer', label: 'Khách mua', icon: ShoppingBag, email: 'customer01@seed.scanms.test', badge: 'Nguyễn Văn An (Có 2 đơn hàng)' },
-  { id: 'kol', label: 'KOL/KOC', icon: Sparkles, email: 'kol01@seed.scanms.test', badge: 'Hà My Skincare (Kênh TikTok, Bạc)' },
-  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shop01@seed.scanms.test', badge: 'Cỏ Mềm Official (Kho GHN, 2 SP)' },
-  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager@scanms.vn', badge: 'Ban Vận Hành & Tuân Thủ (Manager)' },
-  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@seed.scanms.test', badge: 'Quản Trị Viên Toàn Hệ Thống (Admin)' },
+  { id: 'customer', label: 'Khách mua', icon: ShoppingBag, email: 'customer01@scanms.com', badge: 'Hoàng Mai Anh (Khách mua)' },
+  { id: 'kol', label: 'KOL/KOC', icon: Sparkles, email: 'kolctv01@scanms.com', badge: 'Lê Hoàng Long (KOL/KOC)' },
+  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shopowner01@scanms.com', badge: 'Nguyễn Văn Thịnh (Sora Fashion)' },
+  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager01@scanms.com', badge: 'Phạm Minh Đức (Quản Lý Sàn)' },
+  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@scanms.com', badge: 'Quản Trị Viên Hệ Thống' },
 ];
 
 export default function LoginPage() {
@@ -59,8 +59,17 @@ export default function LoginPage() {
     return registeredEmail ? 'customer' : getRememberedLoginRole();
   });
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
-  const [identifier, setIdentifier] = useState(() => registeredEmail || getRememberedIdentifier(role) || getDemoLogin(role)?.identifier || '');
-  const [password, setPassword] = useState(() => registeredEmail || getRememberedIdentifier(role) ? '' : getDemoLogin(role)?.password || '');
+  const [identifier, setIdentifier] = useState(() => {
+    if (registeredEmail) return registeredEmail;
+    const roleOpt = ROLES.find(r => r.id === role);
+    const account = getDemoLogin(role);
+    return account?.identifier || roleOpt?.email || '';
+  });
+  const [password, setPassword] = useState(() => {
+    if (registeredEmail) return '';
+    const account = getDemoLogin(role);
+    return account?.password || '123456';
+  });
   const [passwordAuthState, setPasswordAuthState] = useState<PasswordAuthState>('idle');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -81,12 +90,12 @@ export default function LoginPage() {
 
   const handleRoleSelect = (selectedRole: RoleType) => {
     if (loading || passwordAuthState === 'success') return;
-    if (selectedRole !== role) {
-      const account = getDemoLogin(selectedRole);
-      const remembered = getRememberedIdentifier(selectedRole);
-      setIdentifier(remembered || account?.identifier || '');
-      setPassword(remembered ? '' : account?.password || '');
-    }
+    const roleOpt = ROLES.find(r => r.id === selectedRole);
+    const account = getDemoLogin(selectedRole);
+    const targetEmail = account?.identifier || roleOpt?.email || '';
+    const targetPassword = account?.password || '123456';
+    setIdentifier(targetEmail);
+    setPassword(targetPassword);
     setPasswordAuthState('idle');
     setRole(selectedRole);
     setError(null);
@@ -298,6 +307,27 @@ export default function LoginPage() {
               )}
             </div>
 
+            {/* Quick role pills for instant 1-click credential fill */}
+            <div className="flex flex-wrap gap-1.5 -mt-1">
+              {ROLES.map((r) => {
+                const isSelected = role === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleRoleSelect(r.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#C59B58] text-white shadow-2xs'
+                        : 'bg-white border border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58] hover:text-[#1A1612]'
+                    }`}
+                  >
+                    <span>{r.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Social sign-in options */}
             <div className="w-full">
               <GoogleOfficialButton
@@ -325,7 +355,7 @@ export default function LoginPage() {
             {searchParams.get('sessionChanged') === '1' && <p role="status" className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-3 py-2.5 text-xs leading-relaxed text-[#7D715E]">
               Tài khoản đã được thay đổi ở tab khác. Đăng nhập tài khoản {activeRole.label} để tiếp tục trang vừa mở.
             </p>}
-            <form key={role} name="scanms-login" autoComplete="on" onSubmit={handleSubmit} className="space-y-3">
+            <form name="scanms-login" autoComplete="off" onSubmit={handleSubmit} className="space-y-3">
               <div className="relative flex items-center">
                 <label htmlFor="login-identifier" className="sr-only">Email hoặc số điện thoại đã đăng ký</label>
                 <input

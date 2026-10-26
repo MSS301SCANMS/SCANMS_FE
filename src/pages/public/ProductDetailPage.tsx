@@ -911,18 +911,92 @@ export default function ProductDetailPage() {
       return false;
     }
     const requestContext = couponContextRef.current;
+    const code = (selection.enteredCode || selection.goodsCode || '').trim().toUpperCase();
+
+    if (!selection.goodsCode && !selection.shippingCode && !selection.enteredCode) {
+      setAppliedCoupon(null);
+      setCouponCode('');
+      setCouponError(null);
+      return true;
+    }
 
     setCouponLoading(true);
     setCouponError(null);
 
+    // 1. Kiểm tra ngay trong danh sách voucher công khai của Shop (Direct Validation)
+    if (code && availableStoreCoupons.length > 0) {
+      const matched = availableStoreCoupons.find((vc: any) => {
+        const c1 = (vc.displayCode || '').toUpperCase();
+        const c2 = (vc.code || '').toUpperCase();
+        const c3 = (vc.codeNormalized || '').toUpperCase();
+        return c1 === code || c2 === code || c3 === code;
+      });
+
+      if (matched) {
+        const itemPrice = selectedVariant?.price !== undefined && selectedVariant?.price !== null
+          ? Number(selectedVariant.price)
+          : data?.product?.price || 0;
+        const currentSubtotal = itemPrice * quantity;
+
+        // Kiểm tra điều kiện đơn hàng tối thiểu
+        const minOrder = Number(matched.minimumOrderAmount || matched.minOrderAmount || 0);
+        if (minOrder > 0 && currentSubtotal < minOrder) {
+          setCouponError(`Đơn hàng tối thiểu để áp dụng mã này là ${minOrder.toLocaleString('vi-VN')} ₫ (giá trị hiện tại: ${currentSubtotal.toLocaleString('vi-VN')} ₫).`);
+          setAppliedCoupon(null);
+          setCouponLoading(false);
+          return false;
+        }
+
+        // Kiểm tra thời hạn hiệu lực
+        if (matched.validUntil && new Date(matched.validUntil).getTime() < Date.now()) {
+          setCouponError('Mã giảm giá đã hết hạn sử dụng.');
+          setAppliedCoupon(null);
+          setCouponLoading(false);
+          return false;
+        }
+
+        // Tính toán số tiền giảm
+        let discount = 0;
+        const isPct = matched.discountType === 'PERCENTAGE';
+        if (isPct) {
+          const pct = Number(matched.discountValue || 0);
+          discount = Math.round((currentSubtotal * pct) / 100);
+          const maxDiscount = Number(matched.maximumDiscountAmount || matched.maxDiscountAmount || 0);
+          if (maxDiscount > 0) {
+            discount = Math.min(discount, maxDiscount);
+          }
+        } else {
+          discount = Math.min(currentSubtotal, Number(matched.discountAmount || matched.discountValue || 0));
+        }
+
+        if (discount > 0) {
+          const appliedCode = matched.displayCode || matched.code || code;
+          setCouponCode(appliedCode);
+          setAppliedCoupon({
+            contextKey: requestContext,
+            code: appliedCode,
+            shippingCouponCode: '',
+            discountAmount: discount,
+            shippingDiscountAmount: 0,
+            description: matched.description || `Mã ${appliedCode}: Giảm ${discount.toLocaleString('vi-VN')} ₫ cho đơn hàng.`,
+          });
+          setCouponError(null);
+          setCouponLoading(false);
+          toast.success(`Áp dụng mã ${appliedCode} thành công! Giảm ${discount.toLocaleString('vi-VN')} ₫`);
+          return true;
+        }
+      }
+    }
+
+    // 2. Fallback sang quoteVoucherSelection (Backend quote cho mã sàn hoặc mã ngoài)
     try {
       const res: any = await quoteVoucherSelection(selection, [
-          {
-            productId: data.product.id,
-            variantId: selectedVariantIsReal ? selectedVariant?.id : undefined,
-            quantity: quantity,
-          },
-        ]);
+        {
+          productId: data.product.id,
+          variantId: selectedVariantIsReal ? selectedVariant?.id : undefined,
+          quantity: quantity,
+        },
+      ]);
 
       const couponRes = res?.result || res?.data?.data || res?.data || res || {};
       if (couponContextRef.current !== requestContext) return false;
@@ -931,11 +1005,8 @@ export default function ProductDetailPage() {
       );
       const shippingDiscount = Number(couponRes.shippingDiscountVnd || 0);
 
-      if (!selection.goodsCode && !selection.shippingCode && !selection.enteredCode) {
-        setAppliedCoupon(null); setCouponCode(''); return true;
-      }
       if (discount > 0 || shippingDiscount > 0) {
-        const codes=[couponRes.code,couponRes.shippingCouponCode].filter(Boolean).join(' + ');
+        const codes = [couponRes.code, couponRes.shippingCouponCode].filter(Boolean).join(' + ');
         setCouponCode(codes);
         setAppliedCoupon({
           contextKey: requestContext,
@@ -950,7 +1021,6 @@ export default function ProductDetailPage() {
         setCouponError(null);
         return true;
       } else {
-
         setCouponError(
           'Mã ưu đãi hợp lệ nhưng mức giảm giá bằng 0 hoặc không đủ điều kiện áp dụng.',
         );

@@ -155,8 +155,17 @@ export const ShopCouponsPage: React.FC = () => {
   const [storeCampaigns, setStoreCampaigns] = useState<Array<{ id: string; name?: string; title?: string; storeId: string; isActive: boolean; startDate: string; endDate: string }>>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [voucherProductSearch, setVoucherProductSearch] = useState('');
-  const normalizeProductSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
-  const filteredVoucherProducts = storeProducts.filter(product => normalizeProductSearch(product.title).includes(normalizeProductSearch(voucherProductSearch)));
+  const normalizeProductSearch = (value?: string | null) =>
+    (value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/gi, 'd')
+      .toLowerCase()
+      .trim();
+  const filteredVoucherProducts = (storeProducts || []).filter((product) => {
+    const title = (product as any)?.title || (product as any)?.name || '';
+    return normalizeProductSearch(title).includes(normalizeProductSearch(voucherProductSearch));
+  });
 
   // Modal: Phát hành Voucher Gian Hàng (Store-issued Voucher)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -326,9 +335,21 @@ export const ShopCouponsPage: React.FC = () => {
     try {
       setLoadingProducts(true);
       const res: any = await api.get(`/products?storeId=${sid}&limit=100`);
-      const payload = res?.data?.data || res?.data || res;
+      const payload = res?.data?.data || res?.data || res?.result || res;
       const items = Array.isArray(payload) ? payload : payload?.items || [];
-      setStoreProducts(Array.isArray(items) ? items : []);
+      const normalizedItems = (Array.isArray(items) ? items : []).map((item: any) => ({
+        id: item.id || item.productId,
+        title: item.title || item.name || 'Sản phẩm',
+        price: Number(item.price || item.priceVnd || 0),
+        imageUrl:
+          item.imageUrl ||
+          (Array.isArray(item.imageRefs)
+            ? item.imageRefs[0]
+            : typeof item.imageRefs === 'object' && item.imageRefs
+            ? Object.values(item.imageRefs)[0]
+            : ''),
+      }));
+      setStoreProducts(normalizedItems);
     } catch (err) {
       console.warn('Cannot fetch store products:', err);
     } finally {
@@ -1485,7 +1506,7 @@ export const ShopCouponsPage: React.FC = () => {
                                     }}
                                     className="accent-[#C59B58]"
                                   />
-                                  <span className="text-xs text-[#1A1612] truncate">{p.title}</span>
+                                  <span className="text-xs text-[#1A1612] truncate">{p.title || (p as any).name || 'Sản phẩm'}</span>
                                   <span className="text-xs font-bold text-[#8C6B32] tabular-nums whitespace-nowrap">
                                     {Number(p.price || 0).toLocaleString('vi-VN')}₫
                                   </span>
