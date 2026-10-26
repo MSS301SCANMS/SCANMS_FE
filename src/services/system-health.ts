@@ -3,6 +3,8 @@
  * Dùng chung cho trang Giám sát hệ thống và trang Tổng quan admin.
  */
 
+import { financeService, type KafkaStatus } from './finance.service';
+
 export const HEALTH_AUTO_REFRESH_MS = 30_000;
 const PROBE_TIMEOUT_MS = 6_000;
 
@@ -40,11 +42,20 @@ export type ProbeResult = {
   json?: any;
 };
 
+/** unknown = chưa lấy được (chưa đăng nhập quyền admin / payment-service tắt), không tính là lỗi Kafka. */
+export type KafkaProbe = {
+  state: 'up' | 'down' | 'unknown';
+  ms: number | null;
+  message: string;
+  data?: KafkaStatus;
+};
+
 export type OverallStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN';
 
 export type HealthSnapshot = {
   services: Record<string, ProbeResult>;
   keycloak: ProbeResult;
+  kafka: KafkaProbe;
   checkedAt: Date;
   upCount: number;
   total: number;
@@ -100,10 +111,21 @@ export async function probeKeycloak(): Promise<ProbeResult> {
   }
 }
 
+export async function probeKafka(): Promise<KafkaProbe> {
+  try {
+    const data = await financeService.kafkaStatus();
+    if (!data.up) return { state: 'down', ms: null, message: data.message || 'Không kết nối được broker Kafka', data };
+    return { state: 'up', ms: data.latencyMs ?? null, message: 'Kafka đang hoạt động', data };
+  } catch (err: any) {
+    return { state: 'unknown', ms: null, message: err?.message || 'Không lấy được trạng thái Kafka' };
+  }
+}
+
 export async function runHealthCheck(): Promise<HealthSnapshot> {
-  const [entries, keycloak] = await Promise.all([
+  const [entries, keycloak, kafka] = await Promise.all([
     Promise.all(HEALTH_SERVICES.map(async (s) => [s.id, await probeService(s.url)] as const)),
     probeKeycloak(),
+    probeKafka(),
   ]);
   const services = Object.fromEntries(entries) as Record<string, ProbeResult>;
   const ups = Object.values(services).filter((r) => r.up);
@@ -112,8 +134,8 @@ export async function runHealthCheck(): Promise<HealthSnapshot> {
   const msList = ups.map((r) => r.ms).filter((m): m is number => m != null);
   const avgMs = msList.length ? Math.round(msList.reduce((a, b) => a + b, 0) / msList.length) : null;
   const overall: OverallStatus =
-    upCount === 0 ? 'DOWN' : upCount === total && keycloak.up ? 'HEALTHY' : 'DEGRADED';
-  return { services, keycloak, checkedAt: new Date(), upCount, total, avgMs, overall };
+    upCount === 0 ? 'DOWN' : upCount === total && keycloak.up && kafka.state !== 'down' ? 'HEALTHY' : 'DEGRADED';
+  return { services, keycloak, kafka, checkedAt: new Date(), upCount, total, avgMs, overall };
 }
 
 export const OVERALL_LABEL: Record<OverallStatus, string> = {
