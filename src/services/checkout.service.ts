@@ -49,15 +49,17 @@ export const checkoutService = {
     const response = await checkout.post('/checkout', input);
     return response.data.result;
   },
-  async quote(input: { couponCode?: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
+  async quote(input: { couponCode?: string; shippingCouponCode?: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }, signal?: AbortSignal) {
     if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {
       couponCode: input.couponCode,
+      shippingCouponCode: input.shippingCouponCode,
       items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
-    }));
+    }, { signal }));
     const response = await checkout.post('/checkout/quote', {
       couponCode: input.couponCode,
+      shippingCouponCode: input.shippingCouponCode,
       items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
-    });
+    }, { signal });
     return response.data.result;
   },
   async paymentAvailable(): Promise<boolean> {

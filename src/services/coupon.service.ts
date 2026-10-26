@@ -1,4 +1,5 @@
 import api from './api';
+import { platformVoucher, type PlatformVoucher } from '../utils/platform-voucher.utils';
 
 export type CouponStatus =
   | 'PENDING_APPROVAL'
@@ -229,6 +230,15 @@ function toCreateVoucherBody(storeId: string | undefined, payload: any) {
 /** Map Nest /coupons → Spring /vouchers + /checkout/quote */
 export const couponService = {
 
+  getPublicPlatformCoupons: async (storeId?: string, signal?: AbortSignal): Promise<PlatformVoucher[]> => {
+    const res: any = await api.get('/vouchers/public/platform', { params: { storeId }, signal, headers: { 'x-skip-cache': 'true' } });
+    const payload = res?.result ?? res?.data ?? res;
+    return (Array.isArray(payload) ? payload : []).flatMap(raw => {
+      const voucher = platformVoucher(raw, storeId);
+      return voucher ? [voucher] : [];
+    });
+  },
+
   getPublicStoreCoupons: async (storeId: string): Promise<PublicStoreCoupon[]> => {
     const res: any = await api.get('/vouchers/public', { params: { storeId } });
     const payload = res?.result ?? res?.data ?? res;
@@ -321,7 +331,16 @@ export const couponService = {
   },
 
   createPlatformCoupon: async (payload: { storeId: string; code: string; benefitType: 'GOODS' | 'SHIPPING'; discountType: DiscountType; discountValue: number; budgetTotal: number; usageLimitTotal: number; maximumDiscountAmount?: number; minimumOrderAmount?: number; expiresAt?: string }): Promise<any> => {
-    const res: any = await api.post('/vouchers', toCreateVoucherBody(payload.storeId, payload));
+    const perUse = payload.discountType === 'PERCENTAGE' ? payload.maximumDiscountAmount : Math.min(payload.discountValue,payload.maximumDiscountAmount ?? payload.discountValue);
+    if (!perUse || !Number.isFinite(perUse) || !Number.isSafeInteger(payload.usageLimitTotal) || payload.usageLimitTotal<=0
+        || !Number.isFinite(payload.budgetTotal) || perUse*payload.usageLimitTotal>payload.budgetTotal)
+      throw new Error('Ngân sách phải đủ cho tổng số lượt sử dụng theo mức giảm tối đa. Vui lòng điều chỉnh hạn mức.');
+    const res: any = await api.post('/vouchers', {
+      ...toCreateVoucherBody(payload.storeId, payload), issuerType: 'PLATFORM', scopeType: 'STORE',
+      discountType: payload.discountType === 'FIXED_AMOUNT' ? 'FIXED' : 'PERCENTAGE',
+      scope: { benefitType: payload.benefitType }, funding: { fundedBy: 'PLATFORM' },
+      limits: { totalUsageLimit: payload.usageLimitTotal },
+    });
     return mapVoucher(res?.result ?? res?.data ?? res);
   },
   getPlatformSubsidies: async (): Promise<PlatformSubsidySummary[]> => [],

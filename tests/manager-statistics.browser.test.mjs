@@ -24,7 +24,7 @@ test('manager statistics periods, rankings, charts, empty data and retry stay sy
         if(request.method()==='OPTIONS')return request.respond({status:204,headers});
         assert.equal(request.method(),'GET','statistics must not mutate data');
         let result=[],status=200,message;
-        if(url.pathname.endsWith('/users/me'))result={userId:'manager-test',roles:['MANAGER'],status:'ACTIVE',fullName:'Manager kiểm thử'};
+        if(url.pathname.endsWith('/users'))result={userId:'manager-test',roles:['MANAGER'],status:'ACTIVE',fullName:'Manager kiểm thử'};
         if(url.pathname.endsWith('/orders/statistics')){
           const range=url.searchParams.get('range'), anchor=url.searchParams.get('anchor');reads.push({range,anchor});
           const from=new Date(`${anchor}T00:00:00Z`);

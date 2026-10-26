@@ -14,6 +14,18 @@ const STATUS: Record<ShopReturnStatus, string> = {
   REFUNDED: 'Đã hoàn tiền', CANCELLED: 'Đã hủy',
 };
 const waiting = (row: ShopReturnRequest) => row.status === 'REQUESTED' && !row.shopResponse;
+const orderKey = (row: ShopReturnRequest) => JSON.stringify([row.orderId || row.returnRequestId, row.storeId]);
+function groupByOrder(rows: ShopReturnRequest[]) {
+  const groups = new Map<string, ShopReturnRequest[]>();
+  for (const row of rows) {
+    const key = orderKey(row);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  return [...groups].map(([key, requests]) => ({ key, requests }));
+}
+const REASONS: Record<string, string> = { DAMAGED: 'Sản phẩm hư hỏng', WRONG_ITEM: 'Giao sai sản phẩm', EXPIRED: 'Sản phẩm hết hạn', OTHER: 'Lý do khác' };
 const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLocaleLowerCase('vi');
 const date = (value?: string | null) => value && Number.isFinite(Date.parse(value))
   ? new Date(value).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Chưa cập nhật';
@@ -92,35 +104,14 @@ function ReceiveReturn({ row, onSaved }: { row: ShopReturnRequest; onSaved: () =
   </section>;
 }
 
-function ReceiveReturn({ row, onSaved }: { row: ShopReturnRequest; onSaved: () => Promise<void> }) {
-  const sending = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const receive = async () => {
-    if (sending.current || !canReceiveReturn(row)) return;
-    sending.current = true; setBusy(true); setError('');
-    try {
-      await returnService.confirmReceipt(row.returnRequestId);
-      toast.success('Đã ghi nhận shop nhận hàng trả. Hệ thống tiếp tục xử lý hoàn tiền.');
-      await onSaved();
-    } catch (cause: any) { setError(cause?.response?.data?.message || cause?.message || 'Chưa xác nhận được nhận hàng trả.'); }
-    finally { sending.current = false; setBusy(false); }
-  };
-  return <section aria-label="Nhận hàng trả" className="grid gap-3 rounded-2xl border border-[#DCCAAD] bg-[#FBF5EB] p-4 sm:p-5">
-    <h2 className="text-sm font-semibold">{returnArrived(row) ? 'Hàng trả đã đến shop' : 'Theo dõi hàng trả về shop'}</h2>
-    <p className="m-0 text-xs leading-6 text-[#7D715E]">{canReceiveReturn(row) ? 'Kiểm tra kiện hàng thực tế trước khi xác nhận. Xác nhận nhận hàng sẽ chuyển hồ sơ sang bước xử lý hoàn tiền cho khách.' : 'Chuyến trả hàng đang được vận chuyển. Nút xác nhận sẽ xuất hiện khi hàng mô phỏng đã đến shop.'}</p>
-    {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-    {canReceiveReturn(row) && <button disabled={busy} onClick={() => void receive()} className="min-h-11 justify-self-start rounded-xl bg-[#9A7033] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Đang xác nhận…' : 'Xác nhận shop đã nhận hàng trả'}</button>}
-    <Link to={`/merchant/returns/${row.returnRequestId}`} className="text-xs font-semibold text-[#725120] underline">Mở tiến trình trả hàng / hoàn tiền</Link>
-  </section>;
-}
-
 export const ShopReturnRequestsPage = () => {
   const [rows, setRows] = useState<ShopReturnRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'WAITING' | 'HANDLED'>('ALL');
+  const [selection, setSelection] = useState<{ scope: string; ids: string[] }>({ scope: '', ids: [] });
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const [filter, setFilter] = useState<'ALL' | 'WAITING' | 'HANDLED' | 'TRANSIT' | 'RECEIPT' | 'REFUND'>('ALL');
   const [query, setQuery] = useState('');
   const requestNumber = useRef(0);
   const load = useCallback(async (signal?: AbortSignal, silent = false) => {
@@ -175,8 +166,9 @@ export const ShopReturnRequestsPage = () => {
   const update = (row: ShopReturnRequest) => setRows(previous => previous.map(item => item.returnRequestId === row.returnRequestId ? row : item));
 
   return <section aria-label="Yêu cầu đổi trả của gian hàng" className="grid min-w-0 gap-4 text-left text-[#1A1612]">
-    <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-3">{[
-      { label: 'Tổng yêu cầu', value: rows.length },
+    <div><h1 className="text-xl font-bold">Trả hàng / Hoàn tiền</h1><p className="mt-1 text-xs leading-6 text-[#7D715E]">Tiếp nhận giải trình, theo dõi hàng trả và xác nhận nhận hàng để xử lý hoàn tiền.</p></div>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[
+      { label: 'Đơn có yêu cầu trả hàng', value: groups.length },
       { label: 'Chờ giải trình', value: rows.filter(waiting).length },
       { label: 'Chờ nhận hàng trả', value: rows.filter(canReceiveReturn).length },
       { label: 'Đã phản hồi / xử lý', value: rows.filter(row => !waiting(row)).length },
@@ -191,8 +183,39 @@ export const ShopReturnRequestsPage = () => {
     : !rows.length ? <div className="grid justify-items-center gap-2 rounded-2xl border border-[#EAE4D7] bg-white px-5 py-14 text-center"><Package size={30} className="text-[#B88E4F]" /><strong className="text-sm font-semibold">Chưa có yêu cầu đổi trả</strong><p className="m-0 max-w-md text-xs leading-6 text-[#7D715E]">Yêu cầu thuộc gian hàng của bạn sẽ hiển thị tại đây để xem bằng chứng và gửi giải trình.</p></div>
     : !filtered.length ? <div role="status" className="rounded-2xl border border-[#EAE4D7] bg-white p-10 text-center text-sm text-[#7D715E]">Không có yêu cầu phù hợp với bộ lọc.</div>
     : <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]">
-      <div className="grid min-w-0 gap-2" aria-label="Danh sách yêu cầu">{filtered.map(row => <button key={row.returnRequestId} type="button" aria-pressed={selected?.returnRequestId === row.returnRequestId} onClick={() => setSelectedId(row.returnRequestId)} className={`grid min-w-0 gap-2 rounded-xl border p-3 text-left ${selected?.returnRequestId === row.returnRequestId ? 'border-[#C59B58] bg-[#FBF5EB]' : 'border-[#EAE4D7] bg-white hover:border-[#DCCAAD]'}`}><div className="flex min-w-0 flex-wrap items-center justify-between gap-2"><span className="min-w-0 break-all font-mono text-xs font-semibold">#{row.orderId}</span><StatusBadge row={row} /></div><span className="text-xs font-medium">{row.productName || 'Sản phẩm trong đơn'} × {row.quantity}</span><span className="text-xs text-[#7D715E]">{row.customerName || 'Khách hàng'} · {row.storeName}</span><span className="text-[10px] text-[#7D715E]">Ngày gửi: {date(row.requestedAt)}</span></button>)}</div>
-      {selected && <div className="grid min-w-0 gap-4" key={selected.returnRequestId}>
+      <div className="grid min-w-0 gap-2" aria-label="Danh sách yêu cầu">{visibleGroups.map(group => {
+        const row = group.requests[0];
+        const active = selectedGroup?.key === group.key;
+        const statuses = [...new Map(group.matching.map(item => [returnArrived(item) ? 'ARRIVED' : waiting(item) ? 'WAITING' : item.status === 'REQUESTED' ? 'RESPONDED' : item.status, item])).values()];
+        return <button key={group.key} type="button" aria-pressed={active} onClick={() => setSelectedId(active && selected ? selected.returnRequestId : group.matching[0].returnRequestId)} className={`grid min-w-0 gap-2 rounded-xl border p-3 text-left ${active ? 'border-[#C59B58] bg-[#FBF5EB]' : 'border-[#EAE4D7] bg-white hover:border-[#DCCAAD]'}`}>
+          <span title={row.orderId} className="min-w-0 truncate font-mono text-xs font-semibold">#{row.orderId}</span>
+          <span className="text-xs font-semibold">{group.requests.length} yêu cầu trả hàng · {group.requests.reduce((sum, item) => sum + item.quantity, 0)} sản phẩm</span>
+          {group.matching.map(item => <span key={item.returnRequestId} className="text-xs font-medium">{item.productName || 'Sản phẩm trong đơn'} × {item.quantity}</span>)}
+          <span className="flex flex-wrap gap-1">{statuses.map(item => <StatusBadge key={item.returnRequestId} row={item} />)}</span>
+          <span className="text-xs text-[#7D715E]">{row.customerName || 'Khách hàng'} · {row.storeName}</span>
+        </button>;
+      })}</div>
+      {selected && <div className="grid min-w-0 gap-4">
+        {selectedGroup && <section aria-label="Sản phẩm trả trong đơn" className="grid min-w-0 gap-3 rounded-2xl border border-[#EAE4D7] bg-white p-4 sm:p-5">
+          <h2 className="m-0 text-sm font-semibold">Sản phẩm trả trong đơn</h2>
+          <p className="m-0 text-xs leading-6 text-[#7D715E]">Tích một hoặc nhiều sản phẩm để xem hồ sơ bên dưới. Giải trình và xác nhận nhận hàng được thực hiện riêng cho từng sản phẩm.</p>
+          <p className="m-0 text-xs font-medium">Tổng tiền yêu cầu hoàn trong đơn: {groupRefund == null ? 'Chờ xác định' : formatMoney(groupRefund)}</p>
+          {selectedGroup.matching.length < selectedGroup.requests.length && <p className="m-0 text-xs text-[#7D715E]">Đang hiển thị {selectedGroup.matching.length}/{selectedGroup.requests.length} yêu cầu theo bộ lọc. Chọn “Tất cả” và xóa tìm kiếm để xem đầy đủ.</p>}
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-xs font-semibold"><input ref={selectAllRef} type="checkbox" checked={allChecked} onChange={event => setSelection({ scope: selectionScope, ids: event.target.checked ? selectedGroup.matching.map(row => row.returnRequestId) : [] })} className="h-4 w-4 shrink-0 accent-[#9A7033]" />Chọn tất cả sản phẩm đang hiển thị ({selectedRequests.length}/{selectedGroup.matching.length})</label>
+          <div className="grid min-w-0 gap-2" role="group" aria-label="Chọn sản phẩm trả hàng">{selectedGroup.matching.map(item => <label key={item.returnRequestId} className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border p-3 text-left ${checkedIds.includes(item.returnRequestId) ? 'border-[#C59B58] bg-[#FBF5EB]' : 'border-[#EAE4D7] hover:bg-[#FAF8F5]'}`}>
+            <input type="checkbox" checked={checkedIds.includes(item.returnRequestId)} onChange={event => toggleRequest(item.returnRequestId, event.target.checked)} aria-label={`Chọn ${item.productName || 'sản phẩm trong đơn'}`} className="mt-0.5 h-4 w-4 shrink-0 accent-[#9A7033]" />
+            <span className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2"><span className="grid min-w-0 gap-1"><span className="break-words text-xs font-medium">{item.productName || 'Sản phẩm trong đơn'} × {item.quantity}</span><span className="text-[10px] text-[#7D715E]">{item.refundAmountVnd == null ? 'Chờ xác định tiền hoàn' : formatMoney(item.refundAmountVnd)} · Ngày gửi: {date(item.requestedAt)}</span></span><StatusBadge row={item} /></span>
+          </label>)}</div>
+          {!selectedRequests.length && <p role="status" className="m-0 text-xs text-[#7D715E]">Chọn ít nhất một sản phẩm để xem hồ sơ và xử lý.</p>}
+        </section>}
+        {selectedRequests.map(selected => {
+          const evidence = selected.evidenceRefs || {};
+          const customerImages = evidence.images ?? evidence.imageUrls ?? evidence.customerProofImages;
+          const customerVideo = evidence.unboxingVideoUrl ?? evidence.customerProofVideoUrl ?? (Array.isArray(evidence.videos) ? evidence.videos[0] : null);
+          const notes = typeof evidence.details === 'string' ? evidence.details : typeof evidence.notes === 'string' ? evidence.notes : '';
+          return <div className="grid min-w-0 gap-4" key={selected.returnRequestId} data-return-request-id={selected.returnRequestId}>
+        <h2 className="m-0 break-words text-sm font-semibold">{selected.productName || 'Sản phẩm trong đơn'} × {selected.quantity}</h2>
+        {selected.status === 'RETURNING' && <ReceiveReturn row={selected} onSaved={() => load(undefined, true)} />}
         <section className="grid min-w-0 gap-4 rounded-2xl border border-[#EAE4D7] bg-white p-4 sm:p-5" aria-label="Chi tiết yêu cầu">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-3"><div className="grid min-w-0 gap-1"><span className="text-[10px] text-[#7D715E]">Mã đơn hàng</span><strong className="break-all font-mono text-sm">{selected.orderId}</strong><span className="break-all text-[10px] text-[#7D715E]">Yêu cầu: {selected.returnRequestId}</span></div><StatusBadge row={selected} /></div>
           <dl className="m-0 grid grid-cols-1 gap-3 border-y border-[#EAE4D7] py-4 sm:grid-cols-2">{[

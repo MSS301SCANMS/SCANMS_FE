@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync,mkdirSync,writeFileSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 const base=process.env.GHN_UI_TEST_URL;
-const executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const executablePath=process.env.GHN_UI_BROWSER_PATH||'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 test('KOL application restores submitted data, supplements legacy record and preserves form on failed save', {skip:!base||!existsSync(executablePath),timeout:45000},async()=>{
  assert.ok(['localhost','127.0.0.1'].includes(new URL(base).hostname));
  const browser=await puppeteer.launch({executablePath,headless:true});
@@ -22,7 +22,7 @@ test('KOL application restores submitted data, supplements legacy record and pre
     const headers={'Access-Control-Allow-Origin':new URL(base).origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     let result=[],status=200,message;
-    if(url.pathname.endsWith('/users/me'))result={userId:'applicant',roles:['USER'],status:'ACTIVE',fullName:'Applicant'};
+    if(url.pathname.endsWith('/users'))result={userId:'applicant',roles:['USER'],status:'ACTIVE',fullName:'Applicant'};
     if(url.pathname.endsWith('/collaborators/me')){result=application;if(failRead){status=503;message='Dịch vụ hồ sơ KOL đang bận.';}}
     if(url.pathname.endsWith('/upload/image'))result={secureUrl:`${base}/fixture-${writes.length}-${Date.now()}.png`};
     else if(request.method()!=='GET'){

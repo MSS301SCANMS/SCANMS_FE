@@ -36,7 +36,7 @@ test('payout toolbar, selection, empty state and batch history stay spaced and r
         if (url.pathname.endsWith('/stores/my-store/presence')) return request.respond({ status: 200, headers, contentType: 'application/json', body: '{"code":200,"result":{}}' });
         if (request.method() !== 'GET') { writes.push(url.pathname); throw new Error(`Unexpected payment write: ${url.pathname}`); }
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE', fullName: 'Chủ shop kiểm thử' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE', fullName: 'Chủ shop kiểm thử' };
         if (url.pathname.endsWith('/stores/mine')) result = [{ storeId: 'fixture-store', name: 'Shop kiểm thử', approvalStatus: 'APPROVED' }];
         if (url.pathname.endsWith('/stores/fixture-store')) result = { storeId: 'fixture-store', name: 'Shop kiểm thử', approvalStatus: 'APPROVED' };
         if (url.pathname.endsWith('/payouts')) {

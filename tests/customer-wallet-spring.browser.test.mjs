@@ -32,7 +32,7 @@ test('customer wallet credits Sandbox and confirms payOS using the Spring contra
         const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-customer', roles: ['USER'], status: 'ACTIVE', fullName: 'Wallet fixture' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-customer', roles: ['USER'], status: 'ACTIVE', fullName: 'Wallet fixture' };
         if (url.pathname.endsWith('/capabilities')) result = { paymentAvailable: true, sandboxTopUpAvailable: true };
         if (url.pathname.endsWith('/wallets/me')) result = { walletId: 'fixture-wallet', availableBalanceVnd: balance, heldBalanceVnd: 0, status: 'ACTIVE' };
         if (url.pathname.endsWith('/transactions') || url.pathname.endsWith('/payments')) result = { items: [], total: 0, page: 0, size: 20 };

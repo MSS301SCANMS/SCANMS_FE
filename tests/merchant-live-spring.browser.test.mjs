@@ -24,7 +24,7 @@ test('shop creates a Spring session with owned products and accepted KOL, then s
     const respond=(result,status=200)=>request.respond({status,headers,contentType:'application/json',body:JSON.stringify({code:status,result})});
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     if(request.method()!=='GET')writes.push({method:request.method(),path:url.pathname,body:request.postData()?JSON.parse(request.postData()):null});
-    if(url.pathname.endsWith('/users/me'))return respond({userId:'owner',roles:['SHOP_OWNER'],fullName:'Fixture owner',status:'ACTIVE'});
+    if(url.pathname.endsWith('/users'))return respond({userId:'owner',roles:['SHOP_OWNER'],fullName:'Fixture owner',status:'ACTIVE'});
     if(url.pathname.endsWith('/stores/mine'))return respond([{storeId:'store-a',name:'Fixture clothing shop',approvalStatus:'APPROVED'}]);
     if(url.pathname.endsWith('/products'))return respond([{productId:'shirt-a',storeId:'store-a',name:'Cotton test shirt',priceVnd:269000,status:'ACTIVE',imageRefs:{primary:'/assets/placeholder-product.svg'}},{productId:'other-product',storeId:'store-b',name:'Wrong store product',priceVnd:999000,status:'ACTIVE'}]);
     if(url.pathname.endsWith('/product-variants'))return respond([{variantId:'variant-a',productId:'shirt-a',sku:'SHIRT-L',size:'L',color:'Blue',priceVnd:269000,status:'ACTIVE',stockQuantity:100}]);
@@ -48,7 +48,7 @@ test('shop creates a Spring session with owned products and accepted KOL, then s
   await clickText('Tạo phiên live ngay');
   await page.waitForFunction(()=>document.body.innerText.includes('Accepted clothing KOL'));
   assert.match(await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Accepted clothing KOL')).textContent),/28 người theo dõi.*TIKTOK/,'use channel details from the safe catalog, not the redacted collaborators list');
-  assert.match(await page.$eval('img[alt="Accepted clothing KOL"]',node=>node.src),/^data:image\/svg\+xml/,'missing avatar must use initials instead of an unrelated person');
+  assert.equal(await page.$eval('[role="img"][aria-label="Accepted clothing KOL"]',node=>node.textContent.trim()),'A','missing avatar must use initials instead of an unrelated person');
   assert.equal(await page.evaluate(()=>document.body.innerText.includes('KOL without accepted partnership')),false);
   assert.equal(await page.evaluate(()=>document.body.innerText.includes('Wrong store product')),false);
   await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Accepted clothing KOL')).click());

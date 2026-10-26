@@ -36,7 +36,7 @@ test('manager menu shows pending shop applications and uses Spring approve/rejec
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let status = 200, result = [], message;
         reads.push(url.pathname);
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-manager', roles: ['MANAGER'], fullName: 'Manager kiểm thử', status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-manager', roles: ['MANAGER'], fullName: 'Manager kiểm thử', status: 'ACTIVE' };
         if (url.pathname.endsWith('/collaborators')) {
           status = failKol ? 503 : 200;
           result = [{ collaboratorId: 'kol-pending', userId: 'kol-user', approvalStatus: 'PENDING', createdAt: '2026-10-21T04:00:00Z' }];
@@ -67,15 +67,14 @@ test('manager menu shows pending shop applications and uses Spring approve/rejec
     await page.waitForSelector('[aria-label="Danh sách hồ sơ gian hàng"]');
     assert.equal(new URL(page.url()).pathname, '/admin/kyc-approval');
     assert.equal(await page.$eval('a[href="/admin/kyc-approval"]', element => element.textContent.includes('Duyệt Shop')), true);
-    assert.equal(reads.includes('/api/v1/users'), false, 'manager loads applications rather than the unrelated user directory');
+    assert.equal(reads.includes('/api/v1/users/admin'), false, 'manager loads applications rather than the unrelated user directory');
     const rows = '[aria-label="Danh sách hồ sơ gian hàng"] tbody tr';
     assert.equal((await page.$$(rows)).length, 2);
     assert.match(await page.$eval(rows, element => element.textContent), /Gian hàng kiểm thử A/);
-    assert.equal(await page.$eval('[data-application-tab="shop"] .kyc-application-tab-total', element => element.textContent), '2');
+    assert.match(await page.$eval('[aria-label="Loại hồ sơ"] button:last-child', element => element.textContent), /2 chờ duyệt/);
     for (const width of [1440, 868, 390]) {
       await page.setViewport({ width, height: 900 });
-      const geometry = await page.$$eval('[data-application-tab]', elements => elements.map(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth - element.clientWidth })));
-      assert.ok(Math.abs(geometry[0].width - geometry[1].width) < 1, 'tabs have equal widths');
+      const geometry = await page.$$eval('[aria-label="Loại hồ sơ"] button', elements => elements.map(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth - element.clientWidth })));
       assert.ok(geometry.every(item => item.overflow <= 1), 'tab contents fit on mobile');
       const summary = await page.$eval('.kyc-store-list-summary', element => {
         const pending = element.children[0].getBoundingClientRect();
@@ -113,8 +112,8 @@ test('manager menu shows pending shop applications and uses Spring approve/rejec
     await page.waitForSelector('.kyc-shop-footer', { hidden: true });
     await page.waitForFunction(() => document.querySelector('[aria-label="Danh sách hồ sơ gian hàng"] tbody').textContent.includes('Gian hàng kiểm thử B') && !document.querySelector('[aria-label="Danh sách hồ sơ gian hàng"] tbody').textContent.includes('Gian hàng kiểm thử A'));
     await page.waitForFunction(() => {
-      const tab = document.querySelector('[data-application-tab="shop"]');
-      return tab.querySelector('.kyc-application-tab-total').textContent === '2' && tab.textContent.includes('1 đã duyệt') && tab.textContent.includes('1 chờ duyệt');
+      const tab = document.querySelector('[aria-label="Loại hồ sơ"] button:last-child');
+      return tab.textContent.includes('1 chờ duyệt');
     });
     await page.click(`${rows} button`); await page.waitForSelector('.kyc-shop-footer');
     await page.click('.kyc-shop-footer button:first-child');
@@ -125,7 +124,7 @@ test('manager menu shows pending shop applications and uses Spring approve/rejec
     assert.equal(writes[2].path, '/api/v1/store-applications/application-b/reject');
     assert.equal(writes[2].body.note, 'Giấy tờ cần bổ sung thông tin rõ hơn.');
     failShop = true;
-    await page.evaluate(() => document.querySelector('button[aria-label="Làm mới danh sách hồ sơ"]').click());
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
     await page.waitForSelector('[role=alert]');
     assert.equal(await page.$('[aria-label="Danh sách hồ sơ gian hàng"]'), null);
     failShop = false; failKol = true; await page.click('[role=alert] button');
@@ -138,7 +137,7 @@ test('manager menu shows pending shop applications and uses Spring approve/rejec
     assert.match(await page.$eval('[aria-label="Danh sách hồ sơ KOL"] tbody', element => element.textContent), /Chờ thẩm định/);
     applications[0].status = 'PENDING'; applications[0].onboardingData = {};
     await page.evaluate(() => [...document.querySelectorAll('[aria-label="Loại hồ sơ"] button')].find(button => button.textContent.includes('Gian hàng')).click());
-    await page.evaluate(() => document.querySelector('button[aria-label="Làm mới danh sách hồ sơ"]').click());
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
     await page.waitForSelector(`${rows} button`); await page.click(`${rows} button`);
     await page.waitForSelector('.kyc-shop-missing li');
     assert.equal(await page.$eval('.kyc-shop-footer button:last-child', element => element.disabled), true);

@@ -30,7 +30,7 @@ test('product selection, validation, retry, QR and responsive create-link flow',
         const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let status = 200, result = [], message;
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-kol', roles: ['KOL_CTV'], status: 'ACTIVE', fullName: 'KOL kiểm thử' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-kol', roles: ['KOL_CTV'], status: 'ACTIVE', fullName: 'KOL kiểm thử' };
         if (url.pathname.endsWith('/collaborators/me')) result = { collaboratorId: 'fixture-profile', approvalStatus: 'APPROVED' };
         if (url.pathname.endsWith('/public/products')) {
           assert.equal(url.searchParams.get('eligibleForReferral'), 'true');

@@ -21,7 +21,7 @@ test('presence stops missing-API retries and backs off server failures without f
     let result=[];let code=200;
     if(url.pathname.endsWith('/stores/my-store/presence')){assert.equal(request.method(),'POST');pulses.push(request.headers().authorization);code=status;}
     else assert.equal(request.method(),'GET','no other business mutation is allowed');
-    if(url.pathname.endsWith('/users/me'))result={userId:'shop-owner',roles:['SHOP_OWNER'],fullName:'Fixture shop',status:'ACTIVE'};
+    if(url.pathname.endsWith('/users'))result={userId:'shop-owner',roles:['SHOP_OWNER'],fullName:'Fixture shop',status:'ACTIVE'};
     return request.respond({status:code,headers,contentType:'application/json',body:JSON.stringify({result,message:'Fixture response'})});
    }
    if(url.origin!==new URL(base).origin&&!['data:','blob:'].includes(url.protocol))return request.abort();return request.continue();

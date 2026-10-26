@@ -16,7 +16,7 @@ test('profile writes verify persisted fields and unsupported commands never repo
     const headers={'Access-Control-Allow-Origin':new URL(base).origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,PATCH,OPTIONS'};
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     let result=[];
-    if(url.pathname.endsWith('/users/me')){
+    if(url.pathname.endsWith('/users')){
      if(request.method()==='PATCH'){const body=JSON.parse(request.postData());writes.push(body);if(!dropFields)user={...user,...body};}
      result=user;
     }else if(url.pathname.includes('/seller-orders/')&&url.pathname.endsWith('/status')){

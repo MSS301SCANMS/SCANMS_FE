@@ -29,7 +29,7 @@ test('create-link action stays visible in all KOL tabs and opens once after navi
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         if (request.method() !== 'GET') writes.push(request.url());
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-kol', roles: ['KOL_CTV'], fullName: 'KOL kiểm thử', status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-kol', roles: ['KOL_CTV'], fullName: 'KOL kiểm thử', status: 'ACTIVE' };
         if (url.pathname.endsWith('/collaborators/me')) result = { collaboratorId: 'profile-kol', approvalStatus: 'APPROVED' };
         if (url.pathname.endsWith('/public/products')) {
           await new Promise(resolve => setTimeout(resolve, 700));

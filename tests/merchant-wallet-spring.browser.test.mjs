@@ -35,7 +35,7 @@ test('merchant wallet routes use Spring finance, persist bank registration and o
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         seen.push(url.pathname + url.search);
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = user;
+        if (url.pathname.endsWith('/users')) result = user;
         if (url.pathname.endsWith('/stores/mine')) result = [store];
         if (url.pathname.endsWith('/stores/fixture-store')) result = store;
         if (url.pathname.endsWith('/capabilities')) result = { minimumWithdrawalVnd: 200000, currency: 'VND', paymentAvailable: true, payoutAvailable: false };

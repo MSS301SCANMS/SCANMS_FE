@@ -50,7 +50,7 @@ test('real WebRTC carries video and microphone between isolated KOL and customer
      if(url.pathname.endsWith('/stores/public/id/store-a'))result={id:'store-a',name:'Fixture shop'};
      if(url.pathname.endsWith('/collaborators'))result=[{collaboratorId:'kol-a',userId:'kol-user',approvalStatus:'APPROVED'}];
      if(url.pathname.includes('/landing')){const id=url.pathname.includes('shirt-a')?'shirt-a':'dress-a';result={product:{id,title:id==='shirt-a'?'Cotton shirt':'Red dress',price:269000,stockQuantity:10,variants:[{id:'variant-'+id,stockQuantity:10,price:269000,isActive:true}]}}}
-     if(url.pathname.endsWith('/users/me'))result={userId:kind==='host'?'kol-user':'buyer-user',roles:[kind==='host'?'KOL_CTV':'USER'],fullName:kind==='host'?'Fixture KOL':'Fixture buyer',status:'ACTIVE'};
+     if(url.pathname.endsWith('/users'))result={userId:kind==='host'?'kol-user':'buyer-user',roles:[kind==='host'?'KOL_CTV':'USER'],fullName:kind==='host'?'Fixture KOL':'Fixture buyer',status:'ACTIVE'};
      return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result})});
     }
     if(url.origin!==origin&&url.port!=='8090'&&!['blob:','data:'].includes(url.protocol))return request.abort();return request.continue();

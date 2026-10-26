@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { captureProductReferral } from '../../utils/referral-attribution';
 import {
@@ -38,6 +38,8 @@ import { PublicHeader } from '@/components/layout/PublicHeader';
 import { authService } from '@/services/auth.service';
 import { customerService } from '@/services/customer.service';
 import { couponService } from '@/services/coupon.service';
+import { PlatformVoucherPicker, type VoucherSelection } from '../../components/vouchers/PlatformVoucherPicker';
+import { quoteVoucherSelection } from '../../services/checkout-voucher.service';
 import { toast } from '@/utils/toast';
 import { useCart } from '@/context/CartContext';
 import { useScanmsChat } from '@/context/ScanmsChatContext';
@@ -343,10 +345,13 @@ export default function ProductDetailPage() {
 
   const [couponCode, setCouponCode] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
+  const [showPlatformVouchers, setShowPlatformVouchers] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{
     contextKey: string;
     code: string;
     discountAmount: number;
+    shippingDiscountAmount?: number;
+    shippingCouponCode?: string;
     description?: string;
   } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -354,7 +359,7 @@ export default function ProductDetailPage() {
   const couponContextKey = `${data?.product?.id ?? ''}|${selectedVariant?.id ?? ''}|${quantity}|${selectedVariant?.price ?? data?.product?.price ?? 0}`;
   const couponContextRef = useRef(couponContextKey);
   couponContextRef.current = couponContextKey;
-  useEffect(() => { setAppliedCoupon(null); setCouponError(null); }, [couponContextKey]);
+  useEffect(() => { setAppliedCoupon(null); setCouponCode(''); setCouponError(null); }, [couponContextKey]);
 
   // Fetch active store vouchers for customers
   useEffect(() => {
@@ -892,8 +897,8 @@ export default function ProductDetailPage() {
   };
 
 
-  const applyCouponCode = async (rawCode: string): Promise<boolean> => {
-    if (!rawCode.trim() || !data) return false;
+  const applyVoucherSelection = async (selection: VoucherSelection): Promise<boolean> => {
+    if (!data) return false;
     if (requestVariantSelection()) {
       setCouponError('Vui lòng chọn phân loại trước khi áp dụng mã ưu đãi.');
       return false;
@@ -904,33 +909,36 @@ export default function ProductDetailPage() {
     setCouponError(null);
 
     try {
-      const codeUpper = rawCode.trim().toUpperCase();
-      setCouponCode(codeUpper);
-      const res: any = await api.post('/checkout/quote', {
-        couponCode: codeUpper,
-        items: [
+      const res: any = await quoteVoucherSelection(selection, [
           {
             productId: data.product.id,
             variantId: selectedVariantIsReal ? selectedVariant?.id : undefined,
             quantity: quantity,
           },
-        ],
-      });
+        ]);
 
-      const couponRes = res?.result || res?.data?.data || res?.data || {};
+      const couponRes = res?.result || res?.data?.data || res?.data || res || {};
       if (couponContextRef.current !== requestContext) return false;
       const discount = Number(
         couponRes.discountAmount || couponRes.totalDiscount || 0,
       );
+      const shippingDiscount = Number(couponRes.shippingDiscountVnd || 0);
 
-      if (discount > 0) {
+      if (!selection.goodsCode && !selection.shippingCode && !selection.enteredCode) {
+        setAppliedCoupon(null); setCouponCode(''); return true;
+      }
+      if (discount > 0 || shippingDiscount > 0) {
+        const codes=[couponRes.code,couponRes.shippingCouponCode].filter(Boolean).join(' + ');
+        setCouponCode(codes);
         setAppliedCoupon({
           contextKey: requestContext,
-          code: codeUpper,
+          code: couponRes.code || '',
+          shippingCouponCode: couponRes.shippingCouponCode || '',
           discountAmount: discount,
+          shippingDiscountAmount: shippingDiscount,
           description:
             couponRes.description ||
-            `Mã ${codeUpper} đã được áp dụng thành công!`,
+            `Đã chọn ${codes}: giảm ${discount.toLocaleString('vi-VN')} ₫ tiền hàng và ${shippingDiscount.toLocaleString('vi-VN')} ₫ phí ship.`,
         });
         setCouponError(null);
         return true;
@@ -955,13 +963,10 @@ export default function ProductDetailPage() {
     }
   };
 
+  const applyCouponCode = (code: string) => applyVoucherSelection({ goodsCode: appliedCoupon?.code || '', shippingCode: appliedCoupon?.shippingCouponCode || '', enteredCode: code });
+
   const applyCouponDirectly = async (codeToApply: string) => {
     await applyCouponCode(codeToApply);
-  };
-
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await applyCouponCode(couponCode);
   };
 
 
@@ -1404,7 +1409,7 @@ export default function ProductDetailPage() {
                   <div className="flex items-start gap-2">
                     <Truck className="h-4 w-4 shrink-0 text-[#B88E4F]" />
                     <div className="min-w-0">
-                      <div className="font-semibold text-[#1A1612]">Miễn phí vận chuyển tiêu chuẩn toàn quốc</div>
+                      <div className="font-semibold text-[#1A1612]">Phí vận chuyển và ưu đãi freeship được tính khi thanh toán</div>
                       <div className="mt-0.5 font-bold text-[#8C6226]">
                         Dự kiến nhận: {estimatedDeliveryWindow}
                       </div>
@@ -1604,23 +1609,30 @@ export default function ProductDetailPage() {
 
               {/* Coupon Voucher Input (Compact) */}
               <div className="py-2.5 border-t border-[#EAE4D7]/80">
-                <form onSubmit={handleApplyCoupon} className="flex w-full items-stretch gap-2">
+                <form onSubmit={event => { event.preventDefault(); setCouponError(null); setShowPlatformVouchers(true); }} className="flex w-full items-stretch gap-2">
                   <div className="relative min-w-0 flex-1">
                     <Tag className="w-3.5 h-3.5 text-[#7D715E] absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       placeholder="Mã ưu đãi (VD: THANGVIP10)..."
                       value={couponCode}
+                      aria-label="Mã ưu đãi"
+                      aria-haspopup="dialog"
+                      aria-expanded={showPlatformVouchers}
+                      onClick={() => { setCouponError(null); setShowPlatformVouchers(true); }}
+                      onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setCouponError(null); setShowPlatformVouchers(true); } }}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       className="w-full pl-8 pr-3 py-1.5 bg-white border border-[#EAE4D7] rounded text-xs font-mono uppercase text-[#1A1612] placeholder-[#7D715E]/60 focus:outline-hidden focus:border-[#C59B58]"
                     />
                   </div>
                   <button
                     type="submit"
-                    disabled={couponLoading || !couponCode.trim()}
+                    disabled={couponLoading}
+                    aria-haspopup="dialog"
+                    aria-expanded={showPlatformVouchers}
                     className="shrink-0 whitespace-nowrap px-3 py-1.5 bg-[#C59B58] hover:bg-[#B88E4F] disabled:opacity-50 text-[#1A1612] text-xs font-bold rounded transition cursor-pointer"
                   >
-                    {couponLoading ? '...' : 'Áp Dụng'}
+                    {couponLoading ? 'Đang kiểm tra…' : verifiedCoupon ? 'Đổi voucher' : 'Chọn voucher'}
                   </button>
                 </form>
 
@@ -1628,7 +1640,7 @@ export default function ProductDetailPage() {
                   <div className="mt-1.5 p-2 rounded bg-[#FBF5EB] border border-[#EEDFC6] text-xs text-[#B88E4F] flex items-center justify-between">
                     <div className="flex items-center gap-1.5 font-medium">
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>{appliedCoupon.description} (-{appliedCoupon.discountAmount.toLocaleString('vi-VN')} ₫)</span>
+                      <span>{appliedCoupon.description}</span>
                     </div>
                     <button
                       type="button"
@@ -2138,8 +2150,13 @@ export default function ProductDetailPage() {
       </div>
 
 
+      {showPlatformVouchers && <PlatformVoucherPicker storeId={store.id} subtotal={subtotal}
+        selectedCode={appliedCoupon?.code || ''} selectedShippingCode={appliedCoupon?.shippingCouponCode || ''}
+        initialEnteredCode={couponCode !== [appliedCoupon?.code,appliedCoupon?.shippingCouponCode].filter(Boolean).join(' + ') ? couponCode : ''}
+        busy={couponLoading} error={couponError}
+        onClose={() => setShowPlatformVouchers(false)} onChoosePair={applyVoucherSelection} />}
       {isCheckoutOpen && product && store && (
-        <GuestCheckoutModal
+      <GuestCheckoutModal
           isOpen={isCheckoutOpen && (activeVariants.length === 0 || selectedVariantIsReal)}
           onClose={handleCloseCheckout}
           product={{
@@ -2164,6 +2181,7 @@ export default function ProductDetailPage() {
           initialLiveSessionId={sourceLivestreamId}
           initialQuantity={quantity}
           initialCouponCode={appliedCoupon?.code || ''}
+          initialShippingCouponCode={appliedCoupon?.shippingCouponCode || ''}
           onOrderPlaced={(order) => {
             if (order.paymentMethod === 'PAYOS') return;
             trackAnalytics('order_complete', {

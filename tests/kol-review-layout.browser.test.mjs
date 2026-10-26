@@ -20,7 +20,7 @@ test('KOL review shows all sections, blocks incomplete approvals and fits deskto
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     if(request.method()!=='GET'){writes.push(request.url());return request.abort();}
     let result=[];
-    if(url.pathname.endsWith('/users/me'))result={userId:'manager',roles:['MANAGER'],status:'ACTIVE',fullName:'Manager'};
+    if(url.pathname.endsWith('/users'))result={userId:'manager',roles:['MANAGER'],status:'ACTIVE',fullName:'Manager'};
     if(url.pathname.endsWith('/collaborators'))result=[{collaboratorId:'fixture-kol',userId:'kol-user',approvalStatus:'PENDING',createdAt:'2026-10-21T06:00:00Z',...(complete?{applicationData:{idCardNumber:'000000000001',bankName:'Ngân hàng kiểm thử',bankAccountNumber:'00000001',bankAccountName:'KOL TEST',channelName:'Kênh kiểm thử',platform:'TIKTOK',channelUrl:'https://example.test/channel',frontCardUrl:`${base}/fixture-kol.svg`,backCardUrl:`${base}/fixture-kol.svg`,channelProofUrl:`${base}/fixture-kol.svg`,followerCount:15000}}:{})}];
     return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({result})});
    }

@@ -37,7 +37,7 @@ test('collaborations support retry, uncached refresh, search, filters, details a
           const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
           if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
           let result = [];
-          if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-user', roles: [mode === 'shop' ? 'SHOP_OWNER' : 'ADMIN'], fullName: 'Tài khoản kiểm thử', status: 'ACTIVE', stores: [{ id: 'store', name: 'Gian hàng A' }] };
+          if (url.pathname.endsWith('/users')) result = { userId: 'fixture-user', roles: [mode === 'shop' ? 'SHOP_OWNER' : 'ADMIN'], fullName: 'Tài khoản kiểm thử', status: 'ACTIVE', stores: [{ id: 'store', name: 'Gian hàng A' }] };
           if (url.pathname.endsWith('/stores/mine')) result = [{ storeId: 'store', name: 'Gian hàng A' }];
           if (url.pathname.endsWith('-collaborations')) {
             scopes.push(url.pathname); loads++;

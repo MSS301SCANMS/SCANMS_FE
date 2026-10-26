@@ -31,7 +31,7 @@ test('session renewal preserves workspaces, retries 401, survives outages and ca
           headers['Set-Cookie'] = 'fixture_refresh=' + nextRefresh + '; HttpOnly; Path=/api/v1/auth; SameSite=Lax'; result = { access_token: freshToken, refresh_token: nextRefresh, expires_in: 300 };
         } else if (url.pathname.endsWith('/auth/login') || url.pathname.endsWith('/auth/google')) {
           writes.push(url.pathname); result = { access_token: freshToken, refresh_token: 'fixture-login-refresh', expires_in: 300 };
-        } else if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-user', roles: ['SHOP_OWNER'], fullName: 'Fixture owner', status: 'ACTIVE' };
+        } else if (url.pathname.endsWith('/users')) result = { userId: 'fixture-user', roles: ['SHOP_OWNER'], fullName: 'Fixture owner', status: 'ACTIVE' };
         else if (url.pathname.endsWith('/stores/mine')) result = [{ storeId: 'fixture-store', name: 'Fixture store' }];
         else if (url.pathname.endsWith('/stores/fixture-store')) result = { storeId: 'fixture-store', name: 'Fixture store', approvalStatus: 'APPROVED' };
         else if (url.pathname.endsWith('/stores/my-store/presence')) result = { online: true };

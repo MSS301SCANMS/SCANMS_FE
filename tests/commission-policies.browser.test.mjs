@@ -25,7 +25,7 @@ test('commission policies create, edit, validate, filter and show errors with re
         const headers = { 'Access-Control-Allow-Origin': new URL(base).origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let status = 200, result = [], message;
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'test-manager', roles: ['MANAGER'], fullName: 'Manager kiểm thử', status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'test-manager', roles: ['MANAGER'], fullName: 'Manager kiểm thử', status: 'ACTIVE' };
         if (url.pathname.endsWith('/stores/marketplace')) result = [{ storeId: 'owned-store', name: 'Gian hàng thật kiểm thử', approvalStatus: 'APPROVED' }];
         if (url.pathname.endsWith('/commission-policies') && request.method() === 'GET') { result = rows; if (failRead) { status = 503; message = 'Chưa tải được chính sách kiểm thử.'; } }
         if (request.method() !== 'GET') {

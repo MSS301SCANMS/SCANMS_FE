@@ -37,7 +37,7 @@ test('store settlements refresh, paginate, expand details and recover from API e
       const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': request.headers()['access-control-request-headers'] || '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
       if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
       let result = [];
-      if (url.pathname.endsWith('/users/me')) result = user;
+      if (url.pathname.endsWith('/users')) result = user;
       if (url.pathname.endsWith('/stores/mine')) result = stores;
       if (/\/stores\/store-[ab]$/.test(url.pathname)) result = stores.find(store => url.pathname.endsWith(store.storeId));
       if (url.pathname.endsWith('/finance/settlements')) {
