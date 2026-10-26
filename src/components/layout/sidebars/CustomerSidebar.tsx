@@ -25,7 +25,6 @@ export function CustomerSidebar({
       editProfilePath="/customer/profile"
       editProfileLabel="Sửa Hồ Sơ"
       getItemBadge={getItemBadge}
-      showMarketplaceLink
     />
   );
 }

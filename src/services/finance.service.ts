@@ -62,6 +62,7 @@ export const financeService = {
   feeStatus: (id: string, status: string) => request<MoneyFee>('PATCH', `/fees/${id}/status`, undefined, { status }),
   refund: (id: string) => request<unknown>('POST', `/refunds/${id}`),
   creditCommission: (id: string) => request<unknown>('POST', `/commissions/${id}/credit`),
+  reconcileCommission: (id: string) => request<unknown>('POST', `/commissions/${id}/reconcile`),
   payment: (orderId: string, idempotencyKey: string) => request<MoneyPayment>('POST', '/payments', { orderId, idempotencyKey }),
   payments: (page = 0) => request<MoneyPage<MoneyPayment>>('GET', '/payments', undefined, { page, size: 20 }),
   resumePayment: (id: string) => request<MoneyPayment>('POST', `/payments/${id}/resume`),

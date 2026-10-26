@@ -1215,8 +1215,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       const normalizedItems = await Promise.all(
         activeItems.map(async (item) => ({
           productId: item.productId,
-          liveSessionId: item.liveSessionId,
           referralLinkId: getProductReferral(item.productId),
+          liveSessionId: item.liveSessionId || (item.productId === product?.id ? initialLiveSessionId : undefined),
           variantId: await resolveOrderVariantId(item),
           quantity: item.quantity,
         })),

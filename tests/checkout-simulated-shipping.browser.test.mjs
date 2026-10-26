@@ -14,7 +14,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
  let failQuote=true;const creates=[],payments=[],errors=[];let page;
  try{
   page=await browser.newPage();page.on('pageerror',e=>{if(!e.message.includes('WebSocket closed without opened'))errors.push(e.message)});
-  await page.evaluateOnNewDocument(()=>{localStorage.clear();localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));});
+  await page.evaluateOnNewDocument(()=>{localStorage.clear();sessionStorage.setItem('scanms-product-referral:00000000-0000-4000-8000-000000000001','kol-referral-fixture');localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));});
   await page.setRequestInterception(true);
   page.on('request',request=>{
    const url=new URL(request.url());
@@ -24,7 +24,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
    if(url.pathname==='/src/services/chat-socket.service.ts')return request.respond({contentType:'application/javascript',body:'const s={connected:false,active:false,on(){return this},off(){return this},emit(){},connect(){return this}};export const getChatSocket=()=>s;export const isChatSocketEnabled=()=>false;export const isChatSocketAuthenticated=()=>false;export const disconnectChatSocket=()=>{};'});
    if(url.hostname==='provinces.open-api.vn')return request.respond({contentType:'application/json',headers,body:JSON.stringify([{code:1,name:'Province',districts:[{code:2,name:'District',wards:[{code:3,name:'Ward'}]}]}])});
    if(url.pathname.startsWith('/api/')){
-    if(url.pathname.endsWith('/users'))return respond({userId:'shipping-buyer',fullName:'Shipping test buyer',roles:['USER'],address:JSON.stringify([address])});
+    if(url.pathname.endsWith('/users') || url.pathname.endsWith('/users/me'))return respond({userId:'shipping-buyer',fullName:'Shipping test buyer',roles:['USER'],address:JSON.stringify([address])});
     if(url.pathname.includes('/stores/public/id/'))return respond({id:storeId,name:'Test shop',policyReturn:'Return test policy',policyShipping:'Simulated delivery'});
     if(url.pathname.endsWith('/checkout/quote'))return respond({shippingFeeVnd:30000,shippingMode:'SIMULATED',shippingPayer:'CUSTOMER',finalAmount:299000},failQuote?503:200);
     if(url.pathname.endsWith('/checkout')){const data=JSON.parse(request.postData());creates.push(data);return respond({orderId:'shipping-order',publicOrderCode:'shipping-order',finalAmount:299000,shippingFeeVnd:30000,shippingMode:'SIMULATED',paymentMethod:'WALLET',paymentStatus:'UNPAID',orders:[{publicOrderCode:'shipping-order',storeId,storeName:'Test shop',finalAmount:299000}]});}
@@ -51,7 +51,7 @@ test('simulated shipping shows its payer and fee, blocks failed quotes and inclu
   const note=await page.$eval('[role="note"]',e=>e.textContent);assert.match(note,/30\.000/);assert.match(note,/Khách thanh toán cùng tiền hàng/);
   assert.match(await page.$eval('.checkout-total-final',e=>e.textContent),/299\.000/);
   await page.$eval('button.checkout-submit',e=>e.click());await page.waitForFunction(()=>window.placed);
-  assert.equal(creates.length,1);assert.equal(creates[0].expectedShippingFeeVnd,30000);assert.equal(creates[0].paymentMethod,'WALLET');
+  assert.equal(creates.length,1);assert.equal(creates[0].items[0].referralLinkId,'kol-referral-fixture');assert.equal(creates[0].expectedShippingFeeVnd,30000);assert.equal(creates[0].paymentMethod,'WALLET');
   assert.equal(payments.length,1);assert.equal(payments[0].orderId,'shipping-order');assert.equal(payments[0].amountVnd,undefined,'Payment must read total from order, not trust a browser amount');
   assert.equal(await page.evaluate(()=>window.placed.totalAmount),299000);assert.deepEqual(errors,[]);
  }catch(error){console.error('Shipping fixture:',errors,await page?.evaluate(()=>document.body.innerText.slice(-1600)));throw error;}finally{await browser.close();}

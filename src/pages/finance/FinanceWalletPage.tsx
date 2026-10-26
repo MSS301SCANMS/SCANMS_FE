@@ -18,6 +18,7 @@ import { commandKey, completeCommand } from './commandKey';
 import { amountVnd, money, when, statusLabels, typeLabels } from './money';
 import { CustomDateTimePicker } from '../../components/ui/CustomDateTimePicker';
 import { VietnameseBankPicker, FALLBACK_VIET_BANKS } from '../../components/ui/VietnameseBankPicker';
+import { CommissionHistoryPanel } from '../../components/affiliate/CommissionHistoryPanel';
 
 // Curated list of Vietnamese Banks with standard 6-digit BIN codes
 export const VIETNAM_BANKS = [
@@ -374,6 +375,7 @@ export default function FinanceWalletPage() {
       )}
 
       {/* KPI Cards */}
+      {ownerType === 'COLLABORATOR' && wallet && wallet.availableBalanceVnd < 0 && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Khoản hoa hồng cần bù trừ: <strong>{money(-wallet.availableBalanceVnd)}</strong>. Hoa hồng đã rút nhưng phát sinh hoàn tiền sẽ được bù bằng thu nhập tiếp theo. Bạn chưa thể rút thêm khi chưa đủ số dư.</div>}
       <section aria-busy={loading} className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-[#EEDFC6] bg-[#FBF5EB] p-6 flex flex-col justify-between">
           <div>
@@ -1062,6 +1064,7 @@ export default function FinanceWalletPage() {
           </div>
         </div>
       </section>
+      {ownerType === 'COLLABORATOR' && <CommissionHistoryPanel onRefresh={() => void load()} />}
     </div>
   );
 }
