@@ -45,7 +45,7 @@ test('video moderation ignores local demo data, scopes server videos to current 
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         if (url.pathname.endsWith('/stores/my-store/presence')) return request.respond({ status: 200, headers, contentType: 'application/json', body: '{"code":200,"result":{}}' });
         let status = 200, result = [], message;
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE', fullName: 'Chủ shop kiểm thử' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE', fullName: 'Chủ shop kiểm thử' };
         if (url.pathname.endsWith('/stores/mine')) result = [{ storeId: 'fixture-store', name: 'Shop kiểm thử', approvalStatus: 'APPROVED' }];
         if (url.pathname.endsWith('/stores/fixture-store')) result = { storeId: 'fixture-store', name: 'Shop kiểm thử', approvalStatus: 'APPROVED' };
         if (url.pathname.endsWith('/products')) result = mode === 'no-products' ? [] : [product];

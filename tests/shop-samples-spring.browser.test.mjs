@@ -30,7 +30,7 @@ test('Spring shop samples show an honest availability state and never call unsup
         if (/sample-requests|create-sample|sample-shipments/.test(url.pathname)) unsupported.push(url.pathname);
         if (request.method() !== 'GET' && !url.pathname.endsWith('/stores/my-store/presence')) writes.push(url.pathname);
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], fullName: 'Chủ shop kiểm thử', status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], fullName: 'Chủ shop kiểm thử', status: 'ACTIVE' };
         if (url.pathname.endsWith('/stores/mine')) result = [{ storeId: 'store-fixture', name: 'Gian hàng thử', approvalStatus: 'APPROVED' }];
         if (url.pathname.endsWith('/stores/store-fixture')) result = { storeId: 'store-fixture', name: 'Gian hàng thử', approvalStatus: 'APPROVED' };
         return void request.respond({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });

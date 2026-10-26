@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Loader2, ShieldCheck, Ticket, X } from 'lucide-react';
 import { couponService } from '../../services/coupon.service';
 import api from '../../services/api';
+import { DateTimePicker } from '../../components/common/DateTimePicker';
 
 const money = (value: number) => `${Number(value).toLocaleString('vi-VN')} đ`;
 
@@ -13,7 +14,7 @@ export function AdminVoucherIssuer({ onClose, onIssued }: { onClose: () => void;
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ storeId: '', code: '', benefitType: 'GOODS' as 'GOODS' | 'SHIPPING', discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE', discountValue: 30000, minimumOrderAmount: 0, budgetTotal: 3000000, usageLimitTotal: 100, maximumDiscountAmount: 30000 });
+  const [form, setForm] = useState({ storeId: '', code: '', benefitType: 'GOODS' as 'GOODS' | 'SHIPPING', discountType: 'FIXED_AMOUNT' as 'FIXED_AMOUNT' | 'PERCENTAGE', discountValue: 30000, minimumOrderAmount: 0, budgetTotal: 3000000, usageLimitTotal: 100, maximumDiscountAmount: 30000, expiresAt: new Date(Date.now()+30*86400000).toISOString() });
   useEffect(() => { dialog.current?.showModal(); }, []);
   useEffect(() => {
     let active = true;
@@ -29,12 +30,13 @@ export function AdminVoucherIssuer({ onClose, onIssued }: { onClose: () => void;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy) return;
+    if (!Number.isFinite(Date.parse(form.expiresAt)) || Date.parse(form.expiresAt)<=Date.now()) { setError('Hạn dùng phải ở trong tương lai.'); return; }
     setError('');
     setBusy(true);
     try {
-      await couponService.createPlatformCoupon({ ...form, code: form.code.trim().toUpperCase(), maximumDiscountAmount: form.discountType === 'FIXED_AMOUNT' ? form.discountValue : form.maximumDiscountAmount });
+      await couponService.createPlatformCoupon({ ...form, expiresAt: new Date(form.expiresAt).toISOString(), code: form.code.trim().toUpperCase(), maximumDiscountAmount: form.discountType === 'FIXED_AMOUNT' ? form.discountValue : form.maximumDiscountAmount });
       onIssued();
-    } catch (err: any) { setError(err?.response?.data?.message || 'Chưa phát hành được voucher. Vui lòng thử lại.'); }
+    } catch (err: any) { setError(err?.response?.data?.message || err?.message || 'Chưa phát hành được voucher. Vui lòng thử lại.'); }
     finally { setBusy(false); }
   };
   const store = stores.find(item => item.id === form.storeId);
@@ -55,6 +57,7 @@ export function AdminVoucherIssuer({ onClose, onIssued }: { onClose: () => void;
             <label>Mức giảm ({form.discountType === 'PERCENTAGE' ? '%' : 'VNĐ'}) <span>*</span><input required type="number" min={1} max={form.discountType === 'PERCENTAGE' ? 100 : undefined} value={form.discountValue} onChange={event => change('discountValue', Number(event.target.value))} /></label>
             {form.discountType === 'PERCENTAGE' && <label>Giảm tối đa (VNĐ) <span>*</span><input required type="number" min={1} value={form.maximumDiscountAmount} onChange={event => change('maximumDiscountAmount', Number(event.target.value))} /></label>}
             <label>Đơn tối thiểu (VNĐ)<input required type="number" min={0} value={form.minimumOrderAmount} onChange={event => change('minimumOrderAmount', Number(event.target.value))} /></label>
+            <div><label>Hạn sử dụng <span>*</span></label><DateTimePicker required value={form.expiresAt} minDateTime={new Date().toISOString()} onChange={value => change('expiresAt',value)} /></div>
           </div></div>
           <div className="av-form-section"><h3>03 <span>Hạn mức phát hành</span></h3><div className="av-form-grid">
             <label>Tổng ngân sách (VNĐ) <span>*</span><input required type="number" min={1} value={form.budgetTotal} onChange={event => change('budgetTotal', Number(event.target.value))} /></label>

@@ -25,7 +25,7 @@ test('Spring livestream loads its real products, recognizes the invited KOL and 
     if(url.pathname.endsWith('/stores/public/id/store-a'))result={id:'store-a',name:'Real clothing store'};
     if(url.pathname.endsWith('/collaborators'))result=[{collaboratorId:'kol-a',userId:'kol-user',approvalStatus:'APPROVED'}];
     if(url.pathname.endsWith('/shirt-a/landing'))result={product:{id:'shirt-a',title:'Cotton shirt from API',price:269000,stockQuantity:10,variants:[{id:'variant-a',stockQuantity:10,price:269000,isActive:true}]}};
-    if(url.pathname.endsWith('/users/me'))result={userId:buyer?'buyer-user':'kol-user',fullName:buyer?'Buyer':'Test KOL',roles:[buyer?'USER':'KOL_CTV'],status:'ACTIVE'};
+    if(url.pathname.endsWith('/users'))result={userId:buyer?'buyer-user':'kol-user',fullName:buyer?'Buyer':'Test KOL',roles:[buyer?'USER':'KOL_CTV'],status:'ACTIVE'};
     return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result})});
    }
    if(url.origin!==origin&&!['data:','blob:'].includes(url.protocol))return request.abort();return request.continue();

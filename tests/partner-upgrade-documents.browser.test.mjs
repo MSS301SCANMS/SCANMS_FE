@@ -45,7 +45,7 @@ test('KOL and Shop document uploads stay styled, fit small screens and report up
           return request.respond({ status: uploadFails ? 503 : 200, headers, contentType: 'application/json', body: JSON.stringify(uploadFails ? { message: 'Máy chủ tải ảnh đang bận. Vui lòng thử lại.' } : { result: { secureUrl: `${origin}/__fixture/document.svg` } }) });
         }
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'upgrade-fixture', roles: ['USER'], status: 'ACTIVE', fullName: 'Hồ sơ kiểm thử' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'upgrade-fixture', roles: ['USER'], status: 'ACTIVE', fullName: 'Hồ sơ kiểm thử' };
         if (url.pathname.endsWith('/collaborators/me')) result = {};
         return request.respond({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
       }

@@ -59,6 +59,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     subTitle: 'KOL / CTV Tiếp Thị',
     items: [
       { path: '/collaborator/dashboard', label: 'Tổng quan doanh số', icon: TrendingUp, section: 'TỔNG QUAN' },
+      { path: '/collaborator/short-videos', label: 'Video ngắn', icon: Radio, section: 'TIẾP THỊ' },
       { path: '/collaborator/marketing', label: 'Tiếp thị liên kết và phát trực tiếp', icon: Link2, section: 'TIẾP THỊ' },
       { path: '/collaborator/wallet', label: 'Ví & Rút tiền', icon: Wallet, section: 'TÀI CHÍNH' },
       { path: '/collaborator/profile', label: 'Hồ sơ của tôi', icon: User, section: 'HỒ SƠ' },
