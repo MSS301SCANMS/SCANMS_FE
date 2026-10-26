@@ -20,6 +20,7 @@ export interface SidebarShellProps {
   editProfilePath: string;
   editProfileLabel: string;
   getItemBadge: (path: string, staticBadge?: string) => { text: string; isHighlight: boolean } | null;
+  showMarketplaceLink?: boolean;
   headerExtra?: ReactNode;
 }
 
@@ -33,6 +34,7 @@ export function SidebarShell({
   editProfilePath,
   editProfileLabel,
   getItemBadge,
+  showMarketplaceLink = true,
   headerExtra,
 }: SidebarShellProps) {
   const location = useLocation();
@@ -177,6 +179,7 @@ export function SidebarShell({
       <div className={`mt-auto pt-3 border-t ${theme.footerBorder} flex flex-col gap-1 text-xs sm:text-[13px] shrink-0`}>
         {currentUser ? (
           <>
+            {showMarketplaceLink && (
               <Link
                 to="/marketplace"
                 onClick={() => authService.switchWorkspace('customer', () => undefined)}
@@ -187,6 +190,7 @@ export function SidebarShell({
                 <ArrowLeft className="h-4 w-4 shrink-0 text-[#A17A3D] transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none" aria-hidden="true" />
                 <span className="flex-1 truncate tracking-tight font-semibold">Quay lại sàn</span>
               </Link>
+            )}
             <button
               type="button"
               onClick={onLogout}

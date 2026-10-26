@@ -503,7 +503,12 @@ export default function AdminDashboardPage() {
               dot={!health ? 'bg-[#CDB58C]' : health.keycloak.up ? 'bg-emerald-500' : 'bg-rose-500'}
               valueClass={!health ? 'text-[#8A8175]' : health.keycloak.up ? 'text-emerald-700' : 'text-rose-700'}
             />
-            <HealthRow label="Kafka" value="CHƯA CẤU HÌNH" dot="bg-[#C9C1B5]" valueClass="text-[#8A8175]" />
+            <HealthRow
+              label="Kafka"
+              value={!health ? '…' : health.kafka.state === 'up' ? 'UP' : health.kafka.state === 'down' ? 'DOWN' : 'KHÔNG RÕ'}
+              dot={!health || health.kafka.state === 'unknown' ? 'bg-[#C9C1B5]' : health.kafka.state === 'up' ? 'bg-emerald-500' : 'bg-rose-500'}
+              valueClass={!health || health.kafka.state === 'unknown' ? 'text-[#8A8175]' : health.kafka.state === 'up' ? 'text-emerald-700' : 'text-rose-700'}
+            />
             <HealthRow
               label="Trạng thái tổng"
               value={overall ?? '…'}

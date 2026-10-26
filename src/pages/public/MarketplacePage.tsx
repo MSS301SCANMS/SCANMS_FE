@@ -37,7 +37,7 @@ export default function MarketplacePage() {
   const { data: items = [], isLoading: loading, isError: productsFailed, refetch: retryProducts } = useQuery<Product[]>({
     queryKey: ['marketplace-products'],
     queryFn: async () => {
-      const res: any = await api.get('/public/products', { params: { limit: 48, sortBy: 'newest' } });
+      const res: any = await api.get('/public/products', { params: { limit: 48, sortBy: 'newest' }, headers: { 'x-skip-cache': 'true' } });
       const payload = res?.data !== undefined ? (res.data?.data !== undefined ? res.data.data : res.data) : res;
       const apiItems = Array.isArray(payload) ? payload : (payload?.items || []);
 
@@ -81,7 +81,8 @@ export default function MarketplacePage() {
         };
       });
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
   });
   const { deals: liveDeals, now: liveDealsNow } = useLiveSessionDeals(items.map((product) => product.id));
 

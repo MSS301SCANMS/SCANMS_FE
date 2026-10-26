@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Heart, MessageCircle, ShoppingCart, Store } from 'lucide-react';
+import { CircleAlert, Heart, MessageCircle, ShoppingCart, Star, Store } from 'lucide-react';
 import { useScanmsChat } from '@/context/ScanmsChatContext';
 import type { Product } from '@/types/marketplace.types';
 import { formatMoney, getSafeProductImageUrl } from '@/utils/marketplace.utils';
@@ -45,6 +45,9 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
   const selectedAvailable = !variant || variant.stockQuantity > 0;
   const needsSelection = choosing && !variant;
   const selectedStock = Math.max(0, variant?.stockQuantity ?? product.stockQuantity ?? 0);
+  const hasReviews = Number.isFinite(product.rating) && product.rating > 0 && product.rating <= 5
+    && Number.isSafeInteger(product.reviews) && product.reviews > 0;
+  const ratingLabel = hasReviews ? product.rating.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
 
   useEffect(() => {
     setQuantity(current => Math.max(1, Math.min(current, selectedStock || 1)));
@@ -86,6 +89,12 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
       </div>
       <div className="flex flex-1 flex-col p-3 sm:p-4">
         <h3 className="m-0 line-clamp-2 min-h-10 text-xs font-semibold leading-5 sm:text-sm"><Link to={`/products/${product.sku || product.id}`} className="hover:text-[#B88E4F]">{product.name}</Link></h3>
+        <div className="mt-1 flex min-h-5 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-[#7D715E]" data-product-rating
+          aria-label={hasReviews ? `${ratingLabel} trên 5 sao, ${product.reviews} đánh giá từ khách đã mua` : 'Chưa có đánh giá'}
+          title={hasReviews ? 'Đánh giá từ khách đã mua sản phẩm' : undefined}>
+          <Star size={13} aria-hidden="true" className={hasReviews ? 'shrink-0 fill-[#C59B58] text-[#C59B58]' : 'shrink-0 text-[#B9B1A4]'} />
+          {hasReviews ? <><span className="font-semibold text-[#8C6226]">{ratingLabel}</span><span>({product.reviews.toLocaleString('vi-VN')} đánh giá)</span></> : <span>Chưa có đánh giá</span>}
+        </div>
         <div className={`mt-2 grid min-w-0 gap-1.5 ${product.storeId ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <Link to={product.storeId ? `/shops/${product.storeId}` : '/search'} title={product.brand} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] px-1 text-[10px] font-medium text-[#655A49] transition-colors hover:border-[#C59B58] hover:bg-[#FBF5EB] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C59B58] sm:gap-1.5 sm:px-2 sm:text-[11px]"><Store size={13} className="shrink-0" /><span className="truncate">{product.brand}</span></Link>
           {product.storeId && <button type="button" aria-label={`Nhắn tin với shop ${product.brand}`} title={`Nhắn tin với shop ${product.brand}`} onClick={() => openChat(

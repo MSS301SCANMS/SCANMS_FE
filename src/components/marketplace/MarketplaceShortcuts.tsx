@@ -9,7 +9,7 @@ export function MarketplaceShortcuts({ onOpenLive }: { onOpenLive: () => void })
       <div className="mx-auto grid max-w-[1200px] grid-cols-3 items-stretch gap-2 px-3 py-2 text-[11px] font-semibold text-[#7D715E] sm:gap-3 sm:px-4 lg:px-6">
         <Link to="/" aria-current="page" className={`${shortcutClassName} bg-[#FBF5EB] text-[#1A1612]`}><ShoppingBag size={15} />Trang mua sắm</Link>
         <button type="button" onClick={onOpenLive} className={shortcutClassName}><Radio size={15} className="text-[#B88E4F]" />Khám phá Live KOC</button>
-        <Link to="/search?commission=true" className={shortcutClassName}><Sparkles size={15} />Khám phá cùng KOC</Link>
+        <Link to="/shorts" className={shortcutClassName}><Sparkles size={15} />Video cùng KOC</Link>
       </div>
     </nav>
   );
