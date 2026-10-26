@@ -90,13 +90,13 @@ function mapPolicy(raw: any, storeId?: string): CommissionRule {
     achievementBonus: '0',
     bonusPercentage: String(ratePct),
     isActive: String(raw.status || '').toUpperCase() === 'ACTIVE',
-    version: Number(raw.priority || 1),
+    version: Number(raw.version ?? 0),
     effectiveFrom: raw.validFrom || null,
     effectiveTo: raw.validTo || null,
     createdBy: null,
     updatedBy: null,
-    createdAt: raw.validFrom || new Date().toISOString(),
-    updatedAt: raw.validFrom || new Date().toISOString(),
+    createdAt: raw.createdAt || raw.validFrom || new Date().toISOString(),
+    updatedAt: raw.updatedAt || raw.validFrom || new Date().toISOString(),
   };
 }
 
@@ -141,12 +141,27 @@ export const commissionRulesService = {
     return mapPolicy(res?.result ?? res?.data ?? res, storeId);
   },
 
-  async updateRule(_storeId: string, _ruleId: string, _data: any): Promise<CommissionRule> {
-    throw new Error('BE chưa hỗ trợ cập nhật commission policy.');
+  async updateRule(storeId: string, ruleId: string, data: any): Promise<CommissionRule> {
+    const versionParam = data.version !== undefined ? data.version : 0;
+    const res: any = await api.put(`/commission-policies/${ruleId}?version=${versionParam}`, {
+      policyName: data.name,
+      scopeType: 'STORE',
+      storeId,
+      commissionRate: Number(data.bonusPercentage),
+      returnWindowDays: 14,
+      validFrom: data.effectiveFrom ? new Date(data.effectiveFrom).toISOString() : new Date().toISOString(),
+      status: data.isActive === false ? 'INACTIVE' : 'ACTIVE',
+      priority: Number(data.priority || 1),
+    });
+    return mapPolicy(res?.result ?? res?.data ?? res, storeId);
   },
 
-  async updateStatus(_storeId: string, _ruleId: string, _isActive: boolean) {
-    throw new Error('Chưa hỗ trợ thay đổi trạng thái chính sách từ khu vực gian hàng. Thao tác chưa được lưu.');
+  async updateStatus(storeId: string, ruleId: string, isActive: boolean) {
+    const current = await this.getRule(storeId, ruleId);
+    return this.updateRule(storeId, ruleId, {
+      ...current,
+      isActive,
+    });
   },
 
   async deleteRule(_storeId: string, _ruleId: string) {
