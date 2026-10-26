@@ -5,7 +5,7 @@ import { HOME_CATEGORY_GROUPS } from '@/utils/marketplace-category.utils';
 const icons = { skin: Droplets, makeup: Palette, body: Bath, health: HeartPulse };
 const categories = [
   ...HOME_CATEGORY_GROUPS.map((group) => ({ label: group.label, Icon: icons[group.id], href: `/search?categoryGroup=${group.id}` })),
-  { label: 'Khám phá cùng KOC', Icon: Sparkles, href: '/search?commission=true' },
+  { label: 'Video cùng KOC', Icon: Sparkles, href: '/shorts' },
   { label: 'Sản phẩm giảm giá', Icon: Tag, href: '/search?discount=true&inStock=true' },
 ];
 

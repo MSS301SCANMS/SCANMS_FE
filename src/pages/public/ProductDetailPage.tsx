@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { shortVideoService } from '../../services/short-video.service';
 import { captureProductReferral } from '../../utils/referral-attribution';
 import {
   ShoppingBag,
@@ -382,7 +383,13 @@ export default function ProductDetailPage() {
   const liveSource = searchParams.get('live') || '';
   const sourceLivestreamId = /^[A-Za-z0-9_-]{1,100}$/.test(liveSource) ? liveSource : undefined;
   useEffect(() => {
-    if (data?.product?.id) captureProductReferral(data.product.id, searchParams.get('ref'));
+    const referral=searchParams.get('ref');
+    if (data?.product?.id && referral && /^[A-Za-z0-9_-]{1,100}$/.test(referral)) {
+      captureProductReferral(data.product.id,'');
+      void shortVideoService.click(data.product.id,referral).then(()=>{
+        setSearchParams(previous=>{const next=new URLSearchParams(previous);next.delete('ref');return next;},{replace:true});
+      }).catch(()=>{ /* The product remains purchasable if attribution is unavailable. */ });
+    }
   }, [data?.product?.id, searchParams]);
   const isCheckoutParam = searchParams.get('checkout') === '1' || searchParams.get('checkout') === 'true';
   const isCheckoutOpen = isCheckoutParam;

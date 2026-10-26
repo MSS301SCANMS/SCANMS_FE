@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Heart, ShoppingCart, Store } from 'lucide-react';
+import { CircleAlert, Heart, ShoppingCart, Star, Store } from 'lucide-react';
 import type { Product } from '@/types/marketplace.types';
 import { formatMoney, getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { LiveSessionDealBadge } from '@/components/product/LiveSessionDealBadge';
@@ -43,6 +43,9 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
   const selectedAvailable = !variant || variant.stockQuantity > 0;
   const needsSelection = choosing && !variant;
   const selectedStock = Math.max(0, variant?.stockQuantity ?? product.stockQuantity ?? 0);
+  const hasReviews = Number.isFinite(product.rating) && product.rating > 0 && product.rating <= 5
+    && Number.isSafeInteger(product.reviews) && product.reviews > 0;
+  const ratingLabel = hasReviews ? product.rating.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
 
   useEffect(() => {
     setQuantity(current => Math.max(1, Math.min(current, selectedStock || 1)));
@@ -85,6 +88,12 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
       <div className="flex flex-1 flex-col p-3 sm:p-4">
         <Link to={product.storeId ? `/shops/${product.storeId}` : '/search'} className="mb-2 inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-[#7D715E] hover:text-[#B88E4F]"><Store size={13} className="shrink-0" /><span className="truncate">{product.brand}</span></Link>
         <h3 className="m-0 line-clamp-2 min-h-10 text-xs font-semibold leading-5 sm:text-sm"><Link to={`/products/${product.sku || product.id}`} className="hover:text-[#B88E4F]">{product.name}</Link></h3>
+        <div className="mt-1 flex min-h-5 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-[#7D715E]" data-product-rating
+          aria-label={hasReviews ? `${ratingLabel} trên 5 sao, ${product.reviews} đánh giá từ khách đã mua` : 'Chưa có đánh giá'}
+          title={hasReviews ? 'Đánh giá từ khách đã mua sản phẩm' : undefined}>
+          <Star size={13} aria-hidden="true" className={hasReviews ? 'shrink-0 fill-[#C59B58] text-[#C59B58]' : 'shrink-0 text-[#B9B1A4]'} />
+          {hasReviews ? <><span className="font-semibold text-[#8C6226]">{ratingLabel}</span><span>({product.reviews.toLocaleString('vi-VN')} đánh giá)</span></> : <span>Chưa có đánh giá</span>}
+        </div>
         <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{available ? `Còn ${selectedStock} sản phẩm${variant ? ' ở phân loại này' : ''}` : 'Tạm hết hàng'}</p>
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 border-t border-[#EAE4D7] pt-3"><strong className="text-sm text-[#1A1612] sm:text-base">{formatMoney(price)}</strong>{product.origPrice > price && <del className="text-[10px] text-[#7D715E]">{formatMoney(product.origPrice)}</del>}</div>
         {variants.length > 0 && (choosing || variantId) && <div ref={choiceRef} className="marketplace-variant-choice mt-3" data-required={needsSelection}>

@@ -20,6 +20,8 @@ const RegisterPage = lazyRetry(() => import('@/pages/auth/RegisterPage'));
 const ProductDetailPage = lazyRetry(() => import('@/pages/public/ProductDetailPage'));
 const RedirectHandlerPage = lazyRetry(() => import('@/pages/public/RedirectHandlerPage'));
 const MarketplacePage = lazyRetry(() => import('../pages/public/MarketplacePage'));
+const ShortVideosPage = lazyRetry(() => import('../pages/public/ShortVideosPage'));
+const ShortVideoStudioPage = lazyRetry(() => import('../pages/collaborator/ShortVideoStudioPage'));
 const ShopPage = lazyRetry(() => import('../pages/public/ShopPage'));
 const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
 const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
@@ -153,6 +155,7 @@ function AppRoutes() {
               {/* Hosts and viewers share the live room across workspaces. */}
               <Route path="/live/:slug" element={<LiveStreamRoomPage />} />
               <Route path="/live" element={<LiveStreamRoomPage />} />
+              <Route path="/shorts" element={<ShortVideosPage />} />
               <Route path="/payment/payos-return" element={<PayosReturnPage />} />
               <Route path="/r/:shortCode" element={<RedirectHandlerPage />} />
               <Route path="/login" element={<LoginPage />} />
@@ -233,6 +236,7 @@ function AppRoutes() {
                 <Route element={<RoleGuard requiredWorkspace="kol" />}>
                   <Route element={<RouteContent />}>
                     <Route path="collaborator/dashboard" element={<KolDashboardPage />} />
+                    <Route path="collaborator/short-videos" element={<ShortVideoStudioPage />} />
                     <Route path="collaborator/wallet" element={<WalletPage />} />
                     <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />
                     <Route path="collaborator/profile" element={<CreatorProfilePage />} />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { getSessionId } from '../../services/auth-session';
-import { getProductReferral } from '../../utils/referral-attribution';
+import { getProductReferral, getProductReferralClick } from '../../utils/referral-attribution';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckoutOrderConfirmation, type CheckoutOrderResult } from './CheckoutOrderConfirmation';
 import { CheckoutItemsSection } from './CheckoutItemsSection';
@@ -1217,6 +1217,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
           productId: item.productId,
           liveSessionId: item.liveSessionId,
           referralLinkId: getProductReferral(item.productId),
+          referralClickId: getProductReferralClick(item.productId),
           variantId: await resolveOrderVariantId(item),
           quantity: item.quantity,
         })),
