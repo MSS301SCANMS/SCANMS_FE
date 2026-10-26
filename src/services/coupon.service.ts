@@ -39,6 +39,9 @@ export interface PublicStoreCoupon {
   products: Array<{ id: string; title: string }>;
   categories: string[];
   storeName: string;
+  storeId?: string;
+  store?: { id: string; name?: string };
+  fundingSource?: CouponFundingSource;
 }
 
 export interface CouponItem {
@@ -192,38 +195,100 @@ export interface CouponFilterParams {
 
 function mapVoucher(raw: any): any {
   if (!raw) return raw;
+  const benefitType = raw.benefitType ?? raw.scope?.benefitType ?? 'GOODS';
+  const fundingSource = raw.funding?.fundedBy === 'STORE' ? 'SHOP_FUNDED' : raw.issuerType === 'PLATFORM' ? 'PLATFORM_FUNDED' : 'SHOP_FUNDED';
   return {
     ...raw,
     id: raw.id || raw.voucherId,
+    code: raw.code,
     displayCode: raw.code,
     codeNormalized: raw.code,
-    discountType: raw.discountType,
-    discountValue: raw.value,
-    minimumOrderAmount: raw.minimumSubtotal,
-    maximumDiscountAmount: raw.cap,
-    expiresAt: raw.validUntil,
+    discountType: raw.discountType === 'FIXED' ? 'FIXED_AMOUNT' : raw.discountType,
+    discountValue: Number(raw.value ?? raw.discountValue ?? 0),
+    minimumOrderAmount: raw.minimumSubtotal ?? raw.minimumOrderAmount ?? null,
+    maximumDiscountAmount: raw.cap ?? raw.maximumDiscountAmount ?? null,
+    expiresAt: raw.validUntil ?? raw.expiresAt ?? null,
     status: 'ACTIVE',
     storeId: raw.storeId,
+    store: raw.store || (raw.storeId ? { id: raw.storeId, name: raw.storeName || '' } : undefined),
+    storeName: raw.storeName || raw.store?.name || '',
+    benefitType,
+    fundingSource,
+    scopeType: raw.scopeType === 'STORE' ? 'STORE_WIDE' : raw.scopeType || 'STORE_WIDE',
+    products: raw.products || [],
+    categories: raw.categories || [],
   };
 }
 
 function toCreateVoucherBody(storeId: string | undefined, payload: any) {
+  const discountType =
+    payload.discountType === 'FIXED_AMOUNT' || payload.discountType === 'FIXED'
+      ? 'FIXED'
+      : 'PERCENTAGE';
+
+  const scopeType =
+    payload.scopeType === 'STORE_WIDE' || payload.scopeType === 'STORE'
+      ? 'STORE'
+      : payload.scopeType === 'PRODUCTS' || payload.scopeType === 'PRODUCT'
+      ? 'PRODUCT'
+      : payload.scopeType === 'CAMPAIGN'
+      ? 'STORE'
+      : payload.scopeType || 'STORE';
+
+  const formatLocalDateTime = (dateStr: string | undefined | null, defaultTime: string) => {
+    if (!dateStr) return undefined;
+    const clean = dateStr.trim();
+    if (clean.includes('T')) {
+      return clean.split('.')[0].slice(0, 19);
+    }
+    return `${clean}T${defaultTime}`;
+  };
+
+  const validFrom =
+    formatLocalDateTime(payload.startsAt || payload.validFrom, '00:00:00') ||
+    new Date().toISOString().slice(0, 19);
+  const validUntil =
+    formatLocalDateTime(payload.expiresAt || payload.validUntil, '23:59:59') ||
+    new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 19);
+
+  const rawValue = payload.discountValue ?? payload.value;
+  const value = discountType === 'FIXED' ? Math.round(Number(rawValue || 0)) : Number(rawValue || 0);
+
+  const rawCap = payload.maximumDiscountAmount ?? payload.cap;
+  const cap = discountType === 'PERCENTAGE' && rawCap && Number(rawCap) > 0 ? Math.round(Number(rawCap)) : null;
+
+  const rawMin = payload.minimumOrderAmount ?? payload.minimumSubtotal;
+  const minimumSubtotal =
+    rawMin !== undefined && rawMin !== null && rawMin !== '' && Number(rawMin) >= 0
+      ? Math.round(Number(rawMin))
+      : 0;
+
+  const totalUsageLimit = Math.max(1, Math.round(Number(payload.limits?.totalUsageLimit ?? payload.usageLimitTotal ?? 100)));
+  const perCustomerLimit = Math.max(1, Math.round(Number(payload.limits?.perCustomerLimit ?? payload.usageLimitPerCustomer ?? 1)));
+
   return {
-    code: payload.code || payload.displayCode,
-    issuerType: storeId ? 'STORE' : 'PLATFORM',
+    code: (payload.code || payload.displayCode || '').trim().toUpperCase(),
+    issuerType: storeId ? 'STORE' : payload.issuerType || 'PLATFORM',
     storeId: storeId || payload.storeId,
-    productId: payload.productId,
-    livestreamId: payload.livestreamId,
-    scopeType: payload.scopeType || 'STORE',
-    discountType: payload.discountType,
-    value: payload.discountValue ?? payload.value,
-    cap: payload.maximumDiscountAmount ?? payload.cap,
-    minimumSubtotal: payload.minimumOrderAmount ?? payload.minimumSubtotal,
-    validFrom: payload.startsAt || payload.validFrom || new Date().toISOString(),
-    validUntil: payload.expiresAt || payload.validUntil,
-    limits: payload.limits,
-    scope: payload.scope,
-    funding: payload.funding,
+    productId: scopeType === 'PRODUCT' ? (payload.productId || payload.productIds?.[0] || null) : null,
+    livestreamId: scopeType === 'LIVESTREAM' ? (payload.livestreamId || null) : null,
+    scopeType,
+    discountType,
+    value,
+    cap,
+    minimumSubtotal,
+    validFrom,
+    validUntil,
+    limits: {
+      totalUsageLimit,
+      perCustomerLimit,
+    },
+    scope: {
+      benefitType: payload.scope?.benefitType || payload.benefitType || 'GOODS',
+    },
+    funding: {
+      fundedBy: storeId ? 'STORE' : (payload.funding?.fundedBy || 'PLATFORM'),
+    },
   };
 }
 
@@ -239,8 +304,8 @@ export const couponService = {
     });
   },
 
-  getPublicStoreCoupons: async (storeId: string): Promise<PublicStoreCoupon[]> => {
-    const res: any = await api.get('/vouchers/public', { params: { storeId } });
+  getPublicStoreCoupons: async (storeId: string, productId?: string, signal?: AbortSignal): Promise<PublicStoreCoupon[]> => {
+    const res: any = await api.get('/vouchers/public', { params: { storeId, productId }, signal });
     const payload = res?.result ?? res?.data ?? res;
     const list = Array.isArray(payload) ? payload : [];
     return list.filter((v: any) => !storeId || v.storeId === storeId).map(mapVoucher);
