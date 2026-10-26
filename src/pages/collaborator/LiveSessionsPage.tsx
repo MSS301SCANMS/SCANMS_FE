@@ -1,5 +1,7 @@
 ﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { livestreamLifecycle, livestreamStatusLabel } from '../../utils/livestream-lifecycle.utils';
+import { serverDate } from '../../utils/server-date';
 import {
   CalendarClock,
   Copy,
@@ -26,6 +28,7 @@ import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 
 type Session = {
+  lifecycleReason?: string;
   governance?: LiveGovernance;
   id: string;
   title: string;
@@ -99,9 +102,9 @@ export default function CollaboratorLiveSessionsPage() {
           liveUrl: (participants.platform || 'SCANMS') === 'SCANMS'
             ? `/live/${encodeURIComponent(raw.livestreamId || raw.id)}` : raw.playbackRef || participants.liveUrl || '',
           externalChannels: participants.externalChannels || [],
-          startsAt: raw.scheduledAt || raw.startsAt || raw.createdAt,
-          endsAt: participants.endsAt || raw.endedAt || raw.scheduledAt || raw.createdAt,
-          status: raw.status || 'SCHEDULED',
+          startsAt: serverDate(raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
+          endsAt: serverDate(participants.endsAt || raw.endedAt || raw.scheduledAt || raw.createdAt) || '',
+          ...livestreamLifecycle(raw),
           inviteStatus: participants.inviteStatus || 'PENDING',
           commissionRate: participants.commissionRate ?? 0,
           store: raw.store || { name: 'Shop', slug: '', logoUrl: null },
@@ -365,7 +368,7 @@ export default function CollaboratorLiveSessionsPage() {
                         )}
                         {isEnded && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#FAF8F5] text-[#7D715E]">
-                            {session.status === 'CANCELLED' ? 'Đã hủy' : 'Đã kết thúc'}
+                            {livestreamStatusLabel(session.status, session.lifecycleReason)}
                           </span>
                         )}
                         {session.inviteStatus === 'REJECTED' && (
@@ -394,7 +397,6 @@ export default function CollaboratorLiveSessionsPage() {
                   {session.liveUrl && (
                     <a
                       href={session.liveUrl}
-                      target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center justify-center gap-1.5 min-h-[32px] px-3 py-1.5 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] text-xs font-medium hover:bg-[#F3EFE6] hover:border-[#C59B58] transition-colors shrink-0"
                     >

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { getSessionId } from '../../services/auth-session';
+import { getLivePurchase } from '../../services/live-purchase-access';
 import { getProductReferral, getProductReferralClick } from '../../utils/referral-attribution';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckoutOrderConfirmation, type CheckoutOrderResult } from './CheckoutOrderConfirmation';
@@ -605,6 +606,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
               variantId: i.variantId || undefined,
               quantity: i.quantity,
               clientPrice: i.price,
+              liveSessionId: i.liveSessionId,
             })))
           .then((res: any) => {
             const data = res?.data || res;
@@ -698,7 +700,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       let response: any;
       try {
         response = await checkoutService.shippingQuote(
-          group.items.map((item) => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })),
+          group.items.map((item) => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity, liveSessionId: item.liveSessionId })),
           group.store.id, address, controller.signal,
         );
       } catch (error: any) {
@@ -968,7 +970,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     !email.trim() || /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim());
 
   // Validate coupon
-  const voucherItems = () => activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity }));
+  const voucherItems = () => activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity, liveSessionId: item.liveSessionId }));
   const captureVoucherQuote = (data: any) => {
     setCouponCode(data.code || ''); setShippingCouponCode(data.shippingCouponCode || '');
     setAppliedCoupon(data.code ? { code: data.code, discountAmount: Number(data.discountAmount) || 0, discountType: data.discountType } : null);
@@ -995,7 +997,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         items: activeItems.filter(item => item.store.id === targetVoucherStoreId).map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity, unitPrice: item.price })),
         hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: Boolean(appliedPlatformCoupon),
       })
-    : checkoutService.quote({ couponCode: code, items: activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })) });
+    : checkoutService.quote({ couponCode: code, items: voucherItems() });
   const handleValidateCoupon = async (selectedCode = couponCode): Promise<boolean> => {
     if (!selectedCode.trim()) return false;
     if(!usesLegacyCheckout) return handleChooseVoucherPair({goodsCode:appliedCoupon?.code||'',shippingCode:appliedShippingCoupon?.code||'',enteredCode:selectedCode});
@@ -1048,7 +1050,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     setCouponMessage(null);
   };
 
-  const liveCouponCodes = [...new Set(activeItems.map((item) => item.liveCouponCode).filter(Boolean))];
+  const liveCouponCodes = [...new Set(activeItems.flatMap((item) => item.liveCouponCodes || (item.liveCouponCode ? [item.liveCouponCode] : [])).filter(Boolean))];
   const autoCouponCode = initialCouponCode || (liveCouponCodes.length === 1 ? liveCouponCodes[0]! : '');
   useEffect(() => {
     if (!isOpen) { setAutoCouponDismissed(false); setCouponLoading(false); setShowVoucherPicker(false); return; }
@@ -1067,7 +1069,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       const recommend = async () => {
         if (usesLegacyCheckout) return validateCheckoutCoupon(autoCouponCode);
         return recommendVoucherSelection(voucherItems(),activeItems.map(item=>item.store.id),controller.signal,
-          initialCouponCode,initialShippingCouponCode,liveCouponCodes.length===1?liveCouponCodes[0]:undefined);
+          initialCouponCode,initialShippingCouponCode,liveCouponCodes);
       };
       void recommend().then((response: any) => {
         if (!isCurrent()) return;
@@ -1216,6 +1218,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         activeItems.map(async (item) => ({
           productId: item.productId,
           liveSessionId: item.liveSessionId,
+          livePurchaseToken: getLivePurchase(item.liveSessionId),
           referralLinkId: getProductReferral(item.productId),
           referralClickId: getProductReferralClick(item.productId),
           variantId: await resolveOrderVariantId(item),
@@ -1229,7 +1232,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         customerPhone: customerPhone.trim(),
         customerEmail: orderEmail.trim().toLowerCase() || undefined,
         shippingAddress: fullShippingAddress,
-        ...(!usesLegacyCheckout && { expectedShippingFeeVnd: shippingFee }),
+        ...(!usesLegacyCheckout && { expectedShippingFeeVnd: shippingFee, expectedPayableVnd: finalTotal }),
         policyAccepted: true,
         orderNotes: orderNotes.trim() || undefined,
         paymentMethod,

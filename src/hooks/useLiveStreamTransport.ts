@@ -2,6 +2,8 @@
 import { io, type Socket } from 'socket.io-client';
 import api from '../services/api';
 import { getSessionId, renewSession } from '../services/auth-session';
+import { rememberLivePurchase, clearLivePurchase } from '../services/live-purchase-access';
+import { livestreamLifecycle } from '../utils/livestream-lifecycle.utils';
 
 type LiveSignal = {
   description?: RTCSessionDescriptionInit;
@@ -11,13 +13,14 @@ type LiveSignal = {
 type LiveStreamTransportOptions = {
   sessionId?: string;
   isHost: boolean;
+  isModerator?: boolean;
   localStream: MediaStream | null;
   onNewChatMessage?: (msg: any) => void;
   onPinnedProductChange?: (data: { productIndex: number; productId?: string }) => void;
   onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 
-const SOCKET_URL = String(import.meta.env.VITE_LIVE_SOCKET_URL || import.meta.env.VITE_SOCKET_URL || '').trim();
+const SOCKET_URL = String(import.meta.env.VITE_LIVE_SOCKET_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:8090` : '')).trim();
 const ICE_SERVERS: RTCIceServer[] = (() => { try {
   const servers = JSON.parse(import.meta.env.VITE_LIVE_ICE_SERVERS || 'null');
   if (Array.isArray(servers) && servers.length) return servers;
@@ -29,6 +32,7 @@ return [
 export function useLiveStreamTransport({
   sessionId,
   isHost,
+  isModerator = false,
   localStream,
   onNewChatMessage,
   onPinnedProductChange,
@@ -49,8 +53,12 @@ export function useLiveStreamTransport({
   const [streamError, setStreamError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
+  const [reactionCount, setReactionCount] = useState(0);
   const [businessStatus, setBusinessStatus] = useState<string | null>(null);
   const publishingRef = useRef(false);
+  const pendingChatsRef = useRef(new Map<string, string>());
+  const rejoinRef = useRef<(() => void) | null>(null);
+  const mediaAttemptsRef = useRef(0);
 
   const onNewChatMessageRef = useRef(onNewChatMessage);
   onNewChatMessageRef.current = onNewChatMessage;
@@ -69,8 +77,9 @@ export function useLiveStreamTransport({
       try {
         const response: any = await api.get(`/livestreams/${sessionId}`, { headers: { 'x-skip-cache': 'true' } });
         const session = response?.data || response;
-        if (alive && session?.status) setBusinessStatus(session.status);
-        if (alive && session && (['ENDED', 'CANCELLED'].includes(session.status) || new Date(session.endsAt).getTime() <= Date.now())) {
+        const effective = livestreamLifecycle(session);
+        if (alive && session?.status) setBusinessStatus(effective.status);
+        if (alive && session && ['ENDED', 'CANCELLED'].includes(effective.status)) {
           setSessionEnded(true);
           setRoomJoined(false);
           setIsStreamLive(false);
@@ -116,9 +125,11 @@ export function useLiveStreamTransport({
     };
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+        const failed = peer.connectionState === 'failed';
+        peer.onconnectionstatechange = null;
         peer.close();
-        hostPeersRef.current.delete(viewerSocketId);
-        if (peer.connectionState === 'failed') {
+        if (hostPeersRef.current.get(viewerSocketId) === peer) hostPeersRef.current.delete(viewerSocketId);
+        if (failed) {
           pendingViewersRef.current.add(viewerSocketId);
           setStreamError('Kết nối tới người xem bị gián đoạn. Hãy thử tắt rồi bật lại camera.');
         }
@@ -205,10 +216,14 @@ export function useLiveStreamTransport({
           setRemoteStream(stream);
           setHostOnline(true);
           setIsStreamLive(true);
+          mediaAttemptsRef.current = 0;
+          setStreamError(null);
         };
         peer.onconnectionstatechange = () => {
           if (peer?.connectionState === 'failed' || peer?.connectionState === 'closed') {
+            peer.onconnectionstatechange = null;
             peer.close();
+            if (viewerPeersRef.current.get(remoteSocketId) !== peer) return;
             viewerPeersRef.current.delete(remoteSocketId);
             remoteStreamRef.current = null;
             setRemoteStream(null);
@@ -243,7 +258,34 @@ export function useLiveStreamTransport({
     }
   }, [emitSignal, flushPendingIce, isHost]);
 
+  const requestMedia = useCallback(() => {
+    const socket = socketRef.current;
+    if (isHost || !sessionId || !socket?.connected) return;
+    viewerPeersRef.current.forEach(peer => { peer.onconnectionstatechange = null; peer.ontrack = null; peer.close(); });
+    viewerPeersRef.current.clear(); pendingIceRef.current.clear();
+    remoteStreamRef.current = null; setRemoteStream(null);
+    socket.timeout(5000).emit('request_live_stream', { sessionId }, (error: Error | null, result: { ok?: boolean; message?: string; streamActive?: boolean; hostOnline?: boolean }) => {
+      if (socketRef.current !== socket || !socket.connected) return;
+      if (error || !result?.ok) setStreamError(result?.message || 'Chưa kết nối lại được camera. Vui lòng thử lại.');
+      else { setStreamError(null); setHostOnline(Boolean(result.hostOnline)); setIsStreamLive(Boolean(result.streamActive)); }
+    });
+  }, [isHost, sessionId]);
+
   useEffect(() => {
+    if (isHost || !roomJoined || !isStreamLive || remoteStream || sessionEnded) return;
+    const timer = window.setInterval(() => {
+      if (mediaAttemptsRef.current++ < 3) requestMedia();
+      else {
+        window.clearInterval(timer);
+        setStreamError('Chưa nhận được camera của KOL. Hãy thử kết nối lại; nếu vẫn lỗi, cần kiểm tra camera và đường truyền của người phát.');
+      }
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [isHost, roomJoined, isStreamLive, remoteStream, sessionEnded, requestMedia]);
+
+  useEffect(() => {
+    setRoomJoined(false); setViewerCount(0); setReactionCount(0); setRemoteStream(null);
+    setHostOnline(false); setIsStreamLive(false); mediaAttemptsRef.current = 0;
     if (!sessionId) return undefined;
 
     if (!SOCKET_URL) {
@@ -262,11 +304,11 @@ export function useLiveStreamTransport({
     });
     socketRef.current = socket;
 
-    socket.on('connect', () => {
+    const joinRoom = () => {
       socket.emit(
         'join_live_room',
-        { sessionId, requestedRole: isHost ? 'host' : 'viewer' },
-        (result: { ok?: boolean; message?: string; hostOnline?: boolean; streamActive?: boolean }) => {
+        { sessionId, requestedRole: isHost ? 'host' : isModerator ? 'moderator' : 'viewer' },
+        (result: { ok?: boolean; message?: string; hostOnline?: boolean; streamActive?: boolean; viewerCount?: number; likesCount?: number; purchaseToken?: string }) => {
           if (!active) return;
           if (!result?.ok) {
             setRoomJoined(false);
@@ -277,12 +319,19 @@ export function useLiveStreamTransport({
           setRoomJoined(true);
           setHostOnline(Boolean(result.hostOnline) || isHost);
           setIsStreamLive(Boolean(result.streamActive));
+          setViewerCount(result.viewerCount ?? 0);
+          setReactionCount(Number.isSafeInteger(result.likesCount) ? result.likesCount! : 0);
+          rememberLivePurchase(sessionId, result.purchaseToken);
         },
       );
-    });
+    };
+    rejoinRef.current = joinRoom;
+    socket.on('connect', joinRoom);
     socket.on('disconnect', () => {
       if (!active) return;
       setRoomJoined(false);
+      setViewerCount(0);
+      clearLivePurchase(sessionId);
       wasPublishingRef.current = false; publishingRef.current = false;
       hostPeersRef.current.forEach(peer => peer.close());hostPeersRef.current.clear();
       viewerPeersRef.current.forEach(peer => peer.close());viewerPeersRef.current.clear();
@@ -293,14 +342,21 @@ export function useLiveStreamTransport({
     socket.on('connect_error', (error) => {
       if (!active) return;
       console.error('Lỗi kết nối live signaling:', error.message);
-      setStreamError('Không kết nối được máy chủ phát sóng livestream.');
+      setRoomJoined(false);
+      setStreamError(error.message === 'websocket error' || error.message === 'xhr poll error' ? 'Mất kết nối livestream. Đang thử kết nối lại…' : error.message);
     });
     socket.on('live_stream_error', (error: { message?: string }) => {
       if (active) setStreamError(error?.message || 'Lỗi kết nối phiên livestream.');
     });
+    socket.on('live_service_ready', () => { if (active) setStreamError(null); });
 
-    socket.on('live_viewer_joined', ({ viewerSocketId }: { viewerSocketId?: string }) => {
+    socket.on('live_viewer_joined', ({ viewerSocketId, replace }: { viewerSocketId?: string; replace?: boolean }) => {
       if (!active || !isHost || !viewerSocketId) return;
+      if (replace) {
+        const old = hostPeersRef.current.get(viewerSocketId);
+        if (old) { old.onconnectionstatechange = null; old.close(); hostPeersRef.current.delete(viewerSocketId); }
+        pendingIceRef.current.delete(viewerSocketId);
+      }
       pendingViewersRef.current.add(viewerSocketId);
       if (localStreamRef.current && wasPublishingRef.current) void createHostPeer(viewerSocketId);
     });
@@ -314,7 +370,7 @@ export function useLiveStreamTransport({
     socket.on('live_host_available', () => {
       if (!isHost) setHostOnline(true);
     });
-    socket.on('live_viewer_count', ({ count }: { count: number }) => { if (active) setViewerCount(count); });
+    socket.on('live_viewer_count', ({ count }: { count: number }) => { if (active && Number.isInteger(count) && count >= 0) setViewerCount(count); });
     socket.on('live_stream_started', () => {
       if (!isHost) {
         setHostOnline(true);
@@ -328,6 +384,7 @@ export function useLiveStreamTransport({
     socket.on('live_session_ended', () => {
       setSessionEnded(true);
       setRoomJoined(false);
+      setViewerCount(0);
       setHostOnline(false);
       setIsStreamLive(false);
       setRemoteStream(null);
@@ -367,11 +424,18 @@ export function useLiveStreamTransport({
     socket.on('new_live_chat', (msg: any) => {
       onNewChatMessageRef.current?.(msg);
     });
+    socket.on('live_chat_history', ({ messages }: { messages?: any[] }) => {
+      messages?.forEach(message => onNewChatMessageRef.current?.(message));
+    });
     socket.on('product_pinned_changed', (data: any) => {
       onPinnedProductChangeRef.current?.(data);
     });
     socket.on('reaction_broadcast', (data: any) => {
-      onReactionBroadcastRef.current?.(data);
+      if (Number.isSafeInteger(data?.likesCount) && data.likesCount >= 0) setReactionCount(previous => Math.max(previous, data.likesCount));
+      if (data?.fromSocketId !== socket.id) onReactionBroadcastRef.current?.(data);
+    });
+    socket.on('live_reaction_count', ({likesCount}: {likesCount: number}) => {
+      if (Number.isSafeInteger(likesCount) && likesCount >= 0) setReactionCount(previous => Math.max(previous, likesCount));
     });
 
     const hostPeers = hostPeersRef.current;
@@ -386,7 +450,9 @@ export function useLiveStreamTransport({
     const authTimer = window.setInterval(() => {
       checkIdentity();
       if (getSessionId() !== identity || !socket.connected) return;
-      void renewSession().then(token => { if (active && getSessionId() === identity && token) socket.emit('refresh_live_auth', { token }); }).catch(() => {});
+      void renewSession().then(token => { if (active && getSessionId() === identity && token) socket.emit('refresh_live_auth', { token }, (result: { ok?: boolean; purchaseToken?: string }) => {
+        if (active && result?.ok) rememberLivePurchase(sessionId, result.purchaseToken);
+      }); }).catch(() => {});
     }, 15000);
     window.addEventListener('scanms_auth_changed', checkIdentity);
     window.addEventListener('storage', checkIdentity);
@@ -397,7 +463,9 @@ export function useLiveStreamTransport({
       wasPublishingRef.current = false;publishingRef.current = false;
       socket.removeAllListeners();
       socket.disconnect();
+      clearLivePurchase(sessionId);
       if (socketRef.current === socket) socketRef.current = null;
+      if (rejoinRef.current === joinRoom) rejoinRef.current = null;
       hostPeers.forEach((peer) => peer.close());
       viewerPeers.forEach((peer) => peer.close());
       hostPeers.clear();
@@ -406,7 +474,7 @@ export function useLiveStreamTransport({
       pendingIce.clear();
       remoteStreamRef.current = null;
     };
-  }, [createHostPeer, handleSignal, isHost, sessionId]);
+  }, [createHostPeer, handleSignal, isHost, isModerator, sessionId]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -450,9 +518,17 @@ export function useLiveStreamTransport({
     }
   }, [createHostPeer, isHost, localStream, roomJoined, sessionId]);
 
-  const sendLiveChat = useCallback((text: string, senderInfo?: { sender?: string; avatar?: string; role?: string }) => {
-    socketRef.current?.emit('send_live_chat', { sessionId, text, ...senderInfo });
-  }, [sessionId]);
+  const sendLiveChat = useCallback((text: string): Promise<void> => {
+    const socket = socketRef.current;
+    if (!socket?.connected || !roomJoined) return Promise.reject(new Error('Chưa kết nối phòng live. Tin nhắn của bạn vẫn được giữ lại.'));
+    const key = `${sessionId}\n${text}`;
+    const clientMessageId = pendingChatsRef.current.get(key) || crypto.randomUUID();
+    pendingChatsRef.current.set(key, clientMessageId);
+    return new Promise((resolve, reject) => socket.timeout(10000).emit('send_live_chat', { sessionId, text, clientMessageId }, (error: Error | null, result: { ok?: boolean; message?: any }) => {
+      if (error || !result?.ok) reject(new Error(typeof result?.message === 'string' ? result.message : 'Chưa gửi được bình luận. Vui lòng thử lại.'));
+      else { pendingChatsRef.current.delete(key); if (result.message) onNewChatMessageRef.current?.(result.message); resolve(); }
+    }));
+  }, [sessionId, roomJoined]);
 
   const pinProduct = useCallback((productIndex: number, productId?: string): Promise<void> => {
     const socket = socketRef.current;
@@ -463,14 +539,26 @@ export function useLiveStreamTransport({
     }));
   }, [sessionId]);
 
-  const sendReaction = useCallback((emoji: string, iconUrl?: string) => {
-    socketRef.current?.emit('send_reaction', { sessionId, emoji, iconUrl });
-  }, [sessionId]);
+  const sendReaction = useCallback((emoji: string, iconUrl?: string): Promise<void> => {
+    const socket = socketRef.current;
+    if (!socket?.connected || !roomJoined) return Promise.reject(new Error('Chưa kết nối phòng để gửi cảm xúc.'));
+    const clientReactionId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const send = (retry: boolean) => socket.timeout(3000).emit('send_reaction', { sessionId, emoji, iconUrl, clientReactionId }, (error: Error | null, result: {ok?: boolean; message?: string; reaction?: {likesCount: number}}) => {
+        if (error && retry && socket.connected) { send(false); return; }
+        if (error || !result?.ok) { reject(new Error(result?.message || 'Chưa xác nhận được cảm xúc. Hãy thử lại.')); return; }
+        if (socketRef.current === socket && Number.isSafeInteger(result.reaction?.likesCount)) setReactionCount(previous => Math.max(previous, result.reaction!.likesCount));
+        resolve();
+      });
+      send(true);
+    });
+  }, [sessionId, roomJoined]);
 
   return {
     remoteStream,
     roomJoined,
     viewerCount,
+    reactionCount,
     businessStatus,
     hostOnline,
     isStreamLive,
@@ -479,6 +567,12 @@ export function useLiveStreamTransport({
     sendLiveChat,
     pinProduct,
     sendReaction,
+    retryConnection: () => {
+      setStreamError(null); mediaAttemptsRef.current = 0;
+      if (!socketRef.current?.connected) socketRef.current?.connect();
+      else if (!roomJoined) rejoinRef.current?.();
+      else requestMedia();
+    },
     socket: socketRef.current,
   };
 }

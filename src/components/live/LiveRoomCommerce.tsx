@@ -33,7 +33,7 @@ export function LiveReactionDock({ reactions, expanded, onExpandedChange, onReac
   </div>;
 }
 
-type PinnedProduct = { title: string; imageUrl?: string | null; price: number | string; livePrice?: number | string | null; discountPercentage?: number | string | null };
+type PinnedProduct = { title: string; imageUrl?: string | null; price: number | string; livePrice?: number | string | null; discountPercentage?: number | string | null; voucherLabels?: string[]; offerVariantName?: string };
 export function LivePinnedProductCard({ product, index, countdown, collapsed, onCollapsedChange, onAddToCart, onBuy, disabled = false }: {
   product: PinnedProduct; index: number; countdown: string; collapsed: boolean; onCollapsedChange: (value: boolean) => void;
   onAddToCart: () => void; onBuy: () => void; disabled?: boolean;
@@ -45,7 +45,7 @@ export function LivePinnedProductCard({ product, index, countdown, collapsed, on
   </button> : <article className="live-product-card" aria-label="Sản phẩm đang giới thiệu">
     <div className="live-product-card-heading"><span className="live-product-intro"><i />Đang giới thiệu <b>#{index + 1}</b></span><span className="live-product-clock"><Clock size={12} />{countdown}</span><button type="button" aria-label="Thu gọn sản phẩm" title="Thu gọn sản phẩm" onClick={() => onCollapsedChange(true)}><ChevronDown size={16} /></button></div>
     <div className="live-product-summary"><div className="live-product-photo"><img src={product.imageUrl || '/assets/product-placeholder.svg'} alt={product.title} width={72} height={80} />{Number(product.discountPercentage) > 0 && <span>−{product.discountPercentage}%</span>}</div>
-      <div className="live-product-details"><h4 title={product.title}>{product.title}</h4><div className="live-product-prices"><strong>{price.toLocaleString('vi-VN')}<small>₫</small></strong>{original > price && <del>{original.toLocaleString('vi-VN')} ₫</del>}</div><span className="live-product-price-caption">Giá ưu đãi trong phiên</span></div>
+      <div className="live-product-details"><h4 title={product.title}>{product.title}</h4><div className="live-product-prices"><strong>{price.toLocaleString('vi-VN')}<small>₫</small></strong>{original > price && <del>{original.toLocaleString('vi-VN')} ₫</del>}</div><span className="live-product-price-caption">{product.offerVariantName ? `Giá live · ${product.offerVariantName}` : original > price ? 'Giá trong live · Chọn phân loại để xem giá' : 'Giá bán'}</span>{product.voucherLabels?.map(label => <span key={label} className="mt-1 block text-[10px] text-[#96703B]">{label}</span>)}</div>
     </div>
     <div className="live-product-actions"><button type="button" disabled={disabled} onClick={onAddToCart} className="live-product-cart"><ShoppingCart size={15} /><span>Thêm vào giỏ</span></button><button type="button" disabled={disabled} onClick={onBuy} className="live-product-buy">{disabled ? 'Phiên đã kết thúc' : 'Mua ngay'}</button></div>
   </article>;

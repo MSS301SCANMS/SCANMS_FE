@@ -45,6 +45,11 @@ import { useScanmsChat } from '../../context/ScanmsChatContext';
 import { toast } from '../../utils/toast';
 import { cn } from '../../utils/cn';
 import { useLiveStreamTransport } from '../../hooks/useLiveStreamTransport';
+import { unwrapApi } from '../../utils/api-response';
+import { liveCommerceService, liveCommerceErrorMessage, isLiveOfferActive, type LiveCommerce } from '../../services/live-commerce.service';
+import { LiveCommercePanel } from '../../components/live/LiveCommercePanel';
+import { couponService } from '../../services/coupon.service';
+import { LiveVariantPicker, type LiveVariant } from '../../components/live/LiveVariantPicker';
 import { FACE_FILTERS, useLiveFaceFilter, type FaceFilter } from '../../hooks/useLiveFaceFilter';
 import { FaceFilterPreview } from '../../components/live/FaceFilterPreview';
 import type { FilterCategory } from '@/components/live/faceFilters';
@@ -54,6 +59,10 @@ interface LiveProduct {
   id: string;
   variantId?: string;
   variantName?: string;
+  variants?: LiveVariant[];
+  offerEndsAt?: string;
+  offerVariantName?: string;
+  voucherLabels?: string[];
   title: string;
   imageUrl?: string | null;
   price: number;
@@ -386,6 +395,18 @@ export default function LiveStreamRoomPage() {
 
   // Live session state
   const [sessionData, setSessionData] = useState<any>(null);
+  const [ownerLookup, setOwnerLookup] = useState<{ key: string; owner: boolean; error?: string } | null>(null);
+  const [ownerLookupAttempt, setOwnerLookupAttempt] = useState(0);
+  const ownerLookupKey = `${currentUser?.id || ''}|${currentUser?.role || ''}|${sessionData?.storeId || ''}`;
+  const needsOwnerLookup = currentUser?.role === 'SHOP_MANAGER';
+  const ownerLookupReady = !needsOwnerLookup || (ownerLookup?.key === ownerLookupKey && !ownerLookup.error);
+  const isSessionOwner = needsOwnerLookup && ownerLookup?.key === ownerLookupKey && ownerLookup.owner;
+  const ownerLookupError = needsOwnerLookup && ownerLookup?.key === ownerLookupKey ? ownerLookup.error : undefined;
+  const [commerce, setCommerce] = useState<LiveCommerce>({ offers: [], voucherDrops: [] });
+  const [commerceError, setCommerceError] = useState('');
+  const [commerceReloadAttempt, setCommerceReloadAttempt] = useState(0);
+  const [platformVouchers, setPlatformVouchers] = useState<any[]>([]);
+  const [variantChoice, setVariantChoice] = useState<{ product: LiveProduct; action: 'cart' | 'buy' } | null>(null);
   const [sessionLoadError, setSessionLoadError] = useState('');
   const isSessionHost =
     currentUser?.role === 'COLLABORATOR' &&
@@ -399,6 +420,7 @@ export default function LiveStreamRoomPage() {
   // SỐ LIỆU THỰC TẾ: Người xem & Lượt thả tim
   const [viewerCount, setViewerCount] = useState<number>(0);
   const [likesCount, setLikesCount] = useState<number>(() => {
+    if (!legacyLive) return 0;
     const saved = localStorage.getItem(`scanms_live_likes_${slug || id || 'demo'}`);
     return saved ? Math.max(0, Number(saved)) : 0;
   });
@@ -439,7 +461,7 @@ export default function LiveStreamRoomPage() {
   const [bagSearchQuery, setBagSearchQuery] = useState('');
   const [isBagSearchOpen, setIsBagSearchOpen] = useState(false);
   const [isHostStudioOpen, setIsHostStudioOpen] = useState(false);
-  const [studioTab, setStudioTab] = useState<'PRODUCTS' | 'STUDIO' | 'GOVERNANCE'>('PRODUCTS');
+  const [studioTab, setStudioTab] = useState<'PRODUCTS' | 'STUDIO' | 'GOVERNANCE' | 'OFFERS'>('PRODUCTS');
 
   const [pinnedIndex, setPinnedIndex] = useState(0);
   const [isPinnedDealCollapsed, setIsPinnedDealCollapsed] = useState(false);
@@ -458,24 +480,45 @@ export default function LiveStreamRoomPage() {
     },
   ]);
   const [inputComment, setInputComment] = useState('');
+  const [isSendingComment, setIsSendingComment] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setChatMessages([{ id: 'system-welcome', sender: 'Hệ Thống SCANMS', role: 'SYSTEM', text: 'Chào mừng bạn đến với phiên livestream SCANMS. Bình luận của bạn được chia sẻ với KOL và shop trong phòng này.', time: 'Bắt đầu' }]);
+    setInputComment('');
+  }, [sessionData?.id]);
+  useEffect(() => {
+    let active = true;
+    if (currentUser?.role === 'SHOP_MANAGER' && sessionData?.storeId) {
+      void api.get('/stores/mine', { headers: { 'x-skip-cache': 'true' } }).then(response => {
+        const rows = unwrapApi<any[]>(response);
+        if (!Array.isArray(rows)) throw new Error('Invalid store response');
+        if (active) setOwnerLookup({ key: ownerLookupKey, owner: rows.some(store => (store.storeId || store.id) === sessionData.storeId && store.approvalStatus === 'APPROVED') });
+      }).catch(() => {
+        if (active) setOwnerLookup({ key: ownerLookupKey, owner: false, error: 'Chưa xác minh được gian hàng. Hãy thử kết nối lại.' });
+      });
+    }
+    return () => { active = false; };
+  }, [ownerLookupKey, ownerLookupAttempt]);
 
   // Real-time Transport hook (WebRTC P2P + Socket.IO Chat/Reaction/Pinning)
   const {
     remoteStream,
     roomJoined,
     viewerCount: realtimeViewerCount,
+    reactionCount: realtimeLikesCount,
     businessStatus,
     hostOnline,
     isStreamLive,
-    streamError,
+    streamError: transportStreamError,
     sessionEnded,
     sendLiveChat,
     pinProduct,
     sendReaction,
+    retryConnection: retryTransport,
   } = useLiveStreamTransport({
-    sessionId: sessionData?.id,
+    sessionId: ownerLookupReady ? sessionData?.id : undefined,
     isHost: isSessionHost,
+    isModerator: isSessionOwner,
     localStream: isCameraActive ? filteredStream : null,
     onNewChatMessage: (msg) => {
       if (!msg || !msg.text) return;
@@ -491,10 +534,11 @@ export default function LiveStreamRoomPage() {
             text: msg.text,
             time: msg.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
           },
-        ];
+        ].slice(-101);
       });
     },
     onPinnedProductChange: (data) => {
+      pinRevision.current += 1;
       if (typeof data.productIndex === 'number') {
         setPinnedIndex(Math.max(0, data.productIndex));
         if (!legacyLive) setSessionData((previous: any) => previous ? { ...previous, pinnedProductId: data.productId ?? null } : previous);
@@ -508,7 +552,13 @@ export default function LiveStreamRoomPage() {
       }
     },
   });
+  const streamError = ownerLookupError || transportStreamError;
+  const retryConnection = () => {
+    if (ownerLookupError) setOwnerLookupAttempt(attempt => attempt + 1);
+    else retryTransport();
+  };
   useEffect(() => { if (!legacyLive) setViewerCount(realtimeViewerCount); }, [realtimeViewerCount]);
+  useEffect(() => { if (!legacyLive) setLikesCount(realtimeLikesCount); }, [realtimeLikesCount]);
   useEffect(() => {
     if (businessStatus) setSessionData((previous: any) => previous && previous.status !== businessStatus ? { ...previous, status: businessStatus } : previous);
   }, [businessStatus]);
@@ -523,6 +573,33 @@ export default function LiveStreamRoomPage() {
   }, [sessionEnded]);
 
   const isStreamEnded = Boolean(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status));
+  useEffect(() => {
+    if (legacyLive || !sessionData?.id) return;
+    let active = true;
+    let loading = false;
+    const refresh = async () => {
+      if (loading) return;
+      loading = true;
+      const revision = pinRevision.current;
+      try {
+        const state = await liveCommerceService.get(sessionData.id);
+        if (active && revision === pinRevision.current && !pinMutationPending.current) {
+          setCommerceError('');
+          setCommerce(previous => JSON.stringify(previous) === JSON.stringify(state) ? previous : state);
+          if (state.pinnedProductId !== undefined) setSessionData((previous: any) => previous?.pinnedProductId === state.pinnedProductId ? previous : { ...previous, pinnedProductId: state.pinnedProductId });
+        }
+      } catch (error) { if (active) setCommerceError(liveCommerceErrorMessage(error)); }
+      finally { loading = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [legacyLive, sessionData?.id, commerceReloadAttempt]);
+  useEffect(() => {
+    let active = true;
+    if (sessionData?.storeId) void couponService.getPublicPlatformCoupons(sessionData.storeId).then(rows => { if (active) setPlatformVouchers(rows); }).catch(() => {});
+    return () => { active = false; };
+  }, [sessionData?.storeId]);
 
   useEffect(() => {
     setFloatingReactions([]);
@@ -574,6 +651,7 @@ export default function LiveStreamRoomPage() {
 
   const [pinPendingId, setPinPendingId] = useState<string | null>(null);
   const pinRevision = useRef(0);
+  const pinMutationPending = useRef(false);
   const [isVoucherDropOpen, setIsVoucherDropOpen] = useState(false);
   // Countdown timer toward session end or deal window
   const [dealCountdownSeconds, setDealCountdownSeconds] = useState<number>(() => {
@@ -955,17 +1033,30 @@ export default function LiveStreamRoomPage() {
     if (sessionData?.products && sessionData.products.length > 0) {
       return sessionData.products.map((p: any, idx: number) => {
         const prod = p.product || {};
-        const basePrice = Number(p.variant?.price ?? prod.price ?? 0);
+        const variants: LiveVariant[] = (prod.variants || []).map((variant: any) => ({ ...variant, id: variant.id || variant.variantId, price: Number(variant.price ?? variant.priceVnd), name: variant.name || [variant.color, variant.size].filter(Boolean).join(' / ') }));
+        const now = Date.now();
+        const offer = commerce.offers.filter(row => row.productId === prod.id && isLiveOfferActive(row, now)
+          && variants.some(variant => variant.id === row.variantId && variant.isActive !== false && variant.stockQuantity > 0))
+          .sort((a, b) => a.priceVnd - b.priceVnd)[0];
+        const basePrice = Number(p.variant?.price ?? variants.find(row => row.id === offer?.variantId)?.price ?? prod.price ?? 0);
         const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 0;
         const discountType = sessionData.coupon?.discountType || 'PERCENTAGE';
-        const livePrice =
-          discountType === 'PERCENTAGE'
+        const livePrice = !legacyLive ? offer?.priceVnd ?? basePrice : discountType === 'PERCENTAGE'
             ? Math.round(basePrice * (1 - discountVal / 100))
             : Math.max(1000, basePrice - discountVal);
         return {
           id: prod.id || `session-prod-${idx}`,
-          variantId: p.variantId || p.variant?.id || undefined,
-          variantName: p.variant?.name,
+          variantId: p.variantId || p.variant?.id || (variants.length === 1 ? variants[0].id : undefined),
+          variantName: p.variant?.name || (variants.length === 1 ? variants[0].name : undefined),
+          variants,
+          offerEndsAt: offer?.endsAt,
+          offerVariantName: offer ? variants.find(row => row.id === offer.variantId)?.name : undefined,
+          voucherLabels: ['GOODS', 'SHIPPING'].flatMap(benefit => {
+            const eligible = platformVouchers.filter(row => row.benefitType === benefit && row.minimumOrderAmount <= livePrice);
+            const amount = (row: any) => Math.min(row.maximumDiscountAmount ?? Infinity, row.discountType === 'PERCENTAGE' ? Math.floor(livePrice * row.discountValue / 100) : row.discountValue);
+            const best = eligible.sort((a, b) => amount(b) - amount(a))[0];
+            return best ? [`${best.code} · ${benefit === 'SHIPPING' ? 'Giảm ship tối đa ' : 'Giảm tối đa '}${amount(best).toLocaleString('vi-VN')}đ`] : [];
+          }),
           title: prod.title || prod.name || `Sản phẩm Deal Live #${idx + 1}`,
           imageUrl: prod.imageUrl || sessionData?.store?.logoUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&auto=format&fit=crop&q=80',
           price: basePrice,
@@ -973,15 +1064,15 @@ export default function LiveStreamRoomPage() {
           discountPercentage: basePrice > 0 ? Math.round(((basePrice - livePrice) / basePrice) * 100) : 0,
           storeName: sessionData.store?.name || 'Gian Hàng Đối Tác',
           storeId: sessionData.store?.id,
-          soldPercent: Math.min(96, 65 + ((idx * 7) % 30)),
+          soldPercent: 0,
           stockLeft: p.variant?.stockQuantity ?? prod.stockQuantity ?? 0,
           category: prod.categoryName || prod.category || 'Sản phẩm',
-          badge: idx === 0 ? 'Mall' : idx % 2 === 1 ? 'Deal Hot' : 'Xu Hướng',
+          badge: offer ? 'Giá live' : undefined,
         };
       });
     }
     return [];
-  }, [sessionData]);
+  }, [sessionData, commerce.offers, platformVouchers, legacyLive, liveElapsedSeconds]);
 
   useEffect(() => {
     if (sessionData?.pinnedProductId) {
@@ -990,13 +1081,14 @@ export default function LiveStreamRoomPage() {
     }
   }, [sessionData?.pinnedProductId, products]);
 
-  const pinnedProduct = !legacyLive && sessionData?.pinnedProductId === null ? undefined : products[pinnedIndex];
+  const pinnedProduct = !legacyLive ? products.find(product => product.id === sessionData?.pinnedProductId) : products[pinnedIndex];
 
   const handlePinChange = async (productId: string | null) => {
     if (!sessionData?.id || pinPendingId !== null) return;
     const pendingId = productId ?? pinnedProduct?.id;
     if (!pendingId) return;
     setPinPendingId(pendingId);
+    pinMutationPending.current = true;
     pinRevision.current += 1;
     try {
       const url = `/livestreams/${sessionData.id}/pinned-product`;
@@ -1015,10 +1107,11 @@ export default function LiveStreamRoomPage() {
       setSessionData((prev: any) => ({ ...prev, pinnedProductId: productId }));
       setIsPinnedDealCollapsed(false);
       toast.success(productId ? 'Đã chuyển sản phẩm đang giới thiệu.' : 'Đã bỏ ghim sản phẩm.');
-    } catch {
-      toast.error('Chưa thể cập nhật ghim. Kiểm tra quyền chủ phiên và trạng thái Live rồi thử lại.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Chưa thể cập nhật ghim. Vui lòng thử lại.');
     } finally {
       pinRevision.current += 1;
+      pinMutationPending.current = false;
       setPinPendingId(null);
     }
   };
@@ -1044,7 +1137,7 @@ export default function LiveStreamRoomPage() {
       list = list.filter((p) => p.title.toLowerCase().includes(q));
     }
     if (bagFilterTab === 'PINNED') {
-      return list.filter((p) => p.id === products[pinnedIndex]?.id);
+      return list.filter((p) => p.id === pinnedProduct?.id);
     }
     if (bagFilterTab !== 'ALL') {
       return list.filter(
@@ -1054,7 +1147,7 @@ export default function LiveStreamRoomPage() {
       );
     }
     return list;
-  }, [products, pinnedIndex, bagFilterTab, bagSearchQuery]);
+  }, [products, pinnedProduct, bagFilterTab, bagSearchQuery]);
 
   const couponCode = sessionData?.coupon?.displayCode || '';
   const couponDiscount = sessionData?.coupon
@@ -1093,9 +1186,7 @@ export default function LiveStreamRoomPage() {
       baseBottom = 76;
     }
 
-    if (!isRemoteBroadcast) {
-      sendReaction(emoji, customIconUrl);
-
+    if (legacyLive && !isRemoteBroadcast) {
       // TĂNG SỐ LƯỢT THẢ TIM THẬT NGAY LẬP TỨC
       const increment = emoji === '❤️' ? 2 : 1;
       setLikesCount((prev) => {
@@ -1126,8 +1217,14 @@ export default function LiveStreamRoomPage() {
         .catch(() => {});
     }
 
-    if (!isRemoteBroadcast && sendReaction) {
-      sendReaction(emoji, resolvedIconUrl);
+    if (!isRemoteBroadcast) {
+      void sendReaction(emoji, resolvedIconUrl).then(() => {
+        if (!legacyLive && emoji === '❤️') {
+          setLikeDelta(1);
+          if (likeDeltaTimerRef.current) clearTimeout(likeDeltaTimerRef.current);
+          likeDeltaTimerRef.current = setTimeout(() => setLikeDelta(null), 1000);
+        }
+      }).catch(error => toast.error(error.message));
     }
     const flightTime = performance.now();
     if (flightTime - lastReactionFlightAt.current < 80) return;
@@ -1202,9 +1299,9 @@ export default function LiveStreamRoomPage() {
   };
 
   // Send live chat comment
-  const handleSendComment = (e?: React.FormEvent) => {
+  const handleSendComment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputComment.trim()) return;
+    if (!inputComment.trim() || isSendingComment) return;
     const text = inputComment.trim();
     const sender = currentUser?.fullName || 'Khách xem #' + Math.floor(Math.random() * 900 + 100);
     const role = (currentUser?.role === 'SHOP_MANAGER'
@@ -1222,25 +1319,30 @@ export default function LiveStreamRoomPage() {
       text,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
-    if (legacyLive) setChatMessages((prev) => [...prev, newMsg]);
-    sendLiveChat(text, { sender, avatar, role });
-    setInputComment('');
+    setIsSendingComment(true);
+    try {
+      await sendLiveChat(text);
+      if (legacyLive) setChatMessages((prev) => [...prev, newMsg]);
+      setInputComment(previous => previous.trim() === text ? '' : previous);
+    } catch (error: any) { toast.error(error.message || 'Chưa gửi được bình luận.'); }
+    finally { setIsSendingComment(false); }
   };
 
   // Add to cart
   const handleAddToCart = (product: LiveProduct) => {
-    if (!product.variantId) { navigate(`/products/${encodeURIComponent(product.id)}?live=${encodeURIComponent(sessionData.id)}`); return; }
+    if (!product.variantId) { setVariantChoice({ product, action: 'cart' }); return; }
     addItem({
       variantId: product.variantId,
       liveSessionId: sessionData?.id,
-      liveCouponCode: sessionData?.coupon?.displayCode,
+      liveCouponCode: commerce.voucherDrops.find(row => row.benefitType === 'GOODS')?.code || sessionData?.coupon?.displayCode,
+      liveCouponCodes: commerce.voucherDrops.map(row => row.code),
       product: {
         id: product.id,
         title: product.title,
-        price: product.price,
+        price: product.livePrice ?? product.price,
         imageUrl: product.imageUrl || '',
         stockQuantity: product.stockLeft ?? 9999,
-        variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.price, stockQuantity: product.stockLeft ?? 9999 }] : undefined,
+        variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.livePrice ?? product.price, stockQuantity: product.stockLeft ?? 0 }] : undefined,
       },
       store: {
         id: product.storeId || sessionData?.store?.id,
@@ -1253,20 +1355,21 @@ export default function LiveStreamRoomPage() {
 
   // Instant Buy (Chốt đơn trực tiếp tại phiên live)
   const handleInstantBuy = (product: LiveProduct) => {
-    if (!product.variantId) { navigate(`/products/${encodeURIComponent(product.id)}?live=${encodeURIComponent(sessionData.id)}`); return; }
+    if (!product.variantId) { setVariantChoice({ product, action: 'buy' }); return; }
     buyNow(
       {
         variantId: product.variantId,
         liveSessionId: sessionData?.id,
-        liveCouponCode: sessionData?.coupon?.displayCode,
+        liveCouponCode: commerce.voucherDrops.find(row => row.benefitType === 'GOODS')?.code || sessionData?.coupon?.displayCode,
+        liveCouponCodes: commerce.voucherDrops.map(row => row.code),
         product: {
           id: product.id,
           title: product.title,
-          price: Number(product.price || 0),
+          price: Number(product.livePrice ?? product.price ?? 0),
           originalPrice: product.price ? Number(product.price) : undefined,
           imageUrl: product.imageUrl || '',
-          stockQuantity: 9999,
-          variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.price, stockQuantity: product.stockLeft ?? 9999 }] : undefined,
+          stockQuantity: product.stockLeft ?? 0,
+          variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.livePrice ?? product.price, stockQuantity: product.stockLeft ?? 0 }] : undefined,
         },
         store: {
           id: product.storeId || sessionData?.store?.id || 'sora-skin',
@@ -1274,7 +1377,7 @@ export default function LiveStreamRoomPage() {
         },
         openCartAfterAdd: false,
       },
-      couponCode,
+      legacyLive ? couponCode : undefined,
     );
   };
 
@@ -1299,6 +1402,13 @@ export default function LiveStreamRoomPage() {
 
   return (
     <div className="relative w-screen h-screen bg-[#FAF8F5] text-[#1A1612] overflow-hidden flex flex-col font-sans select-none">
+      {variantChoice && <LiveVariantPicker title={variantChoice.product.title} variants={variantChoice.product.variants || []} offers={commerce.offers.filter(row => row.productId === variantChoice.product.id)} onClose={() => setVariantChoice(null)} onChoose={(variant, price) => {
+        const offer = commerce.offers.find(row => row.variantId === variant.id && isLiveOfferActive(row));
+        const selected = { ...variantChoice.product, variantId: variant.id, variantName: variant.name, price: Number(variant.price), livePrice: price, stockLeft: Math.min(variant.stockQuantity, offer ? offer.quantityLimit - offer.reservedQuantity : variant.stockQuantity) };
+        const action = variantChoice.action; setVariantChoice(null);
+        if (action === 'buy') handleInstantBuy(selected); else handleAddToCart(selected);
+      }} />}
+      {!legacyLive && commerceError && <div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span>{isSessionOwner ? commerceError : 'Chưa cập nhật được ưu đãi của phiên. Vui lòng thử lại.'}</span><button type="button" onClick={() => setCommerceReloadAttempt(attempt => attempt + 1)} className="shrink-0 font-semibold underline">Thử lại</button></div>}
       {/* Hidden file input for custom backdrop upload */}
       <input
         ref={fileInputRef}
@@ -1446,10 +1556,11 @@ export default function LiveStreamRoomPage() {
           {/* Viewers Pill (Số người đang xem trực tiếp thực tế) */}
           <div
             className="live-room-viewers"
-            title={`${viewerCount.toLocaleString('vi-VN')} người đang xem trực tiếp phiên live này`}
+            title={roomJoined || legacyLive ? `${viewerCount.toLocaleString('vi-VN')} người đang xem · tính cả shop, mỗi tài khoản một lần, không tính người phát` : 'Đang kết nối bộ đếm người xem'}
+            aria-label={roomJoined || legacyLive ? `${viewerCount.toLocaleString('vi-VN')} người đang xem` : 'Chưa kết nối bộ đếm người xem'}
           >
             <Eye className="w-3.5 h-3.5 text-[#B88E4F]" />
-            <span className="font-mono">{viewerCount.toLocaleString('vi-VN')}</span>
+            <span className="font-mono">{roomJoined || legacyLive ? viewerCount.toLocaleString('vi-VN') : '—'}</span>
           </div>
 
           {/* Likes Pill with Micro Pop Animation (Lượt thả tim thực tế) */}
@@ -1575,10 +1686,7 @@ export default function LiveStreamRoomPage() {
           </button>
 
           {/* Host Mode Studio Modal Toggle (Chỉ hiển thị cho Host / CTV / Shop / Admin) */}
-          {(currentUser?.role === 'COLLABORATOR' ||
-            currentUser?.role === 'SHOP_MANAGER' ||
-            currentUser?.role === 'SYSTEM_ADMIN' ||
-            currentUser?.role === 'SYSTEM_MANAGER') && (
+          {(isSessionHost || isSessionOwner) && (
             <button
               type="button"
               onClick={() => setIsHostStudioOpen((v) => !v)}
@@ -1591,6 +1699,7 @@ export default function LiveStreamRoomPage() {
           )}
         </div>
       </header>
+      {commerce.voucherDrops.length > 0 && !isStreamEnded && <div className="flex shrink-0 flex-wrap justify-center gap-2 border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2" aria-label="Voucher đang tung trong live">{commerce.voucherDrops.map(drop => <button key={drop.id} type="button" onClick={() => { void navigator.clipboard?.writeText(drop.code).then(() => toast.success(`Đã sao chép ${drop.code}. Mã sẽ được gợi ý khi thanh toán.`)); }} className="rounded-xl border border-[#EEDFC6] bg-white px-3 py-2 text-xs"><strong>{drop.code}</strong> · {drop.benefitType === 'SHIPPING' ? 'Ưu đãi phí ship' : `Giảm ${Number(drop.value).toLocaleString('vi-VN')}${drop.discountType === 'PERCENTAGE' ? '%' : 'đ'}`} · Đơn từ {Number(drop.minimumSubtotal || 0).toLocaleString('vi-VN')}đ · Đến {new Date(drop.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</button>)}</div>}
       {sessionData?.voucherDrop && !isStreamEnded && (
         <div role="status" className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2 text-xs text-[#1A1612]">
           <Ticket size={16} className="text-[#B88E4F]" />
@@ -1729,6 +1838,7 @@ export default function LiveStreamRoomPage() {
                 {streamError || (isStreamLive
                   ? 'Đang kết nối camera của KOL…'
                   : 'KOL đã vào phiên, đang chờ bật camera…')}
+                {roomJoined && !isStreamEnded && <button type="button" onClick={retryConnection} className="mx-auto mt-2 block text-xs font-semibold text-[#9D722F] underline">Kết nối lại camera</button>}
               </div>
             )}
 
@@ -1917,9 +2027,11 @@ export default function LiveStreamRoomPage() {
           </div>
 
           {/* Chat Input Form */}
+          <div role="status" className="px-3 py-1 text-[11px] text-[#7D715E]">{isStreamEnded ? 'Phiên đã kết thúc' : roomJoined ? 'Đã kết nối bình luận trực tiếp' : <>Chưa kết nối bình luận · Nội dung đang nhập được giữ lại <button type="button" onClick={retryConnection} className="ml-1 underline">Kết nối lại</button></>}</div>
           <form onSubmit={handleSendComment} className="p-3 border-t border-[#EAE4D7] bg-white flex items-center gap-2">
             <input
               type="text"
+              maxLength={1000}
               value={inputComment}
               disabled={isStreamEnded}
               onChange={(e) => setInputComment(e.target.value)}
@@ -1928,7 +2040,8 @@ export default function LiveStreamRoomPage() {
             />
             <button
               type="submit"
-              disabled={isStreamEnded || !inputComment.trim()}
+              disabled={isStreamEnded || !roomJoined || isSendingComment || !inputComment.trim()}
+              aria-label="Gửi bình luận"
               className="p-2 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-white transition disabled:opacity-40 cursor-pointer shadow-xs"
             >
               <Send className="w-4 h-4" />
@@ -1949,6 +2062,9 @@ export default function LiveStreamRoomPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Túi đồ livestream"
             className={cn(
               "w-full sm:w-[375px] md:w-[385px] bg-[#FAF8F5]/98 backdrop-blur-2xl text-[#1A1612] shadow-[0_20px_50px_rgba(26,22,18,0.18)] flex flex-col border border-[#EAE4D7] overflow-hidden relative transition-all duration-300",
               // Mobile: Bottom Sheet trượt từ dưới lên, nhỏ gọn thanh thoát
@@ -2170,12 +2286,12 @@ export default function LiveStreamRoomPage() {
                   </button>
                 </div>
               ) : (
-                filteredProducts.map((item, index) => {
+                filteredProducts.map((item) => {
                   const realIndex = products.findIndex((p) => p.id === item.id);
-                  const isPinned = realIndex === pinnedIndex;
-                  const discountVal = item.discountPercentage || 25;
-                  const saving = (item.price || 0) - (item.livePrice || item.price || 0);
-                  const displayIndex = isPinned ? 6 : (index === 0 ? 6 : index);
+                  const isPinned = item.id === pinnedProduct?.id;
+                  const discountVal = item.discountPercentage ?? 0;
+                  const saving = item.price - (item.livePrice ?? item.price);
+                  const displayIndex = realIndex + 1;
 
                   return (
                     <div
@@ -2218,7 +2334,7 @@ export default function LiveStreamRoomPage() {
                         {/* Title Row with Badge */}
                         <div>
                           <div className="flex items-start gap-1.5">
-                            <span
+                            {item.badge && <span
                               className={cn(
                                 "px-1.5 py-0.2 rounded text-[9px] font-black leading-tight tracking-tight shrink-0 mt-0.5",
                                 item.badge === 'Xu Hướng'
@@ -2228,8 +2344,8 @@ export default function LiveStreamRoomPage() {
                                   : "bg-rose-500 text-white"
                               )}
                             >
-                              {item.badge || (index === 0 ? 'Mall' : index === 1 ? '10.10' : 'Xu Hướng')}
-                            </span>
+                              {item.badge}
+                            </span>}
                             <h4
                               className="text-xs sm:text-[12.5px] font-bold text-[#1A1612] line-clamp-2 leading-snug group-hover:text-[#C59B58] transition-colors"
                               title={item.title}
@@ -2240,28 +2356,17 @@ export default function LiveStreamRoomPage() {
 
                           {/* Row 2: Freeship · Giảm · Quà miễn phí */}
                           <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[10px]">
-                            <span className="text-[#059669] bg-[#ECFDF5] px-1.5 py-0.5 rounded font-bold inline-flex items-center gap-0.5">
-                              🚚 Freeship
-                            </span>
-                            {index === 1 ? (
-                              <span className="text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] px-1.5 py-0.5 rounded font-semibold">
-                                · Giảm 150K đ
-                              </span>
-                            ) : index >= 2 && discountVal > 0 ? (
+                            {item.voucherLabels?.map(label => <span key={label} className="rounded border border-[#EEDFC6] bg-[#FBF5EB] px-1.5 py-0.5 text-[#B88E4F]">{label}</span>)}
+                            {saving > 0 && discountVal > 0 && (
                               <span className="text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] px-1.5 py-0.5 rounded font-semibold">
                                 · Giảm {saving >= 100000 ? `${Math.round(saving / 1000)}K đ` : `${discountVal}%`}
-                              </span>
-                            ) : null}
-                            {index > 0 && (
-                              <span className="text-[#B88E4F] bg-[#FBF5EB] border border-[#EEDFC6] px-1.5 py-0.5 rounded font-semibold">
-                                · Quà miễn phí
                               </span>
                             )}
                           </div>
 
                           {/* Row 3: Assurance line */}
                           <p className="mt-0.5 text-[10.5px] text-[#7D715E] font-normal truncate m-0">
-                            Thử trước khi quyết định
+                            {item.offerVariantName ? `Giá trong live · ${item.offerVariantName}` : 'Chọn phân loại để xem giá bán'}
                           </p>
                         </div>
 
@@ -2269,7 +2374,7 @@ export default function LiveStreamRoomPage() {
                         <div className="mt-1.5 flex items-end justify-between gap-2">
                           <div className="flex items-baseline gap-1.5 flex-wrap">
                             <span className="text-sm sm:text-[15px] font-black text-[#1A1612] tracking-tight">
-                              {Number(item.livePrice || item.price).toLocaleString('vi-VN')}₫
+                              {Number(item.livePrice ?? item.price).toLocaleString('vi-VN')}₫
                             </span>
                             {item.livePrice && item.livePrice < item.price && (
                               <>
@@ -2418,6 +2523,7 @@ export default function LiveStreamRoomPage() {
             {/* TAB CHUYỂN ĐỔI CHỨC NĂNG (GỌN GÀNG, KHÔNG PHỨC TẠP) */}
             <div className="px-6 pt-4 pb-2 flex items-center justify-between">
               <div className="inline-flex p-1 rounded-2xl bg-[#F3EFE6] border border-[#EAE4D7]">
+                {isSessionOwner && !legacyLive && <button type="button" onClick={() => setStudioTab('OFFERS')} className={`rounded-xl px-3.5 py-1.5 text-xs font-bold ${studioTab === 'OFFERS' ? 'bg-white text-[#1A1612]' : 'text-[#7D715E]'}`}>Giá live & Voucher</button>}
                 <button
                   type="button"
                   onClick={() => setStudioTab('PRODUCTS')}
@@ -2463,7 +2569,7 @@ export default function LiveStreamRoomPage() {
             {/* NỘI DUNG TAB 1: GHIM SẢN PHẨM (DANH SÁCH HÀNG PHẲNG, GỌN GÀNG) */}
             {studioTab === 'PRODUCTS' && (
               <HostStudioProducts products={products} pinnedId={pinnedProduct?.id ?? null} pendingId={pinPendingId}
-                disabled={isStreamEnded || sessionData?.status !== 'LIVE' || !(isSessionHost || currentUser?.id === sessionData?.createdBy)}
+                disabled={isStreamEnded || sessionData?.status !== 'LIVE' || !(isSessionHost || isSessionOwner || currentUser?.id === sessionData?.createdBy)}
                 onPinChange={handlePinChange} />
             )}
 
@@ -2567,6 +2673,11 @@ export default function LiveStreamRoomPage() {
               </div>
             )}
 
+            {studioTab === 'OFFERS' && isSessionOwner && !legacyLive && <div className="min-h-0 overflow-y-auto"><LiveCommercePanel sessionId={sessionData.id} storeId={sessionData.storeId} products={products} onChanged={state => {
+              pinRevision.current += 1;
+              setCommerce(state); setCommerceError('');
+              if (state.pinnedProductId !== undefined) setSessionData((previous: any) => previous ? { ...previous, pinnedProductId: state.pinnedProductId } : previous);
+            }} /></div>}
             {/* NỘI DUNG TAB 3: BIÊN BẢN HỢP TÁC & PHÂN QUYỀN GOVERNANCE */}
             {legacyLive && studioTab === 'GOVERNANCE' && isSessionHost && sessionData?.id && (
               <div className="px-6 py-4 max-h-[350px] overflow-y-auto">

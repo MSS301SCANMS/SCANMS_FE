@@ -1,6 +1,6 @@
 import { Loader2, Pin, PinOff } from 'lucide-react';
 
-type Product = { id: string; title: string; imageUrl?: string | null; price: number; livePrice?: number };
+type Product = { id: string; title: string; imageUrl?: string | null; price: number; livePrice?: number; offerVariantName?: string };
 
 export function HostStudioProducts({ products, pinnedId, pendingId, disabled, onPinChange }: {
   products: Product[];
@@ -10,7 +10,7 @@ export function HostStudioProducts({ products, pinnedId, pendingId, disabled, on
   onPinChange: (productId: string | null) => void;
 }) {
   const money = (value: number) => `${Number(value).toLocaleString('vi-VN')} đ`;
-  return <div className="px-4 py-3 sm:px-6">
+  return <div aria-label="Sản phẩm ghim trong live" className="px-4 py-3 sm:px-6">
     <p className="mb-3 text-xs leading-relaxed text-[#7D715E]">Chọn một sản phẩm để giới thiệu trên màn hình. Ghim món khác sẽ thay sản phẩm hiện tại.</p>
     <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
       {products.map((product, index) => {
@@ -29,6 +29,7 @@ export function HostStudioProducts({ products, pinnedId, pendingId, disabled, on
               <span className="text-sm font-bold tabular-nums text-[#B88E4F]">{money(price)}</span>
               {product.price > price && <span className="text-xs text-[#7D715E] line-through">{money(product.price)}</span>}
             </div>
+            {product.offerVariantName && <p className="mt-1 text-[10px] text-[#7D715E]">Giá live · {product.offerVariantName}</p>}
           </div>
           <button type="button" disabled={disabled || pendingId !== null} onClick={() => onPinChange(pinned ? null : product.id)}
             className={`ml-auto inline-flex h-10 min-w-32 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${pinned ? 'border-[#EEDFC6] bg-white text-[#7D715E] hover:border-[#C59B58] hover:text-[#1A1612]' : 'border-[#C59B58] bg-[#C59B58] text-[#1A1612] hover:bg-[#B88E4F]'}`}>
