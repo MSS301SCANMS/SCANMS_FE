@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Truck, RefreshCw, Phone, Check, Clock, PackageCheck, UserRound, ChevronDown } from 'lucide-react';
+import { Truck, RefreshCw, Phone, Check, Clock, PackageCheck, UserRound, ChevronDown, X } from 'lucide-react';
 import './GhnTrackingTimeline.css';
 import api from '../../services/api';
 import { shippingService } from '../../services/shipping.service';
 import { GHN_MILESTONES } from '../../utils/ghn-tracking';
+import { LocalShipmentJourney } from './LocalShipmentJourney';
 
 interface TrackingEvent {
   status: string; title: string; time: string | null;
@@ -21,10 +22,11 @@ const formatTime = (value?: string | null) => value && Number.isFinite(Date.pars
   ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : null;
 const phoneHref = (phone: string) => `tel:${phone.replace(/[^+\d]/g, '')}`;
 
-export function GhnTrackingTimeline({ orderCode, sampleRequestId, onSampleDelivered, onTrackingStatusChange, environment }: {
+export function GhnTrackingTimeline({ orderCode, sampleRequestId, onSampleDelivered, onTrackingStatusChange, environment, onClose }: {
   orderCode: string; sampleRequestId?: string; onSampleDelivered?: () => void;
   onTrackingStatusChange?: (status: string, isFresh: boolean) => void;
   environment?: 'LIVE' | 'TEST';
+  onClose?: () => void;
 }) {
   const [tracking, setTracking] = useState<Tracking | null>(null);
   const [error, setError] = useState('');
@@ -135,17 +137,13 @@ export function GhnTrackingTimeline({ orderCode, sampleRequestId, onSampleDelive
       : tracking.isSimulation && tracking.status !== 'delivered'
         ? 'Mỗi mốc cách nhau 1 phút; tự cập nhật khi đến mốc'
         : '';
-  if (orderCode.startsWith('SIM-')) return <section className="rounded-xl border border-[#EAE4D7] bg-white p-4 text-sm" aria-label="Hành trình giao hàng mô phỏng">
-    <strong>Giao hàng mô phỏng nội bộ</strong><p className="mt-2 break-all">{orderCode}</p>
-    <p className="mt-2">{({ shipped: 'Shop đã gửi hàng', in_transit: 'Đang vận chuyển mô phỏng', delivered: 'Đã giao hàng mô phỏng' } as Record<string, string>)[tracking?.status || ''] || 'Đang tải…'}</p>
-    {error && <p role="alert">{error}</p>}
-    <button type="button" className="mt-2 underline" disabled={busy} onClick={() => setReload(value => value + 1)}>Làm mới</button>
-  </section>;
+  if (orderCode.startsWith('SIM-')) return <LocalShipmentJourney code={orderCode} tracking={tracking} busy={busy} error={error} onClose={onClose} />;
   return (
     <section className="ghn-journey" aria-label={`Hành trình GHN ${orderCode}`}>
       <div className="ghn-journey__header">
         <span className="ghn-journey__carrier-icon"><Truck size={21} aria-hidden="true" /></span>
         <div className="ghn-journey__identity"><strong>Giao Hàng Nhanh</strong><p>Mã vận đơn <code>{orderCode}</code></p></div>
+        {onClose && <button type="button" onClick={onClose} aria-label="Đóng hành trình" className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#EAE4D7] bg-white text-[#8C7D6B]"><X size={18} /></button>}
         <button type="button" disabled={busy} onClick={() => setReload(value => value + 1)} className="ghn-journey__refresh" aria-label={busy ? 'Đang cập nhật' : 'Làm mới'} title="Cập nhật hành trình"><RefreshCw size={15} className={busy ? 'animate-spin' : ''} /><span>Làm mới</span></button>
       </div>
       {(error || pending || tracking?.isStale) && <div role="status" className="mt-2.5 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] p-2.5 text-[11px] leading-relaxed text-[#7D715E]">

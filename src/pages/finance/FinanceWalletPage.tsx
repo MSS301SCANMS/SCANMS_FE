@@ -279,19 +279,15 @@ export default function FinanceWalletPage() {
 
   return (
     <div className="space-y-6 text-[#1A1612] pb-10">
-      {ownerType !== 'STORE' && <header className="flex flex-wrap items-start justify-between gap-4">
+      {ownerType === 'CUSTOMER' && <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold text-[#7D715E]">TÀI CHÍNH SCANMS</p>
           <h1 className="mt-1 text-2xl font-bold flex items-center gap-2">
             <Wallet className="text-[#B88E4F]" />
-            {ownerType === 'COLLABORATOR'
-              ? 'Ví hoa hồng KOL'
-              : 'Ví khách hàng'}
+            Ví khách hàng
           </h1>
           <p className="mt-2 text-sm text-[#7D715E]">
-            {ownerType === 'CUSTOMER'
-              ? 'Nhận hoàn tiền, nạp ví và thanh toán đơn hàng.'
-              : 'Theo dõi tiền đã vào ví, khoản đang giữ và yêu cầu rút ra ngân hàng.'}
+            Nhận hoàn tiền, nạp ví và thanh toán đơn hàng.
           </p>
         </div>
         <button className={button} onClick={() => void load()} disabled={busy || loading}>
@@ -395,9 +391,7 @@ export default function FinanceWalletPage() {
             <p className="mt-2 text-3xl font-black tabular-nums text-[#1A1612]">
               {wallet ? money(wallet.heldBalanceVnd) : '—'}
             </p>
-            <p className="mt-2 text-xs text-[#7D715E]">
-              Tiền được giữ sau khi yêu cầu rút được phê duyệt. Hoàn lại số dư khả dụng khi bị từ chối hoặc chuyển khoản thất bại; ghi nhận đã rút khi chuyển khoản thành công.
-            </p>
+
           </div>
         )}
       </section>
@@ -408,11 +402,7 @@ export default function FinanceWalletPage() {
         </p>
       )}
 
-      {ownerType === 'COLLABORATOR' && (
-        <p className="text-xs sm:text-sm text-[#7D715E] bg-[#FAF8F5] p-3 rounded-xl border border-[#EAE4D7]">
-          💡 Hoa hồng đủ điều kiện sau thời hạn trả hàng 14 ngày tính từ lúc giao thành công sẽ được ghi có vào ví.
-        </p>
-      )}
+
 
       {ownerType === 'CUSTOMER' ? (
         <section className="grid gap-6 md:grid-cols-2">
@@ -522,9 +512,7 @@ export default function FinanceWalletPage() {
             {banks.length === 0 && !addingBank && (
               <div className="p-6 rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] text-center space-y-2">
                 <p className="text-sm font-semibold text-[#1A1612]">Chưa có tài khoản nhận tiền</p>
-                <p className="text-xs text-[#7D715E]">
-                  Thêm tài khoản ngân hàng nhận tiền. Sau khi được xác minh, bạn có thể dùng tài khoản này để rút tiền.
-                </p>
+
               </div>
             )}
 
@@ -704,15 +692,9 @@ export default function FinanceWalletPage() {
                 <ArrowDownToLine size={20} className="text-[#C59B58]" />
                 Yêu cầu rút tiền
               </h2>
-              <p className="text-xs text-[#7D715E]">
-                Tiền được chuyển về tài khoản ngân hàng đã xác minh bạn chọn dưới đây.
-              </p>
 
-              {capabilities && !capabilities.payoutAvailable && (
-                <div role="status" className="rounded-xl bg-[#FAF8F5] border border-[#EAE4D7] p-3 text-xs text-[#7D715E]">
-                  Dịch vụ chuyển tiền ra ngân hàng chưa sẵn sàng. Bạn có thể gửi yêu cầu chờ xử lý; yêu cầu chỉ được duyệt và giữ tiền khi dịch vụ được cấu hình đầy đủ.
-                </div>
-              )}
+
+
 
               {/* Insufficient balance warning */}
               {wallet && wallet.availableBalanceVnd < (capabilities?.minimumWithdrawalVnd || 200000) && (
@@ -799,9 +781,7 @@ export default function FinanceWalletPage() {
                   onChange={(e) => setAmount(e.target.value)}
                   required
                 />
-                <p className="text-[11px] text-[#A69986] mt-1">
-                  Tối thiểu {capabilities ? money(capabilities.minimumWithdrawalVnd) : '200.000 đ'}. Tiền chỉ được giữ sau khi yêu cầu được phê duyệt. Nếu chuyển khoản thất bại, tiền giữ được hoàn lại số dư khả dụng.
-                </p>
+
               </div>
             </div>
 

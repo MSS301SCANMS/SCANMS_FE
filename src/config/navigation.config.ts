@@ -16,6 +16,7 @@ import {
   Activity,
   Percent,
   Handshake,
+  MessageSquare,
   MapPin,
   Heart,
   LayoutDashboard,
@@ -70,6 +71,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     items: [
       { path: '/merchant/dashboard', label: 'Tổng quan Gian hàng', icon: Store, section: 'TỔNG QUAN' },
       { path: '/merchant/orders', label: 'Quản lý Đơn hàng', icon: ShoppingBag, section: 'VẬN HÀNH' },
+      { path: '/merchant/customer-messages', label: 'Tin nhắn khách hàng', icon: MessageSquare, section: 'VẬN HÀNH' },
       { path: '/merchant/returns', label: 'Yêu cầu trả hàng', icon: Box, section: 'VẬN HÀNH' },
       { path: '/merchant/products', label: 'Danh mục Sản phẩm', icon: Box, section: 'VẬN HÀNH' },
       { path: '/merchant/promotions', label: 'Voucher & Hoa hồng', icon: Tag, section: 'KHUYẾN MÃI' },

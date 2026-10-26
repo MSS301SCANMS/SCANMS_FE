@@ -43,6 +43,9 @@ export const shopReturnsService = {
   async respond(id: string, response: string, imageUrls: string[]): Promise<ShopReturnRequest> {
     return unwrapApi(await api.post(`/returns/${encodeURIComponent(id)}/shop-response`, { response, imageUrls }));
   },
+  async decide(id: string, status: Extract<ShopReturnStatus, 'APPROVED' | 'REJECTED'>, decisionReason?: string): Promise<ShopReturnRequest> {
+    return unwrapApi(await api.post(`/returns/${encodeURIComponent(id)}/shop-decision`, { status, decisionReason }));
+  },
 };
 
 export function safeReturnMedia(value: unknown): string | null {

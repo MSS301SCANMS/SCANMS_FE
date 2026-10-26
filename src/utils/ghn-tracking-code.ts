@@ -3,3 +3,9 @@ export function isGeneratedGhnTestTrackingCode(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   return /^(?:TEST-GHN-[A-Z0-9]{9}|GHN-[A-Z0-9]{9})$/i.test(value.trim());
 }
+
+/** Compact display label; copy and tracking requests retain the original code. */
+export function trackingDisplayCode(value: string): string {
+  const match = value.match(/^(SIM(?:-RETURN)?)-([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/i);
+  return match ? `${match[1].toUpperCase()}-${match[2].replaceAll('-', '').slice(0, 12).toUpperCase()}` : value;
+}

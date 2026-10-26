@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Loader2, Package, RefreshCw, ShieldCheck, Truck, Video, Wallet } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock3, Loader2, Package, ShieldCheck, Truck, Video, Wallet } from 'lucide-react';
 import { returnService, type ReturnDetail } from '../../services/return.service';
 import { safeReturnMedia } from '../../services/shop-returns.service';
 import { canReceiveReturn, returnArrived, returnStep } from '../../utils/return-flow';
 import { returnStatusLabel } from '../../utils/return-status.utils';
 import { formatMoney } from '../../utils/marketplace.utils';
 import { serverDate } from '../../utils/server-date';
+import { orderDisplayCode } from '../../utils/order-display-code';
 import './return-detail.css';
 
 type Mode = 'customer' | 'shop' | 'admin';
-const steps = ['Gửi yêu cầu', 'Sàn xét duyệt', 'Gửi hàng trả', 'Shop nhận hàng', 'Hoàn tiền'];
+const steps = ['Gửi yêu cầu', 'Shop xét duyệt', 'Gửi hàng trả', 'Shop nhận hàng', 'Hoàn tiền'];
 const reasons: Record<string, string> = { DAMAGED: 'Sản phẩm hư hỏng', WRONG_ITEM: 'Giao sai sản phẩm', EXPIRED: 'Sản phẩm hết hạn', OTHER: 'Lý do khác' };
 const date = (value?: string | null) => {
   const parsed = serverDate(value || '');
   return parsed && Number.isFinite(Date.parse(parsed)) ? new Date(parsed).toLocaleString('vi-VN') : 'Chưa ghi nhận';
 };
 function nextAction(row: ReturnDetail, mode: Mode): string {
-  if (row.status === 'REQUESTED') return 'Sàn đang đối chiếu bằng chứng của khách hàng và giải trình của shop.';
+  if (row.status === 'REQUESTED') {
+    if (mode === 'shop') return 'Shop đang xem bằng chứng và thông tin đơn. Hãy chấp thuận hoặc từ chối yêu cầu tại mục Yêu cầu trả hàng.';
+    if (mode === 'admin') return 'Đang chờ shop xem xét yêu cầu. Quản trị viên có thể hỗ trợ xử lý nếu phát sinh tranh chấp.';
+    return 'Đang chờ shop xem xét bằng chứng và phản hồi yêu cầu trả hàng.';
+  }
   if (row.status === 'APPROVED') return mode === 'customer' ? 'Yêu cầu đã được duyệt. Bạn có thể tạo chuyến trả hàng mô phỏng hoặc nhập vận đơn đã gửi.' : 'Yêu cầu đã được duyệt. Đang chờ khách gửi hàng trả về shop.';
   if (returnArrived(row)) return mode === 'shop' ? 'Kiểm tra kiện hàng và xác nhận đã nhận để hệ thống tiếp tục xử lý hoàn tiền.' : 'Shop cần xác nhận đã nhận hàng trả trước khi hệ thống xử lý hoàn tiền.';
   if (row.status === 'RETURNING') return 'Chuyến hàng trả đang được vận chuyển về shop. Theo dõi các mốc vận chuyển bên dưới.';
@@ -60,18 +65,13 @@ export default function ReturnDetailPage({ mode }: { mode: Mode }) {
     catch (cause: any) { if (number === sequence.current) setError(cause?.response?.data?.message || cause?.message || 'Thao tác thất bại. Vui lòng thử lại.'); }
     finally { acting.current = false; setBusy(false); }
   };
-  const back = mode === 'shop' ? '/merchant/returns' : mode === 'admin' ? '/admin/return-disputes' : '/customer/orders';
   const images = (request?.imageUrls || []).map(safeReturnMedia).filter((url): url is string => Boolean(url));
   const video = safeReturnMedia(request?.unboxingVideoUrl);
   const current = request ? returnStep(request) : 0;
   const closed = request && ['REJECTED', 'CANCELLED'].includes(request.status);
   const status = request && (returnArrived(request) ? 'Hàng trả đã đến shop · chờ shop xác nhận nhận hàng' : returnStatusLabel(request.status));
 
-  return <main className="return-page">
-    <header className="return-page-header"><div>
-      <Link to={back} className="return-back"><ArrowLeft size={15} />{mode === 'shop' ? 'Danh sách trả hàng của shop' : mode === 'admin' ? 'Hồ sơ cần xét duyệt' : 'Đơn mua của tôi'}</Link>
-      <h1>Trả hàng / Hoàn tiền</h1><p>Theo dõi hồ sơ, hành trình hàng trả và tiến trình hoàn tiền.</p>
-    </div><button className="return-button" disabled={busy || loading} onClick={() => void load()}><RefreshCw size={15} />Tải lại</button></header>
+  return <main className={`return-page return-page-${mode}`}>
     {error && <div role="alert" className="return-error">{error}</div>}
     {loading && <div role="status" className="return-card return-loading"><Loader2 size={22} className="animate-spin" />Đang tải hồ sơ trả hàng…</div>}
     {request && <>
@@ -82,7 +82,7 @@ export default function ReturnDetailPage({ mode }: { mode: Mode }) {
       <div className="return-content-grid"><div className="return-main-column">
         <section className="return-card"><div className="return-section-heading"><Package size={18} /><h2>Sản phẩm trả lại</h2></div><p className="return-muted">{request.order.storeName || 'Gian hàng'}</p>
           {request.items.map(item => <div key={item.id} className="return-product">{safeReturnMedia(item.orderItem.product.imageUrl) ? <img src={item.orderItem.product.imageUrl!} alt={item.orderItem.product.title} /> : <span className="return-product-placeholder"><Package size={24} /></span>}<div><strong>{item.orderItem.product.title}</strong><p>Số lượng trả: {item.quantity}</p></div></div>)}
-          <details className="return-identifiers"><summary>Mã đơn và mã hồ sơ</summary><p>Đơn hàng: {request.orderId}</p><p>Hồ sơ: {request.id}</p></details>
+          <details className="return-identifiers"><summary>Mã đơn và mã hồ sơ</summary><p title={request.orderId}>Đơn hàng: <strong>{orderDisplayCode(request.orderId)}</strong></p><p title={request.id}>Hồ sơ: <strong>{request.id ? `HS-${request.id.replaceAll('-', '').slice(0, 10).toUpperCase()}` : '—'}</strong></p></details>
         </section>
         <section className="return-card"><div className="return-section-heading"><Truck size={18} /><h2>Vận chuyển hàng trả</h2></div>
           {!request.logistics ? <p className="return-muted">Chưa tạo chuyến trả hàng.</p> : <>

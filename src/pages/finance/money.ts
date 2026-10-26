@@ -1,5 +1,5 @@
 export const money = (value: number | null | undefined) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value ?? 0);
-export const when = (value: string | null | undefined) => value ? new Date(value.endsWith('Z') || /[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`).toLocaleString('vi-VN') : '—';
+export const when = (value: string | null | undefined) => value ? new Date(value.endsWith('Z') || /[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hourCycle: 'h23' }) : '—';
 export function amountVnd(text: string): number {
   if (!/^\d+$/.test(text.trim())) throw new Error('Nhập số tiền nguyên bằng VNĐ, không có dấu chấm hoặc dấu phẩy.');
   const value = Number(text);

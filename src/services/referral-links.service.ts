@@ -1,4 +1,5 @@
 import api from './api';
+import { productCommissionDeals } from './product-commission-deals.service';
 
 export interface EligibleProduct {
   id: string;
@@ -56,7 +57,7 @@ export interface ReferralLinkItem {
     id: string;
     title: string;
     imageUrl: string | null;
-    price: string | number;
+    price: string | number | null;
     customCommissionRate?: string | number | null;
     store?: {
       id: string;
@@ -129,7 +130,7 @@ function mapReferral(raw: any): ReferralLinkItem {
   return {
     id,
     collaboratorId: raw.collaboratorId,
-    storeId: raw.storeId || '',
+    storeId: raw.storeId || raw.store?.id || raw.product?.storeId || raw.product?.store?.id || '',
     productId: raw.productId,
     campaignId: null,
     shortCode: token,
@@ -156,12 +157,51 @@ function mapReferral(raw: any): ReferralLinkItem {
     createdAt: raw.createdAt || new Date().toISOString(),
     product: {
       id: raw.productId,
-      title: raw.productName || raw.productId,
+      title: raw.productName || raw.product?.title || raw.product?.name || 'Sản phẩm chưa có thông tin',
       imageUrl: raw.productImageUrl || raw.product?.imageUrl || null,
-      price: raw.productPrice ?? raw.product?.price ?? 0,
+      price: raw.productPrice ?? raw.product?.price ?? raw.product?.priceVnd ?? null,
     },
-    store: { id: raw.storeId || '', name: '', slug: '' },
+    store: {
+      id: raw.storeId || raw.store?.id || raw.product?.storeId || raw.product?.store?.id || '',
+      name: raw.storeName || raw.store?.name || raw.product?.store?.name || 'Gian hàng chưa có thông tin',
+      slug: raw.store?.slug || raw.storeId || raw.product?.storeId || '',
+    },
   };
+}
+
+// Spring referrals persist product IDs. Resolve current catalog data for display,
+// without changing the saved referral token, channel or destination.
+async function hydrateReferrals(rows: any[], includeRates = false): Promise<ReferralLinkItem[]> {
+  const ids = [...new Set(rows.map(row => row.productId).filter(Boolean))] as string[];
+  const products = new Map<string, any>();
+  const rates = new Map<string, number>();
+  await Promise.all(ids.map(async id => {
+    try {
+      const response: any = await api.get(`/public/products/${encodeURIComponent(id)}`);
+      const product = response?.result ?? response?.data ?? response;
+      if ((product?.id || product?.productId) === id) products.set(id, product);
+    } catch {
+      // Keep links accessible when a product has been removed or catalog is offline.
+    }
+  }));
+  if (includeRates) await Promise.all(ids.map(async id => {
+    try { rates.set(id, Number((await productCommissionDeals.rate(id)).totalRate)); }
+    catch { /* Keep unknown rates absent; never invent a 0% or 10% quote. */ }
+  }));
+  return rows.map(row => {
+    const product = products.get(row.productId);
+    if (!product) return { ...mapReferral(row), commissionRate: rates.get(row.productId) ?? null };
+    return { ...mapReferral({
+      ...row,
+      storeId: row.storeId || product.storeId || product.store?.id,
+      productName: product.title || product.name || row.productName,
+      productImageUrl: product.imageUrl || row.productImageUrl,
+      productPrice: product.price ?? product.priceVnd ?? row.productPrice,
+      product: { ...row.product, ...product },
+      store: product.store || row.store,
+      storeName: product.store?.name || row.storeName,
+    }), commissionRate: rates.get(row.productId) ?? null };
+  });
 }
 
 export const EXCLUSIVE_DEALS_UNSUPPORTED_MESSAGE = 'Thỏa thuận độc quyền chưa được hỗ trợ';
@@ -220,13 +260,13 @@ export const referralLinksService = {
 
   async getMyLinks(_params?: QueryReferralLinksParams): Promise<{ data: ReferralLinkItem[]; meta: any }> {
     const res: any = await api.get('/referrals');
-    const list = (res?.result ?? res?.data ?? []).map(mapReferral);
+    const list = await hydrateReferrals(res?.result ?? res?.data ?? [], true);
     return { data: list, meta: { total: list.length, page: 1, limit: list.length || 20, totalPages: 1 } };
   },
 
   async getLinkDetail(id: string): Promise<ReferralLinkItem> {
     const res: any = await api.get(`/referrals/${id}`);
-    return mapReferral(res?.result ?? res?.data ?? res);
+    return (await hydrateReferrals([res?.result ?? res?.data ?? res], true))[0];
   },
 
   async createLink(payload: CreateReferralLinkPayload, requestToken: string = crypto.randomUUID()): Promise<ReferralLinkItem> {
@@ -240,7 +280,7 @@ export const referralLinksService = {
     });
     const saved = res?.result ?? res?.data ?? res;
     if (!saved?.referralLinkId || !saved.collaboratorId || saved.productId !== payload.productId || saved.token !== requestToken || saved.status !== 'ACTIVE') throw new Error('Máy chủ chưa xác nhận đúng liên kết giới thiệu. Hãy thử lại với cùng yêu cầu.');
-    return mapReferral(saved);
+    return (await hydrateReferrals([saved], true))[0];
   },
 
   async updateLink(_id: string, _payload: Partial<CreateReferralLinkPayload>): Promise<ReferralLinkItem> {
@@ -260,7 +300,7 @@ export const referralLinksService = {
     const res: any = await api.get(`/referrals/store/${encodeURIComponent(storeId)}`, { headers: { 'x-skip-cache': 'true' } });
     const payload = res?.result ?? res?.data ?? res;
     if (!Array.isArray(payload)) throw new Error('Danh sách liên kết chưa hợp lệ. Vui lòng thử lại.');
-    let list = payload.map(mapReferral).filter(link => link.storeId === storeId);
+    let list = (await hydrateReferrals(payload)).filter(link => link.storeId === storeId);
     if (params?.status) list = list.filter(link => link.status === params.status);
     if (params?.channel) list = list.filter(link => link.channel === params.channel);
     if (params?.search) {

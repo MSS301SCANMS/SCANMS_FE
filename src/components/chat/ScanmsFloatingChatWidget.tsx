@@ -349,24 +349,23 @@ export function ScanmsFloatingChatWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation?.messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = inputText.trim();
     if (!text && !activeProduct) return;
 
     if (activeProduct) {
-      sendProductsInquiry([activeProduct]);
+      if (!await sendProductsInquiry([activeProduct])) return;
       clearActiveProduct();
     }
 
     if (text) {
-      sendMessage(text);
-      setInputText('');
+      if (await sendMessage(text)) setInputText(current => current.trim() === text ? '' : current);
     }
   };
 
-  const handleSendActiveProduct = () => {
+  const handleSendActiveProduct = async () => {
     if (!activeProduct) return;
-    sendProductsInquiry([activeProduct]);
+    if (!await sendProductsInquiry([activeProduct])) return;
     clearActiveProduct();
   };
 
@@ -569,8 +568,8 @@ export function ScanmsFloatingChatWidget() {
   };
 
   // Send a single product immediately when clicking "Gửi" on a row
-  const handleSendSingleProduct = (prod: any) => {
-    const sent = sendProductsInquiry([
+  const handleSendSingleProduct = async (prod: any) => {
+    const sent = await sendProductsInquiry([
       {
         id: prod.id,
         title: prod.title,
@@ -586,10 +585,10 @@ export function ScanmsFloatingChatWidget() {
   };
 
   // Send all selected products when clicking "Gửi" at bottom bar
-  const handleSendSelectedProducts = () => {
+  const handleSendSelectedProducts = async () => {
     const selectedProds = currentShopProducts.filter((p) => selectedProductIds.includes(p.id));
     if (selectedProds.length === 0) return;
-    const sent = sendProductsInquiry(
+    const sent = await sendProductsInquiry(
       selectedProds.map((p) => ({
         id: p.id,
         title: p.title,

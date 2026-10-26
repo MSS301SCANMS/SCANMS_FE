@@ -6,6 +6,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
 import { toast } from '../../utils/toast';
 import { PartnershipInvitations } from '../../components/affiliate/PartnershipInvitations';
+import { ProductCommissionDeals } from '../../components/affiliate/ProductCommissionDeals';
 
 const statusLabels: Record<string, string> = {
   ACTIVE: 'Đang hoạt động', INACTIVE: 'Tạm ngừng', EXPIRED: 'Hết hạn', PENDING: 'Chờ KOL xác nhận',
@@ -62,7 +63,7 @@ export default function CollaborationsPage({ mode }: { mode: 'shop' | 'admin' })
   };
 
   return <section aria-label={mode === 'shop' ? 'Hợp tác của gian hàng' : 'Hợp tác trên sàn'} className="grid w-full min-w-0 gap-4 pb-10 text-left text-[#1A1612]">
-    {mode === 'shop' && <PartnershipInvitations mode="shop" />}
+    {mode === 'shop' && <><PartnershipInvitations mode="shop" /><ProductCommissionDeals mode="shop" /></>}
     <div className="flex min-w-0 flex-wrap items-center gap-2.5 rounded-xl border border-[#EAE4D7] bg-white p-3">
       <div className="relative min-w-0 flex-1 basis-64"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-[#7D715E]" /><input aria-label="Tìm hợp tác KOL" value={query} onChange={event => setQuery(event.target.value)} placeholder="Tìm KOL, sản phẩm, mã referral…" className="h-10 w-full min-w-0 rounded-lg border border-[#EAE4D7] bg-white py-2 pl-9 pr-3 text-xs outline-none focus:border-[#C59B58]" /></div>
       <div className="min-w-0 flex-1 basis-40 sm:max-w-44"><Select aria-label="Lọc loại hợp tác" value={kind} onChange={event => setKind(event.target.value)} className="h-10 w-full rounded-lg py-2 text-xs sm:text-xs shadow-none"><option value="ALL">Tất cả hình thức</option><option value="REFERRAL">Liên kết referral</option><option value="LIVESTREAM">Livestream</option></Select></div>

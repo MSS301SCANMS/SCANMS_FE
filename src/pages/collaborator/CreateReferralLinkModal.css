@@ -45,6 +45,17 @@
 .referral-create-selected > div > span { display: block; margin-top: 5px; color: #7d715e; font-size: 11px; }
 .referral-create-selected button { font-size: 12px; font-weight: 600; color: #795a2d; }
 .referral-create-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 14px; }
+.referral-create-expiry-calendar { height: 0; min-width: 0; }
+.referral-create-expiry-calendar > [role='group'] { width: min(390px, calc(100vw - 24px)); max-width: none; min-width: 0; margin: 0; padding: 12px; box-sizing: border-box; box-shadow: 0 12px 35px rgb(26 22 18 / 16%); }
+.referral-create-expiry-calendar .scanms-datetime-calendar { min-width: 0; }
+.referral-create-expiry-calendar .scanms-datetime-content { gap: 12px; }
+.referral-create-expiry-calendar .scanms-datetime-time { width: 112px; padding-left: 12px; }
+.referral-create-expiry-calendar .scanms-datetime-time-list { height: 190px; }
+.referral-create-expiry-calendar .scanms-datetime-day { width: 25px; height: 25px; font-size: 11px; }
+@media (max-width: 639px) {
+  .referral-create-expiry-calendar > [role='group'] { width: min(300px, calc(100vw - 24px)); }
+  .referral-create-expiry-calendar .scanms-datetime-time { width: 100%; padding-left: 0; }
+}
 .referral-create-field { display: grid; align-content: start; gap: 8px; min-width: 0; }
 .referral-create-field:first-child { grid-column: 1 / -1; }
 .referral-create-field label { font-size: 12px; font-weight: 600; }

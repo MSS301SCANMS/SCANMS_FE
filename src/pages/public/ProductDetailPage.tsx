@@ -1753,7 +1753,7 @@ export default function ProductDetailPage() {
         </div>
 
 
-        <div className={`grid gap-4 mt-6 text-[#1A1612] ${!activeVideo && !reviews.items?.length ? 'lg:grid-cols-2' : ''}`}>
+        <div className="mt-6 grid grid-cols-1 gap-4 text-[#1A1612]">
         <section className="min-w-0 p-4 sm:p-5 border border-[#EAE4D7] rounded-2xl bg-white" aria-labelledby="product-creator-reviews-title">
           <div className="flex items-start sm:items-center justify-between flex-wrap gap-2.5 sm:gap-3 pb-3.5 sm:pb-4 border-b border-[#EAE4D7]">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">

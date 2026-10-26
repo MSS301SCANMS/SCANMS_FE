@@ -340,6 +340,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   const markAddressEdited = (clearLocation = false) => {
     addressDraftEdited.current = true;
     setSelectedSavedAddressId('');
+    // Keep the address form open while the customer is filling its levels.
+    setIsEditingAddress(true);
     if (clearLocation) {
       setDeliveryLocation(null);
       setMappedAddress(null);
@@ -674,6 +676,10 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     : !selectedWard ? 'Chọn Phường/Xã để tính phí ship.'
     : shippingAddress.trim().length < 5 ? 'Bổ sung địa chỉ chi tiết (ít nhất 5 ký tự) để tính phí ship.'
     : null);
+  const shippingDestination = !shippingAddressHint && selectedProvince && selectedDistrict && selectedWard ? {
+    province: selectedProvince.name, district: selectedDistrict.name, ward: selectedWard.name, detail: shippingAddress.trim(),
+  } : undefined;
+  const shippingDestinationKey = JSON.stringify(shippingDestination || null);
 
   useEffect(() => {
     if (!isOpen || !isSignedIn || !selectedProvince || !selectedDistrict || !selectedWard || shippingAddress.trim().length < 5 || !itemsGroupedByShop.length) {
@@ -691,6 +697,10 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     setShippingFeesByStore({});
     setShippingQuoteMode(null);
     setAppliedShippingCoupon(null);
+    if (!usesLegacyCheckout) {
+      couponRequest.current++;
+      setAppliedCoupon(null); setAppliedPlatformCoupon(null); setCouponMessage(null);
+    }
     setShippingFeeError(null);
     setShippingFeeLoading(true);
     const controller = new AbortController();
@@ -699,7 +709,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       try {
         response = await checkoutService.shippingQuote(
           group.items.map((item) => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })),
-          group.store.id, address, controller.signal,
+          group.store.id, address, controller.signal, shippingDestination,
         );
       } catch (error: any) {
         const detail = error?.response?.data?.message || error?.message;
@@ -710,7 +720,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       if (typeof quote.totalFee !== 'number' || !Number.isFinite(quote.totalFee) || quote.totalFee < 0) throw new Error('Phí vận chuyển không hợp lệ. Vui lòng thử tính lại phí vận chuyển.');
       return { storeId: group.store.id, fee: Number(quote.totalFee), mode: quote.mode };
     }))
-      .then((fees) => { if (active) { setShippingFeesByStore(Object.fromEntries(fees.map((item) => [item.storeId, item.fee]))); setShippingFee(fees.reduce((sum, item) => sum + item.fee, 0)); setShippingQuoteMode(fees.some(fee => fee.mode === 'SIMULATED') ? 'SIMULATED' : 'FIXED'); } })
+      .then((fees) => { if (active) { setShippingFeesByStore(Object.fromEntries(fees.map((item) => [item.storeId, item.fee]))); setShippingFee(fees.reduce((sum, item) => sum + item.fee, 0)); setShippingQuoteMode(fees.some(fee => fee.mode === 'GHN_SANDBOX') ? 'GHN_SANDBOX' : fees.some(fee => fee.mode === 'SIMULATED') ? 'SIMULATED' : 'FIXED'); } })
       .catch((error: any) => { if (active) setShippingFeeError(error?.message || 'Chưa lấy được phí vận chuyển. Vui lòng thử lại sau.'); })
       .finally(() => { if (active) setShippingFeeLoading(false); }); }, 350);
     return () => { active = false; clearTimeout(timer); controller.abort(); };
@@ -847,6 +857,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     addressDraftEdited.current = false;
     if (addressValidationField) { setAddressValidationField(null); setErrorMessage(null); }
     setSelectedSavedAddressId(addrId);
+    setIsEditingAddress(false);
     if (addrId) applySavedAddress(addrId);
   };
 
@@ -981,7 +992,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     takeManualVoucherControl();
     const request=++couponRequest.current; setCouponLoading(true); setCouponMessage(null);
     try {
-      const data=await quoteVoucherSelection(selection,voucherItems());
+      const data=await quoteVoucherSelection(selection,voucherItems(),undefined,shippingDestination);
       if(request!==couponRequest.current) return false;
       captureVoucherQuote(data); setErrorMessage(null); return true;
     } catch(err:any) {
@@ -995,7 +1006,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         items: activeItems.filter(item => item.store.id === targetVoucherStoreId).map(item => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity, unitPrice: item.price })),
         hasProductDiscount: false, hasShopVoucher: false, hasPlatformVoucher: Boolean(appliedPlatformCoupon),
       })
-    : checkoutService.quote({ couponCode: code, items: activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })) });
+    : checkoutService.quote({ couponCode: code, shippingDestination, items: activeItems.map(item => ({ productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity })) });
   const handleValidateCoupon = async (selectedCode = couponCode): Promise<boolean> => {
     if (!selectedCode.trim()) return false;
     if(!usesLegacyCheckout) return handleChooseVoucherPair({goodsCode:appliedCoupon?.code||'',shippingCode:appliedShippingCoupon?.code||'',enteredCode:selectedCode});
@@ -1054,6 +1065,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     if (!isOpen) { setAutoCouponDismissed(false); setCouponLoading(false); setShowVoucherPicker(false); return; }
     if (autoCouponDismissed || !isSignedIn || !activeItems.length) return;
     if (usesLegacyCheckout && !autoCouponCode) return;
+    if (!usesLegacyCheckout && (!shippingDestination || shippingFee == null || shippingFeeLoading || shippingFeeError)) return;
     let active = true;
     const controller = new AbortController();
     autoCouponController.current = controller;
@@ -1067,7 +1079,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       const recommend = async () => {
         if (usesLegacyCheckout) return validateCheckoutCoupon(autoCouponCode);
         return recommendVoucherSelection(voucherItems(),activeItems.map(item=>item.store.id),controller.signal,
-          initialCouponCode,initialShippingCouponCode,liveCouponCodes.length===1?liveCouponCodes[0]:undefined);
+          initialCouponCode,initialShippingCouponCode,liveCouponCodes.length===1?liveCouponCodes[0]:undefined,shippingDestination);
       };
       void recommend().then((response: any) => {
         if (!isCurrent()) return;
@@ -1086,7 +1098,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       }).finally(() => { if (isCurrent()) setCouponLoading(false); });
     }, 300);
     return () => { active = false; controller.abort(); window.clearTimeout(timer); };
-  }, [isOpen, isSignedIn, autoCouponCode, initialShippingCouponCode, autoCouponDismissed, voucherBasisKey, store?.id]);
+  }, [isOpen, isSignedIn, autoCouponCode, initialShippingCouponCode, autoCouponDismissed, voucherBasisKey, store?.id, shippingDestinationKey, shippingFee, shippingFeeLoading, shippingFeeError]);
 
   // Submit Order (Requirements 7, 8, 9, 10)
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -1229,6 +1241,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
         customerEmail: orderEmail.trim().toLowerCase() || undefined,
         shippingAddress: fullShippingAddress,
         ...(!usesLegacyCheckout && { expectedShippingFeeVnd: shippingFee }),
+        ...(!usesLegacyCheckout && { shippingDestination }),
         policyAccepted: true,
         orderNotes: orderNotes.trim() || undefined,
         paymentMethod,
@@ -1365,6 +1378,9 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   ]
     .filter(Boolean)
     .join(', ');
+  const hasCompleteShippingAddress = Boolean(
+    selectedProvince && selectedDistrict && selectedWard && shippingAddress.trim().length >= 5,
+  );
 
   return (
     <div
@@ -1547,15 +1563,26 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
                 <div className="checkout-address-summary">
                   <div className="checkout-address-summary-info">
                     <strong>{customerName ? `${customerName} · ${customerPhone || 'Chưa có SĐT'}` : 'Chưa nhập thông tin nhận hàng'}</strong>
-                    <span>{fullShippingAddressString || 'Thêm địa chỉ để tính phí vận chuyển và nhận hàng.'}</span>
-                    {customerAddresses.find(address => address.id === selectedSavedAddressId)?.isDefault
+                    <span>{hasCompleteShippingAddress
+                      ? fullShippingAddressString
+                      : fullShippingAddressString
+                        ? `Đang nhập địa chỉ: ${fullShippingAddressString}`
+                        : 'Thêm địa chỉ để tính phí vận chuyển và nhận hàng.'}</span>
+                    {hasCompleteShippingAddress && customerAddresses.find(address => address.id === selectedSavedAddressId)?.isDefault
                       ? <span className="checkout-address-label">Mặc định</span>
-                      : !selectedSavedAddressId && fullShippingAddressString ? <span className="checkout-address-label">Địa chỉ giao mới</span> : null}
+                      : hasCompleteShippingAddress && !selectedSavedAddressId ? <span className="checkout-address-label">Địa chỉ giao mới</span> : null}
                   </div>
-                  <button type="button" className="checkout-address-change" onClick={() => setIsEditingAddress(previous => !previous)}>{isEditingAddress ? 'Thu gọn' : 'Thay Đổi'}</button>
+                  <button
+                    type="button"
+                    className="checkout-address-change disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isEditingAddress && !hasCompleteShippingAddress}
+                    onClick={() => setIsEditingAddress(previous => !previous)}
+                  >
+                    {isEditingAddress ? hasCompleteShippingAddress ? 'Thu gọn' : 'Đang nhập' : 'Thay Đổi'}
+                  </button>
                 </div>
                 {/* Form chi tiết địa chỉ (Mở khi bấm Thay Đổi hoặc khi chưa có địa chỉ) */}
-                {(!fullShippingAddressString || isEditingAddress) && (
+                {(!hasCompleteShippingAddress || isEditingAddress) && (
                   <div className="mt-4 pt-4 border-t border-gray-100 space-y-3.5 animate-in fade-in duration-150">
                     {/* Sổ địa chỉ đã lưu dạng thẻ card sáng đẹp */}
                     {customerAddresses.length > 0 && (
@@ -1889,6 +1916,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
                 <div className="checkout-total-final"><dt>Tổng thanh toán</dt><dd>{shippingFee === null || shippingFeeError || shippingAddressHint || shippingFeeLoading ? <span>Chờ tính phí ship</span> : formatMoney(finalTotal)}</dd></div>
               </dl>
               {shippingQuoteMode === 'SIMULATED' && <p className="text-xs text-[#795A2D]" role="note">Phí giao hàng mô phỏng: {formatMoney(shippingFee || 0)} cho {itemsGroupedByShop.length} shop. Khách thanh toán cùng tiền hàng; chưa phát sinh phí với hãng vận chuyển.</p>}
+              {shippingQuoteMode === 'GHN_SANDBOX' && <p className="text-xs leading-6 text-[#795A2D]" role="note">Cước GHN sandbox theo tuyến giao hàng và khối lượng kiện thử nghiệm. Đây là môi trường kiểm thử, chưa tạo đơn giao hàng thật. Các địa chỉ cùng tuyến có thể có cùng phí.</p>}
 
               <details className="checkout-policy-details" id="checkout-return-policies">
                 <summary><span><ShieldCheck size={16} aria-hidden="true" />Chính sách đổi trả & giao hàng của các gian hàng</span><ChevronDown size={15} aria-hidden="true" /></summary>

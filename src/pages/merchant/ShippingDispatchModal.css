@@ -87,3 +87,8 @@
   .shipping-dispatch-footer { flex-wrap: wrap; padding: 14px 18px; gap: 10px; }
   .shipping-dispatch-footer > div { flex: 1; justify-content: flex-end; }
 }
+.merchant-order-actions-menu > button,
+.merchant-order-actions-menu > div + button { min-height: 36px; padding: 8px 10px; border-radius: 9px; font-size: 12px; }
+.merchant-order-code-copy { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid #EEDFC6; border-radius: 8px; background: #FFFCF7; color: #795A2D; cursor: pointer; }
+.merchant-order-code-copy > span { font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.merchant-order-code-copy:hover { background: #FBF5EB; border-color: #C59B58; }
