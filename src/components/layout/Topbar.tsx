@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag, Sparkles, Check, ShieldCheck } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
@@ -27,7 +27,9 @@ export function Topbar({
     observer.observe(header);
     return () => observer.disconnect();
   }, []);
+
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -132,7 +134,7 @@ export function Topbar({
     <header ref={headerRef} className="scanms-site-header sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] shadow-2xs">
       <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] flex items-center justify-between gap-3 sm:gap-6 relative z-30">
         {/* Left: Brand Logo */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <Link
             to={isShop ? '/merchant/dashboard' : isAdmin ? adminHomePath : isCustomer ? '/marketplace' : '/collaborator/dashboard'}
             className="flex items-center gap-2 group shrink-0"
@@ -140,11 +142,20 @@ export function Topbar({
           >
             <ScanMSLogo size="md" className="scanms-header-logo" />
           </Link>
-
         </div>
 
         {/* Right: Actions, Notifications & User Card */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => authService.switchWorkspace('customer', navigate)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
+            title="Đến Sàn Mua Sắm SCANMS"
+          >
+            <Store className="w-3.5 h-3.5 text-[#C59B58]" />
+            <span className="hidden sm:inline">Sàn mua sắm</span>
+          </button>
+
           <AccountConnectionStatus userId={currentUser?.id} />
           {/* Notifications Nest không thuộc mainflow — đã gỡ */}
 
@@ -159,7 +170,7 @@ export function Topbar({
             />
 
             {isMenuOpen && (
-              <div id="topbar-account-menu" className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
+              <div id="topbar-account-menu" className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#EAE4D7] rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-left">
                 <div className="p-2.5 border-b border-[#EAE4D7] flex items-center gap-2.5">
                   <div className="relative group shrink-0">
                     {currentUser?.avatarUrl ? (
@@ -203,6 +214,53 @@ export function Topbar({
                   </div>
                 </div>
 
+                {/* Chuyển vai trò / không gian làm việc trực tiếp trong menu Role */}
+                {currentUser && (
+                  <div className="py-2 px-1 border-b border-[#EAE4D7]">
+                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#7D715E] px-2 block mb-1.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Chuyển không gian làm việc
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      {authService.getUserAvailableWorkspaces(currentUser).map((ws) => {
+                        const isActive = ws.key === activeWorkspace;
+                        return (
+                          <button
+                            key={ws.key}
+                            type="button"
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              authService.switchWorkspace(ws.key, navigate);
+                            }}
+                            className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition cursor-pointer ${
+                              isActive
+                                ? 'bg-[#FAF5EB] border border-[#C59B58] text-[#B88E4F] font-bold shadow-2xs'
+                                : 'hover:bg-[#FAF8F5] text-[#1A1612]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {ws.key === 'kol' ? (
+                                <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
+                              ) : ws.key === 'shop' ? (
+                                <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                              ) : ws.key === 'admin' ? (
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
+                              ) : (
+                                <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
+                              )}
+                              <span className="text-xs truncate">{ws.label}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#F3EFE6] text-[#7D715E]">
+                                {ws.badge}
+                              </span>
+                            </div>
+                            {isActive && <Check className="w-3.5 h-3.5 text-[#B88E4F]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="file"
                   ref={avatarInputRef}
@@ -230,16 +288,17 @@ export function Topbar({
                     <span>Cài đặt & Hồ sơ</span>
                   </Link>
 
-                  {isCustomer && (
-                    <Link
-                      to="/marketplace"
-                      onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition"
-                    >
-                      <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-                      <span>Sàn mua sắm</span>
-                    </Link>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      authService.switchWorkspace('customer', navigate);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
+                  >
+                    <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                    <span>Sàn mua sắm chính</span>
+                  </button>
                 </div>
 
 

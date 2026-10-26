@@ -431,10 +431,14 @@ export const authService = {
     return 'customer';
   },
 
-  switchWorkspace(target: 'customer' | 'kol' | 'shop' | 'admin', navigate?: (path: string) => void) {
+  setActiveWorkspace(target: 'customer' | 'kol' | 'shop' | 'admin') {
     localStorage.setItem('scanms-active-workspace', target);
     localStorage.setItem('scanms-current-role', target);
     window.dispatchEvent(new CustomEvent('scanms_workspace_changed', { detail: { workspace: target } }));
+  },
+
+  switchWorkspace(target: 'customer' | 'kol' | 'shop' | 'admin', navigate?: (path: string) => void) {
+    this.setActiveWorkspace(target);
 
     const user = this.getCurrentUser();
     const targetRoute =

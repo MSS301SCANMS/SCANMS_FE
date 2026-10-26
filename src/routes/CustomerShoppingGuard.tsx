@@ -1,17 +1,11 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { canAccessShopping, shoppingHomeForRole } from '@/utils/shopping-access';
+import { Outlet } from 'react-router-dom';
+import { canAccessShopping } from '@/utils/shopping-access';
+import { authService } from '@/services/auth.service';
 
-/** Chặn role shop/kol/admin khỏi sàn mua sắm khi đang ở workspace vận hành. */
+/** Cho phép tài khoản vào sàn mua sắm bằng cách tự động kích hoạt workspace khách hàng */
 export function CustomerShoppingGuard() {
-  const location = useLocation();
   if (!canAccessShopping()) {
-    return (
-      <Navigate
-        to={shoppingHomeForRole()}
-        replace
-        state={{ from: `${location.pathname}${location.search}` }}
-      />
-    );
+    authService.setActiveWorkspace('customer');
   }
   return <Outlet />;
 }
