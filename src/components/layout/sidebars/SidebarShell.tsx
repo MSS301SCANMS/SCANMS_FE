@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Edit2, Loader2, LogIn, LogOut, Store } from 'lucide-react';
 import type { NavItemConfig, RoleNavigationGroup } from '../../../config/navigation.config';
 import { authService, type UserProfile } from '../../../services/auth.service';
@@ -34,9 +34,10 @@ export function SidebarShell({
   editProfilePath,
   editProfileLabel,
   getItemBadge,
-  showMarketplaceLink = false,
+  showMarketplaceLink = true,
   headerExtra,
 }: SidebarShellProps) {
+  const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
   const [uploading, setUploading] = useState(false);
@@ -180,16 +181,17 @@ export function SidebarShell({
         {currentUser ? (
           <>
             {showMarketplaceLink && (
-              <Link
-                to="/marketplace"
-                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] min-h-[44px] font-medium ${theme.marketplaceHover} transition-all duration-150 cursor-pointer`}
+              <button
+                type="button"
+                onClick={() => authService.switchWorkspace('customer', navigate)}
+                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] min-h-[44px] font-medium ${theme.marketplaceHover} transition-all duration-150 cursor-pointer w-full text-left`}
                 title="Quay lại Sàn Mua Sắm SCANMS"
                 aria-label="Quay lại Sàn Mua Sắm SCANMS"
               >
                 <ArrowLeft className={`w-4 h-4 shrink-0 ${theme.iconIdle}`} aria-hidden="true" />
                 <Store className={`w-4 h-4 shrink-0 ${theme.iconIdle}`} aria-hidden="true" />
                 <span className="flex-1 truncate tracking-tight">Sàn Mua Sắm</span>
-              </Link>
+              </button>
             )}
             <button
               type="button"

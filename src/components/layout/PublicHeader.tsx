@@ -19,6 +19,7 @@ import {
   X,
   Camera,
   Loader2,
+  Check,
 } from 'lucide-react';
 import { ScanMSLogo } from '../common/ScanMSLogo';
 import { HeaderAccountButton } from './HeaderAccountButton';
@@ -55,6 +56,7 @@ export function PublicHeader({
   const handleCartClick = onOpenCart || openCart;
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
+  const [activeWorkspace, setActiveWorkspace] = useState(() => authService.getActiveWorkspace());
   const [searchQuery, setSearchQuery] = useState(defaultSearchQuery);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -83,9 +85,17 @@ export function PublicHeader({
 
     const handleUserSync = () => {
       setCurrentUser(authService.getCurrentUser());
+      setActiveWorkspace(authService.getActiveWorkspace());
+    };
+    const handleWsSync = () => {
+      setActiveWorkspace(authService.getActiveWorkspace());
     };
     window.addEventListener('auth-user-updated', handleUserSync);
-    return () => window.removeEventListener('auth-user-updated', handleUserSync);
+    window.addEventListener('auth-workspace-changed', handleWsSync);
+    return () => {
+      window.removeEventListener('auth-user-updated', handleUserSync);
+      window.removeEventListener('auth-workspace-changed', handleWsSync);
+    };
   }, [location.pathname]);
 
   // Click outside listener for user dropdown menu
@@ -345,6 +355,51 @@ export function PublicHeader({
                             ? `🏪 Chủ Shop (${storeName})`
                             : '🛡️ Quản Trị Hệ Thống'}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Chuyển vai trò / không gian làm việc trực tiếp trong menu Role */}
+                    <div className="py-2 px-1 border-b border-[#EAE4D7] mb-1">
+                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#7D715E] px-2 block mb-1.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Chuyển không gian làm việc
+                      </span>
+                      <div className="flex flex-col gap-1">
+                        {authService.getUserAvailableWorkspaces(currentUser).map((ws) => {
+                          const isActive = ws.key === activeWorkspace;
+                          return (
+                            <button
+                              key={ws.key}
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                authService.switchWorkspace(ws.key, navigate);
+                              }}
+                              className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition cursor-pointer ${
+                                isActive
+                                  ? 'bg-[#FAF5EB] border border-[#C59B58] text-[#B88E4F] font-bold shadow-2xs'
+                                  : 'hover:bg-[#FAF8F5] text-[#1A1612]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {ws.key === 'kol' ? (
+                                  <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
+                                ) : ws.key === 'shop' ? (
+                                  <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                                ) : ws.key === 'admin' ? (
+                                  <Shield className="w-3.5 h-3.5 text-[#B88E4F]" />
+                                ) : (
+                                  <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
+                                )}
+                                <span className="text-xs truncate">{ws.label}</span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#F3EFE6] text-[#7D715E]">
+                                  {ws.badge}
+                                </span>
+                              </div>
+                              {isActive && <Check className="w-3.5 h-3.5 text-[#B88E4F]" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 

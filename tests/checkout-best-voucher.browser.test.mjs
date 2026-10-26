@@ -24,6 +24,7 @@ test('buy now automatically chooses the lowest server total; manual choices, rem
     page.on('pageerror', error => { if (!error.message.includes('WebSocket closed')) errors.push(error.message); });
     await page.evaluateOnNewDocument(() => {
       localStorage.clear(); localStorage.setItem('token', 'best-voucher-fixture');
+      localStorage.setItem('scanms_cached_addresses', JSON.stringify([{id:'other-account',fullName:'PRIVATE_OLD_ACCOUNT',phoneNumber:'0999999999',detailAddress:'PRIVATE_OLD_ADDRESS',isDefault:true}]));
       localStorage.setItem('user', JSON.stringify({ id: 'buyer', fullName: 'Khách kiểm thử', role: 'CUSTOMER', roles: ['USER'] }));
     });
     await page.setRequestInterception(true);
@@ -50,7 +51,11 @@ test('buy now automatically chooses the lowest server total; manual choices, rem
         }
         if (url.pathname.endsWith('/capabilities')) return respond({ paymentAvailable: true });
         if (url.pathname.endsWith('/wallets/me')) return respond({ walletId: 'wallet', availableBalanceVnd: 1000000, heldBalanceVnd: 0, status: 'ACTIVE' });
-        if (url.pathname.endsWith('/checkout')) { orders.push(JSON.parse(request.postData())); return respond({ orderId: 'order', publicOrderCode: 'order', finalAmount: 294000, shippingFeeVnd: 30000, paymentMethod: 'WALLET', paymentStatus: 'UNPAID', orders: [{ storeId, storeName: store.name, publicOrderCode: 'order', finalAmount: 294000 }] }); }
+        if (url.pathname.endsWith('/checkout')) {
+          const body = JSON.parse(request.postData());
+          orders.push(body);
+          return respond({ orderId: 'order', publicOrderCode: 'order', finalAmount: body.expectedPayableVnd, shippingFeeVnd: 30000, paymentMethod: 'WALLET', paymentStatus: 'UNPAID', orders: [{ storeId, storeName: store.name, publicOrderCode: 'order', finalAmount: body.expectedPayableVnd }] });
+        }
         if (url.pathname.endsWith('/wallet-payments')) return respond({ paymentId: 'payment', status: 'SUCCESS', amountVnd: 294000 });
         return respond([]);
       }
@@ -64,52 +69,81 @@ test('buy now automatically chooses the lowest server total; manual choices, rem
       await page.evaluate(() => [...document.querySelectorAll('button')].find(button => button.textContent.includes('Mua sản phẩm này')).click());
       await page.waitForSelector('.scanms-checkout');
     };
+    const dialog = '[role="dialog"][aria-labelledby="scanms-voucher-modal-title"]';
+    const openPicker = async () => {
+      await page.$eval('#open-scanms-voucher-modal-btn', button => button.click());
+      await page.waitForSelector(dialog);
+      await page.waitForFunction(selector => [...document.querySelectorAll(selector + ' [role="button"]')].some(node => node.textContent.includes('GOODS40')), {}, dialog);
+    };
+    const clickVoucher = async code => {
+      await page.evaluate((selector, code) => [...document.querySelectorAll(selector + ' [role="button"]')].find(node => node.textContent.includes(code)).click(), dialog, code);
+    };
+    const closePicker = async () => {
+      await page.evaluate(selector => document.querySelector(selector + ' button[aria-label="Đóng bảng chọn voucher"]').click(), dialog);
+      await page.waitForSelector(dialog, { hidden: true });
+    };
+    const enterCode = async code => {
+      await page.$eval(dialog + ' input', (input, code) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, code);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, code);
+      await page.evaluate(selector => [...document.querySelectorAll(selector + ' button')].find(button => button.textContent.includes('Áp Dụng')).click(), dialog);
+    };
     await buy();
-    await page.waitForFunction(() => document.querySelector('#checkout-voucher-shop')?.value === 'GOODS40' && document.querySelector('#checkout-voucher-shipping')?.value === 'SHIP50' && document.querySelector('.checkout-total-final')?.textContent.includes('229.000'));
+    await page.waitForFunction(() => document.querySelector('.checkout-total-final')?.textContent.includes('229.000'));
     assert.ok(quotes.some(q => q.couponCode === 'EXHAUSTED'));
-    await page.setViewport({ width: 390, height: 844 });
-    await page.$eval('.checkout-vouchers', node => node.scrollIntoView());
-    mkdirSync('.qa-artifacts/platform-vouchers', { recursive: true });
-    await page.screenshot({ path: '.qa-artifacts/platform-vouchers/automatic-checkout.png' });
-    await page.setViewport({ width: 1440, height: 1000 });
-    await page.click('.checkout-voucher-choose');
-    await page.waitForSelector('input[aria-label="Chọn SHIP50"]');
-    await page.click('input[aria-label="Chọn GOODS40"]');
-    await page.evaluate(() => [...document.querySelectorAll('dialog button')].find(button => button.textContent.includes('Đồng ý')).click());
-    await page.waitForSelector('dialog[open]', { hidden: true });
+    assert.equal(await page.evaluate(() => document.querySelector('.scanms-checkout').textContent.includes('PRIVATE_OLD_')), false);
+    await openPicker();
+    const selectedCodes = () => page.evaluate(selector => [...document.querySelectorAll(selector + ' [role="button"][aria-pressed="true"]')].map(node => node.textContent), dialog);
+    let selected = await selectedCodes();
+    assert.equal(selected.length, 2);
+    assert.ok(selected.some(text => text.includes('GOODS40')));
+    assert.ok(selected.some(text => text.includes('SHIP50')));
+    await clickVoucher('GOODS40');
+    await closePicker();
     await page.waitForFunction(() => document.querySelector('.checkout-total-final')?.textContent.includes('269.000'));
-    await page.$eval('#checkout-voucher-shipping', input => input.parentElement.querySelector('button').click());
-    await page.waitForFunction(() => !document.querySelector('#checkout-voucher-shop').disabled);
-    await page.type('#checkout-voucher-shop', 'INVALID');
-    await page.$eval('#checkout-voucher-shop', input => input.parentElement.querySelector('button').click());
-    await page.waitForFunction(() => document.querySelector('.checkout-voucher-message')?.textContent.includes('không còn lượt'));
-    await page.click('#checkout-voucher-shop'); await page.keyboard.down('Control'); await page.keyboard.press('KeyA'); await page.keyboard.up('Control'); await page.keyboard.press('Backspace'); await page.keyboard.type('MANUAL5');
-    await page.$eval('#checkout-voucher-shop', input => input.parentElement.querySelector('button').click());
+    await openPicker();
+    await clickVoucher('SHIP50');
+    await enterCode('INVALID');
+    await page.waitForFunction(selector => document.querySelector(selector + ' [role="status"]')?.textContent.includes('không còn lượt'), {}, dialog);
+    await enterCode('MANUAL5');
+    await page.waitForFunction(selector => document.querySelector(selector + ' [role="status"]')?.textContent.includes('Đã áp dụng MANUAL5'), {}, dialog);
+    await closePicker();
     await page.waitForFunction(() => document.querySelector('.checkout-total-final')?.textContent.includes('294.000'));
-    await page.click('input[value="WALLET"]');
+    await page.$eval('input[value="WALLET"]', input => input.click());
     await page.$eval('button.checkout-submit', button => button.click());
     await page.waitForFunction(() => document.body.innerText.includes('Đặt hàng thành công'));
-    assert.equal(orders.length, 1); assert.equal(orders[0].couponCode, 'MANUAL5');
+    assert.equal(orders.length, 1);
+    assert.equal(orders[0].couponCode, 'MANUAL5');
+    assert.equal(orders[0].shippingCouponCode, undefined);
+    assert.equal(orders[0].expectedPayableVnd, 294000);
+    assert.equal(orders[0].expectedShippingFeeVnd, 30000);
 
     slow = true; await buy();
     const deadline = Date.now() + 5000;
     while (!slowStarted && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
-    assert.ok(slowStarted, 'The old automatic preview must be in flight before the manual override');
-    await page.waitForFunction(() => !!document.querySelector('#checkout-voucher-shop')?.disabled);
-    await page.click('.checkout-voucher-choose');
-    await page.waitForSelector('input[aria-label="Chọn SHIP50"]');
-    await page.click('input[aria-label="Chọn SHIP50"]');
-    await page.evaluate(() => [...document.querySelectorAll('dialog button')].find(button => button.textContent.includes('Đồng ý')).click());
-    await page.waitForSelector('dialog[open]', { hidden: true });
+    assert.ok(slowStarted, 'Automatic preview must be in flight before the manual choice');
+    await openPicker();
+    await clickVoucher('SHIP50');
+    await page.waitForFunction(selector => document.querySelector(selector + ' [role="status"]')?.textContent.includes('Đã áp dụng SHIP50'), {}, dialog);
+    await closePicker();
     await new Promise(resolve => setTimeout(resolve, 1300));
-    assert.equal(await page.$eval('#checkout-voucher-shipping', input => input.value), 'SHIP50');
-    await page.$eval('#checkout-voucher-shipping', input => input.parentElement.querySelector('button').click());
-    await new Promise(resolve => setTimeout(resolve, 500));
-    assert.equal(await page.$eval('#checkout-voucher-shop', input => input.value), '');
+    await openPicker();
+    selected = await selectedCodes();
+    assert.equal(selected.length, 1);
+    assert.ok(selected[0].includes('SHIP50'), 'A delayed automatic response must not replace the manual choice');
     await page.setViewport({ width: 390, height: 844 });
-    await page.$eval('.checkout-vouchers', node => node.scrollIntoView());
     mkdirSync('.qa-artifacts/platform-vouchers', { recursive: true });
-    await page.screenshot({ path: '.qa-artifacts/platform-vouchers/manual-checkout.png' });
+    await page.screenshot({ path: '.qa-artifacts/platform-vouchers/merged-checkout.png' });
+    await closePicker();
+    await page.$eval('input[value="WALLET"]', input => input.click());
+    await page.$eval('button.checkout-submit', button => button.click());
+    await page.waitForFunction(() => document.body.innerText.includes('Đặt hàng thành công'));
+    assert.equal(orders.length, 2, 'Manual selection must release the automatic-preview submit lock');
+    assert.equal(orders[1].shippingCouponCode, 'SHIP50');
+    assert.equal(orders[1].couponCode, undefined);
+    assert.equal(orders[1].expectedPayableVnd, 269000);
     assert.deepEqual(errors, []);
   } catch (error) { console.error(errors, await page?.evaluate(() => document.body.innerText.slice(-2200))); throw error; }
   finally { await browser.close(); }

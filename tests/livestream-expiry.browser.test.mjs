@@ -30,7 +30,11 @@ test('merchant expires overdue sessions, preserves future schedules and refreshe
       localStorage.setItem('scanms-current-role', 'shop');
       localStorage.setItem('scanms-active-workspace', 'shop');
     });
-    page.on('pageerror', error => errors.push(error.message));
+    page.on('pageerror', error => {
+      // Vite's development HMR socket is unrelated to the mocked application APIs.
+      if (error.message === 'WebSocket closed without opened.' && error.stack?.includes('/@vite/client')) return;
+      errors.push(error.message);
+    });
     const session = (id, status, end) => ({ livestreamId: id, storeId: 'store-a', title: id,
       status, scheduledAt: '2026-10-26T12:00:00', productRefs: { productIds: [] },
       collaboratorRefs: { collaboratorIds: [] }, participantRefs: { endsAt: end, inviteStatus: 'PENDING' },

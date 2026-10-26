@@ -42,5 +42,6 @@ export async function recommendVoucherSelection(items: CheckoutLine[], stores: s
   const goodsCode = fixed.goodsCode || bestGoods?.code || '';
   const shippingCode = fixed.shippingCode || bestShipping?.code || '';
   if (!goodsCode && !shippingCode) return null;
-  return quoteVoucherSelection({ goodsCode, shippingCode }, items, signal);
+  const result = await quoteVoucherSelection({ goodsCode, shippingCode }, items, signal);
+  return { ...result, goodsFundingSource: vouchers.some(voucher => voucher.code === goodsCode) ? 'PLATFORM_FUNDED' : 'STORE_FUNDED' };
 }

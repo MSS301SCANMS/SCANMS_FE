@@ -72,8 +72,13 @@ export const checkoutService = {
     return response.data.result;
   },
   async paymentAvailable(): Promise<boolean> {
-    if (usesLegacyCheckout) return unwrap((await legacyFinance.get('/orders/payos/availability')).data)?.available === true;
-    return (await financeService.capabilities()).paymentAvailable === true;
+    try {
+      if (usesLegacyCheckout) return unwrap((await legacyFinance.get('/capabilities')).data)?.available === true;
+      const caps = await financeService.capabilities();
+      return caps?.paymentAvailable === true;
+    } catch {
+      return false;
+    }
   },
   async legacyPaymentLink(publicCode: string) {
     if (!usesLegacyCheckout) throw new Error('Checkout không dùng backend NestJS.');

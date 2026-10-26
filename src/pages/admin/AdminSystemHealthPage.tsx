@@ -19,6 +19,7 @@ import {
   KEYCLOAK_ISSUER,
   OVERALL_LABEL,
   runHealthCheck,
+  type KafkaProbe,
   type ProbeResult,
 } from '../../services/system-health';
 
@@ -90,6 +91,7 @@ const fmtTime = (d: Date) =>
 export default function AdminSystemHealthPage() {
   const [results, setResults] = useState<Record<string, ProbeResult>>({});
   const [keycloak, setKeycloak] = useState<ProbeResult | null>(null);
+  const [kafka, setKafka] = useState<KafkaProbe | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const runningRef = useRef(false);
@@ -102,6 +104,7 @@ export default function AdminSystemHealthPage() {
       const snap = await runHealthCheck();
       setResults(snap.services);
       setKeycloak(snap.keycloak);
+      setKafka(snap.kafka);
       setCheckedAt(snap.checkedAt);
     } finally {
       runningRef.current = false;
@@ -124,7 +127,7 @@ export default function AdminSystemHealthPage() {
     ? { tone: 'idle', label: 'Đang kiểm tra…' }
     : upCount === 0
       ? { tone: 'down', label: OVERALL_LABEL.DOWN }
-      : upCount === total && keycloak?.up
+      : upCount === total && keycloak?.up && kafka?.state !== 'down'
         ? { tone: 'up', label: OVERALL_LABEL.HEALTHY }
         : { tone: 'warn', label: OVERALL_LABEL.DEGRADED };
 
@@ -257,7 +260,7 @@ export default function AdminSystemHealthPage() {
             )}
           </Card>
 
-          {/* Kafka — chưa cấu hình */}
+          {/* Kafka */}
           <Card className="flex flex-col gap-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0">
@@ -269,20 +272,47 @@ export default function AdminSystemHealthPage() {
                   <p className="text-[11px] text-[#8A8175]">Message broker</p>
                 </div>
               </div>
-              <StatusBadge tone="idle">Chưa cấu hình</StatusBadge>
+              <StatusBadge tone={!kafka ? 'idle' : kafka.state === 'up' ? 'up' : kafka.state === 'down' ? 'down' : 'idle'}>
+                {!kafka ? 'Đang kiểm tra' : kafka.state === 'up' ? 'Hoạt động' : kafka.state === 'down' ? 'Ngừng hoạt động' : 'Chưa xác định'}
+              </StatusBadge>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <StatBox label="Broker" value="—" />
-              <StatBox label="Consumer groups" value="—" />
+              <StatBox label="Broker" value={kafka?.data?.brokers ?? '—'} />
+              <StatBox label="Consumer groups" value={kafka?.data?.consumerGroups ?? '—'} />
+              <StatBox
+                label="Thời gian phản hồi"
+                value={kafka?.ms != null ? `${kafka.ms} ms` : '—'}
+              />
+              <StatBox
+                label={`Lag (${kafka?.data?.groupId ?? 'payment-service'})`}
+                value={kafka?.data?.lag ?? '—'}
+                tone={kafka?.data?.lag ? 'down' : kafka?.data?.lag === 0 ? 'up' : undefined}
+              />
             </div>
-            <p className="rounded-xl bg-[#FAF8F5] border border-[#F0EBE3] px-3 py-2 text-xs text-[#6B6358]">
-              <span className="font-semibold text-[#1A1612]">Cluster ID:</span> —
+            <p className="rounded-xl bg-[#FAF8F5] border border-[#F0EBE3] px-3 py-2 text-xs text-[#6B6358] truncate">
+              <span className="font-semibold text-[#1A1612]">Cluster ID:</span> {kafka?.data?.clusterId || '—'}
             </p>
-            <p className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs border bg-[#F4F1EC] text-[#6B6358] border-[#E4DDD2]">
-              <MinusCircle className="w-4 h-4" />
-              Hệ thống chưa tích hợp Kafka — sẽ hiển thị khi backend cấu hình broker.
-            </p>
+            {kafka?.data?.groupState && (
+              <p className="rounded-xl bg-[#FAF8F5] border border-[#F0EBE3] px-3 py-2 text-xs text-[#6B6358] truncate">
+                <span className="font-semibold text-[#1A1612]">Topic {kafka.data.topic}:</span> group {kafka.data.groupState} · {kafka.data.groupMembers ?? 0} consumer
+              </p>
+            )}
+            {kafka && (
+              <p
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs border ${
+                  kafka.state === 'up'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                    : kafka.state === 'down'
+                      ? 'bg-rose-50 text-rose-800 border-rose-100'
+                      : 'bg-[#F4F1EC] text-[#6B6358] border-[#E4DDD2]'
+                }`}
+              >
+                {kafka.state === 'up' ? <CheckCircle2 className="w-4 h-4" /> : kafka.state === 'down' ? <WifiOff className="w-4 h-4" /> : <MinusCircle className="w-4 h-4" />}
+                {kafka.message}
+              </p>
+            )}
           </Card>
+
         </div>
       </section>
 
