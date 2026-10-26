@@ -36,11 +36,6 @@ import { partnershipInvitationsService } from '../../services/partnership-invita
 import { unwrapApi } from '../../utils/api-response';
 import { serverDate } from '../../utils/server-date';
 
-const getFallbackAvatar = (_id: string, name: string) => {
-  const initial = (Array.from(name.trim())[0] || 'K').toLocaleUpperCase('vi').replace(/[<>&"']/g, '') || 'K';
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#F0FAF8"/><text x="32" y="40" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#0F766E">${initial}</text></svg>`)}`;
-};
-
 type LiveProduct = {
   id: string;
   title: string;
@@ -323,7 +318,7 @@ export default function LiveSessionsPage({
     const init = async () => {
       try {
         setLoading(true);
-        setLoadError('');
+        setLoadError(''); setCollaboratorLoadError('');
         const stores = await storeService.listMyStores(true);
         const myStore = stores.find(store => store.id === localStorage.getItem('current_store_id')) || stores[0];
         const sId = myStore?.id || '';
@@ -335,10 +330,10 @@ export default function LiveSessionsPage({
           throw new Error('Tài khoản chưa có gian hàng. Hãy hoàn tất hồ sơ và chờ quản lý duyệt.');
         }
 
-        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
-          api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          loadSessions(sId),
+        const [productsRes, partnerCatalog, invitations] = await Promise.all([
+          productService.getProducts({ storeId: sId }, true),
+          partnershipInvitationsService.catalog(),
+          partnershipInvitationsService.list('shop'),
         ]);
         if (!active) return;
         const products = productsRes.items.filter(product => product.isActive).map(p => ({ ...p, variants: p.variants || [] }));
@@ -357,34 +352,12 @@ export default function LiveSessionsPage({
         catalogRef.current = nextCatalog;setCatalog(nextCatalog);
         const loadedSessions = await loadSessions(sId);
         if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
-        const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
-        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
-        const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
-          id: p.productId || p.id,
-          title: p.title || p.name || 'Sản phẩm',
-          imageUrl: p.imageUrl || p.thumbnailUrl || null,
-          price: p.price ?? p.basePrice ?? 0,
-        }));
-        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
-          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
-          .map((c: any) => ({
-            id: c.collaboratorId || c.id || c.userId,
-            fullName: c.displayName || c.fullName || c.username || 'KOL',
-            avatarUrl: c.avatarUrl || null,
-            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
-            socialChannels: c.socialChannels || [],
-            baseRate: c.baseRate ?? 10,
-            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
-            isExclusiveVip: Boolean(c.isExclusiveVip),
-            exclusiveDealRate: c.exclusiveDealRate,
-            campaignBonusRate: c.campaignBonusRate || 0,
-          }));
-        setCatalog({ products, creators, defaultCommissionRate: 10 });
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',
         }));
       } catch (err: any) {
+        if (active) setCollaboratorLoadError(err?.message || 'Không tải được KOL đối tác.');
         if (active) setLoadError(err?.response?.data?.message || err?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
         if (active) toast.error(err?.response?.data?.message || err?.message || 'Không khởi tạo được dữ liệu.');
       } finally {

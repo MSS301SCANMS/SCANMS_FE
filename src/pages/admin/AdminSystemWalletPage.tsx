@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Wallet } from 'lucide-react';
 import api from '../../services/api';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { CommissionHistoryPanel } from '../../components/affiliate/CommissionHistoryPanel';
 
 export default function AdminSystemWalletPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -54,6 +55,7 @@ export default function AdminSystemWalletPage() {
           </tbody>
         </table>
       </div>
+      <CommissionHistoryPanel operator />
     </div>
   );
 }

@@ -33,7 +33,6 @@ const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage')
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
 const FinanceWalletPage = lazyRetry(() => import('../pages/finance/FinanceWalletPage'));
 const SettlementPage = lazyRetry(() => import('../pages/finance/SettlementPage'));
-const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
 const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
 const CustomerPortalPage = lazyRetry(() => import('../pages/customer/CustomerPortalPage'));
 const ReturnDetailPage = lazyRetry(() => import('../pages/returns/ReturnDetailPage'));
@@ -233,7 +232,7 @@ function AppRoutes() {
                 <Route element={<RoleGuard requiredWorkspace="kol" />}>
                   <Route element={<RouteContent />}>
                     <Route path="collaborator/dashboard" element={<KolDashboardPage />} />
-                    <Route path="collaborator/wallet" element={<WalletPage />} />
+                    <Route path="collaborator/wallet" element={<FinanceWalletPage />} />
                     <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />
                     <Route path="collaborator/profile" element={<CreatorProfilePage />} />
                     <Route path="collaborator/links" element={<Navigate to="/collaborator/marketing?tab=links" replace />} />

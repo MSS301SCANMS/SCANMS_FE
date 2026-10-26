@@ -238,7 +238,9 @@ export const referralLinksService = {
       status: 'ACTIVE',
       expiresAt: payload.expiresAt ? new Date(payload.expiresAt).toISOString().replace(/Z$/, '') : undefined,
     });
-    return mapReferral(res?.result ?? res?.data ?? res);
+    const saved = res?.result ?? res?.data ?? res;
+    if (!saved?.referralLinkId || !saved.collaboratorId || saved.productId !== payload.productId || saved.token !== requestToken || saved.status !== 'ACTIVE') throw new Error('Máy chủ chưa xác nhận đúng liên kết giới thiệu. Hãy thử lại với cùng yêu cầu.');
+    return mapReferral(saved);
   },
 
   async updateLink(_id: string, _payload: Partial<CreateReferralLinkPayload>): Promise<ReferralLinkItem> {

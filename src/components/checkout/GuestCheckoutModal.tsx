@@ -53,6 +53,7 @@ import { walletService, type WalletSummary } from '../../services/wallet.service
 import { normalizeOrderVariantId } from '../../utils/order-variant.utils';
 import { checkoutService, usesLegacyCheckout } from '../../services/checkout.service';
 import { financeService } from '../../services/finance.service';
+import { getProductReferral } from '../../utils/referral-attribution';
 
 const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -106,6 +107,7 @@ interface GuestCheckoutModalProps {
   initialQuantity?: number;
   initialCouponCode?: string;
   initialVariantId?: string;
+  initialLiveSessionId?: string;
   onOrderPlaced?: (orderData: any) => void;
   onPaymentConfirmed?: (orderData: any) => void;
 }
@@ -136,6 +138,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   initialQuantity = 1,
   initialCouponCode = '',
   initialVariantId,
+  initialLiveSessionId,
   onOrderPlaced,
   onPaymentConfirmed,
 }) => {
@@ -1148,7 +1151,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       const normalizedItems = await Promise.all(
         activeItems.map(async (item) => ({
           productId: item.productId,
-          liveSessionId: item.liveSessionId,
+          referralLinkId: getProductReferral(item.productId),
+          liveSessionId: item.liveSessionId || (item.productId === product?.id ? initialLiveSessionId : undefined),
           variantId: await resolveOrderVariantId(item),
           quantity: item.quantity,
         })),
