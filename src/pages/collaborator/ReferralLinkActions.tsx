@@ -14,21 +14,30 @@ interface ReferralLinkActionsProps {
 
 export function ReferralLinkActions({ link, onQr, onAnalytics, onVideo, onToggle, onDelete }: ReferralLinkActionsProps) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = `link-actions-${link.id}`;
 
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current || !menuRef.current) return;
-    const anchor = triggerRef.current.getBoundingClientRect();
-    const menu = menuRef.current.getBoundingClientRect();
-    setPosition({
-      top: Math.max(8, anchor.bottom + menu.height + 8 > window.innerHeight
-        ? anchor.top - menu.height - 6 : anchor.bottom + 6),
-      left: Math.max(8, Math.min(anchor.right - menu.width, window.innerWidth - menu.width - 8)),
-    });
-    menuRef.current.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+    if (!open) return;
+    const place = () => {
+      if (!triggerRef.current || !menuRef.current) return;
+      const anchor = triggerRef.current.getBoundingClientRect();
+      const menu = menuRef.current.getBoundingClientRect();
+      setPosition({
+        top: Math.max(8, anchor.bottom + menu.height + 8 > window.innerHeight
+          ? anchor.top - menu.height - 6 : anchor.bottom + 6),
+        left: Math.max(8, Math.min(anchor.right - menu.width, window.innerWidth - menu.width - 8)),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    document.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      document.removeEventListener('scroll', place, true);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -57,13 +66,9 @@ export function ReferralLinkActions({ link, onQr, onAnalytics, onVideo, onToggle
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', keyboard);
-    window.addEventListener('resize', dismiss);
-    document.addEventListener('scroll', dismiss, true);
     return () => {
       document.removeEventListener('pointerdown', outside);
       document.removeEventListener('keydown', keyboard);
-      window.removeEventListener('resize', dismiss);
-      document.removeEventListener('scroll', dismiss, true);
     };
   }, [open]);
 
@@ -106,7 +111,14 @@ export function ReferralLinkActions({ link, onQr, onAnalytics, onVideo, onToggle
       <button
         type="button"
         ref={triggerRef}
-        onClick={() => setOpen(!open)}
+        onClick={() => { setPosition(null); setOpen(!open); }}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (!open) { setPosition(null); setOpen(true); }
+            else menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+          }
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -122,8 +134,8 @@ export function ReferralLinkActions({ link, onQr, onAnalytics, onVideo, onToggle
           id={menuId}
           role="menu"
           aria-label={`Thao tác cho ${link.shortCode}`}
-          className="fixed z-50 min-w-[210px] p-1.5 bg-white border border-[#EAE4D7] rounded-xl shadow-[0_12px_40px_rgba(35,29,21,0.14)] space-y-0.5 text-left animate-in fade-in-50 duration-150"
-          style={position}
+          className="fixed z-50 w-[210px] max-w-[calc(100vw-16px)] p-1.5 bg-white border border-[#EAE4D7] rounded-xl shadow-[0_12px_40px_rgba(35,29,21,0.14)] space-y-0.5 text-left"
+          style={{ top: position?.top ?? 0, left: position?.left ?? 0, visibility: position ? 'visible' : 'hidden' }}
         >
           <button
             role="menuitem"

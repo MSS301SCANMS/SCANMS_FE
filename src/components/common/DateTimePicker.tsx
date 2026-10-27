@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type RefObject } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { parsePickerDate as parseSafeDate, pickerBoundary } from '../../utils/datetime-picker.utils';
 import {
@@ -27,6 +27,8 @@ export interface DateTimePickerProps {
   compact?: boolean;
   popoverTitle?: string;
   inlinePopoverRef?: RefObject<HTMLDivElement | null>;
+  timeZone?: string;
+  floatingAbove?: boolean;
 }
 
 const DAYS_OF_WEEK = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -56,7 +58,21 @@ export function DateTimePicker({
   compact = false,
   popoverTitle,
   inlinePopoverRef,
+  timeZone,
+  floatingAbove = false,
 }: DateTimePickerProps) {
+  // Represent the requested zone's wall clock with local Date fields for the calendar.
+  const inPickerZone = (date: Date): Date => {
+    if (!timeZone) return date;
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+    const part = (type: string) => Number(parts.find(item => item.type === type)?.value);
+    return new Date(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+  };
+  const pickerNow = () => inPickerZone(new Date());
+  const parseValue = (text?: string) => {
+    const parsed = parseSafeDate(text);
+    return parsed && text && /(?:Z|[+-]\d{2}:\d{2})$/i.test(text) ? inPickerZone(parsed) : parsed;
+  };
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'calendar' | 'time'>('calendar');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,18 +81,43 @@ export function DateTimePicker({
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const validationRef = useRef<HTMLInputElement>(null);
+  const [floatingPosition, setFloatingPosition] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !floatingAbove) { setFloatingPosition(null); return; }
+    const position = () => {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      const popup = popoverRef.current?.getBoundingClientRect();
+      if (!trigger || !popup) return;
+      const left = Math.max(12, Math.min(trigger.right - popup.width, window.innerWidth - popup.width - 12));
+      const top = Math.max(12, Math.min(trigger.top - popup.height - 8, window.innerHeight - popup.height - 12));
+      setFloatingPosition(previous => previous?.left === left && previous.top === top ? previous : { left, top });
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    if (popoverRef.current) observer.observe(popoverRef.current);
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    return () => { observer.disconnect(); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
+  }, [isOpen, floatingAbove]);
 
   useEffect(() => { if (disabled) setIsOpen(false); }, [disabled]);
 
   // Parse parsed dates
-  const parsedValue = useMemo(() => parseSafeDate(value), [value]);
-  const minDate = useMemo(() => pickerBoundary(minDateTime, 'min', mode), [minDateTime, mode]);
-  const maxDate = useMemo(() => pickerBoundary(maxDateTime, 'max', mode), [maxDateTime, mode]);
+  const parsedValue = useMemo(() => parseValue(value), [value, timeZone]);
+  const boundary = (text: string | undefined, side: 'min' | 'max') => {
+    if (!timeZone) return pickerBoundary(text, side, mode);
+    const parsed = parseValue(text);
+    return parsed ? pickerBoundary(formatBoundary(parsed), side, mode) : null;
+  };
+  const formatBoundary = (date: Date) => `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())}T${padZero(date.getHours())}:${padZero(date.getMinutes())}:${padZero(date.getSeconds())}`;
+  const minDate = useMemo(() => boundary(minDateTime, 'min'), [minDateTime, mode, timeZone]);
+  const maxDate = useMemo(() => boundary(maxDateTime, 'max'), [maxDateTime, mode, timeZone]);
   const comparableValue = parsedValue && (mode === 'date' ? new Date(parsedValue.getFullYear(), parsedValue.getMonth(), parsedValue.getDate()) : parsedValue);
   const invalidSelection = Boolean(value && (!comparableValue || (minDate && comparableValue < minDate) || (maxDate && comparableValue > maxDate)));
   useEffect(() => { validationRef.current?.setCustomValidity(invalidSelection ? 'Thời điểm đã chọn nằm ngoài khoảng cho phép. Vui lòng chọn lại.' : ''); }, [invalidSelection, required]);
 
-  const defaultRefDate = parsedValue || minDate || new Date();
+  const defaultRefDate = parsedValue || minDate || pickerNow();
 
   const [currentYear, setCurrentYear] = useState<number>(defaultRefDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(defaultRefDate.getMonth());
@@ -87,7 +128,7 @@ export function DateTimePicker({
   // Đồng bộ khi prop `value` thay đổi từ bên ngoài
   useEffect(() => {
     if (value) {
-      const d = parseSafeDate(value);
+      const d = parseValue(value);
       if (d) {
         setSelectedDate(d);
         setSelectedHour(d.getHours());
@@ -98,7 +139,7 @@ export function DateTimePicker({
     } else {
       setSelectedDate(null);
     }
-  }, [value]);
+  }, [value, timeZone]);
 
   // Click outside listener
   useEffect(() => {
@@ -116,10 +157,10 @@ export function DateTimePicker({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !inlinePopoverRef) return;
+    if (!isOpen || !inlinePopoverRef || floatingAbove) return;
     const frame = requestAnimationFrame(() => popoverRef.current?.scrollIntoView({ block: 'nearest' }));
     return () => cancelAnimationFrame(frame);
-  }, [isOpen, inlinePopoverRef]);
+  }, [isOpen, inlinePopoverRef, floatingAbove]);
 
   // Tự động cuộn đến giờ & phút đã chọn khi mở popup
   useEffect(() => {
@@ -168,7 +209,7 @@ export function DateTimePicker({
   };
 
   const isTimeDisabled = (h: number, m: number) => {
-    const date = selectedDate || minDate || new Date();
+    const date = selectedDate || minDate || pickerNow();
     const target = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -204,18 +245,18 @@ export function DateTimePicker({
 
   const handleSelectHour = (h: number) => {
     if (isHourDisabled(h)) return;
-    const date = selectedDate || minDate || new Date();
+    const date = selectedDate || minDate || pickerNow();
     commitSelection(new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, selectedMinute));
   };
 
   const handleSelectMinute = (m: number) => {
     if (isTimeDisabled(selectedHour, m)) return;
-    const date = selectedDate || minDate || new Date();
+    const date = selectedDate || minDate || pickerNow();
     commitSelection(new Date(date.getFullYear(), date.getMonth(), date.getDate(), selectedHour, m));
   };
 
   const handleSetNow = () => {
-    commitSelection(new Date());
+    commitSelection(pickerNow());
   };
 
   const handleClear = () => {
@@ -247,7 +288,7 @@ export function DateTimePicker({
   const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 is Sunday
   const adjustedFirstDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
 
-  const today = new Date();
+  const today = pickerNow();
   const isCurrentMonthToday = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
 
   // Nhãn hiển thị trực quan trong ô Input trigger
@@ -356,6 +397,7 @@ export function DateTimePicker({
       {isOpen && renderPopover(
         <div
           ref={popoverRef}
+          style={floatingAbove ? { position: 'fixed', left: floatingPosition?.left ?? 12, top: floatingPosition?.top ?? 12, visibility: floatingPosition ? 'visible' : 'hidden', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', zIndex: 80, animation: 'none', transition: 'none', transform: 'none' } : undefined}
           role="group"
           aria-label={popoverTitle || 'Chọn ngày giờ'}
           onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setIsOpen(false); triggerRef.current?.focus(); } }}
@@ -363,8 +405,8 @@ export function DateTimePicker({
             inlinePopoverRef ? 'relative inset-auto w-full max-w-full mt-2.5 shadow-none' : 'absolute top-[calc(100%+6px)]'
           } ${popoverAlign === 'end' ? 'right-0' : 'left-0'} z-50 ${
             compact ? 'p-3.5 rounded-[14px] border border-[#EEDFC6] shadow-none' : 'rounded-2xl border border-[#EEDFC6] p-4 shadow-2xl shadow-[#C59B58]/10'
-          } bg-white ring-1 ring-[#C59B58]/15 transition-all animate-in fade-in zoom-in-95 duration-150 ${
-            mode === 'datetime'
+          } bg-white ring-1 ring-[#C59B58]/15 ${floatingAbove ? '' : 'transition-all animate-in fade-in zoom-in-95 duration-150'} ${
+            inlinePopoverRef ? '' : mode === 'datetime'
               ? 'w-[320px] sm:w-[480px] max-w-[calc(100vw-2rem)]'
               : 'w-[280px] sm:w-[310px]'
           }`}

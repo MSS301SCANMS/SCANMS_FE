@@ -57,6 +57,7 @@ import { ReferralLinkActions } from './ReferralLinkActions';
 import QRCode from 'qrcode';
 import { usesLegacyCheckout } from '../../services/checkout.service';
 import { CreateReferralLinkModal } from './CreateReferralLinkModal';
+import { ProductCommissionDeals } from '../../components/affiliate/ProductCommissionDeals';
 
 function useQrDataUrl(value?: string | null) {
   const [dataUrl, setDataUrl] = useState('');
@@ -611,6 +612,11 @@ export default function ReferralLinksPage() {
   useEffect(() => {
     fetchLinks();
   }, [fetchLinks]);
+  useEffect(() => {
+    const refresh = () => { void fetchLinks(true); };
+    window.addEventListener('commission-deals-updated', refresh);
+    return () => window.removeEventListener('commission-deals-updated', refresh);
+  }, [fetchLinks]);
 
   useEffect(() => {
     const refreshVisibleLinks = () => {
@@ -1131,7 +1137,7 @@ export default function ReferralLinksPage() {
         ))}
       </div>
 
-      <section
+      {referralLinksService.supportsExclusiveDeals ? <section
         className="kol-exclusive-deals w-full min-w-0 rounded-2xl border border-[#EAE4D7] bg-white p-3.5 sm:px-5 sm:py-4 shadow-xs"
         aria-labelledby="exclusive-deals-heading"
       >
@@ -1423,7 +1429,7 @@ export default function ReferralLinksPage() {
             )}
           </div>
         )}
-      </section>
+      </section> : <ProductCommissionDeals mode="kol" />}
 
       <section className="space-y-3" aria-label="Danh sách liên kết tiếp thị">
       <form onSubmit={handleSearchSubmit} className="p-3 bg-white rounded-2xl border border-[#EAE4D7] shadow-2xs flex flex-col md:flex-row items-center gap-2.5">
@@ -1562,7 +1568,7 @@ export default function ReferralLinksPage() {
                               <span className="truncate">{link.store?.name}</span>
                             </div>
                             <div className="text-xs font-bold text-[#1A1612] mt-0.5 flex items-center gap-1.5">
-                              <span>{Number(link.product?.price || 0).toLocaleString('vi-VN')} đ</span>
+                              <span>{link.product?.price != null ? `${Number(link.product.price).toLocaleString('vi-VN')} đ` : 'Chưa có giá'}</span>
                               {link.commissionRate && (
                                 <span className="text-[10px] bg-[#FBF5EB] text-[#B88E4F] border border-[#EEDFC6] px-1.5 py-0.5 rounded-md font-bold">
                                   HH: {link.commissionRate}%
@@ -1575,15 +1581,15 @@ export default function ReferralLinksPage() {
 
 
                       <td data-label="Mã rút gọn & Kênh" className="py-2.5 px-3 overflow-hidden">
-                        <div className="flex flex-col gap-1.5 text-left">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] w-fit">
-                            <span className="font-mono font-bold text-xs text-[#B88E4F]">
-                              {link.shortCode}
+                        <div className="flex min-w-0 flex-col gap-1.5 text-left">
+                          <div className="inline-flex min-h-10 w-full min-w-0 items-center justify-between gap-1 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] pl-2.5 pr-1">
+                            <span title={link.shortUrl} aria-label={`Liên kết tiếp thị ${link.shortUrl}`} className="min-w-0 truncate whitespace-nowrap font-mono text-xs font-semibold text-[#9B7137]">
+                              <span className="font-normal text-[#7D715E]">/r/</span>{link.shortCode.length > 18 ? `${link.shortCode.slice(0, 8)}…${link.shortCode.slice(-4)}` : link.shortCode}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleCopyLink(link.shortUrl, link.shortCode)}
-                              className="p-1 rounded hover:bg-white text-[#7D715E] hover:text-[#1A1612] transition cursor-pointer"
+                              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#7D715E] transition hover:bg-white hover:text-[#1A1612] focus-visible:outline-2 focus-visible:outline-[#C59B58]"
                               title={isCopied ? 'Đã sao chép' : 'Sao chép liên kết'}
                               aria-label={`${isCopied ? 'Đã sao chép' : 'Sao chép liên kết'} ${link.shortCode}`}
                             >
@@ -1591,8 +1597,8 @@ export default function ReferralLinksPage() {
                             </button>
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#7D715E]">
-                            <span className="font-bold text-[#1A1612]">{getChannelLabel(link.channel)}</span>
+                          <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-[#7D715E]">
+                            <span className="shrink-0 font-bold text-[#1A1612]">{getChannelLabel(link.channel)}</span>
                             {link.label && (
                               <>
                                 <span className="text-[#B88E4F]">•</span>

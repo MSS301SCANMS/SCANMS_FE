@@ -4,6 +4,7 @@ import { normalizeReturn, type ReturnDetail } from './return.service';
 import { matchesCustomerOrderStatus } from '../utils/customer-order-filter';
 import { serverDate } from '../utils/server-date';
 import { checkoutAmounts } from '../utils/order-amounts.utils';
+import { orderDisplayCode } from '../utils/order-display-code';
 
 function notifyWishlistChanged(userId: string | undefined, token: string | null) {
   if (userId && token === localStorage.getItem('token')) {
@@ -209,6 +210,7 @@ function mapOrder(raw: any): CustomerOrder {
       id: item.orderItemId, productId: item.productId, variantId: item.variantId,
       quantity: item.quantity, unitPrice: item.unitPrice,
       product: { id: item.productId, title: product.title || product.name || 'Sản phẩm', imageUrl: product.imageUrl, sku: product.sku },
+      variant: { name: [product.size, product.color].filter(Boolean).join(' / ') },
     };
   });
   const nativePaid = ['PAID', 'PROCESSING', 'COMPLETED'].includes(raw?.status);
@@ -253,13 +255,26 @@ function mapOrder(raw: any): CustomerOrder {
 async function enrichOrder(raw: any) {
   if (!raw?.orderId) return raw;
   const details = raw.orderItems || raw.sellerOrders ? raw : unwrap(await api.get(`/orders/${raw.orderId}/checkout-details`, { headers: { 'x-skip-cache': 'true' } }));
+  // Older checkout snapshots did not include pictures. Resolve only missing images
+  // from the public catalog; keep the purchased name and all monetary snapshots.
+  const lines = (details.sellerOrders || []).flatMap((seller: any) => seller.items || []);
+  const missingIds = [...new Set<string>(lines.filter((item: any) => !item.productSnapshot?.imageUrl && item.productId).map((item: any) => item.productId))];
+  const pictures = new Map(await Promise.all(missingIds.map(async id => {
+    try {
+      const landing = unwrap(await api.get(`/public/products/${encodeURIComponent(id)}/landing`));
+      return [id, landing?.product?.imageUrl || landing?.images?.[0]?.imageUrl || ''] as const;
+    } catch { return [id, ''] as const; }
+  })));
+  const sellerOrders = (details.sellerOrders || []).map((seller: any) => ({ ...seller, items: (seller.items || []).map((item: any) => ({
+    ...item, productSnapshot: { ...item.productSnapshot, imageUrl: item.productSnapshot?.imageUrl || pictures.get(item.productId) || undefined },
+  })) }));
   const requests = unwrap(await api.get('/commerce/returns', { headers: { 'x-skip-cache': 'true' } }));
   const orderItemIds = (details.sellerOrders || []).flatMap((seller: any) => (seller.items || []).map((item: any) => item.orderItemId));
   const reviews = orderItemIds.length ? unwrap(await api.get('/feedbacks/mine', { params: { orderItemIds: orderItemIds.join(',') }, headers: { 'x-skip-cache': 'true' } }).catch(error => {
     if (error.status === 404) return { result: [] }; // Allows the running backend to be restarted independently.
     throw error;
   })) : [];
-  return { ...raw, ...details, productReviews: Array.isArray(reviews) ? reviews : [], returnRequests: (Array.isArray(requests) ? requests : []).filter((r: any) => r.orderId === raw.orderId) };
+  return { ...raw, ...details, sellerOrders, productReviews: Array.isArray(reviews) ? reviews : [], returnRequests: (Array.isArray(requests) ? requests : []).filter((r: any) => r.orderId === raw.orderId) };
 }
 
 function parseStoredAddresses(me: any): CustomerAddress[] {
@@ -450,6 +465,7 @@ export const customerService = {
         (o: any) =>
           o.id?.toLowerCase().includes(q) ||
           o.externalOrderSn?.toLowerCase().includes(q) ||
+          orderDisplayCode(o.externalOrderSn).toLowerCase().includes(q) ||
           o.customerName?.toLowerCase().includes(q),
       );
     }

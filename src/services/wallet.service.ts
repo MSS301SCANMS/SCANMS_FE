@@ -119,8 +119,8 @@ export const walletService = {
     return mapTopUp(payment);
   },
 
-  async getMyLedger(page = 1): Promise<LedgerHistory> {
-    const wallet = await financeService.wallet('CUSTOMER');
+  async getMyLedger(page = 1, ownerType: OwnerType = 'CUSTOMER'): Promise<LedgerHistory> {
+    const wallet = await financeService.wallet(ownerType);
     const ledger = await financeService.ledger(wallet.walletId, Math.max(0, page - 1));
     const entries = ledger.items.map((e) => ({
       id: e.transactionId,
@@ -132,7 +132,7 @@ export const walletService = {
       createdAt: e.createdAt,
       referenceType: e.type === 'TOP_UP' && e.referenceType !== 'TOPUP_DEMO' ? 'TOPUP_PAYOS' : e.type === 'REFUND' ? 'ORDER_REFUND' : e.type === 'ORDER_PAYMENT' ? 'ORDER_PAYMENT' : e.referenceType,
       referenceId: e.referenceId,
-      transactionType: (e.type || 'PAYOUT_WITHDRAW') as any,
+      transactionType: (ownerType === 'COLLABORATOR' && e.type === 'KOL_COMMISSION' ? 'COMMISSION_APPROVED' : e.type === 'COMMISSION_REVERSAL' ? 'REVERSAL' : e.type || 'PAYOUT_WITHDRAW') as any,
       balanceBucket: (e.direction === 'CREDIT' ? 'AVAILABLE' : 'PENDING') as any,
     }));
     return {

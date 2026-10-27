@@ -30,12 +30,12 @@ const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductM
 const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
 const ShopApplicationPage = lazyRetry(() => import('../pages/merchant/ShopApplicationPage'));
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
+const ChatBoxPage = lazyRetry(() => import('../pages/chat/ChatBoxPage'));
 const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
 const FinanceWalletPage = lazyRetry(() => import('../pages/finance/FinanceWalletPage'));
 const SettlementPage = lazyRetry(() => import('../pages/finance/SettlementPage'));
-const WalletPage = lazyRetry(() => import('../pages/collaborator/WalletPage'));
 const OrderTrackingPage = lazyRetry(() => import('../pages/public/OrderTrackingPage'));
 const CustomerPortalPage = lazyRetry(() => import('../pages/customer/CustomerPortalPage'));
 const ReturnDetailPage = lazyRetry(() => import('../pages/returns/ReturnDetailPage'));
@@ -147,11 +147,12 @@ function AppRoutes() {
                 <Route path="/shop" element={<ShopStorefrontPage />} />
                 <Route path="/shop/:slug" element={<ShopStorefrontPage />} />
                 <Route path="/stores/:slug" element={<ShopStorefrontPage />} />
-                <Route path="/products/:slug" element={<ProductDetailPage />} />
                 <Route path="/tracking" element={<OrderTrackingPage />} />
                 <Route path="/order-tracking" element={<OrderTrackingPage />} />
               </Route>
 
+              {/* Shared product links are public across workspaces. */}
+              <Route path="/products/:slug" element={<ProductDetailPage />} />
               {/* Hosts and viewers share the live room across workspaces. */}
               <Route path="/live/:slug" element={<LiveStreamRoomPage />} />
               <Route path="/live" element={<LiveStreamRoomPage />} />
@@ -218,7 +219,7 @@ function AppRoutes() {
                     <Route path="shop/dashboard" element={<Navigate to="/merchant/dashboard" replace />} />
                     {/* Out of scope shop UI */}
                     <Route path="merchant/kol-hub" element={<Navigate to="/merchant/collaborations" replace />} />
-                    <Route path="merchant/customer-messages" element={<Navigate to="/merchant/orders" replace />} />
+                    <Route path="merchant/customer-messages" element={<ChatBoxPage />} />
                     <Route path="merchant/campaigns" element={<Navigate to="/merchant/promotions" replace />} />
                     <Route path="merchant/messages" element={<Navigate to="/merchant/orders" replace />} />
                     <Route path="merchant/sample-requests" element={<Navigate to="/merchant/promotions" replace />} />
@@ -237,7 +238,7 @@ function AppRoutes() {
                   <Route element={<RouteContent />}>
                     <Route path="collaborator/dashboard" element={<KolDashboardPage />} />
                     <Route path="collaborator/short-videos" element={<ShortVideoStudioPage />} />
-                    <Route path="collaborator/wallet" element={<WalletPage />} />
+                    <Route path="collaborator/wallet" element={<FinanceWalletPage />} />
                     <Route path="collaborator/marketing" element={<MarketingToolkitPage />} />
                     <Route path="collaborator/profile" element={<CreatorProfilePage />} />
                     <Route path="collaborator/links" element={<Navigate to="/collaborator/marketing?tab=links" replace />} />

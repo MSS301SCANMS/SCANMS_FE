@@ -1,4 +1,5 @@
 import api from "./api";
+import { orderDisplayCode } from '../utils/order-display-code';
 
 export type ManagedOrderStatus =
   "PENDING" | "SHIPPING" | "DELIVERED" | "COMPLETED" | "CANCELLED" | "RETURN_REQUESTED" | "DISPUTED" | "RETURNED";
@@ -85,6 +86,8 @@ export interface ExcelImportResult {
 
 export interface StoreOrderItem {
   productId: string;
+  variantId?: string;
+  variantName?: string;
   title: string;
   sku: string;
   imageUrl?: string;
@@ -103,6 +106,7 @@ export interface StoreOrderRecord {
   deliveredAt: string | null;
   status: ManagedOrderStatus;
   returnRequest?: StoreReturnRequest | null;
+  returnRequests?: Array<{ returnRequestId: string; status: string; quantity: number }>;
   customerName: string;
   customerPhone: string;
   customerEmail: string | null;
@@ -125,6 +129,7 @@ export interface StoreOrderRecord {
 
 export interface StoreOrdersResponse {
   items: StoreOrderRecord[];
+  returnRequestsError?: string;
   pagination: {
     total: number;
     page: number;
@@ -148,8 +153,10 @@ function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
     const product = item.productSnapshot || {};
     return {
       productId: item.productId,
+      variantId: item.variantId,
+      variantName: [product.size || item.selectedSize, product.color].filter(Boolean).join(' / '),
       title: product.title || product.name || 'Sản phẩm',
-      sku: product.sku || item.variantId || item.productId,
+      sku: product.sku && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(product.sku) ? product.sku : '',
       imageUrl: product.imageUrl,
       quantity: amount(item.quantity),
       unitPrice: amount(item.unitPrice),
@@ -225,17 +232,47 @@ export const orderService = {
       const detail = await details.get(raw.orderId)!;
       return mapSellerOrder(raw, detail.order, detail.checkout);
     }));
+    const missingProducts = [...new Set(mapped.flatMap(order => order.items.filter(item => !item.sku || !item.imageUrl).map(item => item.productId)))];
+    const catalog = new Map(await Promise.all(missingProducts.map(async id => {
+      try { return [id, unwrapOrderResponse(await api.get(`/public/products/${encodeURIComponent(id)}/landing`))] as const; }
+      catch { return [id, null] as const; }
+    })));
+    mapped = mapped.map(order => ({ ...order, items: order.items.map(item => {
+      const landing = catalog.get(item.productId);
+      const variant = landing?.product?.variants?.find((variant: any) => (variant.id || variant.variantId) === item.variantId);
+      return { ...item, sku: item.sku || variant?.sku || '',
+        imageUrl: item.imageUrl || landing?.product?.imageUrl,
+        variantName: item.variantName || [variant?.size, variant?.color].filter(Boolean).join(' / ') };
+    }) }));
+    // Returns have their own lifecycle; a delivered seller order remains
+    // delivered in the database while its return request is being reviewed.
+    let returnRows: any[] = [];
+    let returnRequestsError: string | undefined;
+    try {
+      const result = unwrapOrderResponse(await api.get('/returns/shop', {
+        headers: { 'x-skip-cache': 'true' },
+      }));
+      if (!Array.isArray(result)) throw new Error('Phản hồi yêu cầu trả hàng không hợp lệ.');
+      returnRows = result;
+    } catch {
+      // A failed returns request must not hide the shop's otherwise available orders.
+      returnRequestsError = 'Chưa tải được yêu cầu trả hàng. Hãy mở mục “Yêu cầu trả hàng” hoặc thử tải lại.';
+    }
+    mapped = mapped.map(order => ({ ...order, returnRequests: returnRows
+      .filter((row: any) => row.sellerOrderId === order.id && (!order.store?.id || row.storeId === order.store.id))
+      .map((row: any) => ({ returnRequestId: row.returnRequestId, status: row.status, quantity: amount(row.quantity) })) }));
     if (params?.status) mapped = mapped.filter(order => order.status === params.status);
     if (params?.paymentStatus) mapped = mapped.filter(order => order.paymentStatus === params.paymentStatus);
     if (params?.search?.trim()) {
       const query = params.search.trim().toLocaleLowerCase();
-      mapped = mapped.filter(order => [order.id, order.externalOrderSn, order.customerName, order.customerPhone,
+      mapped = mapped.filter(order => [order.id, order.externalOrderSn, orderDisplayCode(order.externalOrderSn), order.customerName, order.customerPhone,
         ...order.items.map(item => item.title)].some(value => value?.toLocaleLowerCase().includes(query)));
     }
     const page = Math.max(1, params?.page || 1);
     const limit = Math.max(1, params?.limit || 20);
     return {
       items: mapped.slice((page - 1) * limit, page * limit),
+      returnRequestsError,
       pagination: {
         total: mapped.length,
         page,

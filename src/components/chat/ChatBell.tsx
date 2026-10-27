@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import { getChatSocket } from '../../services/chat-socket.service';
+import { getChatSocket, isChatSocketEnabled } from '../../services/chat-socket.service';
 import type { ChatMessage, Conversation } from '@/types/chat.types';
 
 const unwrap = (response: any) => response?.data?.data ?? response?.data ?? response;
@@ -28,6 +28,9 @@ export function ChatBell({ userId, isShop = false }: { userId: string; isShop?: 
 
   useEffect(() => {
     refresh();
+    const timer = window.setInterval(() => {
+      if (!isChatSocketEnabled() && document.visibilityState === 'visible') void refresh();
+    }, 10000);
     const socket = getChatSocket();
     const onMessage = (message: ChatMessage) => {
       if (message.senderId === userId) return;
@@ -60,6 +63,7 @@ export function ChatBell({ userId, isShop = false }: { userId: string; isShop?: 
     socket.on('messages_read', onRead);
     window.addEventListener('focus', refresh);
     return () => {
+      window.clearInterval(timer);
       socket.off('new_message', onMessage);
       socket.off('messages_read', onRead);
       window.removeEventListener('focus', refresh);

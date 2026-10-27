@@ -1,0 +1,65 @@
+.merchant-orders-table { container-type: inline-size; container-name: merchant-orders; }
+.merchant-orders-scroll { width: 100%; min-width: 0; }
+.merchant-orders-data { min-width: 0; width: 100%; }
+.merchant-orders-data th { font-size: 10px; letter-spacing: .025em; white-space: normal; padding: 13px 10px; }
+.merchant-orders-data td { min-width: 0; padding: 16px 10px; white-space: normal; overflow-wrap: anywhere; }
+.merchant-orders-data td > div { max-width: 100%; }
+.merchant-orders-data td[data-label='Sản phẩm'] [title] { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.merchant-orders-data td[data-label='Khách hàng'] strong { white-space: normal; overflow: visible; }
+.merchant-orders-data td[data-label='Vận đơn'] button { max-width: 100%; font-size: 10px; padding: 5px 6px; }
+.merchant-orders-data td[data-label='Vận đơn'] button > span:first-child { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.merchant-orders-data td[data-label='Vận đơn'] svg { flex-shrink: 0; }
+.merchant-orders-data td[data-label='Vận đơn'] .truncate { white-space: normal; overflow: visible; }
+.merchant-orders-data td[data-label='Trạng thái'] > span { white-space: normal; padding: 5px 8px; font-size: 11px; }
+.merchant-orders-data th:last-child { text-align: right; padding: 13px 16px 13px 10px; }
+.merchant-orders-data td[data-label='Thao tác'] { padding: 16px 16px 16px 10px; }
+.merchant-orders-data td[data-label='Thao tác'] > div { justify-content: flex-end; gap: 6px; }
+.merchant-orders-data td[data-label='Thao tác'] > div > button { min-height: 31px; }
+.merchant-orders-data td[data-label='Thao tác'] .merchant-order-actions-menu { width: 240px; max-width: calc(100vw - 40px); }
+@container merchant-orders (max-width: 1099px) {
+  .merchant-orders-data, .merchant-orders-data tbody { display: block; }
+  .merchant-orders-data colgroup, .merchant-orders-data thead { display: none; }
+  .merchant-orders-data tbody { padding: 12px; background: #FAF8F5; }
+  .merchant-orders-data tbody > tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 18px; margin-bottom: 12px; padding: 18px; border: 1px solid #EAE4D7; border-radius: 14px; background: #fff; }
+  .merchant-orders-data tbody > tr:last-child { margin-bottom: 0; }
+  .merchant-orders-data td { display: block; padding: 0; border: 0; }
+  .merchant-orders-data td::before { content: attr(data-label); display: block; margin-bottom: 7px; color: #91816B; font-size: 10px; font-weight: 500; }
+  .merchant-orders-data td[data-label='Sản phẩm'] { grid-column: 1 / -1; grid-row: 1; padding-bottom: 14px; border-bottom: 1px solid #F0EAE1; }
+  .merchant-orders-data td[data-label='Sản phẩm'] > div { max-width: none; }
+  .merchant-orders-data td[data-label='Sản phẩm']::before { display: none; }
+  .merchant-orders-data td[data-label='Thao tác'] { grid-column: 1 / -1; padding-top: 13px; border-top: 1px solid #F0EAE1; }
+  .merchant-orders-data td[data-label='Thao tác']::before { display: none; }
+  .merchant-orders-data td[data-label='Thao tác'] > div { justify-content: flex-end; }
+}
+@container merchant-orders (max-width: 599px) {
+  .merchant-orders-data tbody { padding: 8px; }
+  .merchant-orders-data tbody > tr { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; gap: 14px 12px; }
+}
+.merchant-orders-toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px; border: 1px solid #EAE4D7; border-radius: 16px; background: #fff; }
+.merchant-orders-toolbar-group { display: contents; }
+.merchant-orders-toolbar .merchant-orders-toolbar-group > button { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #EAE4D7; border-radius: 11px; background: #FFFEFC; color: #62533F; box-shadow: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+.merchant-orders-toolbar .merchant-orders-toolbar-group > button:hover { background: #FBF8F2; border-color: #D9BB8B; }
+.merchant-orders-toolbar .merchant-orders-toolbar-group > button[aria-pressed='true'] { background: #FBF5EB; border-color: #D9BB8B; color: #795A2D; }
+@media (max-width: 640px) { .merchant-orders-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+.merchant-orders-page { color: #39352F; }
+.merchant-orders-page .merchant-orders-metrics > div { border-color: #EDE8DF; background: #fff; box-shadow: 0 1px 2px rgb(80 65 40 / 3%); }
+.merchant-orders-page .merchant-orders-metrics > div > div:first-child > span { color: #827869; font-weight: 500; }
+.merchant-orders-page .merchant-orders-metrics strong { color: #39352F; font-weight: 650; }
+.merchant-orders-page .merchant-orders-metrics > div > div:first-child > div { background: #FFFCF6; border-color: #F0E5D2; color: #B79359; }
+.merchant-orders-page .merchant-orders-toolbar { border-color: #EDE8DF; box-shadow: none; }
+.merchant-orders-page .merchant-orders-toolbar .merchant-orders-toolbar-group > button { background: #fff; border-color: #EEE8DD; color: #817565; font-weight: 500; }
+.merchant-orders-page .merchant-orders-toolbar .merchant-orders-toolbar-group > button[aria-pressed='true'] { background: #FFFCF5; border-color: #E9D7B8; color: #A17A3D; }
+.merchant-orders-page .merchant-orders-table { border-color: #EDE8DF; box-shadow: none; }
+.merchant-orders-page .merchant-orders-table-heading { background: #fff; border-color: #F0EBE3; }
+.merchant-orders-page .merchant-orders-table-heading h2 { color: #524A3D; font-weight: 600; }
+.merchant-orders-page .merchant-orders-data thead tr { background: #FDFCF9; border-color: #EEE9E1; color: #918574; }
+.merchant-orders-page .merchant-orders-data tbody > tr { background: #fff; border-color: #F1EDE6; }
+.merchant-orders-page .merchant-orders-data tbody > tr:hover { background: #FFFDFA; }
+.merchant-orders-page .merchant-orders-data td strong { color: #484137; font-weight: 600; }
+.merchant-orders-page .merchant-orders-data td[data-label='Tổng tiền'] strong { font-family: inherit; font-weight: 600; }
+.merchant-orders-page .merchant-orders-data td[data-label='Thao tác'] > div > button { background: #fff; border: 1px solid #EADFCF; color: #8F744A; box-shadow: none; font-weight: 500; }
+.merchant-orders-page .merchant-orders-data td[data-label='Thao tác'] > div > button:hover { background: #FFF9EF; }
+.merchant-orders-page .merchant-orders-filters { border-color: #EDE8DF; }
+.merchant-orders-page .merchant-orders-filters button { background: #fff; border: 1px solid transparent; color: #918574; font-weight: 500; box-shadow: none; white-space: normal; }
+.merchant-orders-page .merchant-orders-filters button[aria-pressed='true'] { border-color: #EAD8B8; background: #FFFCF5; color: #AA854C; font-weight: 600; }
+.merchant-orders-page .merchant-orders-filters button:hover { background: #FFFDFA; color: #9B7439; }

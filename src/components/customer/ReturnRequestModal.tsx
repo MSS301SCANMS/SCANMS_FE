@@ -4,6 +4,7 @@ import { customerService, type CustomerOrder, type CustomerReturnRequest } from 
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
 import { Select } from '../ui/Select';
+import { orderDisplayCode } from '../../utils/order-display-code';
 
 interface Props {
   order: CustomerOrder;
@@ -101,12 +102,16 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
   return (
     <div className="fixed inset-0 z-[70] bg-[#231D15]/60 backdrop-blur-sm flex items-center justify-center p-4">
       <form onSubmit={submit} className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white border border-[#EAE4D7] shadow-2xl p-6 text-left">
-        <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAE4D7]">
+        <div className="sticky -top-6 z-20 -mx-6 -mt-6 flex items-start justify-between gap-4 border-b border-[#EAE4D7] bg-white px-6 pb-4 pt-6">
           <div>
             <h2 className="text-lg font-black text-[#1A1612]">Yêu cầu trả hàng / hoàn tiền</h2>
-            <p className="text-xs text-[#7D715E] mt-1">Đơn #{order.externalOrderSn} · còn khoảng {daysLeft} ngày trong thời hạn 14 ngày</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-[#91816B]">Mã đơn hàng</span>
+              <span className="rounded-md border border-[#EAE4D7] bg-[#FFFCF7] px-2 py-1 font-medium tracking-wide text-[#795A2D]">{orderDisplayCode(order.externalOrderSn)}</span>
+            </div>
+            <p className="mb-0 mt-2 text-[11px] leading-5 text-[#91816B]">Còn khoảng {daysLeft} ngày để gửi yêu cầu trả hàng.</p>
           </div>
-          <button type="button" onClick={close} disabled={submitting} className="p-2 rounded-full bg-[#F3EFE6] text-[#7D715E]" aria-label="Đóng"><X className="w-4 h-4" /></button>
+          <button type="button" onClick={close} disabled={submitting} className="shrink-0 p-2 rounded-full bg-[#F3EFE6] text-[#7D715E]" aria-label="Đóng"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="mt-4 rounded-2xl bg-[#FBF5EB] border border-[#EEDFC6] p-3 flex gap-2 text-xs text-[#7D715E]">

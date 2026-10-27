@@ -9,7 +9,6 @@ import {
   Trash2,
   Upload,
   X,
-  Search,
   Truck,
   CheckCircle2,
   Eye,
@@ -22,7 +21,6 @@ import {
   Phone,
   Users,
   Printer,
-  ChevronDown,
   MoreHorizontal,
   Info,
   Copy,
@@ -57,10 +55,12 @@ import { GhnTrackingTimeline } from '../../components/shipping/GhnTrackingTimeli
 import { ShippingSimulationControls } from '../../components/shipping/ShippingSimulationControls';
 import { CustomSelect } from "../../components/ui/CustomSelect";
 import { returnStatusLabel } from '../../utils/return-status.utils';
-import { isGeneratedGhnTestTrackingCode } from '../../utils/ghn-tracking-code';
+import { isGeneratedGhnTestTrackingCode, trackingDisplayCode } from '../../utils/ghn-tracking-code';
+import { orderDisplayCode } from '../../utils/order-display-code';
 import { StatCard } from '../../components/ui/StatCard';
 import ShopSampleManagementTab from './ShopSampleManagementTab';
 import './ShippingDispatchModal.css';
+import './MerchantOrdersTable.css';
 
 export type OrderSearchField = "ALL" | "ORDER_SN" | "CUSTOMER_NAME" | "PHONE" | "TRACKING" | "PRODUCT";
 
@@ -189,15 +189,17 @@ export default function OrdersManagementPage({
   // Real store orders list state
   const [orders, setOrders] = useState<StoreOrderRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState('');
   const [ordersTotal, setOrdersTotal] = useState(0);
   const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [ordersPage, setOrdersPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [orderSearchQuery, setOrderSearchQuery] = useState("");
-  const [searchField, setSearchField] = useState<OrderSearchField>("ALL");
+  const [orderSearchQuery] = useState("");
+  const [searchField] = useState<OrderSearchField>("ALL");
   const [ordersRefreshCount, setOrdersRefreshCount] = useState(0);
   const [activeDropdownOrderId, setActiveDropdownOrderId] = useState<string | null>(null);
   const [copiedTrackingId, setCopiedTrackingId] = useState<string | null>(null);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -218,23 +220,6 @@ export default function OrdersManagementPage({
     setTimeout(() => setCopiedTrackingId(null), 2000);
   };
 
-  const searchPlaceholder = useMemo(() => {
-    switch (searchField) {
-      case "ORDER_SN":
-        return "Nhập mã đơn (#DH-...)...";
-      case "CUSTOMER_NAME":
-        return "Nhập tên khách hàng...";
-      case "PHONE":
-        return "Nhập số điện thoại nhận hàng...";
-      case "TRACKING":
-        return "Nhập mã vận đơn (GHN-...)...";
-      case "PRODUCT":
-        return "Nhập tên sản phẩm...";
-      default:
-        return "Tìm mã đơn, tên, SĐT, vận đơn...";
-    }
-  }, [searchField]);
-
   const displayedOrders = useMemo(() => {
     if (!orderSearchQuery.trim() || searchField === "ALL") return orders;
     const q = orderSearchQuery.trim().toLowerCase();
@@ -243,6 +228,7 @@ export default function OrdersManagementPage({
         return orders.filter(
           (o) =>
             o.externalOrderSn?.toLowerCase().includes(q) ||
+            orderDisplayCode(o.externalOrderSn).toLowerCase().includes(q) ||
             o.id.toLowerCase().includes(q)
         );
       case "CUSTOMER_NAME":
@@ -352,9 +338,11 @@ export default function OrdersManagementPage({
           setOrders(res.items || []);
           setOrdersTotal(res.pagination?.total || 0);
           setOrdersTotalPages(res.pagination?.totalPages || 1);
+          setOrdersError(res.returnRequestsError || '');
         }
       })
       .catch((err) => {
+        if (active) setOrdersError(err?.message || 'Chưa tải được đơn hàng và yêu cầu trả hàng.');
         console.error("Lỗi tải danh sách đơn hàng:", err);
       })
       .finally(() => {
@@ -440,7 +428,7 @@ export default function OrdersManagementPage({
       setShippingCarrier("GHN");
       setShippingTrackingNumber(trackingNumber);
       setActionSuccessMsg(targetEnvironment === "TEST"
-        ? `Đã tạo vận đơn mô phỏng ${trackingNumber}. Mở Tra cứu để bắt đầu và xác nhận giao thử thành công.`
+        ? `Đã tạo vận đơn thử nghiệm ${trackingDisplayCode(trackingNumber)}. Chọn “Tra cứu” để cập nhật tiến trình giao hàng.`
         : targetEnvironment === "LIVE"
           ? `Đã tạo vận đơn GHN thật thành công. Mã vận đơn: ${trackingNumber}`
           : `Đã lưu vận đơn GHN: ${trackingNumber}. Mở hành trình để kiểm tra môi trường và tiến độ.`);
@@ -518,10 +506,10 @@ export default function OrdersManagementPage({
         trackingNumber: shippingTrackingNumber.trim(),
         note: shippingNote.trim() || undefined,
       });
-      toast.success(`Đã giao bưu cục đơn #${shippingModalOrder.externalOrderSn}`, {
+      toast.success(`Đã giao bưu cục đơn ${orderDisplayCode(shippingModalOrder.externalOrderSn)}`, {
         description: `Mã vận đơn ${shippingTrackingNumber.trim()} (${shippingCarrier}) đã được lưu và chuyển sang Đang giao.`,
       });
-      setActionSuccessMsg(`Đã cập nhật đơn #${shippingModalOrder.externalOrderSn} sang Đang giao hàng!`);
+      setActionSuccessMsg(`Đã cập nhật đơn ${orderDisplayCode(shippingModalOrder.externalOrderSn)} sang Đang giao hàng!`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
       setShippingModalOrder(null);
       setOrdersRefreshCount((c) => c + 1);
@@ -542,9 +530,9 @@ export default function OrdersManagementPage({
         status: "DELIVERED",
       });
       toast.success("Xác nhận giao hàng thành công!", {
-        description: `Đơn #${confirmDeliveredOrder.externalOrderSn} đã hoàn tất và bắt đầu chu kỳ đối soát hoa hồng.`,
+        description: `Đơn ${orderDisplayCode(confirmDeliveredOrder.externalOrderSn)} đã hoàn tất và bắt đầu chu kỳ đối soát hoa hồng.`,
       });
-      setActionSuccessMsg(`Đã xác nhận giao thành công đơn #${confirmDeliveredOrder.externalOrderSn}!`);
+      setActionSuccessMsg(`Đã xác nhận giao thành công đơn ${orderDisplayCode(confirmDeliveredOrder.externalOrderSn)}!`);
       setTimeout(() => setActionSuccessMsg(null), 4000);
       setConfirmDeliveredOrder(null);
       setOrdersRefreshCount((c) => c + 1);
@@ -571,7 +559,7 @@ export default function OrdersManagementPage({
     try {
       await orderService.shopCancelOrder(cancelModalOrder.id, finalReason);
       setActionSuccessMsg(
-        `Đã hủy đơn #${cancelModalOrder.externalOrderSn} — Kho hàng đã được hoàn lại, hoa hồng KOL đã thu hồi.`
+        `Đã hủy đơn ${orderDisplayCode(cancelModalOrder.externalOrderSn)} — Kho hàng đã được hoàn lại, hoa hồng KOL đã thu hồi.`
       );
       setTimeout(() => setActionSuccessMsg(null), 6000);
       setCancelModalOrder(null);
@@ -945,8 +933,8 @@ export default function OrdersManagementPage({
     <div className="merchant-orders-page space-y-4 text-ink text-left pb-6">
       {!initialAction && (
         <>
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#EAE4D7] bg-white p-2 shadow-sm">
-            <div className="inline-flex max-w-full items-center gap-1 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] p-1" role="group" aria-label="Chuyển chế độ đơn hàng">
+          <div className="merchant-orders-toolbar">
+            <div className="merchant-orders-toolbar-group" role="group" aria-label="Chuyển chế độ đơn hàng">
               <button
                 type="button"
                 onClick={() => setActiveOrderView("COMMERCIAL")}
@@ -974,8 +962,7 @@ export default function OrdersManagementPage({
                 <span>Hàng mẫu KOL</span>
               </button>
             </div>
-            {activeOrderView === "COMMERCIAL" && (
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <div className="merchant-orders-toolbar-group">
                 <button
                   type="button"
                   onClick={() => open("excel")}
@@ -992,16 +979,8 @@ export default function OrdersManagementPage({
                   <Plus className="h-3.5 w-3.5 shrink-0 text-[#B88E4F]" />
                   <span>Tạo đơn thủ công</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setOrdersRefreshCount((c) => c + 1)}
-                  className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#EAE4D7] bg-white px-3 text-xs font-semibold text-[#1A1612] transition hover:border-[#C59B58] hover:bg-[#FBF5EB] cursor-pointer"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 shrink-0 text-[#B88E4F] ${ordersLoading ? "animate-spin" : ""}`} />
-                  <span>Làm mới</span>
-                </button>
+
               </div>
-            )}
           </div>
 
           {activeOrderView === "SAMPLES" ? (
@@ -1041,10 +1020,10 @@ export default function OrdersManagementPage({
           </div>
 
           {/* Filter & Search Bar */}
-          <div className="p-3 bg-white border border-[#EAE4D7] rounded-2xl flex flex-col gap-3">
+          <div className="merchant-orders-filters p-3 bg-white border border-[#EAE4D7] rounded-2xl flex flex-col gap-3">
             {/* Status Tabs - Modern Segmented Control */}
-            <div className="w-full overflow-x-auto pb-1" role="group" aria-label="Lọc đơn hàng theo trạng thái">
-              <div className="grid min-w-[980px] grid-cols-7 gap-1.5">
+            <div className="w-full" role="group" aria-label="Lọc đơn hàng theo trạng thái">
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-7">
               {[
                 { id: "ALL", label: "Tất cả" },
                 { id: "UNPAID", label: "Chờ thanh toán" },
@@ -1079,71 +1058,6 @@ export default function OrdersManagementPage({
               </div>
             </div>
 
-            {/* Search Input with Criteria Dropdown */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-[#EAE4D7]/70">
-              <div className="flex items-center flex-1 rounded-xl border border-[#EAE4D7] bg-white shadow-2xs focus-within:border-[#C59B58] focus-within:ring-1 focus-within:ring-[#C59B58]/20 transition overflow-hidden">
-                {/* Search Criteria Dropdown */}
-                <div className="relative shrink-0 border-r border-[#EAE4D7] bg-[#FAF8F5]">
-                  <select
-                    value={searchField}
-                    onChange={(e) => {
-                      setSearchField(e.target.value as OrderSearchField);
-                      setOrdersPage(1);
-                    }}
-                    aria-label="Chọn tiêu chí tìm kiếm"
-                    className="h-9 pl-3 pr-7 text-xs font-semibold text-[#1A1612] bg-transparent outline-none cursor-pointer appearance-none"
-                  >
-                    <option value="ALL">Tất cả tiêu chí</option>
-                    <option value="ORDER_SN">Mã đơn hàng</option>
-                    <option value="CUSTOMER_NAME">Tên khách hàng</option>
-                    <option value="PHONE">Số điện thoại</option>
-                    <option value="TRACKING">Mã vận đơn</option>
-                    <option value="PRODUCT">Tên sản phẩm</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-[#7D715E] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-
-                {/* Text Input */}
-                <div className="relative flex-1 flex items-center">
-                  <Search className="w-3.5 h-3.5 text-[#7D715E] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    aria-label="Tìm kiếm đơn hàng"
-                    placeholder={searchPlaceholder}
-                    value={orderSearchQuery}
-                    onChange={(e) => {
-                      setOrderSearchQuery(e.target.value);
-                      setOrdersPage(1);
-                    }}
-                    className="w-full h-9 pl-9 pr-8 text-xs bg-transparent text-[#1A1612] placeholder:text-[#7D715E]/60 outline-none"
-                  />
-                  {orderSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOrderSearchQuery("");
-                        setOrdersPage(1);
-                      }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#EAE4D7] text-[#7D715E] hover:text-[#1A1612] hover:bg-[#D9D1C1] text-[10px] font-bold grid place-items-center cursor-pointer transition"
-                      title="Xóa tìm kiếm"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Refresh button */}
-              <button
-                type="button"
-                onClick={() => setOrdersRefreshCount((c) => c + 1)}
-                title="Tải lại danh sách"
-                className="h-9 px-3 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] hover:bg-[#FBF5EB] hover:border-[#B88E4F] text-[#7D715E] hover:text-[#B88E4F] transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 shrink-0 text-xs font-semibold"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${ordersLoading ? "animate-spin text-[#B88E4F]" : ""}`} />
-                <span className="hidden sm:inline">Làm mới</span>
-              </button>
-            </div>
           </div>
 
           {/* Orders Table */}
@@ -1158,6 +1072,7 @@ export default function OrdersManagementPage({
                 </span>
               </div>
             </div>
+            {ordersError && <div role="alert" className="m-3 rounded-xl border border-red-200 bg-white p-3 text-sm text-red-700">{ordersError}</div>}
             {ordersLoading ? (
               <div className="p-12 text-center text-xs font-semibold text-[#7D715E] flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin text-[#B88E4F]" />
@@ -1178,28 +1093,26 @@ export default function OrdersManagementPage({
                 </div>
               </div>
             ) : (
-              <div className="merchant-orders-scroll overflow-x-auto min-h-[340px]" tabIndex={0} role="region" aria-label="Bảng đơn hàng, có thể cuộn ngang">
-                <table className="merchant-orders-data min-w-[1320px] w-full table-fixed border-collapse text-left text-xs">
+              <div className="merchant-orders-scroll min-h-[340px]" role="region" aria-label="Danh sách đơn hàng">
+                <table className="merchant-orders-data w-full table-fixed border-collapse text-left text-xs">
                   <colgroup>
-                    <col style={{ width: '13%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '16%' }} />
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '11%' }} />
                     <col style={{ width: '12%' }} />
-                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '24%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '12%' }} />
                     <col style={{ width: '17%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '16%' }} />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-[#EAE4D7] bg-[#FFFCF7] text-xs font-bold uppercase tracking-wide text-[#7D715E] select-none">
-                      <th className="px-3 py-3.5 font-bold whitespace-nowrap">Mã đơn &amp; Ngày tạo</th>
                       <th className="px-3 py-3.5 font-bold whitespace-nowrap">Khách hàng</th>
                       <th className="px-3 py-3.5 font-bold">Sản phẩm</th>
                       <th className="px-3 py-3.5 font-bold whitespace-nowrap">Tổng tiền</th>
                       <th className="px-3 py-3.5 font-bold whitespace-nowrap">Trạng thái</th>
                       <th className="px-3 py-3.5 font-bold whitespace-nowrap">Vận đơn</th>
                       <th className="px-3 py-3.5 font-bold whitespace-nowrap">Hoa hồng CTV</th>
-                      <th className="px-3 py-3.5 text-right font-bold whitespace-nowrap">Thao tác</th>
+                      <th className="pl-3 pr-8 py-3.5 text-right font-bold whitespace-nowrap">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EAE4D7]/70 bg-white">
@@ -1274,7 +1187,14 @@ export default function OrdersManagementPage({
                       };
 
                       const badgeStatus = order.status === "PENDING" && order.paymentStatus !== "PAID" ? "UNPAID" : order.status;
-                      const badge = statusBadgeConfig[badgeStatus] || {
+                      const activeReturn = order.returnRequests?.find(request => !['CANCELLED', 'REJECTED', 'REFUNDED'].includes(request.status));
+                      const refundedReturn = order.returnRequests?.find(request => request.status === 'REFUNDED');
+                      const returnLabels: Record<string, string> = { REQUESTED: 'Chờ xử lý trả hàng', APPROVED: 'Đã duyệt trả hàng', RETURNING: 'Khách đang trả hàng', RECEIVED: 'Đã nhận hàng trả', REFUND_PENDING: 'Chờ hoàn tiền', REFUNDED: 'Đã hoàn tiền' };
+                      const currentReturn = activeReturn || refundedReturn;
+                      const badge = currentReturn ? {
+                        ...statusBadgeConfig.RETURN_REQUESTED,
+                        label: returnLabels[currentReturn.status] || 'Đang xử lý trả hàng',
+                      } : statusBadgeConfig[badgeStatus] || {
                         label: order.status,
                         bg: "bg-gray-50",
                         text: "text-gray-700",
@@ -1285,25 +1205,7 @@ export default function OrdersManagementPage({
                       return (
                         <tr key={order.id} className="group even:bg-[#FFFEFC] hover:bg-[#FBF5EB]/55 transition-colors duration-150">
                           {/* Mã đơn */}
-                          <td data-label="Mã đơn & Ngày tạo" className="py-3 px-3 align-middle">
-                            <div className="flex min-w-0 flex-col items-start gap-1">
-                              <span title={order.externalOrderSn} className="max-w-full truncate font-mono font-bold text-xs text-[#1A1612] bg-[#FAF8F5] px-2 py-0.5 rounded-lg border border-[#EAE4D7] shadow-2xs group-hover:border-[#C59B58]/40 transition-colors inline-block tracking-tight">
-                                #{order.externalOrderSn}
-                              </span>
-                              <span className="flex items-center gap-1 text-[11px] text-[#7D715E] whitespace-nowrap">
-                                <Clock className="w-3 h-3 text-[#B88E4F] shrink-0" />
-                                <span>
-                                  {new Date(order.createdAt).toLocaleDateString("vi-VN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                  })}
-                                </span>
-                              </span>
-                            </div>
-                          </td>
+
 
                           {/* Khách hàng (Tinh gọn, không phơi bày địa chỉ) */}
                           <td data-label="Khách hàng" className="py-3 px-3 align-middle">
@@ -1396,7 +1298,7 @@ export default function OrdersManagementPage({
                                   title="Sao chép mã vận đơn"
                                   className="group/copy inline-flex items-center gap-1 font-mono text-xs font-bold text-[#1A1612] bg-[#FAF8F5] hover:bg-[#FBF5EB] px-2 py-0.5 rounded border border-[#EAE4D7] hover:border-[#C59B58] transition cursor-pointer"
                                 >
-                                  <span>{order.trackingNumber}</span>
+                                  <span>{trackingDisplayCode(order.trackingNumber)}</span>
                                   {copiedTrackingId === order.trackingNumber ? (
                                     <Check className="w-3 h-3 text-[#059669]" />
                                   ) : (
@@ -1405,7 +1307,7 @@ export default function OrdersManagementPage({
                                 </button>
                                 <span className="flex items-center gap-1 text-[11px] text-[#7D715E] font-medium">
                                   <Truck className="w-3 h-3 shrink-0 text-[#B88E4F]" />
-                                  <span className="truncate max-w-[120px]">{order.carrierName || "Bưu cục"}</span>
+                                  <span className="truncate max-w-[160px]">{order.carrierName === 'LOCAL_SIMULATION' ? 'Giao hàng thử nghiệm' : order.carrierName || "Bưu cục"}</span>
                                 </span>
                               </div>
                             ) : (
@@ -1438,7 +1340,7 @@ export default function OrdersManagementPage({
                           </td>
 
                           {/* Thao tác (1 CTA chính + Mắt chi tiết + Menu ... phụ) */}
-                          <td data-label="Thao tác" className="py-3 px-3 align-middle text-right">
+                          <td data-label="Thao tác" className="py-3 pl-3 pr-8 align-middle text-right">
                             <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
                               {/* 1. Nút Thao tác chính theo chu kỳ đơn hàng */}
                               {order.status === "PENDING" && order.paymentStatus === "PAID" && (
@@ -1480,10 +1382,11 @@ export default function OrdersManagementPage({
                                 </button>
                               )}
 
-                              {(order.status === "RETURN_REQUESTED" || order.status === "DISPUTED") && (
+                              {(currentReturn || order.status === "RETURN_REQUESTED" || order.status === "DISPUTED") && (
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    if (currentReturn) { navigate(`/merchant/returns?requestId=${encodeURIComponent(currentReturn.returnRequestId)}`); return; }
                                     setSelectedOrderDetails(order);
                                     setReturnResponse("");
                                     setReturnError("");
@@ -1520,6 +1423,8 @@ export default function OrdersManagementPage({
                                   }}
                                   className="w-7 h-7 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] hover:bg-[#FBF5EB] text-[#7D715E] hover:text-[#1A1612] hover:border-[#C59B58] transition grid place-items-center shadow-2xs cursor-pointer active:scale-95 shrink-0"
                                   title="Thao tác khác"
+                                  aria-label={`Thao tác đơn ${orderDisplayCode(order.externalOrderSn)}`}
+                                  aria-expanded={activeDropdownOrderId === order.id}
                                 >
                                   <MoreHorizontal className="w-3.5 h-3.5" />
                                 </button>
@@ -1530,8 +1435,20 @@ export default function OrdersManagementPage({
                                       orderIdx >= displayedOrders.length - 2 && displayedOrders.length > 2
                                         ? "bottom-full mb-1"
                                         : "top-full mt-1"
-                                    } w-44 rounded-xl border border-[#EAE4D7] bg-white shadow-lg py-1 z-30 animate-in fade-in zoom-in-95 text-left`}
+                                    } merchant-order-actions-menu w-60 rounded-2xl border border-[#EAE4D7] bg-white shadow-lg p-1.5 z-30 text-left`}
                                   >
+                                    <div className="mb-1 border-b border-[#F0EAE1] px-2.5 pb-3 pt-2">
+                                      <span className="mb-1.5 block text-[10px] font-medium text-[#91816B]">Mã đơn hàng</span>
+                                      <button type="button" className="merchant-order-code-copy" aria-label="Sao chép mã đơn hàng" onClick={async () => {
+                                        try { await navigator.clipboard.writeText(orderDisplayCode(order.externalOrderSn)); setCopiedOrderId(order.id); }
+                                        catch { toast.error('Chưa sao chép được mã đơn. Vui lòng thử lại.'); }
+                                      }}><span>{orderDisplayCode(order.externalOrderSn)}</span>{copiedOrderId === order.id ? <Check size={14} /> : <Copy size={14} />}</button>
+                                      {copiedOrderId === order.id && <span role="status" className="mt-1 block text-[10px] text-[#278052]">Đã sao chép</span>}
+                                      <div className="mt-3 flex items-start gap-2 text-[#7D715E]">
+                                        <Clock size={13} className="mt-0.5 shrink-0 text-[#B88E4F]" />
+                                        <div><span className="block text-[10px]">Ngày tạo</span><time dateTime={order.createdAt} className="mt-0.5 block text-[11px] font-medium text-[#62533F]">{new Date(order.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</time></div>
+                                      </div>
+                                    </div>
                                     {/* In phiếu A6 */}
                                     <button
                                       type="button"
@@ -1654,7 +1571,7 @@ export default function OrdersManagementPage({
                     Tạo & cập nhật vận đơn
                   </h3>
                   <p className="shipping-dispatch-order">
-                    Đơn <span>#{shippingModalOrder.externalOrderSn}</span>
+                    Đơn <span>{orderDisplayCode(shippingModalOrder.externalOrderSn)}</span>
                   </p>
                 </div>
               </div>
@@ -1698,7 +1615,7 @@ export default function OrdersManagementPage({
                     )}
                     <span className="min-w-0">
                       <span className="shipping-dispatch-choice-title">
-                        {creatingGhnEnvironment === "TEST" ? "Đang tạo vận đơn mô phỏng…" : "Giao hàng mô phỏng"}
+                        {creatingGhnEnvironment === "TEST" ? "Đang tạo vận đơn thử nghiệm…" : "Giao hàng thử nghiệm"}
                       </span>
                       <span className="shipping-dispatch-choice-description">
                         Mô phỏng nội bộ · Không gọi GHN
@@ -1936,7 +1853,7 @@ export default function OrdersManagementPage({
                   Xác nhận giao hàng thành công
                 </h3>
                 <p className="text-xs text-[#7D715E] mt-1 m-0">
-                  Đơn hàng <strong className="text-[#1A1612]">#{confirmDeliveredOrder.externalOrderSn}</strong>
+                  Đơn hàng <strong className="text-[#1A1612]">{orderDisplayCode(confirmDeliveredOrder.externalOrderSn)}</strong>
                 </p>
               </div>
               <button
@@ -1997,7 +1914,7 @@ export default function OrdersManagementPage({
                   <X className="w-4 h-4" /> Hủy Đơn Hàng
                 </h3>
                 <p className="text-xs text-[#7D715E] mt-0.5 m-0">
-                  Đơn <strong className="font-mono text-[#1A1612]">#{cancelModalOrder.externalOrderSn}</strong>
+                  Đơn <strong className="font-mono text-[#1A1612]">{orderDisplayCode(cancelModalOrder.externalOrderSn)}</strong>
                   {" — "}{cancelModalOrder.customerName}
                 </p>
               </div>
@@ -2090,7 +2007,7 @@ export default function OrdersManagementPage({
                 <h3 id="order-detail-title" className="text-base font-bold text-[#1A1612] m-0">
                   Chi tiết đơn hàng
                 </h3>
-                <span className="font-mono text-xs font-bold text-[#B88E4F]">#{selectedOrderDetails.externalOrderSn}</span>
+                <span className="font-mono text-xs font-bold text-[#B88E4F]">{orderDisplayCode(selectedOrderDetails.externalOrderSn)}</span>
                 <p className="text-xs text-[#7D715E] mt-0.5 m-0">
                   Ngày đặt: {new Date(selectedOrderDetails.createdAt).toLocaleString("vi-VN")}
                 </p>
@@ -2139,7 +2056,8 @@ export default function OrdersManagementPage({
                           </strong>
                           <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-[#7D715E]">
                             <span>{item.quantity} × {item.unitPrice.toLocaleString("vi-VN")} ₫</span>
-                            {item.sku && <span className="text-[10px] font-mono bg-[#F3EFE6] px-1 py-0.2 rounded">SKU: {item.sku}</span>}
+                            {item.variantName && <span className="rounded-md border border-[#EAE4D7] bg-white px-2 py-1 text-[10px]">{item.variantName}</span>}
+                            {item.sku && <span className="rounded-md border border-[#EAE4D7] bg-[#FAF8F5] px-2 py-1 text-[10px] font-medium">SKU: {item.sku}</span>}
                           </div>
                         </div>
                       </div>
@@ -2871,25 +2789,9 @@ export default function OrdersManagementPage({
       {/* ══ GHN TRACKING TIMELINE MODAL ══ */}
       {trackingGhnDetail && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#231D15]/40 backdrop-blur-xs p-3 sm:p-5">
-          <div role="dialog" aria-modal="true" aria-labelledby="ghn-tracking-title" className="ghn-tracking-dialog bg-white rounded-[20px] shadow-2xl border border-[#EAE4D7] max-w-[540px] max-h-[92dvh] overflow-hidden w-full flex flex-col animate-in fade-in zoom-in-95 duration-150 text-left">
-            <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-[#EAE4D7] bg-white px-5 py-4">
-              <div>
-                <h3 id="ghn-tracking-title" className="text-base font-bold text-[#1A1612] m-0">
-                  Theo dõi bưu kiện
-                </h3>
-              </div>
-              <button
-                type="button"
-                aria-label="Đóng hành trình"
-                onClick={() => setTrackingGhnDetail(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FAF8F5] text-[#7D715E] hover:bg-[#F3EFE6] focus-visible:outline-2 focus-visible:outline-[#B88E4F]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+          <div role="dialog" aria-modal="true" aria-label="Theo dõi bưu kiện" className="ghn-tracking-dialog bg-white rounded-[20px] shadow-2xl border border-[#EAE4D7] max-w-[540px] max-h-[92dvh] overflow-hidden w-full flex flex-col animate-in fade-in zoom-in-95 duration-150 text-left">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-            <GhnTrackingTimeline key={String(trackingGhnDetail.isSimulation) + trackingGhnDetail.orderCode} orderCode={trackingGhnDetail.orderCode} environment={trackingGhnDetail.environment} />
+            <GhnTrackingTimeline key={String(trackingGhnDetail.isSimulation) + trackingGhnDetail.orderCode} orderCode={trackingGhnDetail.orderCode} environment={trackingGhnDetail.environment} onClose={() => setTrackingGhnDetail(null)} />
             {trackingGhnOrderId && <ShippingSimulationControls key={trackingGhnOrderId}
               orderId={trackingGhnOrderId} tracking={trackingGhnDetail} onStarted={setTrackingGhnDetail}
               onCompleted={() => {
@@ -2900,26 +2802,7 @@ export default function OrdersManagementPage({
               }} />}
             </div>
 
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#EAE4D7] bg-[#FAF8F5] px-5 py-3">
-              {trackingGhnDetail.environment !== 'TEST' && trackingGhnDetail.trackingUrl ? (
-                <a
-                  href={trackingGhnDetail.trackingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-[#8C6B32] hover:underline flex items-center gap-1 font-semibold"
-                >
-                  <span>Tra cứu trực tiếp trên GHN.VN</span>
-                  <span className="text-xs">↗</span>
-                </a>
-              ) : <span />}
-              <button
-                type="button"
-                onClick={() => setTrackingGhnDetail(null)}
-                className="px-4 py-2 rounded-xl bg-[#C59B58] text-[#1A1612] font-bold text-xs hover:bg-[#B88E4F]"
-              >
-                Đóng
-              </button>
-            </div>
+            {trackingGhnDetail.environment !== 'TEST' && trackingGhnDetail.trackingUrl && <div className="shrink-0 border-t border-[#F0EBE3] bg-white px-5 py-3"><a href={trackingGhnDetail.trackingUrl} target="_blank" rel="noreferrer" className="text-xs text-[#8C6B32] hover:underline">Tra cứu trực tiếp trên GHN.VN ↗</a></div>}
           </div>
         </div>
       )}

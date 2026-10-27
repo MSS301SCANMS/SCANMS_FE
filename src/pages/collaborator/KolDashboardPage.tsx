@@ -14,6 +14,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { walletService, type LedgerHistory } from '@/services/wallet.service';
+import { commissionService } from '@/services/commission.service';
+import { serverDate } from '@/utils/server-date';
 import {
   analyticsService,
   type DashboardOverviewResponse,
@@ -66,6 +68,7 @@ export default function KolDashboardPage() {
 
   const [ledger, setLedger] = useState<LedgerHistory | null>(null);
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
+  const [commissionTotal, setCommissionTotal] = useState<number | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
   const requestSequence = useRef(0);
 
@@ -79,15 +82,20 @@ export default function KolDashboardPage() {
       startDate.setUTCHours(0, 0, 0, 0);
       startDate.setUTCDate(startDate.getUTCDate() - days + 1);
       const query = { range: 'custom', days, startDate: startDate.toISOString(), endDate: endDate.toISOString() };
-      const [ledgerData, overviewData, seriesData] = await Promise.all([
-        walletService.getMyLedger(1).catch(() => null),
+      const [ledgerData, overviewData, seriesData, commissions] = await Promise.all([
+        walletService.getMyLedger(1, 'COLLABORATOR').catch(() => null),
         analyticsService.getRealtimeOverview(query).catch(() => null),
         analyticsService.getTimeSeries({ ...query, interval: 'daily' }).catch(() => []),
+        commissionService.list().catch(() => null),
       ]);
 
       if (requestId !== requestSequence.current) return;
       setLedger(ledgerData);
       setOverview(overviewData);
+      setCommissionTotal(commissions === null ? null : commissions.filter(row => {
+        const created = Date.parse(serverDate(row.createdAt) || '');
+        return row.status !== 'CANCELLED' && created >= startDate.getTime() && created <= endDate.getTime();
+      }).reduce((total, row) => total + Number(row.amountVnd), 0));
       setTimeSeries(Array.isArray(seriesData) ? seriesData : []);
     } catch (err) {
       console.error('Lỗi tải dữ liệu Dashboard KOL:', err);
@@ -145,7 +153,7 @@ export default function KolDashboardPage() {
             icon={Wallet}
             growth={metrics?.growthRevenue}
             value={`${(metrics?.grossRevenue || 0).toLocaleString('vi-VN')} ₫`}
-            note={<>Hoa hồng: <strong className="text-[#B88E4F]">{(metrics?.totalCommission || 0).toLocaleString('vi-VN')} ₫</strong></>}
+            note={<>Hoa hồng trong kỳ: <strong className="text-[#B88E4F]">{commissionTotal === null ? 'Chưa tải được' : `${commissionTotal.toLocaleString('vi-VN')} ₫`}</strong></>}
           />
         </div>
       </div>
