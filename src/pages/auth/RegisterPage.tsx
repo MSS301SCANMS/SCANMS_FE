@@ -13,8 +13,11 @@ import {
 } from 'lucide-react';
 import { authService } from '../../services/auth.service';
 import { GoogleOfficialButton } from '../../components/auth/GoogleOfficialButton';
+import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 import { ScanMSLogo } from '../../components/common/ScanMSLogo';
 import { toast } from '../../utils/toast';
+import { registrationErrorMessage } from '../../utils/registration-error';
+import { loginDestination } from '../../utils/workspace-access';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -28,7 +31,7 @@ export default function RegisterPage() {
       : null;
   const loginUrl = returnTo ? `/login?redirect=${encodeURIComponent(returnTo)}` : '/login';
 
-  // Các trường khớp với BE RegisterRequest: username, email, password, firstName, lastName, roleNames
+  // Các trường khớp với BE RegisterRequest: username, email, password, firstName, lastName.
   const [username, setUsername] = useState('');
   const [lastName, setLastName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -43,6 +46,7 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,38 +79,30 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      // BE RegisterRequest chỉ nhận: username, email, password, firstName, lastName, roleNames
+      const normalizedEmail = email.trim().toLowerCase();
       await authService.register({
         username: username.trim(),
-        email,
+        email: normalizedEmail,
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        roleNames: ['USER'],
       });
 
       toast.success('Đăng ký tài khoản thành công! Đang tự động đăng nhập...');
 
       try {
-        await authService.login(email, password);
-        if (returnTo) {
-          navigate(returnTo);
-        } else {
-          navigate('/customer/orders');
-        }
+        await authService.login(normalizedEmail, password);
+        const destination = loginDestination(authService.getCurrentUser(), returnTo || '/customer/orders');
+        authService.setActiveWorkspace(destination.workspace);
+        navigate(destination.path);
       } catch {
         const dest = returnTo
-          ? `/login?registered=email&email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(returnTo)}`
-          : `/login?registered=email&email=${encodeURIComponent(email)}`;
+          ? `/login?registered=email&email=${encodeURIComponent(normalizedEmail)}&redirect=${encodeURIComponent(returnTo)}`
+          : `/login?registered=email&email=${encodeURIComponent(normalizedEmail)}`;
         navigate(dest);
       }
     } catch (err: any) {
-      const errorMsg =
-        err?.response?.data?.message ||
-        (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error')
-          ? 'Không thể kết nối đến máy chủ Backend.'
-          : err?.message || 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
-      setError(errorMsg);
+      setError(registrationErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -118,11 +114,9 @@ export default function RegisterPage() {
       setError(null);
       await authService.googleLogin(idToken, 'CUSTOMER');
       toast.success('Đăng ký & xác thực Google thành công!');
-      if (returnTo) {
-        navigate(returnTo);
-      } else {
-        navigate('/customer/orders');
-      }
+      const destination = loginDestination(authService.getCurrentUser(), returnTo || '/customer/orders');
+      authService.setActiveWorkspace(destination.workspace);
+      navigate(destination.path);
     } catch (err: any) {
       setError(err.message || 'Đăng ký qua Google thất bại');
     } finally {
@@ -203,8 +197,12 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="p-2.5 rounded-xl bg-[#DC2626]/10 border border-[#DC2626]/20 text-xs text-[#DC2626] font-medium">
+              <div role="alert" className="p-2.5 rounded-xl bg-[#DC2626]/10 border border-[#DC2626]/20 text-xs text-[#DC2626] font-medium">
                 {error}
+                {error.includes('đã') && <div className="mt-2 flex gap-4">
+                  <Link className="underline" to={`${loginUrl}${returnTo ? '&' : '?'}email=${encodeURIComponent(email.trim())}`}>Đăng nhập</Link>
+                  <button type="button" className="underline" onClick={() => setForgotPasswordOpen(true)}>Quên mật khẩu</button>
+                </div>}
               </div>
             )}
 
@@ -368,6 +366,7 @@ export default function RegisterPage() {
         </div>
       </main>
 
+      <ForgotPasswordModal isOpen={forgotPasswordOpen} onClose={() => setForgotPasswordOpen(false)} defaultEmail={email.trim()} />
       <footer className="max-w-[1240px] mx-auto w-full pt-3 text-center text-xs text-[#7D715E] font-medium flex flex-wrap items-center justify-center gap-4">
         <span>© 2026 SCANMS Corporation</span>
         <span>•</span>

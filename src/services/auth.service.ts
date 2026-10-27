@@ -1,5 +1,6 @@
 import api from './api';
 import { saveLoginSession, clearSession, getSessionId, forceRefreshSession, endServerSession } from './auth-session';
+import { defaultWorkspace, isAdministrativeUser, isManagerUser, workspaceKeys, workspaceHome } from '../utils/workspace-access';
 
 function safeLoginReturn(path: string | null | undefined): string | null {
   if (!path || !path.startsWith('/') || path.startsWith('//') || /[\\\r\n\t]/.test(path)) return null;
@@ -50,7 +51,7 @@ export interface AvailableWorkspace {
 }
 
 // Thu tu uu tien role khi user co nhieu role cung luc (cao -> thap)
-const ROLE_PRIORITY = ['ADMIN', 'MANAGER', 'SHOP_MANAGER', 'SHOP_OWNER', 'KOL_CTV', 'COLLABORATOR', 'CUSTOMER', 'USER'];
+const ROLE_PRIORITY = ['ADMIN', 'SYSTEM_ADMIN', 'MANAGER', 'SYSTEM_MANAGER', 'SHOP_MANAGER', 'SHOP_OWNER', 'KOL_CTV', 'COLLABORATOR', 'CUSTOMER', 'USER'];
 
 const ROLE_MAP: Record<string, string> = {
   'ADMIN': 'SYSTEM_ADMIN',
@@ -88,10 +89,7 @@ function normalizeUser(raw: any): any {
 }
 
 function workspaceKeyFromRole(role?: string): 'shop' | 'admin' | 'customer' | 'kol' {
-  if (role === 'SHOP_MANAGER') return 'shop';
-  if (role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER') return 'admin';
-  if (role === 'CUSTOMER') return 'customer';
-  return 'kol';
+  return defaultWorkspace({ role } as UserProfile);
 }
 
 async function attachOwnedStores(user: any): Promise<any> {
@@ -258,7 +256,7 @@ export const authService = {
       if (session !== getSessionId()) throw new Error('Phiên đăng nhập đã thay đổi.');
       localStorage.setItem('user', JSON.stringify(user));
       const uiRole = workspaceKeyFromRole(user.role);
-      if (!localStorage.getItem('scanms-active-workspace')) {
+      if (!workspaceKeys(user).includes(localStorage.getItem('scanms-active-workspace') as any)) {
         localStorage.setItem('scanms-current-role', uiRole);
         localStorage.setItem('scanms-active-workspace', uiRole);
       }
@@ -321,7 +319,7 @@ export const authService = {
     const raw = localStorage.getItem('user');
     if (!raw) return null;
     try {
-      return JSON.parse(raw);
+      return normalizeUser(JSON.parse(raw));
     } catch {
       return null;
     }
@@ -335,7 +333,8 @@ export const authService = {
     const u = user || this.getCurrentUser();
     if (!u) return [];
 
-    const workspaces: AvailableWorkspace[] = [
+    const allowed = workspaceKeys(u);
+    const workspaces: AvailableWorkspace[] = allowed.includes('customer') ? [
       {
         key: 'customer',
         label: 'Khách Hàng',
@@ -343,35 +342,13 @@ export const authService = {
         route: '/customer/orders',
         description: 'Xem đơn mua, địa chỉ nhận hàng, lịch sử đặt hàng cá nhân',
       },
-    ];
+    ] : [];
 
     // Admin/Manager chỉ workspace admin — không gán KOL/Shop (tránh sidebar KOL nhầm)
-    const isAdmin = u.role === 'SYSTEM_ADMIN' || u.role === 'SYSTEM_MANAGER';
+    const isAdmin = isAdministrativeUser(u);
 
-    const isKol =
-      !isAdmin &&
-      (u.role === 'COLLABORATOR' ||
-        (Boolean(u.collaboratorProfile) &&
-          ['VERIFIED', 'APPROVED', 'ACTIVE'].includes(
-            String(u.collaboratorProfile?.kycStatus || u.collaboratorProfile?.approvalStatus || '').toUpperCase(),
-          )));
-
-    const isShop =
-      !isAdmin &&
-      (u.role === 'SHOP_MANAGER' ||
-        u.role === 'SHOP_OWNER' ||
-        (Array.isArray(u.roles) &&
-          u.roles.some((r: any) => ['SHOP_OWNER', 'SHOP_MANAGER'].includes(String(r?.name || r)))) ||
-        Boolean(
-          u.stores?.some(
-            (s: any) =>
-              s.isActive ||
-              s.isVerified ||
-              ['APPROVED', 'VERIFIED', 'PENDING_APPROVAL', 'ACTIVE'].includes(
-                String(s.onboardingStatus || s.status || '').toUpperCase(),
-              ),
-          ),
-        ));
+    const isKol = allowed.includes('kol');
+    const isShop = allowed.includes('shop');
 
     if (isKol) {
       workspaces.push({
@@ -394,7 +371,7 @@ export const authService = {
     }
 
     if (isAdmin) {
-      const isSuperAdmin = u.role === 'SYSTEM_ADMIN';
+      const isSuperAdmin = !isManagerUser(u);
       workspaces.push({
         key: 'admin',
         label: isSuperAdmin ? 'Ban Quản Trị Tối Cao' : 'Vận Hành & Tuân Thủ',
@@ -432,25 +409,19 @@ export const authService = {
   },
 
   setActiveWorkspace(target: 'customer' | 'kol' | 'shop' | 'admin') {
+    const user = this.getCurrentUser();
+    if (user ? !workspaceKeys(user).includes(target) : target !== 'customer') return false;
     localStorage.setItem('scanms-active-workspace', target);
     localStorage.setItem('scanms-current-role', target);
     window.dispatchEvent(new CustomEvent('scanms_workspace_changed', { detail: { workspace: target } }));
+    return true;
   },
 
   switchWorkspace(target: 'customer' | 'kol' | 'shop' | 'admin', navigate?: (path: string) => void) {
-    this.setActiveWorkspace(target);
+    if (!this.setActiveWorkspace(target)) return false;
 
     const user = this.getCurrentUser();
-    const targetRoute =
-      target === 'shop'
-        ? '/merchant/dashboard'
-        : target === 'admin'
-        ? user?.role === 'SYSTEM_MANAGER'
-          ? '/admin/ops-dashboard'
-          : '/admin/dashboard'
-        : target === 'kol'
-        ? '/collaborator/dashboard'
-        : '/customer/orders';
+    const targetRoute = target === 'customer' ? '/customer/orders' : workspaceHome(target, user);
 
     if (navigate) {
       navigate(targetRoute);

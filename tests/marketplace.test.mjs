@@ -101,7 +101,10 @@ test('topbar uses the accessible account menu with the active workspace role', (
   assert.match(topbar, /<HeaderAccountButton\s/);
   assert.match(topbar, /role=\{role\}/);
   assert.match(topbar, /menuId="topbar-account-menu"/);
-  assert.match(topbar, /scanms_workspace_changed/);
+  assert.match(topbar, /useAuthUser\(\)/);
+  const authUser = readFileSync(new URL('../src/hooks/useAuthUser.ts', import.meta.url), 'utf8');
+  assert.match(authUser, /scanms_workspace_changed/);
+  assert.match(authUser, /auth-user-updated/);
   const account = readFileSync(new URL('../src/components/layout/HeaderAccountButton.tsx', import.meta.url), 'utf8');
   for (const role of ['CUSTOMER', 'COLLABORATOR', 'SHOP_MANAGER', 'SYSTEM_MANAGER', 'SYSTEM_ADMIN']) {
     assert.ok(account.includes(`${role}:`), `Account menu must display role ${role}`);

@@ -1,3 +1,4 @@
+import { useAuthUser } from '../../hooks/useAuthUser';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
@@ -33,7 +34,8 @@ export function Topbar({
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState(() => authService.getActiveWorkspace());
+  useAuthUser();
+  const activeWorkspace = authService.getActiveWorkspace();
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,15 +49,6 @@ export function Topbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const syncWorkspace = () => setActiveWorkspace(authService.getActiveWorkspace());
-    window.addEventListener('scanms_workspace_changed', syncWorkspace);
-    window.addEventListener('storage', syncWorkspace);
-    return () => {
-      window.removeEventListener('scanms_workspace_changed', syncWorkspace);
-      window.removeEventListener('storage', syncWorkspace);
-    };
-  }, []);
 
   const role = activeWorkspace === 'shop'
     ? 'SHOP_MANAGER'
@@ -146,7 +139,7 @@ export function Topbar({
 
         {/* Right: Actions, Notifications & User Card */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
+          {!isAdmin && (<button
             type="button"
             onClick={() => authService.switchWorkspace('customer', navigate)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
@@ -154,7 +147,7 @@ export function Topbar({
           >
             <Store className="w-3.5 h-3.5 text-[#C59B58]" />
             <span className="hidden sm:inline">Sàn mua sắm</span>
-          </button>
+          </button>)}
 
           <AccountConnectionStatus userId={currentUser?.id} />
           {/* Notifications Nest không thuộc mainflow — đã gỡ */}
@@ -241,7 +234,7 @@ export function Topbar({
                     <span>Cài đặt & Hồ sơ</span>
                   </Link>
 
-                  <button
+                  {!isAdmin && (<button
                     type="button"
                     onClick={() => {
                       setIsMenuOpen(false);
@@ -251,7 +244,7 @@ export function Topbar({
                   >
                     <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
                     <span>Sàn mua sắm chính</span>
-                  </button>
+                  </button>)}
                 </div>
 
 

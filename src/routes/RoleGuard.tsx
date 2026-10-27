@@ -2,6 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import { toast } from '../utils/toast';
+import { useAuthUser } from '../hooks/useAuthUser';
+import { getSessionId } from '../services/auth-session';
+import { canUseWorkspaceRoute, defaultWorkspace, routeWorkspace, workspaceHome } from '../utils/workspace-access';
 
 interface RoleGuardProps {
   requiredWorkspace: 'kol' | 'shop' | 'admin';
@@ -9,7 +12,7 @@ interface RoleGuardProps {
 
 export const RoleGuard: React.FC<RoleGuardProps> = ({ requiredWorkspace }) => {
   const location = useLocation();
-  const user = authService.getCurrentUser();
+  const user = useAuthUser();
   const token = localStorage.getItem('token');
   const hasNotifiedRef = useRef(false);
 
@@ -17,21 +20,16 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ requiredWorkspace }) => {
     ? authService.getUserAvailableWorkspaces(user).map((w) => w.key)
     : [];
 
-  // Role gốc luôn mở đúng workspace — tránh shop/admin bị đẩy /customer/upgrade
-  const roleAllows =
-    (requiredWorkspace === 'shop' &&
-      (user?.role === 'SHOP_MANAGER' || user?.role === 'SHOP_OWNER')) ||
-    (requiredWorkspace === 'kol' &&
-      (user?.role === 'COLLABORATOR' || user?.role === 'KOL_CTV')) ||
-    (requiredWorkspace === 'admin' &&
-      (user?.role === 'SYSTEM_ADMIN' ||
-        user?.role === 'SYSTEM_MANAGER' ||
-        user?.role === 'ADMIN' ||
-        user?.role === 'MANAGER'));
+  const hasPermission = Boolean(user && token && availableWorkspaces.includes(requiredWorkspace)
+    && canUseWorkspaceRoute(user, location.pathname));
 
-  const hasPermission = Boolean(
-    user && token && (availableWorkspaces.includes(requiredWorkspace) || roleAllows),
-  );
+  useEffect(() => {
+    // Suspense can replay an old route's effects after navigation has started.
+    if (hasPermission && routeWorkspace(window.location.pathname) === requiredWorkspace
+      && authService.getActiveWorkspace() !== requiredWorkspace) {
+      authService.setActiveWorkspace(requiredWorkspace);
+    }
+  }, [hasPermission, requiredWorkspace, location.pathname]);
 
   useEffect(() => {
     if (user && token && !hasPermission && !hasNotifiedRef.current) {
@@ -60,12 +58,9 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ requiredWorkspace }) => {
   }
 
   if (!hasPermission) {
-    // Shop/KOL chưa nâng cấp → trang upgrade; admin thiếu quyền → đơn khách
-    if (requiredWorkspace === 'kol' || requiredWorkspace === 'shop') {
-      return <Navigate to="/customer/upgrade" replace />;
-    }
-    return <Navigate to="/customer/orders" replace />;
+    const workspace = defaultWorkspace(user);
+    return <Navigate to={workspace === 'customer' && requiredWorkspace !== 'admin' ? '/customer/upgrade' : workspaceHome(workspace, user)} replace />;
   }
 
-  return <Outlet />;
+  return <Outlet key={getSessionId()} />;
 };
