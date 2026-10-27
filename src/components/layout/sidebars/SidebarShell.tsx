@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Edit2, Loader2, LogIn, LogOut } from 'lucide-react';
 import type { NavItemConfig, RoleNavigationGroup } from '../../../config/navigation.config';
 import { authService, type UserProfile } from '../../../services/auth.service';
@@ -38,6 +38,7 @@ export function SidebarShell({
   headerExtra,
 }: SidebarShellProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
   const [uploading, setUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -179,10 +180,13 @@ export function SidebarShell({
       <div className={`mt-auto pt-3 border-t ${theme.footerBorder} flex flex-col gap-1 text-xs sm:text-[13px] shrink-0`}>
         {currentUser ? (
           <>
-            {showMarketplaceLink && (
+            {showMarketplaceLink && authService.getUserAvailableWorkspaces(currentUser).some(workspace => workspace.key === 'customer') && (
               <Link
                 to="/marketplace"
-                onClick={() => authService.switchWorkspace('customer', () => undefined)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  authService.switchWorkspace('customer', () => navigate('/marketplace'));
+                }}
                 className="group flex w-full items-center gap-3 rounded-xl border border-[#E5D5BC] bg-[#FBF5EB] px-3 py-3 text-left text-xs font-semibold text-[#795A2D] transition-colors hover:border-[#C59B58] hover:bg-[#F3E9D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] sm:text-[13px] min-h-[44px]"
                 title="Quay lại Sàn Mua Sắm SCANMS"
                 aria-label="Quay lại Sàn Mua Sắm SCANMS"

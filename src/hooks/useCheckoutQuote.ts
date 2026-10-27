@@ -121,6 +121,7 @@ export function useCheckoutQuote({
                 productId: item.productId,
                 variantId: normalizeOrderVariantId(item.variantId),
                 quantity: item.quantity,
+                liveSessionId: item.liveSessionId,
               })),
               group.store.id,
               address,

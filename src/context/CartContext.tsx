@@ -402,7 +402,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add Item to Cart
   const addItem = useCallback(
-    ({ product, variantId, quantity = 1, store, openCartAfterAdd = true, liveSessionId, liveCouponCode }: AddItemParams) => {
+    ({ product, variantId, quantity = 1, store, openCartAfterAdd = true, liveSessionId, liveCouponCode, liveCouponCodes }: AddItemParams) => {
       const prodTitle = product.title || product.name || 'Sản phẩm';
       const prodImage = getSafeProductImageUrl(product.imageUrl || product.image, prodTitle);
       const availableVariants = product.variants || [];
@@ -441,7 +441,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Unique cart item identifier (Requirement 1: product + variant)
-      const cartItemId = `${product.id}_${variantId || 'base'}`;
+      const cartItemId = `${product.id}_${variantId || 'base'}${liveSessionId ? `_live_${liveSessionId}` : ''}`;
 
       setCart((prev) => {
         const existingIndex = prev.findIndex((item) => item.cartItemId === cartItemId);
@@ -456,12 +456,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             price: finalPrice,
             liveSessionId,
             liveCouponCode,
+            liveCouponCodes,
           };
           return next;
         }
 
         // Add new item
         const newItem: CartItem = {
+          liveCouponCodes,
           liveSessionId,
           liveCouponCode,
           cartItemId,
@@ -533,7 +535,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newVar = currentItem.availableVariants.find((v) => v.id === newVariantId);
       if (!newVar) return prev;
 
-      const newCartItemId = `${currentItem.productId}_${newVariantId}`;
+      const newCartItemId = `${currentItem.productId}_${newVariantId}${currentItem.liveSessionId ? `_live_${currentItem.liveSessionId}` : ''}`;
 
       // Check if target variant already in cart
       const existingOther = prev.find((i) => i.cartItemId === newCartItemId);
@@ -567,7 +569,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSelectedItemIds((prev) => {
       if (!prev.includes(cartItemId)) return prev;
       const currentItem = cart.find((i) => i.cartItemId === cartItemId);
-      const newKey = `${currentItem?.productId}_${newVariantId}`;
+      const newKey = `${currentItem?.productId}_${newVariantId}${currentItem?.liveSessionId ? `_live_${currentItem.liveSessionId}` : ''}`;
       return prev.map((k) => (k === cartItemId ? newKey : k));
     });
   }, [cart]);
@@ -635,6 +637,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const startCheckout = useCallback(
     (customItems?: CartItem[], couponCode?: string) => {
       const itemsToCheckout = customItems && customItems.length > 0 ? customItems : selectedItems;
+      if (new Set(itemsToCheckout.map(item => `${item.productId}_${item.variantId || 'base'}`)).size !== itemsToCheckout.length) {
+        toast.warning('Bạn đang chọn cùng phân loại ở giỏ thường và giỏ live. Hãy chọn một nguồn mua cho phân loại này.');
+        return;
+      }
 
       if (!itemsToCheckout || itemsToCheckout.length === 0) {
         toast.warning('Vui lòng chọn ít nhất 1 sản phẩm để tiến hành đặt hàng.');
@@ -703,10 +709,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      const cartItemId = `${params.product.id}_${variantId || 'base'}`;
+      const cartItemId = `${params.product.id}_${variantId || 'base'}${params.liveSessionId ? `_live_${params.liveSessionId}` : ''}`;
       const qty = params.quantity || 1;
 
       const directItem: CartItem = {
+        liveCouponCodes: params.liveCouponCodes,
         liveSessionId: params.liveSessionId,
         liveCouponCode: params.liveCouponCode,
         cartItemId,
@@ -801,6 +808,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           variantId: normalizeOrderVariantId(i.variantId),
           quantity: i.quantity,
           clientPrice: i.price,
+          liveSessionId: i.liveSessionId,
         })));
 
       if (authRevisionRef.current !== revision) return;
@@ -812,6 +820,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const serverMatch = data.items.find(
               (s: any) =>
                 s.productId === localItem.productId &&
+                s.liveSessionId === localItem.liveSessionId &&
                 (s.variantId ? s.variantId === localItem.variantId : true),
             );
             if (!serverMatch) return localItem;

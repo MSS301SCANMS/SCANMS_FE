@@ -30,8 +30,10 @@ function render(session, reproduceOldBug = false, loadError = '') {
     module, exports: module.exports,
     require: name => {
       if (name === 'react' || name === 'react/jsx-runtime' || name === 'lucide-react') return require(name);
+      if (name === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams(), () => {}], Link: ({to, children, ...props}) => React.createElement('a', {href:to, ...props}, children) };
+      if (name.includes('livestream-lifecycle')) return { livestreamStatusLabel: status => status, livestreamLifecycle: row => row };
       return { __esModule: true, default: {}, HubTabs: noop, Select: noop, DateTimePicker: noop, LiveGovernancePanel: noop };
-    },
+    }, URLSearchParams,
   });
   return renderToStaticMarkup(React.createElement(module.exports.default, {}));
 }

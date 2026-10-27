@@ -15,7 +15,7 @@ export async function quoteVoucherSelection(selection: VoucherSelection, items: 
 }
 
 export async function recommendVoucherSelection(items: CheckoutLine[], stores: string[], signal: AbortSignal,
-  initialCode = '', initialShippingCode = '', liveCode = '', shippingDestination?: ShippingDestination) {
+  initialCode = '', initialShippingCode = '', liveCode: string | string[] = '', shippingDestination?: ShippingDestination) {
   const fixed = { goodsCode: '', shippingCode: initialShippingCode };
   const cache = new Map<string, Promise<any>>();
   const preview = (code: string) => {
@@ -31,8 +31,8 @@ export async function recommendVoucherSelection(items: CheckoutLine[], stores: s
   const vouchers = catalogs.flatMap(result => result.status === 'fulfilled' ? result.value : []);
   const goods = vouchers.filter(v => v.benefitType === 'GOODS').map(v => v.code);
   const shipping = vouchers.filter(v => v.benefitType === 'SHIPPING').map(v => v.code);
-  if (liveCode && !initialCode) {
-    try { const live = await preview(liveCode); (Number(live.shippingDiscountVnd) > 0 ? shipping : goods).push(liveCode); } catch { /* Other offers remain usable. */ }
+  if (!initialCode) for (const code of [...new Set(Array.isArray(liveCode) ? liveCode : liveCode ? [liveCode] : [])]) {
+    try { const live = await preview(code); (Number(live.shippingDiscountVnd) > 0 ? shipping : goods).push(code); } catch { /* Other offers remain usable. */ }
   }
   const [bestGoods, bestShipping] = await Promise.all([
     fixed.goodsCode ? null : findBestVoucher(goods, preview, signal),
@@ -42,5 +42,6 @@ export async function recommendVoucherSelection(items: CheckoutLine[], stores: s
   const goodsCode = fixed.goodsCode || bestGoods?.code || '';
   const shippingCode = fixed.shippingCode || bestShipping?.code || '';
   if (!goodsCode && !shippingCode) return null;
-  return quoteVoucherSelection({ goodsCode, shippingCode }, items, signal, shippingDestination);
+  const result = await quoteVoucherSelection({ goodsCode, shippingCode }, items, signal, shippingDestination);
+  return { ...result, goodsFundingSource: vouchers.some(voucher => voucher.code === goodsCode) ? 'PLATFORM_FUNDED' : 'STORE_FUNDED' };
 }

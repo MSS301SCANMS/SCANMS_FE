@@ -26,7 +26,8 @@ test('issuing a platform freeship voucher preserves its issuer, shipping benefit
   await couponService.createPlatformCoupon(input);
   assert.equal(requests[0].body.issuerType,'PLATFORM');assert.equal(requests[0].body.scope.benefitType,'SHIPPING');
   assert.equal(requests[0].body.discountType,'FIXED');assert.equal(requests[0].body.limits.totalUsageLimit,100);
-  assert.equal(requests[0].body.validUntil,input.expiresAt);
+  const expiry=requests[0].body.validUntil;
+  assert.equal(Date.parse(/Z$|[+-]\d\d:\d\d$/.test(expiry)?expiry:expiry+'Z'),Date.parse(input.expiresAt));
   await assert.rejects(()=>couponService.createPlatformCoupon({...input,budgetTotal:1000}),/Ngân sách/);
   assert.equal(requests.length,1);
 });

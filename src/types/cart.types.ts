@@ -12,6 +12,7 @@ export interface CartItem {
   productId: string;
   liveSessionId?: string;
   liveCouponCode?: string;
+  liveCouponCodes?: string[];
   variantId?: string;
   variantName?: string;
   title: string;
@@ -50,6 +51,7 @@ export interface StoreCartGroup {
 export interface AddItemParams {
   liveSessionId?: string;
   liveCouponCode?: string;
+  liveCouponCodes?: string[];
   product: {
     id: string;
     title?: string;

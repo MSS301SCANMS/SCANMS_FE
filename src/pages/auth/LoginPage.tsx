@@ -22,6 +22,7 @@ import './LoginPage.css';
 import { getDemoLogin } from '../../utils/demo-login';
 import { getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
 import { safeLoginReturn } from '../../utils/login-return';
+import { loginDestination } from '../../utils/workspace-access';
 
 type RoleType = 'customer' | 'kol' | 'shop' | 'manager' | 'admin';
 
@@ -102,27 +103,15 @@ export default function LoginPage() {
     setIsRoleDropdownOpen(false);
   };
 
-  const navigateAfterLogin = (userRole?: string, _fromGoogle = false) => {
-    if (returnTo) {
-      navigate(returnTo);
+  const navigateAfterLogin = (_userRole?: string, _fromGoogle = false) => {
+    const current = authService.getCurrentUser();
+    if (!current) {
+      setPasswordAuthState('error');
       return;
     }
-    const current = authService.getCurrentUser();
-    const role = userRole || current?.role;
-    const workspaces = authService.getUserAvailableWorkspaces(current).map((w) => w.key);
-
-    if (role === 'SHOP_MANAGER' || role === 'SHOP_OWNER' || workspaces.includes('shop')) {
-      navigate('/merchant/dashboard');
-    } else if (role === 'SYSTEM_MANAGER') {
-      navigate('/admin/ops-dashboard');
-    } else if (role === 'SYSTEM_ADMIN') {
-      navigate('/admin/dashboard');
-    } else if (role === 'COLLABORATOR' || workspaces.includes('kol')) {
-      navigate('/collaborator/dashboard');
-    } else {
-      // Customer (kể cả Google) → sàn mua sắm
-      navigate('/marketplace');
-    }
+    const destination = loginDestination(current, returnTo);
+    authService.setActiveWorkspace(destination.workspace);
+    navigate(destination.path);
   };
 
   const handleSubmit = async (e: FormEvent) => {

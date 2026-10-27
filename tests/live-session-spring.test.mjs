@@ -5,8 +5,11 @@ import ts from 'typescript';
 import vm from 'node:vm';
 const code=ts.transpileModule(readFileSync(new URL('../src/services/live-session.service.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function service(fixtures){
+ const utility=(name,imports={})=>{const target={exports:{}};const compiled=ts.transpileModule(readFileSync(new URL('../src/utils/'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;vm.runInNewContext(compiled,{module:target,exports:target.exports,require:key=>imports[key]});return target.exports;};
+ const dates=utility('server-date');
+ const lifecycle=utility('livestream-lifecycle.utils',{'./server-date':dates});
  const module={exports:{}};
- vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='./api'?{__esModule:true,default:{get:async path=>{assert.ok(path in fixtures,'Unexpected endpoint: '+path);return {result:fixtures[path]};}}}:{unwrapApi:r=>r.result}});
+ vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='../utils/server-date'?dates:name==='../utils/livestream-lifecycle.utils'?lifecycle:name==='./api'?{__esModule:true,default:{get:async path=>{assert.ok(path in fixtures,'Unexpected endpoint: '+path);return {result:fixtures[path]};}}}:{unwrapApi:r=>r.result}});
  return module.exports.liveSessionService;
 }
 test('KOL sees only their invitations and their own decision in a multi-KOL session',async()=>{
