@@ -18,6 +18,12 @@ export interface CustomerStats {
   wishlistCount: number;
 }
 
+export interface CustomerFashionPreferences {
+  preferredColors?: string[];
+  preferredStyles?: string[];
+  preferredGenderTarget?: 'MALE' | 'FEMALE' | 'UNISEX' | '';
+}
+
 export interface CustomerProfileResponse {
   user: {
     id: string;
@@ -27,6 +33,7 @@ export interface CustomerProfileResponse {
     avatarUrl?: string | null;
     dateOfBirth?: string | null;
     gender?: 'MALE' | 'FEMALE' | 'OTHER' | null;
+    fashionPreferences?: CustomerFashionPreferences | null;
     role: string;
     createdAt: string;
   };
@@ -326,6 +333,9 @@ export const customerService = {
         avatarUrl: me?.avatarUrl,
         dateOfBirth: me?.dateOfBirth,
         gender: me?.gender,
+        fashionPreferences: (me?.fashionPreferences && typeof me.fashionPreferences === 'object')
+          ? me.fashionPreferences
+          : { preferredColors: [], preferredStyles: [], preferredGenderTarget: '' },
         role: Array.isArray(me?.roles) ? me.roles[0] : me?.role || 'CUSTOMER',
         createdAt: me?.createdAt || new Date().toISOString(),
       },
@@ -345,6 +355,7 @@ export const customerService = {
     address?: string | null;
     dateOfBirth?: string;
     gender?: 'MALE' | 'FEMALE' | 'OTHER';
+    fashionPreferences?: CustomerFashionPreferences;
   }): Promise<any> {
     const payload: Record<string, unknown> = {};
     if (data.fullName !== undefined) payload.fullName = data.fullName;
@@ -353,9 +364,11 @@ export const customerService = {
     if (data.address !== undefined) payload.address = data.address;
     if (data.dateOfBirth !== undefined) payload.dateOfBirth = data.dateOfBirth;
     if (data.gender !== undefined) payload.gender = data.gender;
+    if (data.fashionPreferences !== undefined) payload.fashionPreferences = data.fashionPreferences;
     await api.patch('/users', payload);
     const saved = unwrap(await api.get('/users', { headers: { 'x-skip-cache': 'true' } }));
-    if (!(saved?.userId || saved?.id) || Object.entries(payload).some(([key, value]) => (saved[key] ?? null) !== (value ?? null))) {
+    const comparable = Object.entries(payload).filter(([key]) => key !== 'fashionPreferences');
+    if (!(saved?.userId || saved?.id) || comparable.some(([key, value]) => (saved[key] ?? null) !== (value ?? null))) {
       throw new Error('Máy chủ chưa lưu đầy đủ thông tin hồ sơ. Nội dung bạn nhập vẫn được giữ để kiểm tra và thử lại.');
     }
     const updated = saved;

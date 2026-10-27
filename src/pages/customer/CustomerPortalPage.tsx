@@ -43,6 +43,14 @@ import {
 } from '../../services/order-address.service';
 import { formatMoney } from '@/utils/marketplace.utils';
 import { toast } from '../../utils/toast';
+import {
+  FASHION_STYLES,
+  GENDER_TARGETS,
+  FASHION_COLOR_OPTIONS,
+  type FashionStyle,
+  type GenderTarget,
+} from '@/utils/fashion-tags.utils';
+
 import { GuestCheckoutModal, type CheckoutProductItem, type CheckoutStoreInfo } from '../../components/checkout/GuestCheckoutModal';
 import { Topbar } from '../../components/layout/Topbar';
 import { Sidebar } from '../../components/layout/Sidebar';
@@ -247,6 +255,9 @@ export default function CustomerPortalPage() {
   const [nameInput, setNameInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
+  const [preferredColors, setPreferredColors] = useState<string[]>([]);
+  const [preferredStyles, setPreferredStyles] = useState<FashionStyle[]>([]);
+  const [preferredGenderTarget, setPreferredGenderTarget] = useState<GenderTarget | ''>('');
   const [birthDay, setBirthDay] = useState('02');
   const [birthMonth, setBirthMonth] = useState('01');
   const [birthYear, setBirthYear] = useState('2000');
@@ -670,6 +681,13 @@ export default function CustomerPortalPage() {
       setProfileData(data);
       setNameInput(data?.user?.fullName || currentUser?.fullName || '');
       setPhoneInput(data?.user?.phoneNumber || currentUser?.phoneNumber || '');
+      if (data?.user?.gender === 'MALE' || data?.user?.gender === 'FEMALE' || data?.user?.gender === 'OTHER') {
+        setGender(data.user.gender);
+      }
+      const prefs = data?.user?.fashionPreferences;
+      setPreferredColors(Array.isArray(prefs?.preferredColors) ? prefs.preferredColors.map(String) : []);
+      setPreferredStyles(Array.isArray(prefs?.preferredStyles) ? prefs.preferredStyles.map(String) as FashionStyle[] : []);
+      setPreferredGenderTarget((prefs?.preferredGenderTarget as GenderTarget | '') || '');
     } catch (err: any) {
       console.error('Fetch profile error:', err);
     } finally {
@@ -945,6 +963,12 @@ export default function CustomerPortalPage() {
       await customerService.updateProfile({
         fullName: nameInput,
         phoneNumber: phoneInput,
+        gender,
+        fashionPreferences: {
+          preferredColors,
+          preferredStyles,
+          preferredGenderTarget: preferredGenderTarget || '',
+        },
       });
       toast.success('Cập nhật thông tin tài khoản thành công');
       fetchProfile();
@@ -1656,6 +1680,60 @@ export default function CustomerPortalPage() {
                                 <span>{option.label}</span>
                               </label>
                             ))}
+                          </div>
+                        </fieldset>
+
+                        <fieldset className="m-0 min-w-0 rounded-[10px] border border-[#EAE4D7] bg-[#FAF8F5] p-[12px]">
+                          <legend className="px-[4px] text-[12px] font-[600] text-[#1A1612]">Sở thích thời trang (AI phối đồ)</legend>
+                          <p className="m-0 mb-[10px] text-[11px] leading-[1.5] text-[#7D715E]">
+                            Dùng để gợi ý giày/nón đúng hơn sau khi AI nhận diện trang phục.
+                          </p>
+                          <div className="mb-[10px] flex flex-col gap-[6px]">
+                            <span className="text-[12px] font-[550] text-[#1A1612]">Đối tượng mua sắm</span>
+                            <div className="inline-flex flex-wrap gap-[6px]">
+                              {GENDER_TARGETS.map((option) => (
+                                <label key={option.value} className={`inline-flex items-center gap-[6px] min-h-[34px] px-[10px] py-[6px] border rounded-[7px] text-[12px] cursor-pointer transition-colors ${preferredGenderTarget === option.value ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#1A1612] font-[550]' : 'border-[#EAE4D7] bg-white text-[#7D715E]'}`}>
+                                  <input type="radio" name="preferredGenderTarget" checked={preferredGenderTarget === option.value} onChange={() => setPreferredGenderTarget(option.value)} className="m-0 w-[14px] h-[14px] accent-[#B88E4F]" />
+                                  <span>{option.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mb-[10px] flex flex-col gap-[6px]">
+                            <span className="text-[12px] font-[550] text-[#1A1612]">Phong cách yêu thích</span>
+                            <div className="flex flex-wrap gap-[6px]">
+                              {FASHION_STYLES.map((style) => {
+                                const active = preferredStyles.includes(style.value);
+                                return (
+                                  <button
+                                    key={style.value}
+                                    type="button"
+                                    onClick={() => setPreferredStyles((prev) => active ? prev.filter((s) => s !== style.value) : [...prev, style.value])}
+                                    className={`rounded-[7px] border px-[10px] py-[6px] text-[11px] font-[550] transition-colors ${active ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226]' : 'border-[#EAE4D7] bg-white text-[#7D715E]'}`}
+                                  >
+                                    {style.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-[6px]">
+                            <span className="text-[12px] font-[550] text-[#1A1612]">Màu sắc yêu thích</span>
+                            <div className="flex flex-wrap gap-[6px]">
+                              {FASHION_COLOR_OPTIONS.map((color) => {
+                                const active = preferredColors.includes(color);
+                                return (
+                                  <button
+                                    key={color}
+                                    type="button"
+                                    onClick={() => setPreferredColors((prev) => active ? prev.filter((c) => c !== color) : [...prev, color])}
+                                    className={`rounded-[7px] border px-[10px] py-[6px] text-[11px] font-[550] capitalize transition-colors ${active ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226]' : 'border-[#EAE4D7] bg-white text-[#7D715E]'}`}
+                                  >
+                                    {color}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </fieldset>
 

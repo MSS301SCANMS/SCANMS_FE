@@ -42,6 +42,14 @@ import { productPackageInput } from '../../utils/product-package.utils';
 import { authService } from '../../services/auth.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import {
+  APPAREL_TYPES,
+  FASHION_STYLES,
+  GENDER_TARGETS,
+  FASHION_COLOR_OPTIONS,
+  readFashionTags,
+} from '@/utils/fashion-tags.utils';
+
 import { useAiAnalyzeProduct, type AiAnalyzeProductResult } from '../../hooks/useProducts';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -566,6 +574,10 @@ export default function ProductManagementPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formCustomCategory, setFormCustomCategory] = useState('');
+  const [formApparelType, setFormApparelType] = useState('');
+  const [formFashionStyle, setFormFashionStyle] = useState('');
+  const [formGenderTarget, setFormGenderTarget] = useState('');
+  const [formColorTags, setFormColorTags] = useState<string[]>([]);
   const [formDescription, setFormDescription] = useState('');
   const [formIngredients, setFormIngredients] = useState('');
   const [formOrigin, setFormOrigin] = useState('');
@@ -930,6 +942,10 @@ export default function ProductManagementPage() {
     setFormBarcode('');
     setFormCategory('');
     setFormCustomCategory('');
+    setFormApparelType('');
+    setFormFashionStyle('');
+    setFormGenderTarget('');
+    setFormColorTags([]);
     setFormDescription('');
     setFormIngredients('');
     setFormOrigin('');
@@ -1002,6 +1018,11 @@ export default function ProductManagementPage() {
     setFormIngredients(p.ingredients || '');
     setFormOrigin(p.origin || '');
     setFormLabelInfo(p.labelInfo || '');
+    const fashion = readFashionTags((p.attributes || p) as Record<string, unknown>);
+    setFormApparelType(fashion.apparelType || '');
+    setFormFashionStyle(fashion.fashionStyle || '');
+    setFormGenderTarget(fashion.genderTarget || '');
+    setFormColorTags(fashion.colorTags || []);
     setFormOriginProofLinks(Array.isArray(p.originProofLinks) ? p.originProofLinks : []);
     setFormOriginProofImages(Array.isArray(p.originProofImages) ? p.originProofImages : []);
     setFormLabelProofLinks(Array.isArray(p.labelProofLinks) ? p.labelProofLinks : []);
@@ -1328,6 +1349,7 @@ export default function ProductManagementPage() {
     if (!editingProduct) {
       const issues: string[] = [];
       if (!formCategory.trim()) issues.push('Chọn danh mục sản phẩm.');
+      if (!formApparelType.trim()) issues.push('Chọn loại sản phẩm (Giày/Nón/Áo...).');
       if (formCategory === 'Danh mục khác (Tự nhập)' && !formCustomCategory.trim()) {
         issues.push('Nhập tên danh mục tùy chỉnh.');
       }
@@ -1502,6 +1524,10 @@ export default function ProductManagementPage() {
           ingredients: formIngredients.trim() || undefined,
           origin: formOrigin.trim() || undefined,
           labelInfo: formLabelInfo.trim() || undefined,
+          apparelType: formApparelType || undefined,
+          fashionStyle: formFashionStyle || undefined,
+          genderTarget: formGenderTarget || undefined,
+          colorTags: formColorTags,
           originProofLinks: formOriginProofLinks.map((url) => url.trim()).filter(Boolean),
           originProofImages: formOriginProofImages,
           labelProofLinks: formLabelProofLinks.map((url) => url.trim()).filter(Boolean),
@@ -1537,6 +1563,10 @@ export default function ProductManagementPage() {
           ingredients: formIngredients.trim() || undefined,
           origin: formOrigin.trim() || undefined,
           labelInfo: formLabelInfo.trim() || undefined,
+          apparelType: formApparelType || undefined,
+          fashionStyle: formFashionStyle || undefined,
+          genderTarget: formGenderTarget || undefined,
+          colorTags: formColorTags,
           originProofLinks: formOriginProofLinks.map((url) => url.trim()).filter(Boolean),
           originProofImages: formOriginProofImages,
           labelProofLinks: formLabelProofLinks.map((url) => url.trim()).filter(Boolean),
@@ -1787,9 +1817,21 @@ export default function ProductManagementPage() {
               const rate = 10;
               const stock = p.stockQuantity ?? p.stock ?? 0;
               const img = getSafeProductImageUrl(p.imageUrl || p.images?.[0] || p.image, title, p.categoryName);
+              // BE returns ACTIVE/INACTIVE/OUT_OF_STOCK; UI badges expect active/paused/out_of_stock.
+              const beStatus = String(p.status || '').toUpperCase();
               const status =
-                p.status || (p.isActive === false ? 'paused' : stock === 0 ? 'out_of_stock' : 'active');
-              const moderationStatus = p.moderationStatus || 'APPROVED';
+                beStatus === 'OUT_OF_STOCK' || stock === 0
+                  ? 'out_of_stock'
+                  : beStatus === 'INACTIVE' || beStatus === 'PAUSED' || p.isActive === false
+                    ? 'paused'
+                    : beStatus === 'ACTIVE' || beStatus === 'APPROVED' || !beStatus
+                      ? 'active'
+                      : beStatus.toLowerCase();
+              const moderationStatus = String(p.moderationStatus || (
+                beStatus === 'ACTIVE' || beStatus === 'APPROVED' ? 'APPROVED'
+                  : beStatus === 'REJECTED' ? 'REJECTED'
+                    : p.moderationStatus || 'APPROVED'
+              )).toUpperCase();
 
               return (
                 <TableRow key={p.id}>
@@ -2186,6 +2228,61 @@ export default function ProductManagementPage() {
                         className="w-full bg-white border border-[#EAE4D7] rounded-xl pl-8 pr-3 py-2 text-xs text-[#1A1612] font-semibold focus:border-[#B88E4F] focus:ring-1 focus:ring-[#B88E4F]/20 outline-none transition font-mono"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div className="mb-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">
+                      Loại sản phẩm (AI) <span className="text-rose-500">*</span>
+                    </label>
+                    <Select value={formApparelType} onChange={(e) => setFormApparelType(e.target.value)} required className="w-full text-xs">
+                      <option value="" disabled>Chọn loại</option>
+                      {APPAREL_TYPES.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">Phong cách</label>
+                    <Select value={formFashionStyle} onChange={(e) => setFormFashionStyle(e.target.value)} className="w-full text-xs">
+                      <option value="">Chọn phong cách</option>
+                      {FASHION_STYLES.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">Đối tượng</label>
+                    <Select value={formGenderTarget} onChange={(e) => setFormGenderTarget(e.target.value)} className="w-full text-xs">
+                      <option value="">Chọn đối tượng</option>
+                      {GENDER_TARGETS.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="mb-3.5">
+                  <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">Màu sắc gợi ý AI</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {FASHION_COLOR_OPTIONS.map((color) => {
+                      const active = formColorTags.includes(color);
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setFormColorTags((prev) => active ? prev.filter((c) => c !== color) : [...prev, color])}
+                          className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold capitalize transition ${
+                            active
+                              ? 'border-[#EEDFC6] bg-[#FBF5EB] text-[#8C6226]'
+                              : 'border-[#EAE4D7] bg-white text-[#7D715E] hover:border-[#C59B58]'
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

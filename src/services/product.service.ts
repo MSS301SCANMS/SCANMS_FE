@@ -95,6 +95,13 @@ function normalizeProduct(raw: any): Product {
     raw.stockQuantity ?? stockFromSizes(raw.sizesStock) ?? 0,
   );
   const status = String(raw.status || raw.moderationStatus || '').toUpperCase();
+  const isActive = raw.isActive ?? (status === 'ACTIVE' || status === 'APPROVED');
+  const commerceStatus =
+    status === 'OUT_OF_STOCK' || stockQuantity === 0
+      ? 'out_of_stock'
+      : status === 'INACTIVE' || status === 'PAUSED' || isActive === false
+        ? 'paused'
+        : 'active';
   return {
     ...metadata,
     ...raw,
@@ -105,20 +112,26 @@ function normalizeProduct(raw: any): Product {
     imageUrl,
     stockQuantity,
     ingredients: raw.ingredients ?? raw.material ?? metadata.ingredients,
-    isActive: raw.isActive ?? (status === 'ACTIVE' || status === 'APPROVED'),
+    isActive,
+    // Keep BE enum on `rawStatus`; expose UI-friendly value on `status`.
+    rawStatus: status || undefined,
+    status: commerceStatus,
     moderationStatus:
       status === 'ACTIVE' || status === 'APPROVED'
         ? 'APPROVED'
         : status === 'REJECTED'
           ? 'REJECTED'
-          : 'DRAFT',
+          : status === 'INACTIVE' || status === 'OUT_OF_STOCK'
+            ? 'APPROVED'
+            : 'DRAFT',
   } as Product;
 }
 
 function productMetadata(data: any) {
   const attributes = { ...(data.attributes || {}) };
   for (const key of ['sku', 'origin', 'labelInfo', 'barcode', 'packageWeight', 'packageLength', 'packageWidth',
-    'packageHeight', 'originProofLinks', 'originProofImages', 'labelProofLinks', 'labelProofImages', 'originalPrice']) {
+    'packageHeight', 'originProofLinks', 'originProofImages', 'labelProofLinks', 'labelProofImages', 'originalPrice',
+    'apparelType', 'fashionStyle', 'genderTarget', 'colorTags']) {
     if (data[key] !== undefined) attributes[key] = data[key];
   }
   return attributes;

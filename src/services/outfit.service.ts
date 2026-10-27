@@ -20,11 +20,21 @@ export interface OutfitRecommendResult {
   message: string;
 }
 
+export type OutfitRecommendPrefs = {
+  preferredGenderTarget?: string;
+  preferredStyles?: string[];
+  preferredColors?: string[];
+};
+
 export const outfitService = {
-  async recommend(imageFile: File, limit = 6): Promise<OutfitRecommendResult> {
+  async recommend(imageFile: File, limit = 6, prefs?: OutfitRecommendPrefs): Promise<OutfitRecommendResult> {
     const body = new FormData();
     body.append('image', imageFile);
-    const res: any = await api.post(`/public/outfit-recommend?limit=${limit}`, body, {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (prefs?.preferredGenderTarget) params.set('preferredGenderTarget', prefs.preferredGenderTarget);
+    if (prefs?.preferredStyles?.length) params.set('preferredStyles', prefs.preferredStyles.join(','));
+    if (prefs?.preferredColors?.length) params.set('preferredColors', prefs.preferredColors.join(','));
+    const res: any = await api.post(`/public/outfit-recommend?${params.toString()}`, body, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60_000,
     });

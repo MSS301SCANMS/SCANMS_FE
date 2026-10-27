@@ -102,7 +102,23 @@ export default function OutfitMatchPage() {
     setLoading(true);
     setResult(null);
     try {
-      const data = await outfitService.recommend(file, 6);
+      let prefs: { preferredGenderTarget?: string; preferredStyles?: string[]; preferredColors?: string[] } | undefined;
+      try {
+        const { customerService } = await import('../../services/customer.service');
+        const { authService } = await import('../../services/auth.service');
+        if (authService.getCurrentUser() && localStorage.getItem('token')) {
+          const profile = await customerService.getProfile();
+          const fashion = profile.user?.fashionPreferences;
+          prefs = {
+            preferredGenderTarget: fashion?.preferredGenderTarget || undefined,
+            preferredStyles: fashion?.preferredStyles,
+            preferredColors: fashion?.preferredColors,
+          };
+        }
+      } catch {
+        prefs = undefined;
+      }
+      const data = await outfitService.recommend(file, 6, prefs);
       setResult(data);
       toast.success(data.detection.clothingDetected ? 'Đã nhận diện trang phục' : 'Chưa nhận diện được quần/áo');
     } catch (err: any) {
