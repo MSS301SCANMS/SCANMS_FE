@@ -48,6 +48,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
+import { ListPagination } from '../../components/ui/ListPagination';
 import {
   Table,
   TableHeader,
@@ -302,6 +303,8 @@ const getDefaultSpecsForCategory = (cat: string): ProductSpecificationItem[] => 
   ];
 };
 
+const PRODUCT_PAGE_SIZE = 10;
+
 export default function ProductManagementPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -319,6 +322,10 @@ export default function ProductManagementPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [productPage, setProductPage] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [productTotalPages, setProductTotalPages] = useState(1);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -608,10 +615,6 @@ export default function ProductManagementPage() {
 
   const loadProductsRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
-  useEffect(() => {
-    loadProductsRef.current();
-  }, []);
-
   const openProductLanding = (product: Product) => {
     const productSlug = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? product.sku || product.id : product.id;
     window.open(
@@ -774,18 +777,44 @@ export default function ProductManagementPage() {
     };
   }, [showModal]);
 
-  const loadProducts = async (fresh = false) => {
+  const mapFilterToApiStatus = (filter: string): string | undefined => {
+    if (filter === 'active' || filter === 'APPROVED') return 'ACTIVE';
+    if (filter === 'paused' || filter === 'DRAFT') return 'INACTIVE';
+    if (filter === 'out_of_stock') return 'OUT_OF_STOCK';
+    return undefined;
+  };
+
+  const loadProducts = async (fresh = false, page = productPage) => {
+    setProductsLoading(true);
     try {
       const res: any = await productService.getProducts({
-        search: search || undefined,
+        search: search.trim() || undefined,
         storeId: currentStoreId,
+        status: mapFilterToApiStatus(filterStatus),
+        page,
+        limit: PRODUCT_PAGE_SIZE,
       }, fresh);
-      setProducts(res.items || []);
+      let rows = res.items || [];
+      // low_stock / REJECTED chưa có filter BE — lọc trên trang hiện tại
+      if (filterStatus === 'low_stock') {
+        rows = rows.filter((p: any) => {
+          const stock = Number(p.stockQuantity ?? p.stock ?? 0);
+          return stock > 0 && stock <= 5;
+        });
+      } else if (filterStatus === 'REJECTED') {
+        rows = rows.filter((p: any) => p.moderationStatus === 'REJECTED');
+      }
+      setProducts(rows);
+      setProductTotal(Number(res.pagination?.total ?? res.total ?? rows.length));
+      setProductTotalPages(Number(res.pagination?.totalPages ?? 1));
+      setProductPage(Number(res.pagination?.page ?? page));
     } catch (err) {
       console.error('Lỗi tải sản phẩm:', err);
+    } finally {
+      setProductsLoading(false);
     }
   };
-  loadProductsRef.current = loadProducts;
+  loadProductsRef.current = () => loadProducts(true, productPage);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -794,7 +823,7 @@ export default function ProductManagementPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(displayProducts.map((p) => p.id));
+      setSelectedIds(products.map((p) => p.id));
     } else {
       setSelectedIds([]);
     }
@@ -1032,12 +1061,16 @@ export default function ProductManagementPage() {
   const applyAiHints = (result: AiAnalyzeProductResult) => {
     setAiResult(result);
     const label = result.topPrediction?.className || result.detections?.[0]?.className || '';
-    if (label && !formCategory) {
-      const suggested = inferCategoryFromTitle(label.replace(/[_-]/g, ' '));
+    const display = result.displayLabel || label.replace(/[_-]/g, ' ');
+    if (!formCategory) {
+      const suggested =
+        result.suggestedCategory ||
+        (result.clothingDetected ? 'Thời trang & Phụ kiện' : '') ||
+        inferCategoryFromTitle(label.replace(/[_-]/g, ' '));
       if (suggested) handleCategoryChange(suggested);
     }
-    if (label && !formTitle.trim()) {
-      setFormTitle(label.replace(/[_-]/g, ' '));
+    if (display && !formTitle.trim()) {
+      setFormTitle(display);
     }
     const style = result.stylePrediction?.style;
     if (style) {
@@ -1075,9 +1108,11 @@ export default function ProductManagementPage() {
       const result = await aiAnalyze.mutateAsync(file);
       applyAiHints(result);
       showToast(
-        result.topPrediction
-          ? `AI: ${result.topPrediction.className} (${Math.round(result.topPrediction.confidence * 100)}%)`
-          : 'AI đã phân tích ảnh (không có prediction chính).',
+        result.clothingDetected && result.displayLabel
+          ? `AI nhận diện: ${result.displayLabel}${result.topPrediction ? ` (${Math.round(result.topPrediction.confidence * 100)}%)` : ''}`
+          : result.topPrediction
+            ? `AI: ${result.topPrediction.className} (${Math.round(result.topPrediction.confidence * 100)}%)`
+            : 'AI đã phân tích ảnh (không nhận diện quần/áo rõ).',
       );
     } catch (err: any) {
       showToast(err?.response?.data?.message || err?.message || 'AI analyze tạm không khả dụng — tiếp tục nhập tay.');
@@ -1535,25 +1570,17 @@ export default function ProductManagementPage() {
 
 
 
-  const displayProducts = products;
+  const pagedProducts = products;
+  const safeProductPage = productPage;
 
-  const filtered = displayProducts.filter((p: any) => {
-    const title = p.title || p.name || '';
-    const sku = p.sku || '';
-    const matchSearch =
-      title.toLowerCase().includes(search.toLowerCase()) ||
-      sku.toLowerCase().includes(search.toLowerCase());
-    const matchStatus =
-      filterStatus === 'ALL' ||
-      (filterStatus === 'DRAFT' && p.moderationStatus === 'DRAFT') ||
-      (filterStatus === 'REJECTED' && p.moderationStatus === 'REJECTED') ||
-      (filterStatus === 'APPROVED' && p.moderationStatus === 'APPROVED') ||
-      (filterStatus === 'active' && (p.status === 'active' || p.isActive)) ||
-      (filterStatus === 'out_of_stock' && (p.status === 'out_of_stock' || p.stockQuantity === 0)) ||
-      (filterStatus === 'paused' && (p.status === 'paused' || p.isActive === false)) ||
-      (filterStatus === 'low_stock' && Number(p.stockQuantity ?? p.stock ?? 0) > 0 && Number(p.stockQuantity ?? p.stock ?? 0) <= 5);
-    return matchSearch && matchStatus;
-  });
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setProductPage(1);
+      void loadProducts(true, 1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when search/filter change
+  }, [search, filterStatus, currentStoreId]);
 
   return (
     <div className="product-management @container/product-management space-y-4 text-left w-full min-w-0 text-[#1A1612]">
@@ -1729,7 +1756,7 @@ export default function ProductManagementPage() {
       </Card>
 
 
-      <Card className="product-table-card p-0 min-w-0 shadow-none">
+      <Card className={`product-table-card p-0 min-w-0 shadow-none ${productsLoading ? 'opacity-60' : ''}`}>
         <Table className="product-table">
           <colgroup><col style={{width:44}} /><col /><col style={{width:140}} /><col style={{width:150}} /><col style={{width:120}} /><col style={{width:160}} /><col style={{width:250}} /></colgroup>
           <TableHeader>
@@ -1737,7 +1764,10 @@ export default function ProductManagementPage() {
               <TableHead className="w-10">
                 <input
                   type="checkbox"
-                  checked={selectedIds.length === filtered.length && filtered.length > 0}
+                  checked={
+                    products.length > 0 &&
+                    products.every((p) => selectedIds.includes(p.id))
+                  }
                   onChange={(e) => handleSelectAll(e.target.checked)}
                   className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
@@ -1751,7 +1781,7 @@ export default function ProductManagementPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((p: any) => {
+            {pagedProducts.map((p: any) => {
               const title = p.title || p.name;
               const price = p.price || 0;
               const rate = 10;
@@ -1959,6 +1989,17 @@ export default function ProductManagementPage() {
             })}
           </TableBody>
         </Table>
+        <ListPagination
+          page={safeProductPage}
+          totalPages={productTotalPages}
+          total={productTotal}
+          pageSize={PRODUCT_PAGE_SIZE}
+          label="sản phẩm"
+          onPageChange={(next) => {
+            setProductPage(next);
+            void loadProducts(true, next);
+          }}
+        />
       </Card>
 
 
@@ -2300,14 +2341,30 @@ export default function ProductManagementPage() {
                         {aiAnalyzing ? 'AI đang phân tích ảnh…' : 'Gợi ý từ AI'}
                       </div>
                       {aiResult && !aiAnalyzing && (
-                        <p className="mt-1 leading-relaxed">
-                          {aiResult.topPrediction
-                            ? `${aiResult.topPrediction.className} · ${Math.round(aiResult.topPrediction.confidence * 100)}%`
-                            : 'Không có prediction chính'}
-                          {aiResult.stylePrediction?.style ? ` · Style: ${aiResult.stylePrediction.style}` : ''}
-                          {aiResult.dominantColors?.[0]?.name ? ` · Màu: ${aiResult.dominantColors[0].name}` : ''}
-                          {aiResult.inferenceTimeMs ? ` · ${Math.round(aiResult.inferenceTimeMs)}ms` : ''}
-                        </p>
+                        <div className="mt-1 space-y-1 leading-relaxed">
+                          <p>
+                            {aiResult.clothingDetected
+                              ? `${aiResult.displayLabel || 'Trang phục'}${aiResult.garmentType ? ` · ${aiResult.garmentType}` : ''}`
+                              : aiResult.topPrediction
+                                ? aiResult.topPrediction.className
+                                : 'Không nhận diện được quần/áo'}
+                          </p>
+                          {aiResult.detectedGarments && aiResult.detectedGarments.length > 1 ? (
+                            <ul className="space-y-0.5 text-[#7D715E]">
+                              {aiResult.detectedGarments.map((g) => (
+                                <li key={`${g.className}-${g.confidence}`}>
+                                  {g.displayLabel} · {g.garmentType} · {Math.round(g.confidence * 100)}%
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <p className="text-[#7D715E]">
+                            {aiResult.suggestedCategory ? `Danh mục gợi ý: ${aiResult.suggestedCategory}` : ''}
+                            {aiResult.stylePrediction?.style ? ` · Style: ${aiResult.stylePrediction.style}` : ''}
+                            {aiResult.dominantColors?.[0]?.name ? ` · Màu: ${aiResult.dominantColors[0].name}` : ''}
+                            {aiResult.inferenceTimeMs ? ` · ${Math.round(aiResult.inferenceTimeMs)}ms` : ''}
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}

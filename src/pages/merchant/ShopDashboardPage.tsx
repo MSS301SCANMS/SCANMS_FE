@@ -24,18 +24,49 @@ import { productService, type Product } from '../../services/product.service';
 import { orderService, type StoreOrderRecord } from '../../services/order.service';
 
 import { StatCard } from '../../components/ui/StatCard';
+import { ListPagination } from '../../components/ui/ListPagination';
 import ShopApplicationPage from './ShopApplicationPage';
+
+const DASHBOARD_PRODUCT_PAGE_SIZE = 5;
 
 export default function ShopDashboardPage() {
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesPoint[]>([]);
   const [topProducts, setTopProducts] = useState<Product[]>([]);
+  const [productPage, setProductPage] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [productTotalPages, setProductTotalPages] = useState(1);
+  const [storeId, setStoreId] = useState('');
   const [recentOrders, setRecentOrders] = useState<StoreOrderRecord[]>([]);
   const [isOrdersExpanded, setIsOrdersExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [storeStatus, setStoreStatus] = useState<'unknown' | 'missing' | 'ready'>('unknown');
   const requestSequence = useRef(0);
+  const productRequestSequence = useRef(0);
+
+  const loadProducts = useCallback(async (currentStoreId: string, page: number, fresh = true) => {
+    if (!currentStoreId) return;
+    const request = ++productRequestSequence.current;
+    setProductsLoading(true);
+    try {
+      const productsData = await productService.getProducts(
+        { storeId: currentStoreId, page, limit: DASHBOARD_PRODUCT_PAGE_SIZE },
+        fresh,
+      );
+      if (request !== productRequestSequence.current) return;
+      setTopProducts(productsData?.items || []);
+      setProductTotal(productsData?.pagination?.total || 0);
+      setProductTotalPages(productsData?.pagination?.totalPages || 1);
+      setProductPage(productsData?.pagination?.page || page);
+    } catch (err) {
+      if (request !== productRequestSequence.current) return;
+      console.error('Lỗi tải sản phẩm Dashboard Shop:', err);
+    } finally {
+      if (request === productRequestSequence.current) setProductsLoading(false);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     const request = ++requestSequence.current;
@@ -46,24 +77,25 @@ export default function ShopDashboardPage() {
       if (request !== requestSequence.current) return;
       if (!currentStore?.id) throw new Error('Không xác định được gian hàng. Vui lòng thử lại.');
       setStoreStatus('ready');
+      setStoreId(currentStore.id);
 
-      const [overviewData, seriesData, productsData, ordersData] = await Promise.all([
+      const [overviewData, seriesData, ordersData] = await Promise.all([
         analyticsService.getRealtimeOverview({ days: 30, storeId: currentStore.id }, true),
         analyticsService.getTimeSeries({ days: 7, interval: 'daily', storeId: currentStore.id }, true),
-        productService.getProducts({ storeId: currentStore.id, page: 1, limit: 5 }, true),
         orderService.getMyStoreOrders({ storeId: currentStore.id, page: 1, limit: 10 }, true),
       ]);
       if (request !== requestSequence.current) return;
 
       if (overviewData) setOverview(overviewData);
       if (seriesData) setTimeSeries(seriesData);
-      if (productsData?.items) setTopProducts(productsData.items);
       if (ordersData?.items) setRecentOrders(ordersData.items);
+      await loadProducts(currentStore.id, 1, true);
     } catch (err) {
       if (request !== requestSequence.current) return;
       if (err instanceof MissingOwnedStoreError) {
         setStoreStatus('missing');
         setOverview(null); setTimeSeries([]); setTopProducts([]); setRecentOrders([]);
+        setProductTotal(0); setProductTotalPages(1); setProductPage(1); setStoreId('');
         return;
       }
       setLoadError(err instanceof Error ? err.message : 'Chưa tải được dữ liệu gian hàng. Vui lòng thử lại.');
@@ -71,12 +103,13 @@ export default function ShopDashboardPage() {
     } finally {
       if (request === requestSequence.current) setLoading(false);
     }
-  }, []);
+  }, [loadProducts]);
 
   useEffect(() => {
     void loadData();
     const requests = requestSequence;
-    return () => { requests.current++; };
+    const productRequests = productRequestSequence;
+    return () => { requests.current++; productRequests.current++; };
   }, [loadData]);
 
   const metrics = overview?.metrics;
@@ -287,81 +320,88 @@ export default function ShopDashboardPage() {
           </div>
         </div>
 
-        {topProducts.length === 0 ? (
+        {topProducts.length === 0 && !productsLoading ? (
           <div className="p-8 text-center text-xs text-[#7D715E]">
             Gian hàng chưa đăng sản phẩm nào. Hãy bấm Thêm sản phẩm để tạo sản phẩm đầu tiên!
           </div>
         ) : (
-          <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#EAE4D7] hover:[&::-webkit-scrollbar-thumb]:bg-[#C59B58]/40">
-            <table className="w-full text-left text-xs border-collapse min-w-[920px]">
-              <thead>
-                <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] text-[11px] font-bold uppercase tracking-wider select-none">
-                  <th className="py-3 px-4 font-bold whitespace-nowrap min-w-[280px]">Sản phẩm</th>
-                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">SKU</th>
-                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Giá bán</th>
-                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[100px]">Tồn kho</th>
-                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Hoa hồng CTV</th>
-                  <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAE4D7]/70 bg-white">
-                {topProducts.map((p) => (
-                  <tr key={p.id} className="group hover:bg-[#FBF5EB]/40 transition-colors duration-150">
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-3">
-                        {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.title}
-                            className="w-10 h-10 rounded-xl object-cover border border-[#EAE4D7] bg-[#FAF8F5] shrink-0 shadow-2xs group-hover:border-[#C59B58]/40 transition-colors"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                            <Box className="w-4 h-4" />
-                          </div>
-                        )}
-                        <strong className="text-[12.5px] font-bold text-[#1A1612] truncate max-w-[280px] block leading-snug" title={p.title}>
-                          {p.title}
-                        </strong>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                      <span className="font-mono text-[11px] font-bold text-[#7D715E] bg-[#FAF8F5] px-2 py-0.5 rounded-md border border-[#EAE4D7] shadow-2xs whitespace-nowrap inline-block">
-                        {p.sku || '—'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                      <strong className="font-mono text-[12.5px] font-bold text-[#1A1612] whitespace-nowrap">
-                        {Number(p.price).toLocaleString('vi-VN')} ₫
-                      </strong>
-                    </td>
-                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                      <span className="font-semibold text-xs text-[#1A1612] whitespace-nowrap">
-                        {p.stockQuantity}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] font-bold text-[11px] border border-[#EEDFC6] whitespace-nowrap shadow-2xs">
-                        {p.customCommissionRate ?? p.store?.defaultCommissionRate ?? 10}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs whitespace-nowrap ${
-                          p.isActive
-                            ? 'bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]'
-                            : 'bg-[#FAF8F5] text-[#7D715E] border-[#EAE4D7]'
-                        }`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${p.isActive ? 'bg-[#059669]' : 'bg-[#7D715E]'}`} />
-                        <span>{p.isActive ? 'Đang mở bán' : 'Tạm ẩn'}</span>
-                      </span>
-                    </td>
+          <>
+            <div className={`overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#EAE4D7] hover:[&::-webkit-scrollbar-thumb]:bg-[#C59B58]/40 ${productsLoading ? 'opacity-60' : ''}`}>
+              <table className="w-full text-left text-xs border-collapse min-w-[780px]">
+                <thead>
+                  <tr className="border-b border-[#EAE4D7] bg-[#FAF8F5] text-[#7D715E] text-[11px] font-bold uppercase tracking-wider select-none">
+                    <th className="py-3 px-4 font-bold whitespace-nowrap min-w-[280px]">Sản phẩm</th>
+                    <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Giá bán</th>
+                    <th className="py-3 px-4 font-bold whitespace-nowrap w-[100px]">Tồn kho</th>
+                    <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Hoa hồng CTV</th>
+                    <th className="py-3 px-4 font-bold whitespace-nowrap w-[130px]">Trạng thái</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[#EAE4D7]/70 bg-white">
+                  {topProducts.map((p) => (
+                    <tr key={p.id} className="group hover:bg-[#FBF5EB]/40 transition-colors duration-150">
+                      <td className="py-3 px-4 align-middle">
+                        <div className="flex items-center gap-3">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.title}
+                              className="w-10 h-10 rounded-xl object-cover border border-[#EAE4D7] bg-[#FAF8F5] shrink-0 shadow-2xs group-hover:border-[#C59B58]/40 transition-colors"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-[#FBF5EB] border border-[#EEDFC6] text-[#B88E4F] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                              <Box className="w-4 h-4" />
+                            </div>
+                          )}
+                          <strong className="text-[12.5px] font-bold text-[#1A1612] truncate max-w-[280px] block leading-snug" title={p.title}>
+                            {p.title}
+                          </strong>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 align-middle whitespace-nowrap">
+                        <strong className="font-mono text-[12.5px] font-bold text-[#1A1612] whitespace-nowrap">
+                          {Number(p.price).toLocaleString('vi-VN')} ₫
+                        </strong>
+                      </td>
+                      <td className="py-3 px-4 align-middle whitespace-nowrap">
+                        <span className="font-semibold text-xs text-[#1A1612] whitespace-nowrap">
+                          {p.stockQuantity}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 align-middle whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FBF5EB] text-[#B88E4F] font-bold text-[11px] border border-[#EEDFC6] whitespace-nowrap shadow-2xs">
+                          {p.customCommissionRate ?? p.store?.defaultCommissionRate ?? 10}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 align-middle whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs whitespace-nowrap ${
+                            p.isActive
+                              ? 'bg-[#FBF5EB] text-[#B88E4F] border-[#EEDFC6]'
+                              : 'bg-[#FAF8F5] text-[#7D715E] border-[#EAE4D7]'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${p.isActive ? 'bg-[#059669]' : 'bg-[#7D715E]'}`} />
+                          <span>{p.isActive ? 'Đang mở bán' : 'Tạm ẩn'}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPagination
+              page={productPage}
+              totalPages={productTotalPages}
+              total={productTotal}
+              pageSize={DASHBOARD_PRODUCT_PAGE_SIZE}
+              label="sản phẩm"
+              onPageChange={(next) => {
+                setProductPage(next);
+                void loadProducts(storeId, next, true);
+              }}
+            />
+          </>
         )}
       </div>
     </div>

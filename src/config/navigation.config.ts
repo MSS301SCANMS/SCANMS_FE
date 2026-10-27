@@ -19,6 +19,7 @@ import {
   MapPin,
   Heart,
   LayoutDashboard,
+  Sparkles,
   type LucideProps,
 } from 'lucide-react';
 
@@ -46,6 +47,7 @@ export const NAVIGATION_BY_ROLE: Record<string, RoleNavigationGroup> = {
     subTitle: 'Không gian mua sắm',
     items: [
       { path: '/customer/orders', label: 'Đơn mua của tôi', icon: ShoppingBag, section: 'MUA SẮM & VÍ' },
+      { path: '/outfit-match', label: 'AI phối giày & nón', icon: Sparkles, section: 'MUA SẮM & VÍ' },
       { path: '/customer/addresses', label: 'Sổ địa chỉ nhận hàng', icon: MapPin, section: 'MUA SẮM & VÍ' },
       { path: '/customer/wishlist', label: 'Sản phẩm yêu thích', icon: Heart, section: 'MUA SẮM & VÍ' },
       { path: '/customer/wallet', label: 'Ví SCANMS', icon: Wallet, badge: 'Ví', section: 'MUA SẮM & VÍ' },

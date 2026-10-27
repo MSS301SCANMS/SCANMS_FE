@@ -22,6 +22,7 @@ const RedirectHandlerPage = lazyRetry(() => import('@/pages/public/RedirectHandl
 const MarketplacePage = lazyRetry(() => import('../pages/public/MarketplacePage'));
 const ShopPage = lazyRetry(() => import('../pages/public/ShopPage'));
 const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
+const OutfitMatchPage = lazyRetry(() => import('../pages/public/OutfitMatchPage'));
 const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
 const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
 const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductManagementPage'));
@@ -140,6 +141,8 @@ function AppRoutes() {
                 <Route path="/shops/:shopId" element={<ShopPage />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/marketplace/search" element={<SearchPage />} />
+                <Route path="/outfit-match" element={<OutfitMatchPage />} />
+                <Route path="/customer/outfit-match" element={<OutfitMatchPage />} />
                 <Route path="/store" element={<MarketplacePage />} />
                 <Route path="/storefront" element={<MarketplacePage />} />
                 <Route path="/shop" element={<ShopStorefrontPage />} />

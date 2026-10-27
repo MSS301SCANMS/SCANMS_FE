@@ -335,51 +335,57 @@ export default function LiveSessionsPage({
           throw new Error('Tài khoản chưa có gian hàng. Hãy hoàn tất hồ sơ và chờ quản lý duyệt.');
         }
 
-        const [productsRes, collabsRes, loadedSessions] = await Promise.all([
-          api.get('/products', { params: { storeId: sId }, headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          api.get('/collaborators', { headers: { 'x-skip-cache': '1' } }).catch(() => null),
-          loadSessions(sId),
+        const [productsRes, partnerCatalog, invitations] = await Promise.all([
+          productService.getProducts({ storeId: sId }, true),
+          partnershipInvitationsService.catalog(),
+          partnershipInvitationsService.list('shop'),
         ]);
         if (!active) return;
-        const products = productsRes.items.filter(product => product.isActive).map(p => ({ ...p, variants: p.variants || [] }));
-        if (!Array.isArray(partnerCatalog?.creators)) throw new Error('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
-        const accepted = new Set(invitations.filter(invitation => invitation.storeId === sId && invitation.status === 'ACCEPTED').map(invitation => invitation.collaboratorId));
+        const products = productsRes.items
+          .filter((product) => product.isActive)
+          .map((p) => ({
+            id: p.id,
+            title: p.title,
+            imageUrl: p.imageUrl || null,
+            price: p.price,
+            variants: (p.variants || []).map((v) => ({
+              id: v.id,
+              name: v.name,
+              sku: v.sku,
+              price: v.price ?? null,
+            })),
+          }));
+        if (!Array.isArray(partnerCatalog?.creators)) {
+          throw new Error('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
+        }
+        const accepted = new Set(
+          invitations
+            .filter((invitation) => invitation.storeId === sId && invitation.status === 'ACCEPTED')
+            .map((invitation) => invitation.collaboratorId)
+        );
         const creators = partnerCatalog.creators
-          .filter(creator => accepted.has(creator.id))
-          .map(creator => ({
+          .filter((creator) => accepted.has(creator.id))
+          .map((creator) => ({
             id: creator.id,
             fullName: creator.name,
             avatarUrl: null,
             collaboratorProfile: { totalFollowers: creator.followers, kycStatus: 'VERIFIED' },
-            socialChannels: [{ platformName: creator.platform, channelName: creator.name, followerCount: creator.followers, channelUrl: creator.channelUrl || '' }],
+            socialChannels: [
+              {
+                platformName: creator.platform,
+                channelName: creator.name,
+                followerCount: creator.followers,
+                channelUrl: creator.channelUrl || '',
+              },
+            ],
           }));
         const nextCatalog = { products, creators, defaultCommissionRate: 10 } as Catalog;
-        catalogRef.current = nextCatalog;setCatalog(nextCatalog);
+        catalogRef.current = nextCatalog;
+        setCatalog(nextCatalog);
         const loadedSessions = await loadSessions(sId);
-        if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
-        const productsRaw = (productsRes as any)?.data || (productsRes as any)?.result || productsRes || [];
-        const collabsRaw = (collabsRes as any)?.data || (collabsRes as any)?.result || collabsRes || [];
-        const products = (Array.isArray(productsRaw) ? productsRaw : productsRaw?.items || []).map((p: any) => ({
-          id: p.productId || p.id,
-          title: p.title || p.name || 'Sản phẩm',
-          imageUrl: p.imageUrl || p.thumbnailUrl || null,
-          price: p.price ?? p.basePrice ?? 0,
-        }));
-        const creators = (Array.isArray(collabsRaw) ? collabsRaw : [])
-          .filter((c: any) => String(c.approvalStatus || c.status || '').toUpperCase() === 'APPROVED' || !c.approvalStatus)
-          .map((c: any) => ({
-            id: c.collaboratorId || c.id || c.userId,
-            fullName: c.displayName || c.fullName || c.username || 'KOL',
-            avatarUrl: c.avatarUrl || null,
-            collaboratorProfile: { totalFollowers: c.followerCount || 0, kycStatus: c.kycStatus || 'VERIFIED' },
-            socialChannels: c.socialChannels || [],
-            baseRate: c.baseRate ?? 10,
-            currentEffectiveRate: c.currentEffectiveRate ?? c.baseRate ?? 10,
-            isExclusiveVip: Boolean(c.isExclusiveVip),
-            exclusiveDealRate: c.exclusiveDealRate,
-            campaignBonusRate: c.campaignBonusRate || 0,
-          }));
-        setCatalog({ products, creators, defaultCommissionRate: 10 });
+        if (!loadedSessions) {
+          throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
+        }
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',

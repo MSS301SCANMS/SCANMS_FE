@@ -4,6 +4,9 @@ export function isNavLinkActive(path: string, currentPath: string, search: strin
       || /^\/stores\/[^/]+\/payouts$/.test(currentPath);
   }
   if (path.startsWith('/customer')) {
+    if (path === '/outfit-match' || path === '/customer/outfit-match') {
+      return currentPath === '/outfit-match' || currentPath.startsWith('/customer/outfit-match');
+    }
     if (path === '/customer/orders') {
       return (
         currentPath === '/customer' ||

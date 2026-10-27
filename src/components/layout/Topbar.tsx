@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
@@ -7,6 +7,7 @@ import { toast } from '../../utils/toast';
 import { ScanMSLogo } from '../common/ScanMSLogo';
 import { HeaderAccountButton } from './HeaderAccountButton';
 import { AccountConnectionStatus } from './AccountConnectionStatus';
+import { useResolvedWorkspaceRole } from '../../hooks/useResolvedWorkspaceRole';
 
 export interface TopbarProps {
   currentUser: UserProfile | null;
@@ -27,13 +28,12 @@ export function Topbar({
     observer.observe(header);
     return () => observer.disconnect();
   }, []);
-  const location = useLocation();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState(() => authService.getActiveWorkspace());
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { role, isShop, isCustomer, isAdmin } = useResolvedWorkspaceRole(currentUser);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -45,26 +45,6 @@ export function Topbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const syncWorkspace = () => setActiveWorkspace(authService.getActiveWorkspace());
-    window.addEventListener('scanms_workspace_changed', syncWorkspace);
-    window.addEventListener('storage', syncWorkspace);
-    return () => {
-      window.removeEventListener('scanms_workspace_changed', syncWorkspace);
-      window.removeEventListener('storage', syncWorkspace);
-    };
-  }, []);
-
-  const role = activeWorkspace === 'shop'
-    ? 'SHOP_MANAGER'
-    : activeWorkspace === 'admin'
-    ? currentUser?.role === 'SYSTEM_MANAGER' ? 'SYSTEM_MANAGER' : 'SYSTEM_ADMIN'
-    : activeWorkspace === 'customer' || location.pathname.startsWith('/customer')
-    ? 'CUSTOMER'
-    : 'COLLABORATOR';
-  const isShop = role === 'SHOP_MANAGER';
-  const isCustomer = role === 'CUSTOMER';
-  const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
   // Trang chủ khu quản trị — khớp với điều hướng sau đăng nhập.
   const adminHomePath = role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
 

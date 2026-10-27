@@ -4,7 +4,7 @@ import type { UserProfile } from '../../services/auth.service';
 
 interface HeaderAccountButtonProps {
   user: UserProfile | null;
-  role: UserProfile['role'];
+  role: UserProfile['role'] | 'SHOP_MANAGER' | 'COLLABORATOR' | 'CUSTOMER' | 'SYSTEM_ADMIN' | 'SYSTEM_MANAGER';
   expanded: boolean;
   menuId: string;
   detail?: string;
@@ -15,7 +15,7 @@ const roles = {
   CUSTOMER: { label: 'Khách mua sắm', icon: ShoppingBag },
   COLLABORATOR: { label: 'KOL/KOC', icon: Star },
   SHOP_MANAGER: { label: 'Chủ shop', icon: Store },
-  SYSTEM_MANAGER: { label: 'Vận hành', icon: Shield },
+  SYSTEM_MANAGER: { label: 'Manager', icon: Shield },
   SYSTEM_ADMIN: { label: 'Admin', icon: Shield },
 };
 

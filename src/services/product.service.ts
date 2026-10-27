@@ -212,31 +212,40 @@ export const productService = {
     storeId?: string;
     search?: string;
     category?: string;
+    status?: string;
+    /** UI 1-based page */
     page?: number;
     limit?: number;
   }, fresh = false) {
+    const uiPage = Math.max(1, params?.page ?? 1);
+    const size = Math.max(1, Math.min(params?.limit ?? 20, 100));
     const res: any = await api.get('/products', {
-      params,
+      params: {
+        // PageResponse / Spring Page dùng page 0-based
+        page: uiPage - 1,
+        size,
+        storeId: params?.storeId || undefined,
+        search: params?.search || undefined,
+        status: params?.status || undefined,
+      },
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
-    let items = await hydrateProducts(unwrapList(res));
-    if (params?.storeId) items = items.filter((p) => p.storeId === params.storeId);
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      items = items.filter(
-        (p) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q),
-      );
-    }
-    const page = params?.page || 1;
-    const limit = params?.limit || 20;
-    const totalPages = Math.max(1, Math.ceil(items.length / limit));
+    const payload = unwrapApi<any>(res);
+    const items = await hydrateProducts(unwrapList(res));
+    const total = Number(payload?.totalElements ?? payload?.total ?? items.length);
+    const zeroBasedPage = Number(payload?.page ?? uiPage - 1);
+    const safeLimit = Number(payload?.size ?? size);
+    const totalPages = Math.max(1, Number(payload?.totalPages ?? Math.ceil(total / safeLimit) ?? 1));
     return {
       items,
       data: items,
-      total: items.length,
-      pagination: { total: items.length, page, limit, totalPages },
+      total,
+      pagination: {
+        total,
+        page: zeroBasedPage + 1,
+        limit: safeLimit,
+        totalPages,
+      },
     };
   },
 

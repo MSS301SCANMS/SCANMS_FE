@@ -10,6 +10,8 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { authService, type AvailableWorkspace, type UserProfile } from '../../services/auth.service';
+import { useResolvedWorkspaceRole } from '../../hooks/useResolvedWorkspaceRole';
+import { workspaceKeyFromRole } from '../layout/sidebars/resolveWorkspaceRole';
 
 interface WorkspaceSwitcherProps {
   variant?: 'header' | 'sidebar';
@@ -22,21 +24,23 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 }) => {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
-  const [activeWorkspace, setActiveWorkspace] = useState(authService.getActiveWorkspace());
+  const { role } = useResolvedWorkspaceRole(currentUser);
+  const activeWorkspace = workspaceKeyFromRole(role);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleWorkspaceChange = () => {
       setCurrentUser(authService.getCurrentUser());
-      setActiveWorkspace(authService.getActiveWorkspace());
     };
 
     window.addEventListener('scanms_workspace_changed', handleWorkspaceChange);
     window.addEventListener('storage', handleWorkspaceChange);
+    window.addEventListener('auth-user-updated', handleWorkspaceChange);
     return () => {
       window.removeEventListener('scanms_workspace_changed', handleWorkspaceChange);
       window.removeEventListener('storage', handleWorkspaceChange);
+      window.removeEventListener('auth-user-updated', handleWorkspaceChange);
     };
   }, []);
 
