@@ -24,7 +24,7 @@ test('shop receipt queue separates arrived parcels, retries failures and waits f
       if(request.method()==='OPTIONS')return request.respond({status:204,headers});
       if(url.pathname==='/src/services/chat-socket.service.ts')return request.respond({contentType:'application/javascript',body:'const s={connected:false,active:false,on(){return this},off(){return this},emit(){},connect(){return this}};export const getChatSocket=()=>s;export const isChatSocketEnabled=()=>false;export const isChatSocketAuthenticated=()=>false;export const disconnectChatSocket=()=>{};'});
       if(url.pathname.startsWith('/api/')){
-        if(url.pathname.endsWith('/users/me'))return respond({userId:'owner',roles:['SHOP_OWNER'],fullName:'Fixture owner',status:'ACTIVE'});
+        if(url.pathname.endsWith('/users'))return respond({userId:'owner',roles:['SHOP_OWNER'],fullName:'Fixture owner',status:'ACTIVE'});
         if(url.pathname.endsWith('/stores/mine'))return respond([{storeId:'store-a',name:'Fixture shop'}]);
         if(url.pathname.endsWith('/returns/shop'))return respond(rows.map(({logistics,...row})=>row));
         const detail=url.pathname.match(/\/commerce\/returns\/([^/]+)$/)?.[1];

@@ -33,7 +33,7 @@ test('customer selects return shipments, retries partial failures and reconciles
       if(request.method()==='OPTIONS')return request.respond({status:204,headers});
       if(url.pathname==='/src/services/chat-socket.service.ts')return request.respond({contentType:'application/javascript',body:'const s={connected:false,active:false,on(){return this},off(){return this},emit(){},connect(){return this}};export const getChatSocket=()=>s;export const isChatSocketEnabled=()=>false;export const isChatSocketAuthenticated=()=>false;export const disconnectChatSocket=()=>{};'});
       if(url.pathname.startsWith('/api/')) {
-        if(url.pathname.endsWith('/users/me'))return respond({userId:'fixture-buyer',roles:['USER'],fullName:'Fixture buyer',status:'ACTIVE'});
+        if(url.pathname.endsWith('/users'))return respond({userId:'fixture-buyer',roles:['USER'],fullName:'Fixture buyer',status:'ACTIVE'});
         if(url.pathname.endsWith('/orders/my-orders'))return respond([{orderId:'purchase',status:'COMPLETED',finalAmount:530000,createdAt:now}]);
         if(url.pathname.endsWith('/orders/purchase/checkout-details'))return respond({orderId:'purchase',status:'COMPLETED',finalAmount:530000,shippingFee:30000,createdAt:now,sellerOrders:[{sellerOrderId:'seller',storeId:'shop',status:'COMPLETED',deliveredAt:now,totalsSnapshot:{storeName:'Fixture shop'},items:rows.map(row=>({orderItemId:row.orderItemId,productId:'product-'+row.returnRequestId,quantity:1,unitPrice:100000,productSnapshot:row.productSnapshot}))}]});
         if(url.pathname.endsWith('/commerce/returns'))return respond(rows);

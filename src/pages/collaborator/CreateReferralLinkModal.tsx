@@ -3,7 +3,9 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, Download, ExternalLin
 import QRCode from 'qrcode';
 import { referralLinksService, type EligibleProduct, type ReferralLinkItem } from '../../services/referral-links.service';
 import { Select } from '../../components/ui/Select';
+import { DateTimePicker } from '../../components/common/DateTimePicker';
 import './CreateReferralLinkModal.css';
+import { productCommissionDeals, type ProductCommissionRate } from '../../services/product-commission-deals.service';
 
 const channels = { TIKTOK: 'TikTok', FACEBOOK: 'Facebook', YOUTUBE: 'YouTube', INSTAGRAM: 'Instagram', WEBSITE: 'Trang web', OTHER: 'Khác' };
 const searchText = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
@@ -20,6 +22,7 @@ export function CreateReferralLinkModal({ onClose, onCreated }: { onClose: () =>
   const [shop, setShop] = useState('ALL');
   const [category, setCategory] = useState('ALL');
   const [selected, setSelected] = useState<EligibleProduct | null>(null);
+  const [commissionRate, setCommissionRate] = useState<ProductCommissionRate | null>(null);
   const [label, setLabel] = useState('');
   const [channel, setChannel] = useState('TIKTOK');
   const [expires, setExpires] = useState('');
@@ -30,6 +33,7 @@ export function CreateReferralLinkModal({ onClose, onCreated }: { onClose: () =>
   const [qrError, setQrError] = useState(false);
   const [copied, setCopied] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
+  const expiryPopover = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
   const request = useRef<{ payload: string; token: string } | null>(null);
   const loadNumber = useRef(0);
@@ -73,17 +77,23 @@ export function CreateReferralLinkModal({ onClose, onCreated }: { onClose: () =>
     if (result) QRCode.toDataURL(result.shortUrl, { width: 512, margin: 3 }).then(url => { if (active) setQr(url); }).catch(() => { if (active) setQrError(true); });
     return () => { active = false; };
   }, [result]);
+  useEffect(() => {
+    let active = true; setCommissionRate(null);
+    if (selected) productCommissionDeals.rate(selected.id).then(rate => { if (active) setCommissionRate(rate); }).catch(() => {});
+    return () => { active = false; };
+  }, [selected?.id]);
 
   const shops = [...new Map(products.map(product => [product.store.id, product.store.name])).entries()];
   const categories = [...new Set(products.map(product => product.categoryName).filter((value): value is string => Boolean(value)))];
   const filtered = useMemo(() => products.filter(product => (shop === 'ALL' || product.store.id === shop)
     && (category === 'ALL' || product.categoryName === category)
     && searchText(`${product.title} ${product.sku} ${product.store.name}`).includes(searchText(search.trim()))), [products, shop, category, search]);
-  const expiryInvalid = Boolean(expires && (!Number.isFinite(Date.parse(expires)) || Date.parse(expires) <= Date.now()));
+  const expiryInstant = expires ? Date.parse(`${expires}+07:00`) : NaN;
+  const expiryInvalid = Boolean(expires && (!Number.isFinite(expiryInstant) || expiryInstant <= Date.now()));
   const valid = Boolean(selected && label.trim().length >= 2 && label.trim().length <= 150 && !expiryInvalid);
   const submit = async () => {
     if (!selected || !valid || result || inFlight.current) return;
-    const payload = { productId: selected.id, label: label.trim(), channel, ...(expires ? { expiresAt: new Date(expires).toISOString() } : {}) };
+    const payload = { productId: selected.id, label: label.trim(), channel, ...(expires ? { expiresAt: new Date(expiryInstant).toISOString() } : {}) };
     const serialized = JSON.stringify(payload);
     if (request.current?.payload !== serialized) request.current = { payload: serialized, token: crypto.randomUUID() };
     inFlight.current = true; setSaving(true); setError('');
@@ -112,8 +122,9 @@ export function CreateReferralLinkModal({ onClose, onCreated }: { onClose: () =>
             {hasMore && !catalogError && <button type="button" className="referral-create-load-more" disabled={loading} onClick={() => void load(page + 1)}>{loading ? 'Đang tải…' : 'Tải thêm sản phẩm'}</button>}
           </> : <>
             <div className="referral-create-selected"><img src={selected!.imageUrl || '/assets/product-placeholder.svg'} alt="" /><div><strong>{selected!.title}</strong><span>{selected!.store.name} · {money(selected!.price)}</span></div><button type="button" disabled={saving} onClick={() => setStep(1)}>Đổi</button></div>
-            <div className="referral-create-fields"><div className="referral-create-field"><label htmlFor="referral-label">Tên liên kết <span>*</span></label><input id="referral-label" autoComplete="off" value={label} disabled={saving} maxLength={150} minLength={2} required onChange={event => setLabel(event.target.value)} placeholder="Ví dụ: Sản phẩm chăm sóc da tháng 10" /><small>Dùng để nhận biết liên kết trong danh sách · {label.length}/150 ký tự</small></div><div className="referral-create-field"><label htmlFor="referral-channel-trigger">Kênh chia sẻ <span>*</span></label><Select id="referral-channel" aria-label="Kênh chia sẻ" value={channel} disabled={saving} onChange={event => setChannel(event.target.value)} className="w-full h-11 rounded-lg py-2 text-sm shadow-none">{Object.entries(channels).map(([value, title]) => <option key={value} value={value}>{title}</option>)}</Select></div><div className="referral-create-field"><label htmlFor="referral-expires">Ngày hết hạn <small>(tùy chọn)</small></label><input id="referral-expires" type="datetime-local" value={expires} disabled={saving} onChange={event => setExpires(event.target.value)} aria-invalid={expiryInvalid} />{expiryInvalid ? <small className="referral-create-invalid">Chọn thời điểm trong tương lai.</small> : <small>Để trống nếu bạn chưa muốn đặt thời hạn.</small>}</div></div>
+            <div className="referral-create-fields"><div className="referral-create-field"><label htmlFor="referral-label">Tên liên kết <span>*</span></label><input id="referral-label" autoComplete="off" value={label} disabled={saving} maxLength={150} minLength={2} required onChange={event => setLabel(event.target.value)} placeholder="Ví dụ: Sản phẩm chăm sóc da tháng 10" /><small>Dùng để nhận biết liên kết trong danh sách · {label.length}/150 ký tự</small></div><div className="referral-create-field"><label htmlFor="referral-channel-trigger">Kênh chia sẻ <span>*</span></label><Select id="referral-channel" aria-label="Kênh chia sẻ" value={channel} disabled={saving} onChange={event => setChannel(event.target.value)} className="w-full h-11 rounded-lg py-2 text-sm shadow-none">{Object.entries(channels).map(([value, title]) => <option key={value} value={value}>{title}</option>)}</Select></div><div className="referral-create-field"><label htmlFor="referral-expires">Ngày hết hạn <small>(tùy chọn)</small></label><DateTimePicker id="referral-expires" value={expires} disabled={saving} onChange={setExpires} timeZone="Asia/Ho_Chi_Minh" compact floatingAbove inlinePopoverRef={expiryPopover} popoverTitle="Chọn ngày hết hạn" placeholder="Ngày / tháng / năm · giờ:phút" /><div ref={expiryPopover} className="referral-create-expiry-calendar" />{expiryInvalid ? <small className="referral-create-invalid">Chọn thời điểm trong tương lai.</small> : null}</div></div>
           </>}
+          {selected && (step === 2 || result) && <p className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] px-4 py-3 text-xs leading-6 text-[#795A2D]">{commissionRate ? <>Hoa hồng đang áp dụng: <strong>{Number(commissionRate.totalRate)}%</strong> · Cơ bản {Number(commissionRate.baseRate)}% + {commissionRate.extraPoints} điểm % từ deal. Tỷ lệ của đơn sẽ được chốt khi hệ thống ghi nhận hoa hồng.</> : 'Chưa tải được mức hoa hồng. Kiểm tra chính sách hoặc mục Deal hoa hồng sản phẩm trước khi chia sẻ.'}</p>}
           {error && <p role="alert" className="referral-create-error">{error}</p>}
         </div>
         <footer className="referral-create-footer"><span>{result ? 'Liên kết đã được lưu' : selected ? 'Đã chọn 1 sản phẩm' : 'Chọn sản phẩm để tiếp tục'}</span><div>{result ? <button type="button" className="referral-create-primary" onClick={onClose}>Hoàn tất<Check size={16} /></button> : <><button type="button" className="referral-create-secondary" disabled={saving} onClick={() => step === 1 ? onClose() : setStep(1)}>{step === 2 && <ArrowLeft size={15} />}{step === 1 ? 'Hủy bỏ' : 'Quay lại'}</button>{step === 1 ? <button type="submit" className="referral-create-primary" disabled={!selected || loading || Boolean(catalogError)}>Tiếp tục<ArrowRight size={16} /></button> : <button type="submit" className="referral-create-primary" disabled={saving || !valid}>{saving ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} />}{saving ? 'Đang tạo…' : 'Tạo liên kết'}</button>}</>}</div></footer>

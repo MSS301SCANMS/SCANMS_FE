@@ -34,7 +34,7 @@ test('shop saves new two-level warehouse addresses, reloads server values and st
      if(request.method()==='PUT'){owner=JSON.parse(request.postData());writes.push({...owner});}
      result=owner;
     }
-    if(url.pathname.endsWith('/users/me'))result={userId:'warehouse-owner',roles:['SHOP_OWNER'],fullName:'Test owner',status:'ACTIVE'};
+    if(url.pathname.endsWith('/users'))result={userId:'warehouse-owner',roles:['SHOP_OWNER'],fullName:'Test owner',status:'ACTIVE'};
     return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result})});
    }
    if(url.origin!==origin&&!['data:','blob:'].includes(url.protocol))return request.abort();

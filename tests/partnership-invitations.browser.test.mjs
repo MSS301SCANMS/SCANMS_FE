@@ -24,7 +24,7 @@ test('shop invitations persist across reload, preserve failures, and KOL accepts
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     if(url.pathname.endsWith('/stores/my-store/presence'))return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result:{online:true}})});
     let result=[],status=200,message='Success';
-    if(url.pathname.endsWith('/users/me'))result={userId:mode==='shop'?'shop-user':'kol-user',roles:[mode==='shop'?'SHOP_OWNER':'COLLABORATOR'],status:'ACTIVE',fullName:'Fixture user'};
+    if(url.pathname.endsWith('/users'))result={userId:mode==='shop'?'shop-user':'kol-user',roles:[mode==='shop'?'SHOP_OWNER':'COLLABORATOR'],status:'ACTIVE',fullName:'Fixture user'};
     if(url.pathname.endsWith('/stores/mine'))result=[{storeId:'store-1',name:'Sora Skin',ownerUserId:'shop-user',approvalStatus:'APPROVED'}];
     if(url.pathname.endsWith('/stores/store-1'))result={storeId:'store-1',name:'Sora Skin',ownerUserId:'shop-user',approvalStatus:'APPROVED'};
     if(url.pathname.endsWith('/collaborators/me'))result={collaboratorId:'kol-1',userId:'kol-user',approvalStatus:'APPROVED',applicationData:{channelName:'Creator One'}};

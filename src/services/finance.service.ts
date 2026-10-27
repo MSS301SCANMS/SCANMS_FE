@@ -19,6 +19,7 @@ export interface MoneyPayment { paymentId: string; orderId: string | null; purpo
 export interface MoneyFee { feeConfigId: string; feeType: string; calculationType: 'PERCENTAGE' | 'FIXED'; ratePercent: number | null; fixedAmountVnd: number | null; minFeeVnd: number | null; maxFeeVnd: number | null; validFrom: string; validTo: string | null; status: string }
 export interface MoneyPage<T> { items: T[]; total: number; page: number; size: number }
 export interface Capabilities { minimumWithdrawalVnd: number; currency: string; paymentAvailable: boolean; payoutAvailable: boolean; sandboxTopUpAvailable: boolean }
+export interface KafkaStatus { up: boolean; bootstrapServers?: string; clusterId?: string; brokers?: number; consumerGroups?: number; topic?: string; groupId?: string; groupState?: string; groupMembers?: number; lag?: number; latencyMs?: number; message?: string }
 export interface PendingFinanceEvents { configured: boolean; total: number; items: { eventId: string; eventKey: string; attempts: number; createdAt: string; nextAttemptAt: string; lastError?: string; lastHttpStatus?: number; blocked?: boolean }[] }
 export interface FinanceSourceOrder { orderId: string; publicOrderCode: string; storeName: string; status: string; paymentStatus: string; amountVnd: number; returnRequestId: string | null; returnStatus: string | null; commissionId: string | null; returnWindowClosesAt: string | null }
 async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>): Promise<T> {
@@ -35,6 +36,7 @@ export const financeService = {
   bankCalendar: () => request<{ date: string; reason: string; actor: string; configuredAt: string }[]>('GET', '/bank-calendar'),
   closeBankDay: (date: string, reason: string) => request<string>('POST', '/bank-calendar', { date, reason }),
   capabilities: () => request<Capabilities>('GET', '/capabilities'),
+  kafkaStatus: () => request<KafkaStatus>('GET', '/system/kafka'),
   events: (page = 0) => request<PendingFinanceEvents>('GET', '/events/pending', undefined, { page }),
   retryEvent: (id: string) => request<string>('POST', `/events/${id}/retry`),
   walletById: (id: string) => request<MoneyWallet>('GET', `/wallets/${id}`),
@@ -62,6 +64,7 @@ export const financeService = {
   feeStatus: (id: string, status: string) => request<MoneyFee>('PATCH', `/fees/${id}/status`, undefined, { status }),
   refund: (id: string) => request<unknown>('POST', `/refunds/${id}`),
   creditCommission: (id: string) => request<unknown>('POST', `/commissions/${id}/credit`),
+  reconcileCommission: (id: string) => request<unknown>('POST', `/commissions/${id}/reconcile`),
   payment: (orderId: string, idempotencyKey: string) => request<MoneyPayment>('POST', '/payments', { orderId, idempotencyKey }),
   payments: (page = 0) => request<MoneyPage<MoneyPayment>>('GET', '/payments', undefined, { page, size: 20 }),
   resumePayment: (id: string) => request<MoneyPayment>('POST', `/payments/${id}/resume`),

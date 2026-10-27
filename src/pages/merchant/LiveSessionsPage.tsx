@@ -36,11 +36,6 @@ import { partnershipInvitationsService } from '../../services/partnership-invita
 import { unwrapApi } from '../../utils/api-response';
 import { serverDate } from '../../utils/server-date';
 
-const getFallbackAvatar = (_id: string, name: string) => {
-  const initial = (Array.from(name.trim())[0] || 'K').toLocaleUpperCase('vi').replace(/[<>&"']/g, '') || 'K';
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#F0FAF8"/><text x="32" y="40" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#0F766E">${initial}</text></svg>`)}`;
-};
-
 type LiveProduct = {
   id: string;
   title: string;
@@ -324,6 +319,7 @@ export default function LiveSessionsPage({
       try {
         setLoading(true);
         setLoadError('');
+        setCollaboratorLoadError('');
         const stores = await storeService.listMyStores(true);
         const myStore = stores.find(store => store.id === localStorage.getItem('current_store_id')) || stores[0];
         const sId = myStore?.id || '';
@@ -391,6 +387,7 @@ export default function LiveSessionsPage({
           commissionRate: '10',
         }));
       } catch (err: any) {
+        if (active) setCollaboratorLoadError(err?.message || 'Không tải được KOL đối tác.');
         if (active) setLoadError(err?.response?.data?.message || err?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
         if (active) toast.error(err?.response?.data?.message || err?.message || 'Không khởi tạo được dữ liệu.');
       } finally {

@@ -22,7 +22,7 @@ test('manager return queue uses real records, late response filter, evidence and
     const headers={'Access-Control-Allow-Origin':new URL(base).origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
     if(request.method()==='OPTIONS')return request.respond({status:204,headers});
     let status=200,result=[],message;
-    if(url.pathname.endsWith('/users/me'))result={userId:'manager',roles:['MANAGER'],fullName:'Manager kiểm thử',status:'ACTIVE'};
+    if(url.pathname.endsWith('/users'))result={userId:'manager',roles:['MANAGER'],fullName:'Manager kiểm thử',status:'ACTIVE'};
     if(url.pathname.endsWith('/returns/manager')){result=rows;if(failRead){status=503;message='Dịch vụ đổi trả kiểm thử đang bận.';}}
     if(request.method()!=='GET'){
      assert.match(url.pathname,/\/returns\/manager\/return-(late|responded|recent)\/decision$/);

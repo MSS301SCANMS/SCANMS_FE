@@ -41,7 +41,7 @@ test('completed purchases appear in return history and open the simulated return
       if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
       if (url.pathname === '/src/services/chat-socket.service.ts') return request.respond({ contentType: 'application/javascript', body: 'const s={connected:false,active:false,on(){return this},off(){return this},emit(){},connect(){return this}};export const getChatSocket=()=>s;export const isChatSocketEnabled=()=>false;export const isChatSocketAuthenticated=()=>false;export const disconnectChatSocket=()=>{};' });
       if (url.pathname.startsWith('/api/')) {
-        if (url.pathname.endsWith('/users/me')) return respond({ userId: 'fixture-buyer', fullName: 'Fixture buyer', roles: ['USER'], status: 'ACTIVE' });
+        if (url.pathname.endsWith('/users')) return respond({ userId: 'fixture-buyer', fullName: 'Fixture buyer', roles: ['USER'], status: 'ACTIVE' });
         if (url.pathname.endsWith('/orders/my-orders')) return respond(orders);
         const detailsId = url.pathname.match(/\/orders\/([^/]+)\/checkout-details$/)?.[1];
         if (detailsId) return respond({ ...orders.find(order => order.orderId === detailsId), shippingFee: 30000,

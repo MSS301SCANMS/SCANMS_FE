@@ -23,7 +23,7 @@ test('unpaid order opens Spring PayOS, ignores URL success and waits for order s
     if(url.pathname.includes('/orders/payos/'))legacy.push(url.pathname);
     if(url.pathname.endsWith('/finance/payments')&&request.method()==='POST')creates.push(JSON.parse(request.postData()));
     if(url.pathname.endsWith('/finance/payments')||url.pathname.endsWith('/finance/payments/payment-a'))result={paymentId:'payment-a',orderId:'order-a',purpose:'ORDER',amountVnd:299000,status:phase==='PROCESSING'?'PROCESSING':'SUCCESS',orderSyncStatus:phase==='PROCESSING'?null:phase==='SYNCING'?'PENDING':'SYNCED',qrCode:'TEST-QR',checkoutUrl:'https://pay.payos.vn/web/test'};
-    if(url.pathname.endsWith('/users/me'))result={userId:'buyer',fullName:'Buyer',roles:['USER'],status:'ACTIVE'};
+    if(url.pathname.endsWith('/users'))result={userId:'buyer',fullName:'Buyer',roles:['USER'],status:'ACTIVE'};
     return request.respond({status:200,headers,contentType:'application/json',body:JSON.stringify({code:200,result})});
    }
    if(url.origin!==origin&&!['data:','blob:'].includes(url.protocol))return request.abort();return request.continue();

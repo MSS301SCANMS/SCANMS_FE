@@ -453,6 +453,16 @@ select option:focus {
   color: var(--theme-ink, #1A1612) !important;
 }
 
+/* The quick-search wrapper supplies the single border and focus indicator. */
+input.select-quick-search-input,
+input.select-quick-search-input:focus,
+input.select-quick-search-input:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
 input[type="checkbox"],
 input[type="radio"],
 input[type="range"] {

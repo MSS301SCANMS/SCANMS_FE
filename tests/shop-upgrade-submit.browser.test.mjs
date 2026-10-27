@@ -32,7 +32,7 @@ test('shop form sends Spring fields and documents, preserves a failed submission
         const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let status = 200, result = [], message;
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'shop-applicant', roles: ['USER'], status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'shop-applicant', roles: ['USER'], status: 'ACTIVE' };
         if (url.pathname.endsWith('/upload/image')) result = { secureUrl: `${origin}/fixture-${Date.now()}.png` };
         if (url.pathname.endsWith('/store-applications')) {
           if (request.method() === 'POST') {

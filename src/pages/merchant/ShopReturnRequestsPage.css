@@ -1,0 +1,48 @@
+.merchant-returns-page {
+  color: #211d17;
+}
+
+.merchant-returns-page button:focus-visible,
+.merchant-returns-page a:focus-visible,
+.merchant-returns-page input:focus-visible,
+.merchant-returns-page textarea:focus-visible {
+  outline: 2px solid #c59b58;
+  outline-offset: 2px;
+}
+
+.merchant-returns-list > div:last-child {
+  scrollbar-width: thin;
+  scrollbar-color: #ddc8a7 transparent;
+}
+
+.merchant-returns-list > div:last-child::-webkit-scrollbar {
+  width: 6px;
+}
+
+.merchant-returns-list > div:last-child::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: #ddc8a7;
+}
+
+.merchant-return-detail img {
+  max-height: 168px;
+}
+
+.merchant-return-decision textarea:focus-visible {
+  outline-color: #eadcc5;
+}
+
+@media (max-width: 639px) {
+  .merchant-returns-stat {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .merchant-returns-content {
+    gap: 10px;
+  }
+
+  .merchant-returns-list > div:last-child {
+    max-height: 220px;
+  }
+}

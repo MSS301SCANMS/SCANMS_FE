@@ -36,7 +36,7 @@ test('checkout hides orphaned profiles and old address caches, isolates account 
           const jwt = claims => Buffer.from(JSON.stringify(claims)).toString('base64url');
           return respond({ accessToken: jwt({ alg: 'none' }) + '.' + jwt({ sub: 'B', exp: Math.floor(Date.now()/1000)+300 }) + '.fixture', refreshToken: 'B-rotated', expiresIn: 300 });
         }
-        if (url.pathname.endsWith('/users/me')) {
+        if (url.pathname.endsWith('/users')) {
           privateReads++;
           const claims = JSON.parse(Buffer.from(request.headers().authorization.split(' ')[1].split('.')[1], 'base64url'));
           const owner = claims.sub;

@@ -86,7 +86,11 @@ export function PublicHeader({
       setCurrentUser(authService.getCurrentUser());
     };
     window.addEventListener('auth-user-updated', handleUserSync);
-    return () => window.removeEventListener('auth-user-updated', handleUserSync);
+    window.addEventListener('auth-workspace-changed', handleUserSync);
+    return () => {
+      window.removeEventListener('auth-user-updated', handleUserSync);
+      window.removeEventListener('auth-workspace-changed', handleUserSync);
+    };
   }, [location.pathname]);
 
   // Click outside listener for user dropdown menu

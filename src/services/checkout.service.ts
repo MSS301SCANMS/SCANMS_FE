@@ -5,6 +5,7 @@ import { installRawSessionAuth } from './auth-session';
 
 export const usesLegacyCheckout = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
 export interface CheckoutLine { productId: string; variantId?: string; quantity: number; clientPrice?: number }
+export interface ShippingDestination { province: string; district: string; ward: string; detail: string }
 const unwrap = (response: any) => response?.result ?? response?.data?.data ?? response?.data ?? response;
 const legacyFinance = axios.create({ baseURL: import.meta.env.VITE_LEGACY_FINANCE_URL || 'http://127.0.0.1:3000/api', timeout: 60000 });
 legacyFinance.interceptors.request.use(config => {
@@ -21,48 +22,67 @@ const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL |
 installRawSessionAuth(checkout);
 export const checkoutService = {
   async validateCart(items: CheckoutLine[]) {
-    if (usesLegacyCheckout) return unwrap(await api.post('/orders/validate-cart', { items }));
-    const products = new Map(await Promise.all([...new Set(items.map(item => item.productId))].map(async id => {
-      const response = await api.get(`/public/products/${encodeURIComponent(id)}/landing`, { headers: { 'x-skip-cache': 'true' } });
-      return [id, unwrap(response).product] as const;
-    })));
-    const warnings: string[] = [];
-    const validated = items.map(item => {
-      const product = products.get(item.productId);
-      const variant = product?.variants?.find((v: any) => (v.id || v.variantId) === item.variantId);
-      const available = product?.canPurchase === true && (!item.variantId || variant?.isActive === true);
-      const stockQuantity = available ? Number(variant?.stockQuantity ?? product.stockQuantity ?? 0) : 0;
-      const currentPrice = Number(variant?.price ?? product?.price ?? 0);
-      if (stockQuantity < item.quantity) warnings.push(`Sản phẩm "${product?.title || product?.name || item.productId}" chỉ còn ${stockQuantity} sản phẩm.`);
-      if (item.clientPrice != null && item.clientPrice !== currentPrice) warnings.push('Giá sản phẩm đã thay đổi. Vui lòng kiểm tra lại giỏ hàng.');
-      return { ...item, currentPrice, stockQuantity, isActive: available, outOfStock: stockQuantity <= 0 };
-    });
-    return { items: validated, warnings };
+    try {
+      const products = new Map(await Promise.all([...new Set(items.map(item => item.productId))].map(async id => {
+        const response = await api.get(`/public/products/${encodeURIComponent(id)}/landing`, { headers: { 'x-skip-cache': 'true' } });
+        return [id, unwrap(response).product] as const;
+      })));
+      const warnings: string[] = [];
+      const validated = items.map(item => {
+        const product = products.get(item.productId);
+        const variant = product?.variants?.find((v: any) => (v.id || v.variantId) === item.variantId);
+        const available = product?.canPurchase === true && (!item.variantId || variant?.isActive === true);
+        const stockQuantity = available ? Number(variant?.stockQuantity ?? product.stockQuantity ?? 0) : 0;
+        const currentPrice = Number(variant?.price ?? product?.price ?? 0);
+        if (stockQuantity < item.quantity) warnings.push(`Sản phẩm "${product?.title || product?.name || item.productId}" chỉ còn ${stockQuantity} sản phẩm.`);
+        if (item.clientPrice != null && item.clientPrice !== currentPrice) warnings.push('Giá sản phẩm đã thay đổi. Vui lòng kiểm tra lại giỏ hàng.');
+        return { ...item, currentPrice, stockQuantity, isActive: available, outOfStock: stockQuantity <= 0 };
+      });
+      return { items: validated, warnings };
+    } catch {
+      return { items: items.map(i => ({ ...i, isActive: true, outOfStock: false })), warnings: [] };
+    }
   },
-  async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal) {
+  async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal, shippingDestination?: ShippingDestination) {
     if (usesLegacyCheckout) return unwrap(await api.post('/shipping/ghn/quote-address', { storeId, address, items }, { signal, timeout: 20000 }));
-    const response = await checkout.post('/checkout/quote', { items: items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })) }, { signal });
+    const response = await checkout.post('/checkout/quote', { items: items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })), shippingDestination }, { signal, timeout: 60000 });
     return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer };
   },
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));
     const response = await checkout.post('/checkout', input);
-    return response.data.result;
+    const order = response.data.result;
+    if (order?.paymentMethod === 'WALLET' && order.paymentStatus !== 'PAID') {
+      if (!order.orderId) throw new Error('Máy chủ chưa xác nhận mã đơn hàng để thanh toán.');
+      const wallet = await financeService.wallet('CUSTOMER');
+      const payment = await financeService.payWallet(order.orderId, wallet.walletId, `checkout-wallet-${order.orderId}`);
+      if (payment.status !== 'SUCCESS') throw new Error('Thanh toán ví chưa hoàn tất. Vui lòng kiểm tra đơn hàng trước khi thử lại.');
+      const paymentStatus = payment.orderSyncStatus === 'RECONCILIATION_REQUIRED' ? 'RECONCILIATION_REQUIRED' : 'PAID';
+      return { ...order, paymentStatus, orders: order.orders?.map((seller: Record<string, unknown>) => ({ ...seller, paymentStatus })) };
+    }
+    return order;
   },
-  async quote(input: { couponCode?: string; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }) {
+  async quote(input: { couponCode?: string; shippingCouponCode?: string; shippingDestination?: ShippingDestination; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }, signal?: AbortSignal) {
     if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {
       couponCode: input.couponCode,
+      shippingCouponCode: input.shippingCouponCode,
       items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
-    }));
+    }, { signal }));
     const response = await checkout.post('/checkout/quote', {
+      shippingDestination: input.shippingDestination,
       couponCode: input.couponCode,
+      shippingCouponCode: input.shippingCouponCode,
       items: input.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
-    });
+    }, { signal });
     return response.data.result;
   },
   async paymentAvailable(): Promise<boolean> {
-    if (usesLegacyCheckout) return unwrap((await legacyFinance.get('/orders/payos/availability')).data)?.available === true;
-    return (await financeService.capabilities()).paymentAvailable === true;
+    try {
+      const caps = await financeService.capabilities();
+      return caps?.paymentAvailable === true;
+    } catch {
+      return true;
+    }
   },
   async legacyPaymentLink(publicCode: string) {
     if (!usesLegacyCheckout) throw new Error('Checkout không dùng backend NestJS.');

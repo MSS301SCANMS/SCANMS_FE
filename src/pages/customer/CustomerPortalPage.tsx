@@ -27,6 +27,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { orderDisplayCode } from '../../utils/order-display-code';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { Select } from '../../components/ui/Select';
@@ -79,6 +80,7 @@ import {
   type NotificationCategory,
 } from '../../services/notifications.service';
 import { ReturnRequestModal } from '../../components/customer/ReturnRequestModal';
+import { CustomerReturnShipments } from '../../components/customer/CustomerReturnShipments';
 import { CustomerCancelOrderModal } from '../../components/customer/CustomerCancelOrderModal';
 import { VerifiedReviewModal } from '../../components/customer/VerifiedReviewModal';
 import { OrderShipmentPanel } from '../../components/shipping/OrderShipmentPanel';
@@ -1378,18 +1380,11 @@ export default function CustomerPortalPage() {
                               ))}
                             </div>
 
-                            {!!order.returnRequests?.length && <section aria-label="Hồ sơ trả hàng / hoàn tiền" className="mx-4 mb-3 grid gap-2 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3">
-                              <h3 className="text-xs font-semibold">Trả hàng / Hoàn tiền</h3>
-                              {order.returnRequests.map(request => <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#EAE4D7] bg-white p-3">
-                                <div className="grid gap-1 text-xs">
-                                  <strong>{returnStatusLabel(request.status)}</strong>
-                                  {request.refundAmountVnd != null && <span className="text-[#7D715E]">Tiền hoàn sản phẩm: {formatMoney(request.refundAmountVnd)}</span>}
-                                </div>
-                                <Link to={`/customer/returns/${encodeURIComponent(request.id)}`} className="rounded-lg border border-[#DCCAAD] bg-[#FBF5EB] px-3 py-2 text-xs font-semibold text-[#725120] no-underline">
-                                  {request.status === 'APPROVED' ? 'Gửi hàng trả về shop' : 'Theo dõi trả hàng / hoàn tiền'}
-                                </Link>
-                              </div>)}
-                            </section>}
+                            {!!order.returnRequests?.length && <CustomerReturnShipments requests={order.returnRequests} onUpdated={request => setOrders(previous => previous.map(current => current.id === order.id ? {
+                              ...current,
+                              returnRequests: current.returnRequests?.map(row => row.id === request.id ? request : row),
+                              returnRequest: current.returnRequest?.id === request.id ? { ...current.returnRequest, status: request.status, shopResponse: request.shopResponse } : current.returnRequest,
+                            } : current))} />}
 
 {/* Dispute / Return Banner if Returned */}
                             {isReturned && (
@@ -1975,7 +1970,7 @@ export default function CustomerPortalPage() {
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#EAE4D7] bg-white px-6 py-5">
               <div>
                 <strong id="customer-order-detail-title" className="text-base font-black text-[#1A1612] block break-words">
-                  Chi Tiết Đơn Hàng #{selectedOrderDetails.externalOrderSn}
+                  Chi Tiết Đơn Hàng {orderDisplayCode(selectedOrderDetails.externalOrderSn)}
                 </strong>
                 <span className="text-xs text-[#7D715E]">
                   Đặt lúc: {new Date(selectedOrderDetails.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}

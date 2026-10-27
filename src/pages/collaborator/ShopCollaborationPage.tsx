@@ -217,6 +217,10 @@ export default function ShopCollaborationPage() {
   const [selectedChannel, setSelectedChannel] = useState<'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM'>('TIKTOK');
   const [generatedShortlink, setGeneratedShortlink] = useState<string>('');
   const [generatedQr, setGeneratedQr] = useState<string>('');
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const linkSequence = useRef(0);
+  const linkRequests = useRef(new Map<string, { token: string; url?: string }>());
 
   // Modal 2: Xin Hàng Mẫu 4 Bước (Giải pháp 2)
   const [requestSampleModalProduct, setRequestSampleModalProduct] = useState<any | null>(null);
@@ -494,8 +498,8 @@ export default function ShopCollaborationPage() {
             ownerAvatarUrl: st.owner?.avatarUrl || undefined,
             ownerName: st.owner?.fullName || undefined,
             category: st.description?.slice(0, 30) || 'Gian hàng chính hãng',
-            defaultCommissionRate: st.defaultCommissionRate ? Number(st.defaultCommissionRate) : 10,
-            commissionRange: `${st.defaultCommissionRate ? Number(st.defaultCommissionRate) : 10}% - 21%`,
+            defaultCommissionRate: st.defaultCommissionRate != null ? Number(st.defaultCommissionRate) : undefined,
+            commissionRange: st.defaultCommissionRate != null ? `${Number(st.defaultCommissionRate)}%` : 'Theo chính sách',
             rating: 4.9,
             location: 'Toàn quốc',
             unreadCount: (conv._count?.chatMessages || 0) > 0 || (lastMsg && !lastMsg.isRead) ? 1 : 0,
@@ -525,8 +529,8 @@ export default function ShopCollaborationPage() {
             ownerAvatarUrl: targetStore.owner?.avatarUrl || undefined,
             ownerName: targetStore.owner?.fullName || undefined,
             category: targetStore.description?.slice(0, 30) || 'Gian hàng chính hãng',
-            defaultCommissionRate: targetStore.defaultCommissionRate ? Number(targetStore.defaultCommissionRate) : 10,
-            commissionRange: `${targetStore.defaultCommissionRate ? Number(targetStore.defaultCommissionRate) : 10}% - 21%`,
+            defaultCommissionRate: targetStore.defaultCommissionRate != null ? Number(targetStore.defaultCommissionRate) : undefined,
+            commissionRange: targetStore.defaultCommissionRate != null ? `${Number(targetStore.defaultCommissionRate)}%` : 'Theo chính sách',
             rating: 4.8,
             location: 'Toàn quốc',
             totalProducts: targetStore._count?.products || 10,
@@ -548,8 +552,8 @@ export default function ShopCollaborationPage() {
             ownerAvatarUrl: ms.owner?.avatarUrl || undefined,
             ownerName: ms.owner?.fullName || undefined,
             category: ms.description?.slice(0, 30) || 'Mỹ phẩm & Chăm sóc da',
-            defaultCommissionRate: ms.defaultCommissionRate ? Number(ms.defaultCommissionRate) : 10,
-            commissionRange: `${ms.defaultCommissionRate ? Number(ms.defaultCommissionRate) : 10}% - 21%`,
+            defaultCommissionRate: ms.defaultCommissionRate != null ? Number(ms.defaultCommissionRate) : undefined,
+            commissionRange: ms.defaultCommissionRate != null ? `${Number(ms.defaultCommissionRate)}%` : 'Theo chính sách',
             rating: 4.8,
             location: 'Toàn quốc',
             totalProducts: ms._count?.products || 10,
@@ -878,30 +882,36 @@ export default function ShopCollaborationPage() {
   // Open Link Generator Modal (Giải pháp 1)
   const handleOpenLinkModal = async (prod: any) => {
     setLinkModalProduct(prod);
+    await generateProductLink(prod, selectedChannel);
+  };
+
+  const generateProductLink = async (prod: any, channel: typeof selectedChannel) => {
+    const sequence = ++linkSequence.current;
+    setGeneratedShortlink(''); setGeneratedQr(''); setLinkError(''); setGeneratingLink(true);
+    const key = `${prod.id}:${channel}`;
+    const request = linkRequests.current.get(key) || { token: crypto.randomUUID(), url: undefined };
+    linkRequests.current.set(key, request);
     try {
-      const url = `${window.location.origin}/products/${prod.id}?ref=kol&utm_source=${selectedChannel.toLowerCase()}`;
+      const url = request.url || (await referralLinksService.createLink({ productId: prod.id, channel, label: String(prod.title || prod.name || 'Sản phẩm giới thiệu').slice(0, 140) }, request.token)).shortUrl;
+      request.url = url;
+      if (sequence !== linkSequence.current) return;
       setGeneratedShortlink(url);
       const qrData = await QRCode.toDataURL(url, { width: 320, margin: 2 });
-      setGeneratedQr(qrData);
-    } catch {
-      // Fallback
-    }
+      if (sequence === linkSequence.current) setGeneratedQr(qrData);
+    } catch (error: any) {
+      if (sequence === linkSequence.current) setLinkError(error?.response?.data?.message || error?.message || 'Chưa tạo được liên kết giới thiệu. Vui lòng thử lại.');
+    } finally { if (sequence === linkSequence.current) setGeneratingLink(false); }
   };
 
   const handleChannelChange = async (ch: 'TIKTOK' | 'FACEBOOK' | 'YOUTUBE' | 'INSTAGRAM') => {
     setSelectedChannel(ch);
-    if (linkModalProduct) {
-      const url = `${window.location.origin}/products/${linkModalProduct.id}?ref=kol&utm_source=${ch.toLowerCase()}`;
-      setGeneratedShortlink(url);
-      const qrData = await QRCode.toDataURL(url, { width: 320, margin: 2 });
-      setGeneratedQr(qrData);
-    }
+    if (linkModalProduct) await generateProductLink(linkModalProduct, ch);
   };
 
   const handleCopyLink = async () => {
     if (!generatedShortlink) return;
-    await navigator.clipboard.writeText(generatedShortlink);
-    toast.success(`Đã sao chép link tiếp thị có gắn UTM [${selectedChannel}] vào bộ nhớ tạm!`);
+    try { await navigator.clipboard.writeText(generatedShortlink); toast.success('Đã sao chép liên kết giới thiệu đã lưu cho tài khoản KOL của bạn.'); }
+    catch { toast.error('Chưa sao chép được. Bạn có thể chọn và sao chép đường dẫn trong ô liên kết.'); }
   };
 
   // Submit sample request (Giải pháp 2)
@@ -1150,7 +1160,7 @@ setActiveTab('samples');
                           setSelectedStoreId(st.id);
                           updateUrl(st.id, activeTab);
                         }}
-                        title={`${st.name} • ${st.lastMessageText || `Hoa hồng: ${st.commissionRange || '10% - 21%'}`}`}
+                        title={`${st.name} • ${st.lastMessageText || `Hoa hồng: ${st.commissionRange || 'Theo chính sách'}`}`}
                         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-[#FBF5EB] ring-2 ring-[#C59B58] shadow-xs'
@@ -1326,7 +1336,7 @@ setActiveTab('samples');
                               {st.lastMessageText || 'Bắt đầu cuộc trò chuyện...'}
                             </span>
                             <span className="text-[9.5px] font-extrabold text-[#B88E4F] bg-[#FBF5EB] px-1.5 py-0.2 rounded border border-[#EEDFC6] shrink-0">
-                              {st.commissionRange || `${st.defaultCommissionRate || 10}%`}
+                              {st.commissionRange || 'Theo chính sách'}
                             </span>
                             {st.unreadCount ? (
                               <span className="w-2 h-2 rounded-full bg-[#C59B58] shrink-0" />
@@ -1408,7 +1418,7 @@ setActiveTab('samples');
                       <span>•</span>
                       <span className="flex items-center gap-1">
                         <TrendingUp className="w-3 h-3 text-[#B88E4F]" />
-                        <span>Hoa hồng: <strong className="text-[#B88E4F]">{selectedStore.commissionRange || (selectedStore.defaultCommissionRate ? `${selectedStore.defaultCommissionRate}%` : '10%')}</strong></span>
+                        <span>Hoa hồng tham khảo: <strong className="text-[#B88E4F]">{selectedStore.commissionRange || 'Theo chính sách'}</strong></span>
                       </span>
                   <span>•</span>
                   <span className="flex items-center gap-1">
@@ -1635,8 +1645,6 @@ setActiveTab('samples');
                               sampleHistoryReady && !activeSample && canRequestSample && prod.sampleEnabled === true && Number(prod.sampleQuota || 0) > Number(prod.sampleGrantedCount || 0),
                             );
                             const isSelectedForBundle = selectedProductIds.includes(prod.id);
-                            const commRate = 10;
-                            const commAmount = Math.round((Number(prod.price || 0) * commRate) / 100);
 
                             return (
                               <div
@@ -1706,9 +1714,9 @@ setActiveTab('samples');
                                   className="text-left text-xs text-[#DC2626]">Chưa tải được lịch sử mẫu · Thử lại</button>}
                                 {/* Commission box */}
                                 <div className="flex items-center justify-between gap-2 p-2 border border-[#EEDFC6] rounded-lg bg-[#FBF5EB]">
-                                  <span className="text-[10px] text-[#7D715E]">Hoa hồng nền</span>
+                                  <span className="text-[10px] text-[#7D715E]">Hoa hồng</span>
                                   <strong className="text-[#A77C3D] text-xs font-bold leading-normal text-right">
-                                    {commRate}% (~{commAmount.toLocaleString('vi-VN')} ₫/đơn)
+                                    Theo chính sách hiện hành
                                   </strong>
                                 </div>
 
@@ -2301,7 +2309,7 @@ setActiveTab('samples');
       {/* MODAL 1: LẤY LINK TIẾP THỊ CHUẨN KÊNH & MÃ QR */}
       {linkModalProduct && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white border border-[#EAE4D7] rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden text-left">
+          <div role="dialog" aria-modal="true" aria-label="Tạo liên kết tiếp thị" className="bg-white border border-[#EAE4D7] rounded-3xl w-full max-w-lg max-h-[90dvh] shadow-2xl overflow-y-auto text-left">
             <div className="p-5 border-b border-[#EAE4D7] flex items-center justify-between bg-[#FAF8F5]">
               <div className="flex items-center gap-2">
                 <Link2 className="w-5 h-5 text-[#B88E4F]" />
@@ -2312,6 +2320,7 @@ setActiveTab('samples');
               <button
                 type="button"
                 onClick={() => setLinkModalProduct(null)}
+                aria-label="Đóng tạo liên kết tiếp thị"
                 className="w-8 h-8 rounded-full flex items-center justify-center text-[#7D715E] hover:bg-[#F3EFE6] cursor-pointer"
               >
                 ✕
@@ -2320,26 +2329,21 @@ setActiveTab('samples');
 
             <div className="p-5 flex flex-col gap-4">
               <div className="p-3 bg-[#FAF8F5] border border-[#EAE4D7] rounded-2xl flex items-center gap-3">
-                <img
-                  src={linkModalProduct.imageUrl}
-                  alt={linkModalProduct.title}
-                  className="w-12 h-12 rounded-xl object-cover border border-[#EAE4D7] bg-white shrink-0"
-                />
+                <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-[#EAE4D7] bg-white text-[#B88E4F]"><Package size={21} />{linkModalProduct.imageUrl && <img src={linkModalProduct.imageUrl} alt={linkModalProduct.title} className="absolute inset-0 h-full w-full bg-white object-contain" onError={event => { event.currentTarget.style.display = 'none'; }} />}</span>
                 <div className="flex-1 min-w-0">
                   <strong className="text-xs font-bold text-[#1A1612] line-clamp-1 block">
                     {linkModalProduct.title}
                   </strong>
                   <span className="text-[11px] text-[#B88E4F] font-bold block mt-0.5">
-                    Hoa hồng nền: 10% (~
-                    {Math.round(Number(linkModalProduct.price) * 0.1).toLocaleString('vi-VN')} ₫)
+                    Hoa hồng theo chính sách hiện hành
                   </span>
-                  <span className="mt-1 block text-[10px] text-[#7D715E]">Thưởng cấp bậc, Deal, chiến dịch và Live được cộng riêng khi đủ điều kiện.</span>
+                  <span className="mt-1 block text-[10px] text-[#7D715E]">Theo dõi tỷ lệ và số tiền được ghi nhận tại Ví hoa hồng sau khi khách thanh toán.</span>
                 </div>
               </div>
 
               <div>
                 <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
-                  Chọn kênh bạn dự kiến đăng (Tự động gắn UTM Source):
+                  Chọn kênh bạn dự kiến đăng:
                 </label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
@@ -2352,6 +2356,7 @@ setActiveTab('samples');
                       key={ch.id}
                       type="button"
                       onClick={() => handleChannelChange(ch.id as any)}
+                      disabled={generatingLink}
                       className={`py-2 px-1 rounded-xl text-xs font-bold transition cursor-pointer text-center ${
                         selectedChannel === ch.id
                           ? 'bg-[#EBD08C] text-white shadow-2xs'
@@ -2364,6 +2369,8 @@ setActiveTab('samples');
                 </div>
               </div>
 
+              {generatingLink && <p role="status" className="flex items-center gap-2 text-xs text-[#7D715E]"><Loader2 size={15} className="animate-spin" />Đang lưu liên kết giới thiệu…</p>}
+              {linkError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">{linkError}<button type="button" className="ml-2 underline" disabled={generatingLink} onClick={() => void generateProductLink(linkModalProduct, selectedChannel)}>Thử lại</button></div>}
               <div>
                 <label className="text-xs font-bold text-[#1A1612] block mb-1.5">
                   Đường dẫn tiếp thị rút gọn (Shortlink):
@@ -2373,11 +2380,12 @@ setActiveTab('samples');
                     type="text"
                     readOnly
                     value={generatedShortlink}
-                    className="flex-1 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3 py-2 text-xs font-mono text-[#1A1612] outline-none"
+                    className="min-w-0 flex-1 bg-[#FAF8F5] border border-[#EAE4D7] rounded-xl px-3 py-2 text-xs font-mono text-[#1A1612] outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleCopyLink}
+                    disabled={!generatedShortlink || generatingLink}
                     className="px-3.5 py-2 rounded-xl bg-[#EBD08C] hover:bg-[#DEC07A] text-white text-xs font-bold flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -2391,7 +2399,7 @@ setActiveTab('samples');
                   <img src={generatedQr} alt="QR Code" className="w-24 h-24 rounded-lg bg-white p-1 border border-[#EAE4D7]" />
                   <div className="flex-1 text-xs text-[#7D715E]">
                     <strong className="text-xs text-[#1A1612] block mb-1">Mã QR Livestream / Bìa Video</strong>
-                    <span>Khách quét mã sẽ tự động mở trang thanh toán và ghi nhận hoa hồng cho tài khoản của bạn.</span>
+                    <span>Khách quét mã để mở sản phẩm. Khi đơn hàng được thanh toán hợp lệ, hoa hồng được ghi nhận cho tài khoản KOL của bạn.</span>
                     <a
                       href={generatedQr}
                       download={`QR_${linkModalProduct.sku || 'scanms'}.png`}

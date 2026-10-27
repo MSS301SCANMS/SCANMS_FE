@@ -32,15 +32,16 @@ test('checkout explains incomplete saved address, computes a real quote total an
         const headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':new URL(base).origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'content-type,authorization,x-skip-cache','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
         if (request.method()==='OPTIONS') return request.respond({status:204,headers});
         let data=[];
-        if (url.pathname === '/api/customer/addresses') data=[address];
+        if (url.pathname === '/api/v1/users') data={userId:'qa-customer',fullName:address.fullName,phoneNumber:address.phoneNumber,roles:['USER'],address:JSON.stringify([address])};
+        if (url.pathname.endsWith('/landing')) data={product:{id:'00000000-0000-4000-8000-000000000001',title:'Sản phẩm kiểm thử',price:200000,canPurchase:true,stockQuantity:10}};
         if (url.pathname.includes('/stores/public/id/')) data={id:'qa-store',name:'Shop kiểm thử',policyReturn:'Đổi trả 14 ngày',policyWarranty:'Theo chính sách Shop'};
-        if (url.pathname === '/api/shipping/ghn/quote-address') {
+        if (url.pathname === '/api/v1/checkout/quote') {
           quotes++;
-          assert.equal(JSON.parse(request.postData()).storeId,'qa-store');
+          assert.equal(JSON.parse(request.postData()).items[0].productId,'00000000-0000-4000-8000-000000000001');
           if (fail) return request.respond({status:503,headers,body:JSON.stringify({message:'GHN tạm thời không phản hồi'})});
-          data={totalFee:29001};
+          data={shippingFeeVnd:29001,shippingMode:'FIXED',shippingPayer:'CUSTOMER'};
         }
-        return request.respond({status:200,headers,body:JSON.stringify({success:true,data})});
+        return request.respond({status:200,headers,body:JSON.stringify({code:200,result:data})});
       }
       if (url.pathname === '/__checkout-shipping-test') return request.respond({status:200,contentType:'text/html',body:`<html><body><div id="root"></div><script type="module">
         import RefreshRuntime from '/@react-refresh'; RefreshRuntime.injectIntoGlobalHook(window); window.$RefreshReg$=()=>{}; window.$RefreshSig$=()=>type=>type; window.__vite_plugin_react_preamble_installed__=true;
@@ -57,9 +58,10 @@ test('checkout explains incomplete saved address, computes a real quote total an
     assert.equal(quotes,0,'short saved address does not request a quote');
     assert.doesNotMatch(await page.$eval('body',el=>el.innerText),/Đang tính cước/);
     assert.match(await page.$eval('body',el=>el.innerText),/Chờ tính phí ship/);
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Thay Đổi')?.click());
     await page.waitForSelector('#checkout-shipping-address');
     await page.type('#checkout-shipping-address',' ngõ 10');
+    assert.equal(await page.$eval('#checkout-shipping-address', element => element.value), 'tổ 2 ngõ 10', 'typing across the five-character boundary keeps the address editor mounted');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'checkout-shipping-address', 'the address field retains focus while typing');
     await page.waitForFunction(() => document.body.innerText.includes('229.001'));
     assert.ok(quotes>0);
     fail=true;
@@ -71,5 +73,7 @@ test('checkout explains incomplete saved address, computes a real quote total an
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Tính lại').click());
     await page.waitForFunction(() => document.body.innerText.includes('229.001'));
     assert.ok(quotes>before);
+    await page.evaluate(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Thu gọn')?.click());
+    assert.equal(await page.$('#checkout-shipping-address'), null, 'only an explicit collapse closes the editor');
   } finally { await browser.close(); }
 });

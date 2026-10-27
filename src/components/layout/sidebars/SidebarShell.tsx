@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Camera, Edit2, Loader2, LogIn, LogOut, Store } from 'lucide-react';
+import { ArrowLeft, Camera, Edit2, Loader2, LogIn, LogOut } from 'lucide-react';
 import type { NavItemConfig, RoleNavigationGroup } from '../../../config/navigation.config';
 import { authService, type UserProfile } from '../../../services/auth.service';
 import { uploadService } from '../../../services/upload.service';
@@ -34,7 +34,7 @@ export function SidebarShell({
   editProfilePath,
   editProfileLabel,
   getItemBadge,
-  showMarketplaceLink = false,
+  showMarketplaceLink = true,
   headerExtra,
 }: SidebarShellProps) {
   const location = useLocation();
@@ -182,13 +182,13 @@ export function SidebarShell({
             {showMarketplaceLink && (
               <Link
                 to="/marketplace"
-                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] min-h-[44px] font-medium ${theme.marketplaceHover} transition-all duration-150 cursor-pointer`}
+                onClick={() => authService.switchWorkspace('customer', () => undefined)}
+                className="group flex w-full items-center gap-3 rounded-xl border border-[#E5D5BC] bg-[#FBF5EB] px-3 py-3 text-left text-xs font-semibold text-[#795A2D] transition-colors hover:border-[#C59B58] hover:bg-[#F3E9D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B88E4F] sm:text-[13px] min-h-[44px]"
                 title="Quay lại Sàn Mua Sắm SCANMS"
                 aria-label="Quay lại Sàn Mua Sắm SCANMS"
               >
-                <ArrowLeft className={`w-4 h-4 shrink-0 ${theme.iconIdle}`} aria-hidden="true" />
-                <Store className={`w-4 h-4 shrink-0 ${theme.iconIdle}`} aria-hidden="true" />
-                <span className="flex-1 truncate tracking-tight">Sàn Mua Sắm</span>
+                <ArrowLeft className="h-4 w-4 shrink-0 text-[#A17A3D] transition-transform group-hover:-translate-x-0.5 motion-reduce:transform-none" aria-hidden="true" />
+                <span className="flex-1 truncate tracking-tight font-semibold">Quay lại sàn</span>
               </Link>
             )}
             <button

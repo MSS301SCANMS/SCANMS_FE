@@ -30,7 +30,7 @@ test('shop dashboard distinguishes role-only accounts, missing stores, malformed
         const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,OPTIONS' };
         if (request.method() === 'OPTIONS') return request.respond({ status: 204, headers });
         let result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], fullName: 'Chủ shop kiểm thử', status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], fullName: 'Chủ shop kiểm thử', status: 'ACTIVE' };
         if (url.pathname.endsWith('/store-applications')) result = application ? [application] : [];
         if (url.pathname.endsWith('/stores/mine')) {
           storeReads.push(url.pathname);

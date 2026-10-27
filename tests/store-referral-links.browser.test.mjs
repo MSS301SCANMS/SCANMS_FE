@@ -35,7 +35,7 @@ test('shop links always finish loading, use owned-store API, filter and paginate
         if (url.pathname.endsWith('/stores/my-store/presence')) return request.respond({ status: 200, headers, contentType: 'application/json', body: '{"code":200,"result":{}}' });
         assert.equal(request.method(), 'GET');
         let status = 200, result = [];
-        if (url.pathname.endsWith('/users/me')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE' };
+        if (url.pathname.endsWith('/users')) result = { userId: 'fixture-owner', roles: ['SHOP_OWNER'], status: 'ACTIVE' };
         if (url.pathname.endsWith('/stores/mine')) {
           status = mode === 'store-error' ? 503 : 200;
           result = mode === 'no-store' ? [] : [{ storeId: 'real-store', name: 'Gian hàng thật', approvalStatus: 'APPROVED' }];

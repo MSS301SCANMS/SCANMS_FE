@@ -38,7 +38,7 @@ test('shop returns group by order and store, filter individual requests, and per
         const headers={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
         if(request.method()==='OPTIONS') return request.respond({status:204,headers});
         let result=[];
-        if(url.pathname.endsWith('/users/me'))result={userId:'shop-owner',roles:['SHOP_OWNER'],fullName:'Gian hàng kiểm thử',status:'ACTIVE',stores:[{id:'store-a',name:'Gian hàng A'}]};
+        if(url.pathname.endsWith('/users'))result={userId:'shop-owner',roles:['SHOP_OWNER'],fullName:'Gian hàng kiểm thử',status:'ACTIVE',stores:[{id:'store-a',name:'Gian hàng A'}]};
         if(url.pathname.endsWith('/stores/mine'))result=[{storeId:'store-a',name:'Gian hàng A'}];
         if(url.pathname.endsWith('/returns/shop')) {
           if(queueError)return request.respond({status:503,headers,contentType:'application/json',body:JSON.stringify({message:'Không kết nối được dịch vụ gian hàng. Vui lòng thử lại.'})});
