@@ -307,27 +307,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Quick role pills for instant 1-click credential fill */}
-            <div className="flex flex-wrap gap-1.5 -mt-1">
-              {ROLES.map((r) => {
-                const isSelected = role === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => handleRoleSelect(r.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
-                      isSelected
-                        ? 'bg-[#C59B58] text-white shadow-2xs'
-                        : 'bg-white border border-[#EAE4D7] text-[#7D715E] hover:border-[#C59B58] hover:text-[#1A1612]'
-                    }`}
-                  >
-                    <span>{r.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Social sign-in options */}
             <div className="w-full">
               <GoogleOfficialButton

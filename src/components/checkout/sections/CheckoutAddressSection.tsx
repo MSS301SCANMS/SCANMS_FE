@@ -282,7 +282,10 @@ export const CheckoutAddressSection: React.FC<CheckoutAddressSectionProps> = ({
 
           {/* Form chi tiết địa chỉ */}
           {(!hasCompleteShippingAddress || isEditingAddress) && (
-            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3.5 animate-in fade-in duration-150">
+            <div
+              className="mt-4 pt-4 border-t border-gray-100 space-y-3.5 animate-in fade-in duration-150"
+              onFocusCapture={() => setIsEditingAddress(true)}
+            >
               {/* Sổ địa chỉ đã lưu */}
               {customerAddresses.length > 0 && (
                 <div className="p-3.5 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] space-y-2">

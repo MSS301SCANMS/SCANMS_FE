@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag, Sparkles, Check, ShieldCheck } from 'lucide-react';
+import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { toast } from '../../utils/toast';
@@ -213,53 +213,6 @@ export function Topbar({
                     </div>
                   </div>
                 </div>
-
-                {/* Chuyển vai trò / không gian làm việc trực tiếp trong menu Role */}
-                {currentUser && (
-                  <div className="py-2 px-1 border-b border-[#EAE4D7]">
-                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#7D715E] px-2 block mb-1.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Chuyển không gian làm việc
-                    </span>
-                    <div className="flex flex-col gap-1">
-                      {authService.getUserAvailableWorkspaces(currentUser).map((ws) => {
-                        const isActive = ws.key === activeWorkspace;
-                        return (
-                          <button
-                            key={ws.key}
-                            type="button"
-                            onClick={() => {
-                              setIsMenuOpen(false);
-                              authService.switchWorkspace(ws.key, navigate);
-                            }}
-                            className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition cursor-pointer ${
-                              isActive
-                                ? 'bg-[#FAF5EB] border border-[#C59B58] text-[#B88E4F] font-bold shadow-2xs'
-                                : 'hover:bg-[#FAF8F5] text-[#1A1612]'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {ws.key === 'kol' ? (
-                                <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
-                              ) : ws.key === 'shop' ? (
-                                <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-                              ) : ws.key === 'admin' ? (
-                                <ShieldCheck className="w-3.5 h-3.5 text-[#B88E4F]" />
-                              ) : (
-                                <ShoppingBag className="w-3.5 h-3.5 text-[#B88E4F]" />
-                              )}
-                              <span className="text-xs truncate">{ws.label}</span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#F3EFE6] text-[#7D715E]">
-                                {ws.badge}
-                              </span>
-                            </div>
-                            {isActive && <Check className="w-3.5 h-3.5 text-[#B88E4F]" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 <input
                   type="file"

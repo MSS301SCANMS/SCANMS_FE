@@ -51,7 +51,16 @@ export const checkoutService = {
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));
     const response = await checkout.post('/checkout', input);
-    return response.data.result;
+    const order = response.data.result;
+    if (order?.paymentMethod === 'WALLET' && order.paymentStatus !== 'PAID') {
+      if (!order.orderId) throw new Error('Máy chủ chưa xác nhận mã đơn hàng để thanh toán.');
+      const wallet = await financeService.wallet('CUSTOMER');
+      const payment = await financeService.payWallet(order.orderId, wallet.walletId, `checkout-wallet-${order.orderId}`);
+      if (payment.status !== 'SUCCESS') throw new Error('Thanh toán ví chưa hoàn tất. Vui lòng kiểm tra đơn hàng trước khi thử lại.');
+      const paymentStatus = payment.orderSyncStatus === 'RECONCILIATION_REQUIRED' ? 'RECONCILIATION_REQUIRED' : 'PAID';
+      return { ...order, paymentStatus, orders: order.orders?.map((seller: Record<string, unknown>) => ({ ...seller, paymentStatus })) };
+    }
+    return order;
   },
   async quote(input: { couponCode?: string; shippingCouponCode?: string; shippingDestination?: ShippingDestination; storeId?: string; customerPhone?: string; items: { productId: string; variantId?: string; quantity: number; unitPrice?: number }[] }, signal?: AbortSignal) {
     if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {

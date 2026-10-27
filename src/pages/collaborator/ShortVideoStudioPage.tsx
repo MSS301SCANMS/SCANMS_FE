@@ -1,5 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertCircle, ArrowUpRight, CheckCircle2, Eye, EyeOff, Film, Loader2, Package, Send, Store, UploadCloud, X } from 'lucide-react';
+import { formatMoney, getSafeProductImageUrl } from '../../utils/marketplace.utils';
+import './ShortVideoStudioPage.css';
 import { shortVideoService, type ShortVideo } from '../../services/short-video.service';
 import { referralLinksService, type EligibleProduct } from '../../services/referral-links.service';
 import { partnershipInvitationsService } from '../../services/partnership-invitations.service';
@@ -28,6 +31,7 @@ export default function ShortVideoStudioPage() {
         setPreview('');
         return;
     } const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
+    const fileInput = useRef<HTMLInputElement>(null);
     const chosenStore = products.find(p => selected.includes(p.id))?.store.id;
     async function submit(e: React.FormEvent) {
         e.preventDefault();
@@ -69,34 +73,62 @@ export default function ShortVideoStudioPage() {
             setBusy(false);
         }
     }
-    return <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8 text-[#28231c]">
-    <div className="flex justify-between gap-4"><div><h1 className="text-2xl font-bold">Video ngắn của tôi</h1><p className="mt-2 text-sm text-[#7D715E]">Giới thiệu sản phẩm từ shop đã hợp tác. KOL được duyệt có thể đăng ngay.</p></div><Link to="/shorts" className="text-[#956b2c]">Xem trang video</Link></div>
-    {error && <div role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error} <button type="button" onClick={load} className="underline">Tải lại dữ liệu</button></div>}
-    <form id="short-video-form" onSubmit={submit} className="space-y-5 rounded-2xl border border-[#EAE4D7] bg-white p-6">
-      <h2 className="text-lg font-bold">Đăng video mới</h2>
-      <label className="block">Tiêu đề<input required maxLength={180} value={title} onChange={e => setTitle(e.target.value)} disabled={busy} className="mt-2 w-full rounded-xl border p-3"/></label>
-      <label className="block">Mô tả<textarea maxLength={2000} value={caption} onChange={e => setCaption(e.target.value)} disabled={busy} className="mt-2 w-full rounded-xl border p-3"/></label>
-      <label className="block">Video (MP4, WebM, MOV · tối đa 100 MB, 3 phút)<input key={file?.name || 'empty'} type="file" accept="video/mp4,video/webm,video/quicktime" disabled={busy} className="mt-2 block w-full rounded-xl border p-3" onChange={e => { const chosen = e.target.files?.[0]; if (!chosen)
-        return; if (chosen.size > 100 * 1024 * 1024 || !['video/mp4', 'video/webm', 'video/quicktime'].includes(chosen.type)) {
-        setError('Chọn video MP4, WebM hoặc MOV tối đa 100 MB.');
-        return;
-    } setError(''); setFile(chosen); }}/></label>
-      {preview && <video controls src={preview} className="mx-auto max-h-80 rounded-xl bg-black"/>}
-      <fieldset disabled={busy || loading}><legend className="font-semibold">Gắn sản phẩm ({selected.length}/5)</legend><p className="my-2 text-sm text-[#7D715E]">Chọn tối đa 5 sản phẩm cùng một shop. Người xem bấm sản phẩm để mua và ghi nhận giới thiệu.</p>
-        {loading ? <p>Đang tải sản phẩm…</p> : !products.length ? <p className="rounded-xl bg-amber-50 p-4">Chưa có sản phẩm từ shop hợp tác. <Link to="/collaborator/marketing" className="underline">Kiểm tra lời mời hợp tác</Link></p> : <div className="max-h-72 overflow-auto rounded-xl border">{products.map(p => <label key={p.id} className="flex items-center gap-3 border-b p-3 last:border-0"><input type="checkbox" checked={selected.includes(p.id)} disabled={!selected.includes(p.id) && (selected.length >= 5 || !!chosenStore && chosenStore !== p.store.id)} onChange={e => setSelected(old => e.target.checked ? [...old, p.id] : old.filter(id => id !== p.id))}/><span className="flex-1"><b>{p.title}</b><small className="block text-[#7D715E]">{p.store.name} · {Number(p.price).toLocaleString('vi-VN')} ₫</small></span></label>)}</div>}
-      </fieldset>
-      <p className="rounded-xl bg-[#FBF5EB] p-4 text-sm">Hoa hồng theo tỷ lệ shop cấu hình, tính trên tiền hàng sau giảm giá và hoàn tiền, không gồm phí ship. Lượt bấm sản phẩm có hiệu lực 24 giờ. Tiền chỉ được đối soát khi đơn đủ điều kiện sau thời hạn đổi trả.</p>
-      {message && <p role="status">{message}</p>}<button disabled={busy || loading || !file || !selected.length || !title.trim()} className="rounded-xl bg-[#B88E4F] px-6 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Đang đăng video…' : 'Đăng video'}</button>
-    </form>
-    <section className="space-y-4"><h2 className="text-xl font-bold">Video đã đăng</h2>{!loading && !videos.length && <p>Bạn chưa đăng video nào.</p>}{videos.map(v => <article key={v.id} className="flex gap-4 rounded-2xl border bg-white p-4"><video controls preload="metadata" src={v.videoUrl} poster={v.posterUrl || undefined} className="h-40 w-28 rounded-xl bg-black object-contain"/><div className="flex-1"><h3 className="font-bold">{v.title}</h3><p className="my-2 text-sm">{v.products.map(p => p.name).join(' · ')}</p><p>{v.status === 'PUBLISHED' ? 'Đang công khai' : 'Đã ẩn'}</p>{v.status === 'PUBLISHED' && <button disabled={busy} className="mt-3 text-sm text-red-600 underline" onClick={async () => { setBusy(true); try {
-        await shortVideoService.hide(v.id);
-        setVideos(old => old.map(x => x.id === v.id ? { ...x, status: 'HIDDEN' } : x));
+    function chooseFile(chosen?: File) {
+        if (!chosen) return;
+        if (chosen.size > 100 * 1024 * 1024 || !['video/mp4', 'video/webm', 'video/quicktime'].includes(chosen.type)) {
+            setError('Chọn video MP4, WebM hoặc MOV tối đa 100 MB.');
+            return;
+        }
+        setError(''); setMessage(''); setFile(chosen);
     }
-    catch (e: any) {
-        setError(e.message);
+    async function hideVideo(id: string) {
+        if (busy) return;
+        setBusy(true); setError('');
+        try {
+            await shortVideoService.hide(id);
+            setVideos(old => old.map(video => video.id === id ? { ...video, status: 'HIDDEN' } : video));
+            setMessage('Đã ẩn video khỏi trang video công khai.');
+        } catch (cause) { setError(cause instanceof Error ? cause.message : 'Chưa ẩn được video.'); }
+        finally { setBusy(false); }
     }
-    finally {
-        setBusy(false);
-    } }}>Ẩn video</button>}</div></article>)}</section>
-  </div>;
+    return <div className="short-studio">
+      {error && <div role="alert" className="short-studio-notice error"><AlertCircle size={18} /><span>{error}</span><button type="button" disabled={busy || loading} onClick={() => void load()}>Tải lại</button></div>}
+      {message && <div role="status" className="short-studio-notice success">{busy ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}<span>{message}</span></div>}
+      <form id="short-video-form" onSubmit={submit} className="short-studio-panel">
+        <div className="short-studio-compose">
+          <div className="short-studio-upload-column">
+            <input ref={fileInput} type="file" accept="video/mp4,video/webm,video/quicktime" disabled={busy} className="short-studio-file-input" aria-label="Chọn video từ máy" onChange={event => { chooseFile(event.target.files?.[0]); event.target.value = ''; }} />
+            {preview ? <div className="short-studio-preview"><video controls preload="metadata" src={preview} aria-label="Xem trước video đã chọn" /></div> : <button type="button" className="short-studio-upload" disabled={busy} onClick={() => fileInput.current?.click()}><span><UploadCloud size={29} /></span><strong>Tải video của bạn</strong><small>MP4, WebM hoặc MOV</small><small>Tối đa 100 MB · 3 phút</small><b>Chọn video</b></button>}
+            {file && <div className="short-studio-file"><Film size={18} /><div><strong title={file.name}>{file.name}</strong><small>{(file.size / 1024 / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} MB</small></div><button type="button" disabled={busy} aria-label="Xóa video đã chọn" onClick={() => { setFile(null); asset.current = null; }}><X size={17} /></button></div>}
+            {file && <button type="button" className="short-studio-button short-studio-replace" disabled={busy} onClick={() => fileInput.current?.click()}><UploadCloud size={15} />Đổi video</button>}
+          </div>
+          <div className="short-studio-fields">
+            <label className="short-studio-field"><span>Tiêu đề <em>*</em></span><input required maxLength={180} value={title} onChange={event => setTitle(event.target.value)} disabled={busy} placeholder="Đặt tiêu đề cho video của bạn" /><small>{title.length}/180 ký tự</small></label>
+            <label className="short-studio-field"><span>Mô tả <small>(tùy chọn)</small></span><textarea rows={4} maxLength={2000} value={caption} onChange={event => setCaption(event.target.value)} disabled={busy} placeholder="Chia sẻ cảm nhận, cách sử dụng hoặc điểm nổi bật của sản phẩm…" /><small>{caption.length.toLocaleString('vi-VN')}/2.000 ký tự</small></label>
+          </div>
+        </div>
+        <fieldset className="short-studio-products" disabled={busy || loading}>
+          <legend>Gắn sản phẩm <span>{selected.length}/5</span></legend>
+          <p>Chọn tối đa 5 sản phẩm cùng một shop.</p>
+          {loading ? <div className="short-studio-empty" role="status"><Loader2 size={23} className="animate-spin" /><span>Đang tải sản phẩm…</span></div> : !products.length ? <div className="short-studio-empty"><Package size={26} /><strong>Chưa có sản phẩm để gắn</strong><Link to="/collaborator/marketing?tab=invitations">Xem lời mời hợp tác<ArrowUpRight size={14} /></Link></div> : <div className="short-studio-product-grid">{products.map(product => {
+            const checked = selected.includes(product.id);
+            const disabled = !checked && (selected.length >= 5 || Boolean(chosenStore && chosenStore !== product.store.id));
+            return <label key={product.id} className={`short-studio-product${checked ? ' selected' : ''}${disabled ? ' unavailable' : ''}`}>
+              <input type="checkbox" checked={checked} disabled={disabled} onChange={event => setSelected(old => event.target.checked ? [...old, product.id] : old.filter(id => id !== product.id))} />
+              <img src={getSafeProductImageUrl(product.imageUrl, product.title)} alt={product.title} onError={event => { if (!event.currentTarget.dataset.fallback) { event.currentTarget.dataset.fallback = 'true'; event.currentTarget.src = getSafeProductImageUrl(null, product.title); } }} />
+              <span className="short-studio-product-info"><strong>{product.title}</strong><small><Store size={12} />{product.store.name}</small><b>{formatMoney(product.price)}</b></span>
+            </label>;
+          })}</div>}
+        </fieldset>
+        <footer className="short-studio-submit"><span>{!file ? 'Chọn video để bắt đầu.' : !selected.length ? 'Chọn ít nhất một sản phẩm để đăng.' : !title.trim() ? 'Thêm tiêu đề cho video.' : `Đã gắn ${selected.length} sản phẩm, sẵn sàng đăng.`}</span><button type="submit" disabled={busy || loading || !file || !selected.length || !title.trim()} className="short-studio-button primary">{busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}{busy ? 'Đang đăng video…' : 'Đăng video'}</button></footer>
+      </form>
+      <section className="short-studio-panel short-studio-library" aria-label="Video đã đăng">
+        <div className="short-studio-section-head"><div><h2>Video đã đăng <span className="short-studio-count">{videos.length}</span></h2><p>Quản lý video và sản phẩm đã giới thiệu.</p></div></div>
+        {loading ? <div role="status" className="short-studio-empty"><Loader2 size={24} className="animate-spin" /><span>Đang tải video…</span></div> : !videos.length ? <div className="short-studio-empty"><Film size={30} /><strong>Bạn chưa đăng video nào</strong><span>Video đầu tiên sẽ xuất hiện tại đây sau khi đăng.</span></div> : <div className="short-studio-video-list">{videos.map(video => <article key={video.id} className="short-studio-video">
+          <video controls preload="metadata" src={video.videoUrl} poster={video.posterUrl || undefined} aria-label={video.title} />
+          <div className="short-studio-video-info"><span className={`short-studio-tag ${video.status === 'PUBLISHED' ? 'published' : ''}`}>{video.status === 'PUBLISHED' ? <Eye size={13} /> : <EyeOff size={13} />}{video.status === 'PUBLISHED' ? 'Đang công khai' : 'Đã ẩn'}</span><h3>{video.title}</h3>{video.caption && <p>{video.caption}</p>}<div className="short-studio-video-products">{video.products.map(product => <span key={product.productId}><Package size={13} />{product.name}</span>)}</div></div>
+          {video.status === 'PUBLISHED' && <button type="button" disabled={busy} className="short-studio-button" onClick={() => void hideVideo(video.id)}><EyeOff size={15} />Ẩn video</button>}
+        </article>)}</div>}
+      </section>
+    </div>;
 }

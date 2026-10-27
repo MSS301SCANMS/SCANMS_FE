@@ -58,9 +58,10 @@ test('checkout explains incomplete saved address, computes a real quote total an
     assert.equal(quotes,0,'short saved address does not request a quote');
     assert.doesNotMatch(await page.$eval('body',el=>el.innerText),/Đang tính cước/);
     assert.match(await page.$eval('body',el=>el.innerText),/Chờ tính phí ship/);
-    await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Thay Đổi')?.click());
     await page.waitForSelector('#checkout-shipping-address');
     await page.type('#checkout-shipping-address',' ngõ 10');
+    assert.equal(await page.$eval('#checkout-shipping-address', element => element.value), 'tổ 2 ngõ 10', 'typing across the five-character boundary keeps the address editor mounted');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'checkout-shipping-address', 'the address field retains focus while typing');
     await page.waitForFunction(() => document.body.innerText.includes('229.001'));
     assert.ok(quotes>0);
     fail=true;
@@ -72,5 +73,7 @@ test('checkout explains incomplete saved address, computes a real quote total an
     await page.evaluate(()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Tính lại').click());
     await page.waitForFunction(() => document.body.innerText.includes('229.001'));
     assert.ok(quotes>before);
+    await page.evaluate(() => [...document.querySelectorAll('button')].find(button => button.textContent === 'Thu gọn')?.click());
+    assert.equal(await page.$('#checkout-shipping-address'), null, 'only an explicit collapse closes the editor');
   } finally { await browser.close(); }
 });

@@ -18,7 +18,7 @@ import { useCart, type CartItem } from '../../context/CartContext';
 import { useScanmsChat } from '../../context/ScanmsChatContext';
 import api from '../../services/api';
 import { checkoutService } from '../../services/checkout.service';
-import { getProductReferral } from '@/utils/referral-attribution';
+import { getProductReferral, getProductReferralClick } from '@/utils/referral-attribution';
 import { authService } from '../../services/auth.service';
 import { customerService, type CustomerAddress } from '../../services/customer.service';
 import { loadShippingAddresses, type ShippingProvince } from '../../services/order-address.service';
@@ -714,7 +714,9 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
             clientPrice: item.price,
             storeId: item.store?.id || targetVoucherStoreId,
             liveSessionId: item.liveSessionId || undefined,
+            sourceLivestreamId: item.liveSessionId || undefined,
             referralLinkId: referralLinkId || undefined,
+            referralClickId: getProductReferralClick(item.productId),
           };
         }),
       );
@@ -733,7 +735,8 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         expectedShippingFeeVnd: shippingFee,
         orderNotes: orderNotes.trim() || undefined,
         paymentMethod,
-        couponCode: Object.values(appliedShopCoupons)[0]?.code || undefined,
+        policyAccepted,
+        couponCode: appliedPlatformCoupon?.code || Object.values(appliedShopCoupons)[0]?.code || undefined,
         couponsByStore: Object.keys(finalCouponsByStore).length > 0 ? finalCouponsByStore : undefined,
         platformCouponsByStore: appliedPlatformCoupon ? { [appliedPlatformCoupon.storeId || targetVoucherStoreId]: appliedPlatformCoupon.code } : undefined,
         shippingCouponsByStore: appliedShippingCoupon ? { [appliedShippingCoupon.storeId || targetVoucherStoreId]: appliedShippingCoupon.code } : undefined,
@@ -743,8 +746,7 @@ export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = ({
         items: normalizedItems,
       };
 
-      const res: any = await api.post('/orders', payload, { timeout: 45000 });
-      const resData = res?.data?.data || res?.data || res;
+      const resData: any = await checkoutService.create(payload);
       const isMultiStore = Boolean(resData.isMultiStore);
       const rawOrders = Array.isArray(resData.orders) && resData.orders.length > 0 ? resData.orders : [resData];
 

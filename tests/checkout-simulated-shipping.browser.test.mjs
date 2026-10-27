@@ -14,7 +14,7 @@ for (const mode of ['SIMULATED','GHN_SANDBOX']) test(`${mode} shipping blocks fa
  let failQuote=true;const creates=[],payments=[],errors=[],quotes=[];let page;
  try{
   page=await browser.newPage();page.on('pageerror',e=>{if(!e.message.includes('WebSocket closed without opened'))errors.push(e.message)});
-  await page.evaluateOnNewDocument(()=>{localStorage.clear();sessionStorage.setItem('scanms-product-referral:00000000-0000-4000-8000-000000000001','kol-referral-fixture');localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));});
+  await page.evaluateOnNewDocument(()=>{localStorage.clear();localStorage.setItem('scanms-product-referral:00000000-0000-4000-8000-000000000001',JSON.stringify({referralId:'kol-referral-fixture',clickId:'kol-click-fixture',expiresAt:Date.now()+86400000}));localStorage.setItem('token','shipping-fixture-no-server-access');localStorage.setItem('user',JSON.stringify({id:'shipping-buyer',role:'CUSTOMER',fullName:'Shipping test buyer'}));});
   await page.setRequestInterception(true);
   page.on('request',request=>{
    const url=new URL(request.url());
@@ -27,6 +27,7 @@ for (const mode of ['SIMULATED','GHN_SANDBOX']) test(`${mode} shipping blocks fa
     if(url.pathname.endsWith('/users') || url.pathname.endsWith('/users/me'))return respond({userId:'shipping-buyer',fullName:'Shipping test buyer',roles:['USER'],address:JSON.stringify([address])});
     if(url.pathname.includes('/stores/public/id/'))return respond({id:storeId,name:'Test shop',policyReturn:'Return test policy',policyShipping:'Simulated delivery'});
     if(url.pathname.endsWith('/checkout/quote')){quotes.push(JSON.parse(request.postData()));return respond({shippingFeeVnd:30000,shippingMode:mode,shippingPayer:'CUSTOMER',finalAmount:299000},failQuote?503:200);}
+    if(url.pathname.endsWith('/orders') && request.method()==='POST')return respond(null,400);
     if(url.pathname.endsWith('/checkout')){const data=JSON.parse(request.postData());creates.push(data);return respond({orderId:'shipping-order',publicOrderCode:'shipping-order',finalAmount:299000,shippingFeeVnd:30000,shippingMode:'SIMULATED',paymentMethod:'WALLET',paymentStatus:'UNPAID',orders:[{publicOrderCode:'shipping-order',storeId,storeName:'Test shop',finalAmount:299000}]});}
     if(url.pathname.endsWith('/capabilities'))return respond({paymentAvailable:false});
     if(url.pathname.endsWith('/wallet-payments')){payments.push(JSON.parse(request.postData()));return respond({paymentId:'shipping-payment',status:'SUCCESS',amountVnd:299000});}
@@ -53,7 +54,7 @@ for (const mode of ['SIMULATED','GHN_SANDBOX']) test(`${mode} shipping blocks fa
   assert.match(await page.$eval('.checkout-total-final',e=>e.textContent),/299\.000/);
   await page.waitForNetworkIdle({idleTime:800});
   await page.$eval('button.checkout-submit',e=>e.click());await page.waitForFunction(()=>window.placed);
-  assert.equal(creates.length,1);assert.equal(creates[0].items[0].referralLinkId,'kol-referral-fixture');assert.equal(creates[0].expectedShippingFeeVnd,30000);assert.equal(creates[0].paymentMethod,'WALLET');
+  assert.equal(creates.length,1);assert.equal(creates[0].items[0].referralLinkId,'kol-referral-fixture');assert.equal(creates[0].items[0].referralClickId,'kol-click-fixture');assert.equal(creates[0].policyAccepted,true);assert.equal(creates[0].expectedShippingFeeVnd,30000);assert.equal(creates[0].paymentMethod,'WALLET');
   const destination={province:'Province',district:'District',ward:'Ward',detail:'123 Test street'};
   assert.deepEqual(creates[0].shippingDestination,destination);assert.ok(quotes.length>=2);assert.deepEqual(quotes.at(-1).shippingDestination,destination);
   assert.equal(payments.length,1);assert.equal(payments[0].orderId,'shipping-order');assert.equal(payments[0].amountVnd,undefined,'Payment must read total from order, not trust a browser amount');
