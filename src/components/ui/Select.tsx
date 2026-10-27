@@ -281,7 +281,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
           >
             {(searchable || options.length > 7) && (
               <div className="p-2 border-b border-[#EAE4D7] bg-[#FAF8F5]/90 shrink-0">
-                <div className="relative">
+                <div className="relative rounded-xl border border-[#EAE4D7] bg-white focus-within:border-[#C59B58]">
                   <Search className="w-3.5 h-3.5 text-[#B88E4F] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     ref={searchInputRef}
@@ -289,7 +289,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Tìm nhanh..."
-                    className="w-full pl-8 pr-6 py-1.5 text-xs bg-white border border-[#EAE4D7] rounded-xl text-[#1A1612] placeholder:text-[#A99D8A] focus:border-[#C59B58] focus:ring-2 focus:ring-[#C59B58]/20 outline-none transition"
+                    className="select-quick-search-input w-full pl-8 pr-6 py-1.5 text-xs bg-transparent rounded-xl text-[#1A1612] placeholder:text-[#A99D8A]"
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                   />

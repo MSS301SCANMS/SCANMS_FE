@@ -33,3 +33,23 @@ Conflicts in `GuestCheckoutModal.tsx` and `checkout.service.ts` were resolved by
 7. Sidebar layout source test: same source structure changed to `SidebarShell`.
 
 These tests were not skipped or weakened to hide failures. Browser tests require `GHN_UI_TEST_URL` and `GHN_UI_BROWSER_PATH`; relay fixtures also use an isolated `LIVE_TEST_RELAY_PORT`.
+
+## Follow-up merge with develop `462d919` (2026-10-27)
+
+New develop commits decomposed checkout into address/policy/summary sections and `useCheckoutQuote`, added shipping destinations and moved wallet payment into `checkout.service`. Three files conflicted:
+
+- `src/components/checkout/GuestCheckoutModal.tsx`
+- `src/services/checkout.service.ts`
+- `src/services/checkout-voucher.service.ts`
+
+Resolution preserves that component/hook structure, shipping destinations and service-owned wallet payment, together with live purchase proof, scoped live prices, multiple live voucher candidates, automatic recommendations and manual-choice precedence. The service checks expected totals before attempting a wallet debit. Account changes discard private form state; token renewal preserves drafts.
+
+Additional integration changes forward shipping destinations through manual voucher previews and live origin through the shipping hook. The privacy browser fixture now supplies the additional chat API export imported by develop. Commission schedule tests transpile their TypeScript utility so the existing assertions also run on Node 22.14 without an experimental loader.
+
+Validation:
+
+- Production build passed.
+- Node suite: 154 passed, seven pre-existing develop failures, 112 skipped. A detached checkout of develop `462d919` reproduced all seven remaining failures (plus the legacy PayOS, platform timestamp and TypeScript-loader issues corrected on this branch).
+- Eight focused checkout/quote/payment tests passed, including changed totals preventing any wallet call, one debit per unpaid order, no debit for an already paid order and preservation of reconciliation status.
+- Six browser cases passed using isolated API fixtures: automatic/manual vouchers, simulated shipping, GHN sandbox shipping, account isolation/refresh, real WebRTC camera/audio/shared counts and live price/pin/voucher updates. No real payment was made.
+- Registration changes being developed in the primary workspace were kept outside this merge.

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { ChatAttachmentButton } from '@/components/chat/ChatAttachmentButton';
 import { useConversationDraft } from '@/hooks/useConversationDraft';
-import { getChatSocket } from '../../services/chat-socket.service';
+import { getChatSocket, isChatSocketEnabled } from '../../services/chat-socket.service';
 import api from '../../services/api';
 import type { ChatMessage, Conversation } from '@/types/chat.types';
 import { SendVipCampaignModal } from '../../components/chat/SendVipCampaignModal';
@@ -1325,6 +1325,44 @@ export default function ChatBoxPage({
   };
   openConversationRef.current = openConversation;
 
+  // Spring chat uses authenticated HTTP requests; refresh both sides without Socket.IO.
+  useEffect(() => {
+    if (isChatSocketEnabled() || !currentUser?.id) return;
+    let cancelled = false;
+    let loading = false;
+    const refresh = async () => {
+      if (loading || document.visibilityState !== 'visible') return;
+      loading = true;
+      const conversationId = activeConvIdRef.current;
+      try {
+        const response: any = await api.get('/chat/conversations', { headers: { 'x-skip-cache': '1' } });
+        if (cancelled) return;
+        const all: Conversation[] = Array.isArray(response) ? response : response?.data || [];
+        const list = onlyCustomerChats ? all.filter(item => Boolean(item.customerId)) : all;
+        setConversations(list);
+        chatSessionCache.conversations = list;
+        setIsConnected(true);
+        if (conversationId && UUID_REGEX.test(conversationId)) {
+          const result: any = await api.get(`/chat/conversations/${conversationId}/messages?take=50`, { headers: { 'x-skip-cache': '1' } });
+          if (cancelled || activeConvIdRef.current !== conversationId) return;
+          const latest: ChatMessage[] = Array.isArray(result) ? result : result?.data || [];
+          setMessages(previous => {
+            const byId = new Map(previous.map(message => [message.id, message]));
+            latest.forEach(message => byId.set(message.id, message));
+            const merged = [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+            chatSessionCache.messagesByConvId.set(conversationId, merged);
+            return merged;
+          });
+          await api.patch(`/chat/conversations/${conversationId}/read`);
+        }
+      } catch { if (!cancelled) setIsConnected(false); }
+      finally { loading = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [currentUser?.id, onlyCustomerChats, activeConvId]);
+
 
   const loadMore = async () => {
     if (!activeConvId || !oldestMsgId || !hasMore) return;
@@ -1353,7 +1391,7 @@ export default function ChatBoxPage({
   };
 
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const trimmed = inputText.trim();
     if (!trimmed || !activeConvId || sendingRef.current) return;
 
@@ -1385,6 +1423,24 @@ export default function ChatBoxPage({
       });
     }
 
+    if (!isChatSocketEnabled()) {
+      sendingRef.current = true;
+      setIsSending(true);
+      try {
+        const response: any = await api.post(`/chat/conversations/${activeConvId}/messages`, {
+          messageText: messageToSend, messageId: crypto.randomUUID(),
+        });
+        if (activeConvIdRef.current !== activeConvId) return;
+        const message = (response?.data || response) as ChatMessage;
+        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]);
+        setInputText(current => current.trim() === trimmed ? '' : current);
+        setPinnedProduct(null);
+        setTimeout(() => scrollToBottom(true), 50);
+      } catch (error: any) {
+        showErrorToast(error?.message || 'Không gửi được tin nhắn. Vui lòng thử lại.');
+      } finally { sendingRef.current = false; setIsSending(false); }
+      return;
+    }
     const socket = getChatSocket();
     if (!socket.connected) { showErrorToast('Mất kết nối chat, vui lòng thử lại.'); return; }
     sendingRef.current = true;

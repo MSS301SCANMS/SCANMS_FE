@@ -1,25 +1,25 @@
-import { checkoutService, type CheckoutLine } from './checkout.service';
+import { checkoutService, type CheckoutLine, type ShippingDestination } from './checkout.service';
 import { couponService } from './coupon.service';
 import { findBestVoucher } from '../utils/best-voucher.utils';
 import type { VoucherSelection } from '../components/vouchers/PlatformVoucherPicker';
 
-export async function quoteVoucherSelection(selection: VoucherSelection, items: CheckoutLine[], signal?: AbortSignal) {
+export async function quoteVoucherSelection(selection: VoucherSelection, items: CheckoutLine[], signal?: AbortSignal, shippingDestination?: ShippingDestination) {
   let { goodsCode, shippingCode } = selection;
   if (selection.enteredCode?.trim()) {
     const code = selection.enteredCode.trim().toUpperCase();
-    const single = await checkoutService.quote({ couponCode: code, items }, signal);
+    const single = await checkoutService.quote({ couponCode: code, items, shippingDestination }, signal);
     if (Number(single.shippingDiscountVnd) > 0 || single.benefitType === 'SHIPPING') shippingCode = code;
     else goodsCode = code;
   }
-  return checkoutService.quote({ couponCode: goodsCode || undefined, shippingCouponCode: shippingCode || undefined, items }, signal);
+  return checkoutService.quote({ couponCode: goodsCode || undefined, shippingCouponCode: shippingCode || undefined, items, shippingDestination }, signal);
 }
 
 export async function recommendVoucherSelection(items: CheckoutLine[], stores: string[], signal: AbortSignal,
-  initialCode = '', initialShippingCode = '', liveCode: string | string[] = '') {
+  initialCode = '', initialShippingCode = '', liveCode: string | string[] = '', shippingDestination?: ShippingDestination) {
   const fixed = { goodsCode: '', shippingCode: initialShippingCode };
   const cache = new Map<string, Promise<any>>();
   const preview = (code: string) => {
-    if (!cache.has(code)) cache.set(code, checkoutService.quote({ couponCode: code, items }, signal));
+    if (!cache.has(code)) cache.set(code, checkoutService.quote({ couponCode: code, items, shippingDestination }, signal));
     return cache.get(code)!;
   };
   if (initialCode) {
@@ -42,6 +42,6 @@ export async function recommendVoucherSelection(items: CheckoutLine[], stores: s
   const goodsCode = fixed.goodsCode || bestGoods?.code || '';
   const shippingCode = fixed.shippingCode || bestShipping?.code || '';
   if (!goodsCode && !shippingCode) return null;
-  const result = await quoteVoucherSelection({ goodsCode, shippingCode }, items, signal);
+  const result = await quoteVoucherSelection({ goodsCode, shippingCode }, items, signal, shippingDestination);
   return { ...result, goodsFundingSource: vouchers.some(voucher => voucher.code === goodsCode) ? 'PLATFORM_FUNDED' : 'STORE_FUNDED' };
 }

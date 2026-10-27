@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Heart, ShoppingCart, Star, Store } from 'lucide-react';
+import { CircleAlert, Heart, MessageCircle, ShoppingCart, Star, Store } from 'lucide-react';
+import { useScanmsChat } from '@/context/ScanmsChatContext';
 import type { Product } from '@/types/marketplace.types';
 import { formatMoney, getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { LiveSessionDealBadge } from '@/components/product/LiveSessionDealBadge';
@@ -29,6 +30,7 @@ function variantChoiceCopy(names: string[]) {
 }
 
 export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase, deal, now }: Props) {
+  const { openChat } = useScanmsChat();
   const [variantId, setVariantId] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -86,13 +88,21 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
         </button>
       </div>
       <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <Link to={product.storeId ? `/shops/${product.storeId}` : '/search'} className="mb-2 inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-[#7D715E] hover:text-[#B88E4F]"><Store size={13} className="shrink-0" /><span className="truncate">{product.brand}</span></Link>
         <h3 className="m-0 line-clamp-2 min-h-10 text-xs font-semibold leading-5 sm:text-sm"><Link to={`/products/${product.sku || product.id}`} className="hover:text-[#B88E4F]">{product.name}</Link></h3>
         <div className="mt-1 flex min-h-5 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-[#7D715E]" data-product-rating
           aria-label={hasReviews ? `${ratingLabel} trên 5 sao, ${product.reviews} đánh giá từ khách đã mua` : 'Chưa có đánh giá'}
           title={hasReviews ? 'Đánh giá từ khách đã mua sản phẩm' : undefined}>
           <Star size={13} aria-hidden="true" className={hasReviews ? 'shrink-0 fill-[#C59B58] text-[#C59B58]' : 'shrink-0 text-[#B9B1A4]'} />
           {hasReviews ? <><span className="font-semibold text-[#8C6226]">{ratingLabel}</span><span>({product.reviews.toLocaleString('vi-VN')} đánh giá)</span></> : <span>Chưa có đánh giá</span>}
+        </div>
+        <div className={`mt-2 grid min-w-0 gap-1.5 ${product.storeId ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <Link to={product.storeId ? `/shops/${product.storeId}` : '/search'} title={product.brand} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] px-1 text-[10px] font-medium text-[#655A49] transition-colors hover:border-[#C59B58] hover:bg-[#FBF5EB] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C59B58] sm:gap-1.5 sm:px-2 sm:text-[11px]"><Store size={13} className="shrink-0" /><span className="truncate">{product.brand}</span></Link>
+          {product.storeId && <button type="button" aria-label={`Nhắn tin với shop ${product.brand}`} title={`Nhắn tin với shop ${product.brand}`} onClick={() => openChat(
+            { id: product.storeId!, name: product.brand },
+            { id: product.id, title: product.name, imageUrl: product.image, price },
+          )} className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] px-1 text-[10px] font-medium text-[#9B7137] transition-colors hover:border-[#C59B58] hover:bg-[#F5EAD8] hover:text-[#785221] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C59B58] sm:gap-1.5 sm:px-2 sm:text-[11px]">
+            <MessageCircle size={14} className="shrink-0" aria-hidden="true" /><span className="truncate">Nhắn tin</span>
+          </button>}
         </div>
         <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{available ? `Còn ${selectedStock} sản phẩm${variant ? ' ở phân loại này' : ''}` : 'Tạm hết hàng'}</p>
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 border-t border-[#EAE4D7] pt-3"><strong className="text-sm text-[#1A1612] sm:text-base">{formatMoney(price)}</strong>{product.origPrice > price && <del className="text-[10px] text-[#7D715E]">{formatMoney(product.origPrice)}</del>}</div>

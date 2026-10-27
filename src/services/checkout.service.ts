@@ -5,7 +5,8 @@ import { installRawSessionAuth } from './auth-session';
 import { getLivePurchase } from './live-purchase-access';
 
 export const usesLegacyCheckout = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
-export interface CheckoutLine { productId: string; variantId?: string; quantity: number; clientPrice?: number; sourceLivestreamId?: string; liveSessionId?: string; livePurchaseToken?: string }
+export interface ShippingDestination { province: string; district: string; ward: string; detail: string }
+export interface CheckoutLine { productId: string; variantId?: string; quantity: number; clientPrice?: number; unitPrice?: number; sourceLivestreamId?: string; liveSessionId?: string; livePurchaseToken?: string }
 const inventoryLine = (line: CheckoutLine) => ({ productId: line.productId, variantId: line.variantId, quantity: line.quantity,
   sourceLivestreamId: line.sourceLivestreamId || line.liveSessionId,
   livePurchaseToken: getLivePurchase(line.sourceLivestreamId || line.liveSessionId) || line.livePurchaseToken });
@@ -24,14 +25,14 @@ legacyFinance.interceptors.response.use(response => response, error => {
 const checkout = axios.create({ baseURL: import.meta.env.VITE_CHECKOUT_API_URL || 'http://localhost:8080/api/v1', timeout: 60000 });
 installRawSessionAuth(checkout);
 export const checkoutService = {
-  async validateCart(items: CheckoutLine[]) {
+  async validateCart(items: CheckoutLine[], shippingDestination?: ShippingDestination) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders/validate-cart', { items }));
     const products = new Map(await Promise.all([...new Set(items.map(item => item.productId))].map(async id => {
       const response = await api.get(`/public/products/${encodeURIComponent(id)}/landing`, { headers: { 'x-skip-cache': 'true' } });
       return [id, unwrap(response).product] as const;
     })));
     const liveIds = [...new Set(items.map(item => item.sourceLivestreamId || item.liveSessionId).filter(Boolean))];
-    const liveQuotes = await Promise.all(liveIds.map(id => checkout.post('/checkout/quote', { items: items.filter(item => (item.sourceLivestreamId || item.liveSessionId) === id).map(inventoryLine) })));
+    const liveQuotes = await Promise.all(liveIds.map(id => checkout.post('/checkout/quote', { items: items.filter(item => (item.sourceLivestreamId || item.liveSessionId) === id).map(inventoryLine), shippingDestination })));
     const liveRows = liveQuotes.flatMap(response => response.data.result?.lines || []);
     const warnings: string[] = [];
     const validated = items.map(item => {
@@ -48,25 +49,40 @@ export const checkoutService = {
     });
     return { items: validated, warnings };
   },
-  async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal) {
+  async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal, shippingDestination?: ShippingDestination) {
     if (usesLegacyCheckout) return unwrap(await api.post('/shipping/ghn/quote-address', { storeId, address, items }, { signal, timeout: 20000 }));
-    const response = await checkout.post('/checkout/quote', { items: items.map(inventoryLine) }, { signal });
+    const response = await checkout.post('/checkout/quote', { items: items.map(inventoryLine), shippingDestination }, { signal, timeout: 60000 });
     return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer };
   },
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));
     const response = await checkout.post('/checkout', input);
-    return response.data.result;
+    const order = response.data.result;
+    const expected = (input as { expectedPayableVnd?: number })?.expectedPayableVnd;
+    if (expected != null && Number(order?.finalAmount) !== expected) {
+      throw new Error('Giá hoặc phí vận chuyển đã thay đổi. Đơn đang chờ thanh toán; hãy kiểm tra tổng tiền trong Đơn mua trước khi trả tiền.');
+    }
+    if (order?.paymentMethod === 'WALLET' && order.paymentStatus !== 'PAID') {
+      if (!order.orderId) throw new Error('Máy chủ chưa xác nhận mã đơn hàng để thanh toán.');
+      const wallet = await financeService.wallet('CUSTOMER');
+      const payment = await financeService.payWallet(order.orderId, wallet.walletId, `checkout-wallet-${order.orderId}`);
+      if (payment.status !== 'SUCCESS') throw new Error('Thanh toán ví chưa hoàn tất. Vui lòng kiểm tra đơn hàng trước khi thử lại.');
+      const paymentStatus = payment.orderSyncStatus === 'RECONCILIATION_REQUIRED' ? 'RECONCILIATION_REQUIRED' : 'PAID';
+      return { ...order, paymentStatus, orders: order.orders?.map((seller: Record<string, unknown>) => ({ ...seller, paymentStatus })) };
+    }
+    return order;
   },
-  async quote(input: { couponCode?: string; shippingCouponCode?: string; storeId?: string; customerPhone?: string; items: CheckoutLine[] }, signal?: AbortSignal) {
+  async quote(input: { couponCode?: string; shippingCouponCode?: string; shippingDestination?: ShippingDestination; storeId?: string; customerPhone?: string; items: CheckoutLine[] }, signal?: AbortSignal) {
     if (usesLegacyCheckout) return unwrap(await api.post('/checkout/quote', {
       couponCode: input.couponCode,
       shippingCouponCode: input.shippingCouponCode,
+      shippingDestination: input.shippingDestination,
       items: input.items.map(inventoryLine),
     }, { signal }));
     const response = await checkout.post('/checkout/quote', {
       couponCode: input.couponCode,
       shippingCouponCode: input.shippingCouponCode,
+      shippingDestination: input.shippingDestination,
       items: input.items.map(inventoryLine),
     }, { signal });
     return response.data.result;

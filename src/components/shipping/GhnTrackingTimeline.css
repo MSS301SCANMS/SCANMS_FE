@@ -54,3 +54,42 @@
   .ghn-journey__call { width:34px; padding:8px; }
   .ghn-journey__call>span { display:none; }
 }
+.local-shipment { padding: 18px; min-width: 0; border: 1px solid #EAE4D7; border-radius: 14px; background: #fff; color: #231D15; }
+.local-shipment__header { display: flex; align-items: center; gap: 10px; }
+.local-shipment__symbol { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; background: #FBF5EB; color: #9B7439; }
+.local-shipment__header h4 { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+.local-shipment__badge { display: inline-block; padding: 2px 7px; border: 1px solid #EEDFC6; border-radius: 5px; color: #8C6B32; font-size: 10px; line-height: 1.4; }
+.local-shipment__refresh { display: grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border: 1px solid #EAE4D7; border-radius: 10px; color: #8C6B32; background: #fff; cursor: pointer; }
+.local-shipment__refresh:disabled { opacity: .5; cursor: wait; }
+.local-shipment__code { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 17px; padding-top: 14px; border-top: 1px solid #F0EBE3; font-size: 11px; color: #8C7D6B; }
+.local-shipment__code button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #EAE4D7; border-radius: 7px; background: #FAF8F5; color: #5B4933; cursor: pointer; }
+.local-shipment__code code { font-size: 11px; font-weight: 600; }
+.local-shipment__status { display: flex; align-items: center; gap: 12px; margin: 14px 0 20px; padding: 14px; border-radius: 10px; background: #FBF8F2; color: #9B7439; }
+.local-shipment__status > div { display: grid; gap: 4px; }
+.local-shipment__status span { color: #8C7D6B; font-size: 10px; }
+.local-shipment__status strong { color: #231D15; font-size: 15px; font-weight: 650; }
+.local-shipment__status.is-delivered { background: #F0F9F4; color: #278052; }
+.local-shipment__steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; list-style: none; }
+.local-shipment__steps li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; text-align: center; color: #91816B; }
+.local-shipment__steps li:not(:last-child)::after { content: ''; position: absolute; top: 15px; left: calc(50% + 20px); width: calc(100% - 32px); height: 1px; background: #EAE4D7; }
+.local-shipment__step-icon { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid #EAE4D7; border-radius: 50%; background: #FAF8F5; }
+.local-shipment__steps strong { font-size: 11px; font-weight: 500; line-height: 1.5; }
+.local-shipment__steps small { font-size: 10px; line-height: 1.5; }
+.local-shipment__steps .is-confirmed { color: #795A2D; }
+.local-shipment__steps .is-confirmed .local-shipment__step-icon { border-color: #D9BB8B; background: #FBF5EB; }
+.local-shipment__steps [aria-current='step'] strong { color: #231D15; font-weight: 650; }
+.local-shipment__error { margin: 12px 0 0; color: #C13535; font-size: 12px; line-height: 1.6; }
+@media (max-width: 400px) {
+  .local-shipment { padding: 12px; }
+  .local-shipment__code { flex-wrap: wrap; }
+  .local-shipment__steps { gap: 4px; }
+  .local-shipment__steps strong { font-size: 10px; }
+}
+.ghn-tracking-dialog .local-shipment { border-color: #EEE8DF; }
+.ghn-tracking-dialog .local-shipment__header h4 { color: #51483B; font-weight: 600; }
+.ghn-tracking-dialog .local-shipment__symbol { background: #FFFCF6; color: #B08A50; }
+.ghn-tracking-dialog .local-shipment__status { border: 1px solid #F0EBE3; background: #FFFEFC; }
+.ghn-tracking-dialog .local-shipment__status strong { color: #62533F; font-weight: 600; }
+.ghn-tracking-dialog .local-shipment__code button { background: #fff; border-color: #EEE8DF; color: #8C7758; }
+.ghn-tracking-dialog .local-shipment__step-icon { background: #fff; }
+.ghn-tracking-dialog .local-shipment__steps .is-confirmed .local-shipment__step-icon { background: #FFFCF5; border-color: #E7D5B7; }

@@ -131,7 +131,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm nhanh..."
-                  className="w-full bg-transparent text-[11px] text-[#1A1612] outline-none placeholder-[#7D715E]"
+                  className="select-quick-search-input w-full bg-transparent text-[11px] text-[#1A1612] placeholder-[#7D715E]"
                 />
                 {searchQuery && (
                   <button

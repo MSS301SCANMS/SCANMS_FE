@@ -22,6 +22,7 @@ import type { VoucherSlot } from '@/utils/voucher-intent';
 import { formatMoney } from '@/utils/marketplace.utils';
 import { authService } from '@/services/auth.service';
 import api from '@/services/api';
+import type { ShippingDestination } from '@/services/checkout.service';
 
 function formatVoucherRemainingTime(expiresAt?: string | null): { text: string; isUrgent: boolean } {
   if (!expiresAt) return { text: 'Vô thời hạn', isUrgent: false };
@@ -71,6 +72,7 @@ export interface ScanmsCheckoutVoucherModalProps {
   totalShippingFee: number;
   rawGoodsSubtotal: number;
   customerPhone?: string;
+  shippingDestination?: ShippingDestination;
 
   // Selected state
   appliedShopCoupons: Record<string, AppliedShopVoucher>;
@@ -95,6 +97,7 @@ export function ScanmsCheckoutVoucherModal({
   totalShippingFee,
   rawGoodsSubtotal,
   customerPhone,
+  shippingDestination,
   appliedShopCoupons,
   appliedPlatformCoupon,
   appliedShippingCoupon,
@@ -212,7 +215,7 @@ export function ScanmsCheckoutVoucherModal({
     try {
       const result = await validateCheckoutVoucher((path, body) => api.post(path, body), {
         code, slot, storeId, groups, shippingFees: shippingFeesByStore,
-        shopDiscounts: appliedShopCoupons, customerPhone,
+        shopDiscounts: appliedShopCoupons, customerPhone, shippingDestination,
       });
       if (revision !== revisionRef.current) return;
       if (result.slot === 'SHOP') onApplyShopCoupon(result.storeId, result);

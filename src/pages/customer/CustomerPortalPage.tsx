@@ -27,6 +27,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { orderDisplayCode } from '../../utils/order-display-code';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
 import { Select } from '../../components/ui/Select';
@@ -1891,7 +1892,7 @@ export default function CustomerPortalPage() {
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#EAE4D7] bg-white px-6 py-5">
               <div>
                 <strong id="customer-order-detail-title" className="text-base font-black text-[#1A1612] block break-words">
-                  Chi Tiết Đơn Hàng #{selectedOrderDetails.externalOrderSn}
+                  Chi Tiết Đơn Hàng {orderDisplayCode(selectedOrderDetails.externalOrderSn)}
                 </strong>
                 <span className="text-xs text-[#7D715E]">
                   Đặt lúc: {new Date(selectedOrderDetails.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}

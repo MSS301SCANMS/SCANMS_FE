@@ -404,7 +404,7 @@ export default function LiveSessionsPage({
           commissionRate: '10',
         }));
       } catch (err: any) {
-        if (active) setCollaboratorLoadError('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
+        if (active) setCollaboratorLoadError(err?.message || 'Không tải được KOL đối tác.');
         if (active) setLoadError(err?.response?.data?.message || err?.message || 'Mất kết nối máy chủ hoặc không tải được dữ liệu phiên Live. Vui lòng thử lại.');
         if (active) toast.error(err?.response?.data?.message || err?.message || 'Không khởi tạo được dữ liệu.');
       } finally {

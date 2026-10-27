@@ -2,6 +2,7 @@ import type { CheckoutShopGroup } from '../components/checkout/CheckoutItemsSect
 import type { VoucherSlot } from './voucher-intent';
 import { couponService } from '../services/coupon.service';
 import { getLivePurchase } from '../services/live-purchase-access';
+import type { ShippingDestination } from '../services/checkout.service';
 
 type Post = (path: string, body: Record<string, unknown>) => Promise<unknown>;
 interface Applied { code: string; discountAmount: number; storeId: string; storeName: string; discountType?: string }
@@ -13,6 +14,7 @@ interface ValidationOptions {
   customerPhone?: string;
   slot?: VoucherSlot;
   storeId?: string;
+  shippingDestination?: ShippingDestination;
 }
 
 /** Preview only: Product/Order and Voucher decide eligibility and the discount amount. */
@@ -33,6 +35,7 @@ export async function validateCheckoutVoucher(post: Post, options: ValidationOpt
   const platformFunded = platform.some(voucher => voucher.code.trim().toUpperCase() === code);
   const requestedShipping = options.slot === 'SHIPPING' || metadata?.benefitType === 'SHIPPING';
   const response: any = await post('/checkout/quote', {
+    shippingDestination: options.shippingDestination,
     couponCode: requestedShipping ? undefined : code,
     shippingCouponCode: requestedShipping ? code : undefined,
     items: groups.flatMap(group => group.items.map(item => ({
