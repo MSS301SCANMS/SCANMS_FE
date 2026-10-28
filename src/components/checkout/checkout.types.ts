@@ -34,6 +34,7 @@ export interface CheckoutStoreInfo {
 export interface GuestCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   product?: CheckoutProductItem;
   store?: CheckoutStoreInfo;
   checkoutItems?: CartItem[];

@@ -45,6 +45,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const checkoutFromCart = useRef(false);
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [checkoutCouponCode, setCheckoutCouponCode] = useState<string>('');
   const [isValidatingStock, setIsValidatingStock] = useState(false);
@@ -660,6 +661,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
 
+      if (!isCheckoutOpen) checkoutFromCart.current = isCartOpen;
       setCheckoutItems(itemsToCheckout);
       if (couponCode !== undefined) {
         setCheckoutCouponCode(couponCode);
@@ -667,7 +669,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsCartOpen(false);
       setIsCheckoutOpen(true);
     },
-    [selectedItems],
+    [selectedItems, isCartOpen, isCheckoutOpen],
   );
 
   // Mua ngay sản phẩm trực tiếp (Instant Buy): lập tức mở thanh toán cho sản phẩm được chọn mà không cần chờ chọn checkbox
@@ -797,6 +799,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCheckoutCouponCode('');
   }, []);
 
+  const returnFromCheckout = useCallback(() => {
+    closeCheckout();
+    if (checkoutFromCart.current) setIsCartOpen(true);
+    checkoutFromCart.current = false;
+  }, [closeCheckout]);
+
   // Real-time stock & price validation (Requirement 6)
   const refreshCartStock = useCallback(async () => {
     if (cart.length === 0) return;
@@ -878,6 +886,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       editCheckoutCart,
       continueShoppingFromCheckout,
       closeCheckout,
+      returnFromCheckout,
       refreshCartStock,
       isValidatingStock,
       isCartSyncing,
@@ -912,6 +921,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       editCheckoutCart,
       continueShoppingFromCheckout,
       closeCheckout,
+      returnFromCheckout,
       refreshCartStock,
       isValidatingStock,
       isCartSyncing,

@@ -17,6 +17,7 @@ import { CheckoutAddressSection } from './sections/CheckoutAddressSection';
 import { CheckoutSummaryTotals } from './sections/CheckoutSummaryTotals';
 import { CheckoutPoliciesSection } from './sections/CheckoutPoliciesSection';
 import { useCheckoutQuote } from '../../hooks/useCheckoutQuote';
+import { useCheckoutNavigation } from '../../hooks/useCheckoutNavigation';
 import { useCart, type CartItem } from '../../context/CartContext';
 import { useScanmsChat } from '../../context/ScanmsChatContext';
 import api from '../../services/api';
@@ -88,12 +89,14 @@ function subscribeCheckoutSession(callback: () => void) {
 
 export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = (props) => {
   const session = useSyncExternalStore(subscribeCheckoutSession, getSessionId, () => null);
-  return <CheckoutForm key={session || 'guest'} {...props} />;
+  const navigation = useCheckoutNavigation(props.isOpen, props.onClose, props.onBack);
+  return <CheckoutForm key={session || 'guest'} {...props} onClose={navigation.close} onBack={navigation.back} />;
 };
 
 const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   isOpen,
   onClose,
+  onBack = onClose,
   product,
   store,
   checkoutItems,
@@ -1000,7 +1003,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={onBack}
               className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EAE4D7] hover:border-[#EEDFC6] text-xs font-semibold text-[#7D715E] bg-white hover:bg-[#FBF5EB] transition cursor-pointer"
               title="Quay lại mua sắm"
             >

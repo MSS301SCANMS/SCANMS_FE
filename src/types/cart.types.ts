@@ -112,6 +112,7 @@ export interface CartContextType {
   editCheckoutCart: (items: CartItem[]) => void;
   continueShoppingFromCheckout: (items: CartItem[]) => void;
   closeCheckout: () => void;
+  returnFromCheckout: () => void;
   refreshCartStock: () => Promise<void>;
   isValidatingStock: boolean;
   isCartSyncing: boolean;

@@ -84,12 +84,13 @@ function ShopApplicationEntry() {
 }
 
 function GlobalCheckoutModal() {
-  const { isCheckoutOpen, closeCheckout, checkoutItems, checkoutCouponCode } = useCart();
+  const { isCheckoutOpen, closeCheckout, returnFromCheckout, checkoutItems, checkoutCouponCode } = useCart();
   if (!isCheckoutOpen || !canAccessShopping()) return null;
   return (
     <GuestCheckoutModal
       isOpen={isCheckoutOpen}
       onClose={closeCheckout}
+      onBack={returnFromCheckout}
       checkoutItems={checkoutItems}
       initialCouponCode={checkoutCouponCode}
     />
