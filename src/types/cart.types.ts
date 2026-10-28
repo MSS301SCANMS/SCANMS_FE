@@ -18,6 +18,7 @@ export interface CartItem {
   title: string;
   sku: string;
   price: number;
+  listPrice?: number;
   originalPrice?: number;
   imageUrl: string;
   quantity: number;

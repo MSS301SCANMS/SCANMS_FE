@@ -24,6 +24,8 @@ import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
 import { useLiveSessionDeals } from '../../components/product/LiveSessionDealBadge';
 import { MarketplaceProductCard } from '../../components/marketplace/MarketplaceProductCard';
+import { useSearchHistory } from '../../hooks/useSearchHistory';
+import { SearchHistoryBar } from '../../components/marketplace/SearchHistoryBar';
 import { QuickCustomerAuth } from '../../components/marketplace/QuickCustomerAuth';
 import { LiveCommerceHubModal } from '../../components/marketplace/LiveCommerceHubModal';
 
@@ -337,7 +339,7 @@ export default function SearchPage() {
               rating: Number(item.rating || 0),
               reviews: Number(item.reviewCount || 0),
               sold: String(Number(item.soldCount ?? 0)),
-              soldCount: Number(item.soldCount ?? 0),
+              soldCount: item.soldCount == null ? undefined : Number(item.soldCount),
               viewCount: Number(item.viewCount ?? 0),
               createdAt: item.createdAt,
               commissionRate: rawRate || undefined,
@@ -436,6 +438,7 @@ export default function SearchPage() {
   ]);
 
   // Sort
+  const searchHistory = useSearchHistory(queryParam, filteredProducts.length, loading || searchInput.trim() !== queryParam.trim(), Object.fromEntries(searchParams));
   const displayedProducts = useMemo(() => {
     return sortCatalogProducts(filteredProducts, sortBy);
   }, [filteredProducts, sortBy]);
@@ -759,6 +762,8 @@ export default function SearchPage() {
 
       {/* Main Content Area - 1200px Centered SCANMS Standard Container */}
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-3 sm:px-4 py-4 sm:py-5 text-left">
+        <SearchHistoryBar history={searchHistory.history} error={searchHistory.error} onClear={() => void searchHistory.clear()}
+          onSelect={keyword => { setSearchInput(keyword); updateUrlParams({ q: keyword }); }} />
         {/* 2-Column Responsive Layout: Left Sidebar Filters (190px) + Right Product Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-[190px_1fr] gap-4 sm:gap-5 items-start">
           

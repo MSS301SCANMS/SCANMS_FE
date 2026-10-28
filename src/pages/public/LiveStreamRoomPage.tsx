@@ -509,6 +509,7 @@ export default function LiveStreamRoomPage() {
     businessStatus,
     hostOnline,
     isStreamLive,
+    broadcast,
     streamError: transportStreamError,
     sessionEnded,
     sendLiveChat,
@@ -573,6 +574,7 @@ export default function LiveStreamRoomPage() {
   }, [sessionEnded]);
 
   const isStreamEnded = Boolean(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status));
+  const livePurchasingAvailable = legacyLive || roomJoined && hostOnline && isStreamLive && broadcast?.state !== 'RECONNECTING';
   useEffect(() => {
     if (legacyLive || !sessionData?.id) return;
     let active = true;
@@ -1330,6 +1332,7 @@ export default function LiveStreamRoomPage() {
 
   // Add to cart
   const handleAddToCart = (product: LiveProduct) => {
+    if (!livePurchasingAvailable || isStreamEnded) { toast.warning('Phiên đang gián đoạn hoặc chưa phát camera. Vui lòng chờ KOL kết nối lại.'); return; }
     if (!product.variantId) { setVariantChoice({ product, action: 'cart' }); return; }
     addItem({
       variantId: product.variantId,
@@ -1355,6 +1358,7 @@ export default function LiveStreamRoomPage() {
 
   // Instant Buy (Chốt đơn trực tiếp tại phiên live)
   const handleInstantBuy = (product: LiveProduct) => {
+    if (!livePurchasingAvailable || isStreamEnded) { toast.warning('Phiên đang gián đoạn hoặc chưa phát camera. Vui lòng chờ KOL kết nối lại.'); return; }
     if (!product.variantId) { setVariantChoice({ product, action: 'buy' }); return; }
     buyNow(
       {
@@ -1437,7 +1441,7 @@ export default function LiveStreamRoomPage() {
             </span>
             <span className={cn('live-room-status', sessionData?.status === 'LIVE' && !isStreamEnded && 'is-live')}>
               <span className="live-room-status-dot" />
-              {isStreamEnded ? 'Đã kết thúc' : sessionData?.status === 'LIVE' ? 'Trực tiếp' : sessionData?.status === 'PAUSED' ? 'Tạm dừng' : 'Chờ phát'}
+              {isStreamEnded ? 'Đã kết thúc' : broadcast?.state === 'RECONNECTING' ? 'Gián đoạn · Chờ kết nối lại' : sessionData?.status === 'LIVE' ? 'Trực tiếp' : sessionData?.status === 'PAUSED' ? 'Tạm dừng' : 'Chờ phát'}
             </span>
           </div>
 
@@ -1833,9 +1837,9 @@ export default function LiveStreamRoomPage() {
               </div>
             )}
 
-            {!isSessionHost && !remoteStream && (hostOnline || isStreamLive || streamError) && (
+            {!isSessionHost && !remoteStream && (hostOnline || isStreamLive || streamError || broadcast?.state === 'RECONNECTING') && (
               <div className="absolute left-1/2 top-1/2 z-10 max-w-[min(90%,420px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-center text-sm font-semibold text-[#1A1612] shadow-lg backdrop-blur-sm">
-                {streamError || (isStreamLive
+                {broadcast?.state === 'RECONNECTING' ? 'Phiên đang gián đoạn. KOL có tối đa 120 giây để kết nối lại; ưu đãi mua trong live đang tạm dừng.' : streamError || (isStreamLive
                   ? 'Đang kết nối camera của KOL…'
                   : 'KOL đã vào phiên, đang chờ bật camera…')}
                 {roomJoined && !isStreamEnded && <button type="button" onClick={retryConnection} className="mx-auto mt-2 block text-xs font-semibold text-[#9D722F] underline">Kết nối lại camera</button>}
@@ -1876,7 +1880,7 @@ export default function LiveStreamRoomPage() {
 
           {pinnedProduct && (!isBagOpen || bagPosition !== 'left') && (
             <div onClick={(event) => event.stopPropagation()} className="absolute bottom-[84px] left-3 sm:left-4 z-20 pointer-events-auto">
-              <LivePinnedProductCard product={pinnedProduct} index={pinnedIndex} countdown={formatCountdown(dealCountdownSeconds)} collapsed={isPinnedDealCollapsed} onCollapsedChange={setIsPinnedDealCollapsed} onAddToCart={() => handleAddToCart(pinnedProduct)} onBuy={() => handleInstantBuy(pinnedProduct)} disabled={isStreamEnded} />
+              <LivePinnedProductCard product={pinnedProduct} index={pinnedIndex} countdown={formatCountdown(dealCountdownSeconds)} collapsed={isPinnedDealCollapsed} onCollapsedChange={setIsPinnedDealCollapsed} onAddToCart={() => handleAddToCart(pinnedProduct)} onBuy={() => handleInstantBuy(pinnedProduct)} disabled={isStreamEnded || !livePurchasingAvailable} />
             </div>
           )}
 

@@ -827,6 +827,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return {
               ...localItem,
               price: serverMatch.currentPrice !== undefined ? serverMatch.currentPrice : localItem.price,
+              listPrice: serverMatch.listPrice !== undefined ? serverMatch.listPrice : localItem.listPrice,
               stockQuantity: serverMatch.stockQuantity !== undefined ? serverMatch.stockQuantity : localItem.stockQuantity,
               isActive: serverMatch.isActive !== false && !serverMatch.outOfStock,
               quantity: Math.min(localItem.quantity, serverMatch.stockQuantity || 1),

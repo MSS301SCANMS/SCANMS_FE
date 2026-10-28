@@ -32,7 +32,7 @@ export const checkoutService = {
       return [id, unwrap(response).product] as const;
     })));
     const liveIds = [...new Set(items.map(item => item.sourceLivestreamId || item.liveSessionId).filter(Boolean))];
-    const liveQuotes = await Promise.all(liveIds.map(id => checkout.post('/checkout/quote', { items: items.filter(item => (item.sourceLivestreamId || item.liveSessionId) === id).map(inventoryLine), shippingDestination })));
+    const liveQuotes = shippingDestination ? await Promise.all(liveIds.map(id => checkout.post('/checkout/quote', { items: items.filter(item => (item.sourceLivestreamId || item.liveSessionId) === id).map(inventoryLine), shippingDestination }))) : [];
     const liveRows = liveQuotes.flatMap(response => response.data.result?.lines || []);
     const warnings: string[] = [];
     const validated = items.map(item => {
@@ -42,17 +42,18 @@ export const checkoutService = {
       const stockQuantity = available ? Number(variant?.stockQuantity ?? product.stockQuantity ?? 0) : 0;
       const sourceId = item.sourceLivestreamId || item.liveSessionId;
       const liveLine = sourceId ? liveRows.find((row: any) => row.productId === item.productId && row.variantId === item.variantId && row.sourceLivestreamId === sourceId) : undefined;
-      const currentPrice = Number(liveLine?.unitPriceVnd ?? variant?.price ?? product?.price ?? 0);
+      const currentPrice = Number(liveLine?.unitPriceVnd ?? (sourceId && !shippingDestination ? item.clientPrice : undefined) ?? variant?.price ?? product?.price ?? 0);
+      const listPrice = Number(liveLine?.listUnitPriceVnd ?? variant?.price ?? product?.price ?? currentPrice);
       if (stockQuantity < item.quantity) warnings.push(`Sản phẩm "${product?.title || product?.name || item.productId}" chỉ còn ${stockQuantity} sản phẩm.`);
       if (item.clientPrice != null && item.clientPrice !== currentPrice) warnings.push('Giá sản phẩm đã thay đổi. Vui lòng kiểm tra lại giỏ hàng.');
-      return { ...item, currentPrice, stockQuantity, isActive: available, outOfStock: stockQuantity <= 0 };
+      return { ...item, currentPrice, listPrice, stockQuantity, isActive: available, outOfStock: stockQuantity <= 0 };
     });
     return { items: validated, warnings };
   },
   async shippingQuote(items: CheckoutLine[], storeId: string, address: string, signal?: AbortSignal, shippingDestination?: ShippingDestination) {
     if (usesLegacyCheckout) return unwrap(await api.post('/shipping/ghn/quote-address', { storeId, address, items }, { signal, timeout: 20000 }));
     const response = await checkout.post('/checkout/quote', { items: items.map(inventoryLine), shippingDestination }, { signal, timeout: 60000 });
-    return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer };
+    return { totalFee: response.data.result.shippingFeeVnd, mode: response.data.result.shippingMode, payer: response.data.result.shippingPayer, lines: response.data.result.lines };
   },
   async create(input: unknown) {
     if (usesLegacyCheckout) return unwrap(await api.post('/orders', input));
@@ -65,7 +66,13 @@ export const checkoutService = {
     if (order?.paymentMethod === 'WALLET' && order.paymentStatus !== 'PAID') {
       if (!order.orderId) throw new Error('Máy chủ chưa xác nhận mã đơn hàng để thanh toán.');
       const wallet = await financeService.wallet('CUSTOMER');
-      const payment = await financeService.payWallet(order.orderId, wallet.walletId, `checkout-wallet-${order.orderId}`);
+      let payment;
+      try { payment = await financeService.payWallet(order.orderId, wallet.walletId, `checkout-wallet-${order.orderId}`); }
+      catch (error: any) {
+        if (/insufficient wallet balance/i.test(error?.message || ''))
+          throw new Error('Số dư ví vừa thay đổi và không còn đủ để thanh toán. Đơn chưa được thanh toán; vui lòng nạp thêm tiền rồi thử lại hoặc hủy đơn trong Đơn mua.');
+        throw error;
+      }
       if (payment.status !== 'SUCCESS') throw new Error('Thanh toán ví chưa hoàn tất. Vui lòng kiểm tra đơn hàng trước khi thử lại.');
       const paymentStatus = payment.orderSyncStatus === 'RECONCILIATION_REQUIRED' ? 'RECONCILIATION_REQUIRED' : 'PAID';
       return { ...order, paymentStatus, orders: order.orders?.map((seller: Record<string, unknown>) => ({ ...seller, paymentStatus })) };

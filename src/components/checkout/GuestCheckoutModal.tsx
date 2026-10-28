@@ -26,6 +26,7 @@ import { authService } from '../../services/auth.service';
 import { customerService, type CustomerAddress } from '../../services/customer.service';
 import { loadShippingAddresses, type ShippingProvince } from '../../services/order-address.service';
 import { walletService, type WalletSummary } from '../../services/wallet.service';
+import { insufficientWalletMessage } from '../../utils/checkout-amounts';
 import { toast } from '../../utils/toast';
 import { apiCache } from '@/utils/api-cache.utils';
 import { formatMoney } from '@/utils/marketplace.utils';
@@ -171,6 +172,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'PAYOS'>('WALLET');
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [walletReload, setWalletReload] = useState(0);
+  const [validatedPrices, setValidatedPrices] = useState<Record<string, { price: number; listPrice: number }>>({});
   const [payosAvailable, setPayosAvailable] = useState<boolean | null>(null);
 
   // Voucher state
@@ -223,7 +226,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   }, [orderSuccess, onPaymentConfirmed]);
   // Xác định danh sách sản phẩm thanh toán.
   const checkoutInputKey = JSON.stringify({ checkoutItems, product, store });
-  const activeItems: CartItem[] = useMemo(() => {
+  const sourceItems: CartItem[] = useMemo(() => {
     if (checkoutItems && checkoutItems.length > 0) return checkoutItems;
     if (product) {
       let resolvedPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price)) || 0;
@@ -265,6 +268,22 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     }
     return [];
   }, [checkoutInputKey, initialQuantity, initialVariantId, initialLiveSessionId]);
+  const itemPriceKey = (item: { productId: string; variantId?: string; liveSessionId?: string }) => `${item.productId}:${item.variantId || ''}:${item.liveSessionId || ''}`;
+  const activeItems = useMemo(() => sourceItems.map(item => ({ ...item, ...validatedPrices[itemPriceKey(item)] })), [sourceItems, validatedPrices]);
+  useEffect(() => { setValidatedPrices({}); }, [checkoutInputKey]);
+  const acceptQuotedPrices = useCallback((lines: any[]) => {
+    setValidatedPrices(previous => {
+      const next = { ...previous };
+      for (const line of lines) {
+        const price = Number(line.unitPriceVnd ?? line.currentPrice);
+        const listPrice = Number(line.listUnitPriceVnd ?? line.listPrice ?? price);
+        if (Number.isSafeInteger(price) && price > 0 && Number.isSafeInteger(listPrice) && listPrice >= price) {
+          next[itemPriceKey({ ...line, liveSessionId: line.sourceLivestreamId || line.liveSessionId })] = { price, listPrice };
+        }
+      }
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
+  }, []);
 
   // Gom nhóm sản phẩm theo gian hàng (Chuẩn CheckoutShopGroup)
   const itemsGroupedByShop = useMemo(() => {
@@ -306,6 +325,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
   // Custom Hook báo giá vận chuyển GHN & tính toán chiết khấu
   const {
     rawSubtotal,
+    listedSubtotal,
+    directDiscount,
     activeUnitCount,
     shippingFee,
     shippingFeesByStore,
@@ -335,7 +356,11 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
       setAppliedShippingCoupon(null);
       setCouponMessage(null);
     },
+    onPricesQuoted: acceptQuotedPrices,
   });
+  const walletError = paymentMethod === 'WALLET' && wallet && !walletLoading
+    ? insufficientWalletMessage(Number(wallet.availableBalance), finalTotal) : null;
+  const walletPending = paymentMethod === 'WALLET' && (walletLoading || !wallet);
 
   const voucherBasisKey = activeItems.map(item => `${item.store.id}:${item.productId}:${item.variantId || ''}:${item.quantity}:${item.price}:${item.liveSessionId || ''}`).join('|') + `:${customerPhone.trim()}`;
   const shippingDestinationKey = JSON.stringify(shippingDestination);
@@ -496,6 +521,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
           )
           .then((res: any) => {
             if (!active) return;
+            acceptQuotedPrices(res?.items || []);
             if (res?.warnings && res.warnings.length > 0) {
               setValidationWarnings(res.warnings);
             } else {
@@ -563,12 +589,13 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, isSignedIn]);
+  }, [isOpen, isSignedIn, currentUser?.id]);
 
   useEffect(() => {
     if (!isOpen || !isSignedIn) return;
     let active = true;
     setWalletLoading(true);
+    setWallet(null);
     walletService
       .getMyWallet()
       .then((res) => {
@@ -581,7 +608,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, isSignedIn]);
+  }, [isOpen, isSignedIn, currentUser?.id, walletReload]);
 
   const populateAddressFromRecord = (addr: CustomerAddress, provinces: ShippingProvince[]) => {
     if (addr.fullName) setCustomerName(addr.fullName);
@@ -763,6 +790,10 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
     }
     if (paymentMethod === 'PAYOS' && payosAvailable !== true) {
       setErrorMessage('Chưa kết nối được PayOS. Vui lòng chọn phương thức thanh toán khác hoặc thử lại sau.');
+      return;
+    }
+    if (walletPending || walletError) {
+      setErrorMessage(walletError || 'Chưa kiểm tra được số dư ví. Vui lòng tải lại số dư trước khi đặt hàng.');
       return;
     }
     if (policyLoading || policyError || itemsGroupedByShop.some(group => !shopPolicies[group.store.id])) {
@@ -1220,7 +1251,8 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
 
               <CheckoutSummaryTotals
                 activeUnitCount={activeUnitCount}
-                rawSubtotal={rawSubtotal}
+                rawSubtotal={listedSubtotal}
+                directDiscount={directDiscount}
                 shippingAddressHint={shippingAddressHint}
                 shippingFeeError={shippingFeeError}
                 shippingFeeLoading={shippingFeeLoading}
@@ -1247,11 +1279,22 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
                 }}
               />
 
+              {paymentMethod === 'WALLET' && (walletError || !wallet && !walletLoading) && (
+                <div role="alert" className="mx-6 mb-4 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-4 text-sm text-[#795A2D]">
+                  <p>{walletError || 'Chưa kiểm tra được số dư ví. Vui lòng thử tải lại.'}</p>
+                  <div className="mt-2 flex flex-wrap gap-4">
+                    <Link to="/customer/wallet/topup" className="font-semibold underline">Nạp tiền vào ví</Link>
+                    <button type="button" onClick={() => setWalletReload(value => value + 1)} className="underline">Tải lại số dư</button>
+                    {payosAvailable && <button type="button" onClick={() => setPaymentMethod('PAYOS')} className="underline">Đổi sang PayOS</button>}
+                  </div>
+                </div>
+              )}
+
               <div className="p-[0_24px_22px] flex justify-end [@media_(max-width:639px)]:p-[0_16px_18px]">
                 <button
                   type="submit"
                   className="checkout-submit [font-family:inherit]! text-[14px] font-[650] leading-[1.5] [font-style:inherit] [font-variant:inherit] [font-stretch:inherit] inline-flex items-center justify-center gap-[8px] shrink-0 min-w-[220px] min-h-[48px] p-[12px_22px] border border-[#EEDFC6] rounded-[10px] bg-[color:#FBF5EB] text-[color:#1A1612]! cursor-pointer [&:hover:not(:disabled)]:bg-[color:#F3EFE6] [&:hover:not(:disabled)]:border-[#C59B58] [&:disabled]:bg-[color:#F3EFE6] [&:disabled]:border-[#EAE4D7] [&:disabled]:text-[color:#7D715E]! [&:disabled]:cursor-wait [@media_(max-width:639px)]:w-full [@media_(max-width:639px)]:min-w-0"
-                  disabled={isSubmitting || couponLoading || activeItems.length === 0}
+                  disabled={isSubmitting || couponLoading || activeItems.length === 0 || walletPending || Boolean(walletError)}
                 >
                   {isSubmitting ? (
                     <>

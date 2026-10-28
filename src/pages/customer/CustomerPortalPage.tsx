@@ -57,6 +57,7 @@ import { CustomerOrderTotals } from './CustomerOrderTotals';
 import { CustomerOrderProgress } from './CustomerOrderProgress';
 import { CustomerOrderDetailActions } from './CustomerOrderDetailActions';
 import { getCustomerOrderActions } from '../../utils/customer-order-actions';
+import { OrderCancellationNotice } from '../../components/orders/OrderCancellationNotice';
 import { hasCustomerReturn } from '../../utils/customer-order-filter';
 import { returnStatusLabel } from '../../utils/return-status.utils';
 import { useCustomerWishlist } from '../../hooks/useCustomerWishlist';
@@ -772,8 +773,8 @@ export default function CustomerPortalPage() {
     if (!cancellingOrderId || isCancelling || !cancelReason.trim()) return;
     setIsCancelling(true);
     try {
-      await customerService.cancelOrder(cancellingOrderId, cancelReason);
-      toast.success('Hủy đơn hàng thành công');
+      const result = await customerService.cancelOrder(cancellingOrderId, cancelReason);
+      toast.success(result.state === 'REQUESTED' ? 'Đã gửi yêu cầu hủy, đang chờ shop duyệt.' : 'Đã hủy đơn. Khoản đã thanh toán sẽ được đối chiếu và hoàn về ví SCANMS.');
       setCancellingOrderId(null);
       fetchOrders();
       fetchProfile();
@@ -1304,6 +1305,7 @@ export default function CustomerPortalPage() {
                             )}
 
                             {/* Order Items List */}
+                            <div className="px-4"><OrderCancellationNotice cancellation={order.rawPayload?.sagaState?.cancellation} /></div>
                             <div className="min-w-0 px-[16px] @max-[499px]:px-[12px] divide-y divide-[#EAE4D7]">
                               {(order.orderItems || []).map((item) => (
                                 <div key={item.id} className="grid grid-cols-[64px_minmax(0,1fr)_auto] @max-[499px]:grid-cols-[56px_minmax(0,1fr)] items-center @max-[499px]:items-start gap-[12px] @max-[499px]:gap-[8px_10px] py-[14px] @max-[499px]:py-[12px]">
