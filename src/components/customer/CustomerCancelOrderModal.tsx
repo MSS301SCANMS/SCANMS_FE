@@ -80,7 +80,7 @@ export function CustomerCancelOrderModal({ busy, onClose, onConfirm }: Props) {
         <button type="button" className="customer-cancel-close" aria-label="Đóng cửa sổ hủy đơn" disabled={busy} onClick={onClose}><X size={18} /></button>
       </header>
       <div className="customer-cancel-body">
-        <p className="customer-cancel-notice"><AlertCircle size={16} aria-hidden="true" /><span>Đơn hàng đang chờ Shop xác nhận. Thao tác này sẽ hủy toàn bộ sản phẩm trong đơn.</span></p>
+        <p className="customer-cancel-notice"><AlertCircle size={16} aria-hidden="true" /><span>Yêu cầu áp dụng cho toàn bộ đơn chưa bàn giao vận chuyển. Đơn đã được shop xác nhận cần shop duyệt hủy. Khoản đã thanh toán sẽ được hoàn về ví SCANMS sau khi hủy được chấp nhận.</span></p>
         <fieldset disabled={busy} className="customer-cancel-reasons">
           <legend>Lý do hủy đơn</legend>
           {reasons.map(item => <label className="customer-cancel-choice" data-selected={selectedReason === item.id} key={item.id}>

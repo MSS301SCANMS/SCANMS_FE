@@ -19,7 +19,7 @@ test('real WebRTC carries KOL camera/microphone to customer and shop, deduplicat
  const token=async(sub,roles)=>new SignJWT({realm_access:{roles},name:sub}).setSubject(sub).setIssuer('fixture-live').setProtectedHeader({alg:'RS256'}).setExpirationTime('10m').sign(privateKey);
  const tokens={host:await token('kol-user',['KOL_CTV']),viewer:await token('buyer-user',['USER']),shop:await token('shop-user',['SHOP_OWNER'])};
  const session={livestreamId:'camera-fixture',storeId:'store-a',title:'Camera and microphone verification',status:'LIVE',productRefs:{productIds:['shirt-a','dress-a']},collaboratorRefs:{collaboratorIds:['kol-a']},participantRefs:{creatorName:'Fixture KOL',collaboratorResponses:{'kol-a':'ACCEPTED'}}};
- const server=createLiveServer({origins:[origin],pollMs:200,verifyToken:async token=>(await jwtVerify(token,publicKey,{issuer:'fixture-live'})).payload,
+ const server=createLiveServer({origins:[origin],pollMs:200,metricsSecret: "fixture-live-metrics-key-32-characters-long",verifyToken:async token=>(await jwtVerify(token,publicKey,{issuer:'fixture-live'})).payload,
   fetcher:async url=>Response.json({result:url.endsWith('/collaborators/me')?{collaboratorId:'kol-a',approvalStatus:'APPROVED'}:url.endsWith('/stores/mine')?[{storeId:'store-a',approvalStatus:'APPROVED'}]:url.includes('/referrals/livestream-access?')?{approvalStatus:'APPROVED',collaboratorId:'kol-a',storeId:'store-a'}:session}),
  });
  const shopJoinRoles=[];

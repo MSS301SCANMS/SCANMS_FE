@@ -61,6 +61,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import ShopSampleManagementTab from './ShopSampleManagementTab';
 import './ShippingDispatchModal.css';
 import './MerchantOrdersTable.css';
+import { ShopCancellationPanel } from '../../components/orders/ShopCancellationPanel';
 
 export type OrderSearchField = "ALL" | "ORDER_SN" | "CUSTOMER_NAME" | "PHONE" | "TRACKING" | "PRODUCT";
 
@@ -559,7 +560,7 @@ export default function OrdersManagementPage({
     try {
       await orderService.shopCancelOrder(cancelModalOrder.id, finalReason);
       setActionSuccessMsg(
-        `Đã hủy đơn ${orderDisplayCode(cancelModalOrder.externalOrderSn)} — Kho hàng đã được hoàn lại, hoa hồng KOL đã thu hồi.`
+        `Đã chấp thuận yêu cầu hủy đơn ${orderDisplayCode(cancelModalOrder.externalOrderSn)}. Hệ thống sẽ đối chiếu tiền, tồn kho và hoa hồng khi yêu cầu hủy được hoàn tất.`
       );
       setTimeout(() => setActionSuccessMsg(null), 6000);
       setCancelModalOrder(null);
@@ -1342,8 +1343,9 @@ export default function OrdersManagementPage({
                           {/* Thao tác (1 CTA chính + Mắt chi tiết + Menu ... phụ) */}
                           <td data-label="Thao tác" className="py-3 pl-3 pr-8 align-middle text-right">
                             <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                              {order.cancellation?.state === 'REQUESTED' && <button type="button" onClick={() => setSelectedOrderDetails(order)} className="rounded-lg border border-[#C59B58] bg-[#FBF5EB] px-3 py-2 text-xs font-semibold text-[#795A2D]">Duyệt yêu cầu hủy</button>}
                               {/* 1. Nút Thao tác chính theo chu kỳ đơn hàng */}
-                              {order.status === "PENDING" && order.paymentStatus === "PAID" && (
+                              {order.status === "PENDING" && order.paymentStatus === "PAID" && order.cancellation?.state !== "REQUESTED" && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenShippingModal(order)}
@@ -1483,7 +1485,7 @@ export default function OrdersManagementPage({
                                     )}
 
                                     {/* Hủy đơn */}
-                                    {(order.status === "PENDING" || order.status === "SHIPPING") && (
+                                    {order.cancellation?.state === "REQUESTED" && (
                                       <>
                                         <div className="h-px bg-[#EAE4D7] my-1" />
                                         <button
@@ -1497,7 +1499,7 @@ export default function OrdersManagementPage({
                                           className="w-full px-3 py-1.5 text-left text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition"
                                         >
                                           <X className="w-3.5 h-3.5 text-rose-500" />
-                                          <span>Hủy đơn hàng</span>
+                                          <span>Chấp thuận yêu cầu hủy</span>
                                         </button>
                                       </>
                                     )}
@@ -2022,6 +2024,8 @@ export default function OrdersManagementPage({
               </button>
             </div>
             <div className="flex flex-col gap-4 p-5 overflow-y-auto">
+              <ShopCancellationPanel key={selectedOrderDetails.id} sellerOrderId={selectedOrderDetails.id} cancellation={selectedOrderDetails.cancellation}
+                onUpdated={() => { setSelectedOrderDetails(null); setReload(value => value + 1); }} />
             {/* Khách hàng & Địa chỉ */}
             <section className="p-3.5 border border-[#EAE4D7] rounded-xl bg-[#FAF8F5] space-y-2">
               <h4 className="flex items-center gap-1.5 text-xs font-bold text-[#1A1612] m-0"><Users size={16} /> Thông tin người nhận</h4>

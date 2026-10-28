@@ -72,7 +72,7 @@ export default function MarketplacePage() {
           image: img,
           stockQuantity: Number(dbP.stockQuantity || 0),
           createdAt: dbP.createdAt,
-          soldCount: Number(dbP.soldCount ?? 0),
+          soldCount: dbP.soldCount == null ? undefined : Number(dbP.soldCount),
           viewCount: Number(dbP.viewCount ?? 0),
           variants: Array.isArray(dbP.variants) ? dbP.variants : [],
           commissionRate: commRate,

@@ -18,6 +18,7 @@ export interface CartItem {
   title: string;
   sku: string;
   price: number;
+  listPrice?: number;
   originalPrice?: number;
   imageUrl: string;
   quantity: number;
@@ -111,6 +112,7 @@ export interface CartContextType {
   editCheckoutCart: (items: CartItem[]) => void;
   continueShoppingFromCheckout: (items: CartItem[]) => void;
   closeCheckout: () => void;
+  returnFromCheckout: () => void;
   refreshCartStock: () => Promise<void>;
   isValidatingStock: boolean;
   isCartSyncing: boolean;

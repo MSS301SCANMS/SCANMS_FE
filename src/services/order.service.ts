@@ -98,6 +98,7 @@ export interface StoreOrderItem {
 }
 
 export interface StoreOrderRecord {
+  cancellation?: import('../types/order-cancellation.types').OrderCancellation;
   id: string;
   externalOrderSn: string;
   createdAt: string;
@@ -171,6 +172,7 @@ function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
   const statusMap: Record<string, ManagedOrderStatus> = { CONFIRMED: 'PENDING', PROCESSING: 'PENDING', PACKING: 'PENDING', SHIPPED: 'SHIPPING' };
   return {
     id: raw.sellerOrderId,
+    cancellation: order.sagaState?.cancellation,
     externalOrderSn: checkout.publicOrderCode || raw.orderId,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
@@ -199,6 +201,9 @@ function mapSellerOrder(raw: any, order: any, checkout: any): StoreOrderRecord {
 }
 
 export const orderService = {
+  async decideCancellation(sellerOrderId: string, approved: boolean, reason: string) {
+    return unwrapOrderResponse(await api.post(`/commerce/seller-orders/${encodeURIComponent(sellerOrderId)}/cancellation/decision`, { approved, reason }));
+  },
   async getMyStoreOrders(params?: {
     status?: string;
     paymentStatus?: string;
@@ -353,6 +358,7 @@ export const orderService = {
   },
 
   async shopCancelOrder(_orderId: string, _reason: string): Promise<{ message: string; order: any }> {
-    throw new Error('BE chưa hỗ trợ hủy đơn từ phía shop qua API này.');
+    const result = await this.decideCancellation(_orderId, true, _reason);
+    return { message: 'Đã chấp thuận yêu cầu hủy của khách.', order: result };
   },
 };

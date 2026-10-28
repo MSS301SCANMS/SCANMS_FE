@@ -50,6 +50,7 @@ export function useLiveStreamTransport({
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [hostOnline, setHostOnline] = useState(false);
   const [isStreamLive, setIsStreamLive] = useState(false);
+  const [broadcast, setBroadcast] = useState<{ state: string; reconnectUntil?: string } | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
@@ -308,7 +309,7 @@ export function useLiveStreamTransport({
       socket.emit(
         'join_live_room',
         { sessionId, requestedRole: isHost ? 'host' : isModerator ? 'moderator' : 'viewer' },
-        (result: { ok?: boolean; message?: string; hostOnline?: boolean; streamActive?: boolean; viewerCount?: number; likesCount?: number; purchaseToken?: string }) => {
+        (result: { ok?: boolean; message?: string; hostOnline?: boolean; streamActive?: boolean; viewerCount?: number; likesCount?: number; purchaseToken?: string; broadcast?: { state: string; reconnectUntil?: string } }) => {
           if (!active) return;
           if (!result?.ok) {
             setRoomJoined(false);
@@ -317,6 +318,7 @@ export function useLiveStreamTransport({
           }
           setStreamError(null);
           setRoomJoined(true);
+          setBroadcast(result.broadcast || null);
           setHostOnline(Boolean(result.hostOnline) || isHost);
           setIsStreamLive(Boolean(result.streamActive));
           setViewerCount(result.viewerCount ?? 0);
@@ -408,6 +410,7 @@ export function useLiveStreamTransport({
       }
     });
     socket.on('live_host_left', () => {
+      setBroadcast({ state: 'RECONNECTING' });
       if (!isHost) {
         setHostOnline(false);
         setIsStreamLive(false);
@@ -420,6 +423,9 @@ export function useLiveStreamTransport({
     });
     socket.on('live_signal', (payload: { fromSocketId?: string; signal?: LiveSignal }) => {
       void handleSignal(payload);
+    });
+    socket.on('live_broadcast_state', (state: { state: string; reconnectUntil?: string }) => {
+      if (active) setBroadcast(state);
     });
     socket.on('new_live_chat', (msg: any) => {
       onNewChatMessageRef.current?.(msg);
@@ -562,6 +568,7 @@ export function useLiveStreamTransport({
     businessStatus,
     hostOnline,
     isStreamLive,
+    broadcast,
     streamError,
     sessionEnded,
     sendLiveChat,

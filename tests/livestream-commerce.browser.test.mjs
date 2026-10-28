@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
+import { io } from 'socket.io-client';
 import { createLiveServer } from '../../be/livestream-realtime/server.mjs';
 import { generateKeyPair, SignJWT, jwtVerify } from '../../be/livestream-realtime/node_modules/jose/dist/webapi/index.js';
 const base=process.env.GHN_UI_TEST_URL, executablePath=process.env.GHN_UI_BROWSER_PATH;
@@ -20,7 +21,7 @@ test('shop sets live variant price and launches vouchers while customer chooses 
   const platform={voucherId:'platform-save',code:'SAN10',issuerType:'PLATFORM',scopeType:'PLATFORM',benefitType:'GOODS',discountType:'FIXED',value:10000,minimumSubtotal:100000,validFrom:'2026-01-01T00:00:00',validUntil:'2030-01-01T00:00:00'};
   const published=()=>({...state,voucherDrops:state.voucherDrops.filter(row=>row.status==='PUBLISHED')});
   let pinUnavailable=true;
-  const relay=createLiveServer({origins:[origin],pollMs:200,verifyToken:async token=>(await jwtVerify(token,publicKey,{issuer:'live-commerce-fixture'})).payload,
+  const relay=createLiveServer({origins:[origin],pollMs:200,metricsSecret: "fixture-live-metrics-key-32-characters-long",verifyToken:async token=>(await jwtVerify(token,publicKey,{issuer:'live-commerce-fixture'})).payload,
     fetcher:async (url,request)=>{
       if(url.endsWith('/pin')){
         if(pinUnavailable)return Response.json({message:'Old Product version'},{status:404});
@@ -31,7 +32,11 @@ test('shop sets live variant price and launches vouchers while customer chooses 
     }});
   await new Promise((resolve,reject)=>{relay.http.once('error',reject);relay.http.listen(relayPort,'127.0.0.1',resolve)});
   const browser=await puppeteer.launch({executablePath,headless:true});const errors=[];
+  const publisher=io(`http://127.0.0.1:${relayPort}/live-stream`,{transports:['websocket'],auth:{token:tokens.shop},reconnection:false});
   try{
+    await new Promise((resolve,reject)=>{publisher.once('connect',resolve);publisher.once('connect_error',reject)});
+    assert.equal((await publisher.timeout(3000).emitWithAck('join_live_room',{sessionId:'commerce-fixture',requestedRole:'host'})).ok,true);
+    assert.equal((await publisher.timeout(3000).emitWithAck('live_stream_started',{sessionId:'commerce-fixture'})).ok,true);
     const open=async kind=>{
       const context=await browser.createBrowserContext(),page=await context.newPage();page.setDefaultTimeout(15000);await page.setViewport({width:1500,height:1050});
       page.on('pageerror',error=>{if(error.message!=='WebSocket closed without opened.')errors.push(error.message)});
@@ -111,7 +116,7 @@ test('shop sets live variant price and launches vouchers while customer chooses 
     await newFields[1].type('LIVE30');await clickText(shop,'Tung voucher ngay');
     await buyer.waitForFunction(()=>document.querySelector('[aria-label="Voucher đang tung trong live"]')?.textContent.includes('LIVE30'));
     assert.equal(state.offers[0].priceVnd,299000);assert.equal(variants[0].price,329000,'ordinary variant price stays unchanged');
-    assert.equal(relay.rooms.get('commerce-fixture').members.size,2,'shop and customer stay connected to the real relay');
+    assert.equal(relay.rooms.get('commerce-fixture').members.size,3,'publisher, shop and customer stay connected to the real relay');
     assert.deepEqual(errors,[]);
-  }finally{await browser.close();await relay.close();}
+  }finally{publisher.disconnect();await browser.close();await relay.close();}
 });

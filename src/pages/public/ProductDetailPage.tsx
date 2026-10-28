@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { GuestCheckoutModal } from '@/components/checkout/GuestCheckoutModal';
+import { checkoutNavigationState } from '@/utils/checkout-navigation';
 import { PublicHeader } from '@/components/layout/PublicHeader';
 import { authService } from '@/services/auth.service';
 import { customerService } from '@/services/customer.service';
@@ -415,7 +416,7 @@ export default function ProductDetailPage() {
           next.set('checkout', '1');
           return next;
         },
-        { replace: true },
+        { state: checkoutNavigationState(location.state), preventScrollReset: true },
       );
       trackAnalytics('cta_click', {
         productId: data.product.id,
