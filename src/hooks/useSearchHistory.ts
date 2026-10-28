@@ -5,7 +5,10 @@ import { searchHistoryService, type SearchHistoryEntry } from '../services/searc
 
 function guestSession() {
   let id = sessionStorage.getItem('scanms-search-session');
-  if (!id) { id = crypto.randomUUID(); sessionStorage.setItem('scanms-search-session', id); }
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem('scanms-search-session', id);
+  }
   return id;
 }
 
@@ -18,13 +21,15 @@ export function useSearchHistory(keyword: string, resultCount: number, loading: 
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const actor = user?.id || 'guest';
+  const signedIn = Boolean(user);
   const filtersKey = JSON.stringify(filters);
   const guestKey = 'scanms-search-history:' + guestSession();
   useEffect(() => {
     let active = true;
     const generation = ++revision.current;
-    setHistory([]); setError('');
-    if (user) void searchHistoryService.recent().then(rows => {
+    setHistory([]);
+    setError('');
+    if (signedIn) void searchHistoryService.recent().then(rows => {
       if (active && generation === revision.current) setHistory(previous => {
         const merged = new Map(previous.map(entry => [entry.keyword.toLowerCase(), entry]));
         for (const row of Array.isArray(rows) ? rows : []) if (!merged.has(row.keyword.toLowerCase())) merged.set(row.keyword.toLowerCase(), row);
@@ -35,7 +40,7 @@ export function useSearchHistory(keyword: string, resultCount: number, loading: 
       try { setHistory(JSON.parse(sessionStorage.getItem(guestKey) || '[]')); } catch { setHistory([]); }
     }
     return () => { active = false; };
-  }, [actor, reload, guestKey]);
+  }, [actor, signedIn, reload, guestKey]);
 
   useEffect(() => {
     const query = keyword.trim().slice(0, 200);
@@ -53,20 +58,24 @@ export function useSearchHistory(keyword: string, resultCount: number, loading: 
       setError('');
       setHistory(previous => {
         const next = [entry, ...previous.filter(row => row.keyword.toLowerCase() !== query.toLowerCase())].slice(0, 20);
-        if (!user) sessionStorage.setItem(guestKey, JSON.stringify(next));
+        if (!signedIn) sessionStorage.setItem(guestKey, JSON.stringify(next));
         return next;
       });
     }).catch(() => { if (active) setError('Chưa lưu được lịch sử tìm kiếm.'); });
     return () => { active = false; };
-  }, [actor, keyword, resultCount, loading, filtersKey, guestKey, reload]);
+  }, [actor, signedIn, keyword, resultCount, loading, filtersKey, guestKey, reload]);
 
   const clear = useCallback(async () => {
     const session = getSessionId();
     revision.current++;
     try {
-      if (user) await searchHistoryService.clear(); else sessionStorage.removeItem(guestKey);
-      if (session === getSessionId()) { setHistory([]); setError(''); }
+      if (signedIn) await searchHistoryService.clear();
+      else sessionStorage.removeItem(guestKey);
+      if (session === getSessionId()) {
+        setHistory([]);
+        setError('');
+      }
     } catch { setError('Chưa xóa được lịch sử. Vui lòng thử lại.'); }
-  }, [actor, guestKey]);
+  }, [signedIn, guestKey]);
   return { history, clear, error, retry: () => { lastSearch.current = ''; setReload(value => value + 1); } };
 }

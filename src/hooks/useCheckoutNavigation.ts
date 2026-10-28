@@ -13,7 +13,12 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
   const backRequested = useRef(false);
 
   useEffect(() => {
-    if (!isOpen) { entry.current = null; closing.current = false; backRequested.current = false; return; }
+    if (!isOpen) {
+      entry.current = null;
+      closing.current = false;
+      backRequested.current = false;
+      return;
+    }
     if (closing.current) return;
     const marker = location.state?.[CHECKOUT_HISTORY_KEY];
     if (!entry.current) {
@@ -26,7 +31,10 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
       }
       return;
     }
-    if (marker === entry.current.token) { entry.current.observed = true; return; }
+    if (marker === entry.current.token) {
+      entry.current.observed = true;
+      return;
+    }
     // StrictMode can repeat the opening effect before Router renders its new entry.
     if (!entry.current.observed && location.key === entry.current.originKey) return;
     closing.current = true;

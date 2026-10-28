@@ -3,19 +3,32 @@ import { orderService } from '../../services/order.service';
 import type { OrderCancellation } from '../../types/order-cancellation.types';
 import { OrderCancellationNotice } from './OrderCancellationNotice';
 
-export function ShopCancellationPanel({ sellerOrderId, cancellation, onUpdated }: {
-  sellerOrderId: string; cancellation?: OrderCancellation; onUpdated: () => void;
-}) {
+interface ShopCancellationPanelProps {
+  sellerOrderId: string;
+  cancellation?: OrderCancellation;
+  onUpdated: () => void;
+}
+
+export function ShopCancellationPanel({ sellerOrderId, cancellation, onUpdated }: ShopCancellationPanelProps) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const decide = async (approved: boolean) => {
     if (busy) return;
-    if (!approved && !reason.trim()) { setError('Vui lòng nhập lý do từ chối.'); return; }
-    setBusy(true); setError('');
-    try { await orderService.decideCancellation(sellerOrderId, approved, reason.trim()); onUpdated(); }
-    catch (failure: any) { setError(failure?.response?.data?.message || failure?.message || 'Chưa xử lý được yêu cầu hủy.'); }
-    finally { setBusy(false); }
+    if (!approved && !reason.trim()) {
+      setError('Vui lòng nhập lý do từ chối.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await orderService.decideCancellation(sellerOrderId, approved, reason.trim());
+      onUpdated();
+    } catch (failure: unknown) {
+      setError(failure instanceof Error ? failure.message : 'Chưa xử lý được yêu cầu hủy.');
+    } finally {
+      setBusy(false);
+    }
   };
   if (!cancellation?.state) return null;
   return <section aria-label="Yêu cầu hủy đơn" className="my-4">
