@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Heart, MessageCircle, ShoppingCart, Star, Store } from 'lucide-react';
+import { CircleAlert, Heart, MessageCircle, ShoppingCart, Star, Store, X } from 'lucide-react';
 import { useScanmsChat } from '@/context/ScanmsChatContext';
 import type { Product } from '@/types/marketplace.types';
 import { formatMoney, getSafeProductImageUrl } from '@/utils/marketplace.utils';
@@ -106,9 +106,20 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
         </div>
         <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{product.soldCount == null ? 'Chưa cập nhật lượt bán' : `Đã bán ${Math.max(0, product.soldCount).toLocaleString('vi-VN')}`}{!available && ' · Tạm hết hàng'}</p>
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 border-t border-[#EAE4D7] pt-3"><strong className="text-sm text-[#1A1612] sm:text-base">{formatMoney(price)}</strong>{product.origPrice > price && <del className="text-[10px] text-[#7D715E]">{formatMoney(product.origPrice)}</del>}</div>
-        {variants.length > 0 && (choosing || variantId) && <div ref={choiceRef} className="marketplace-variant-choice mt-3" data-required={needsSelection}>
-          <label htmlFor={choiceId} className="block text-[10px] text-[#7D715E]">{choiceCopy.label}</label>
-          <select ref={selectRef} id={choiceId} aria-required="true" aria-invalid={needsSelection} aria-describedby={needsSelection ? `${choiceId}-hint` : undefined} value={variantId} onChange={(event) => setVariantId(event.target.value)} className="marketplace-variant-select mt-1 w-full rounded-xl border border-[#EAE4D7] bg-[#FAF8F5] text-xs font-medium text-[#1A1612] outline-[#C59B58]"><option value="">{choiceCopy.prompt}</option>{variants.map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.stockQuantity <= 0}>{candidate.name}{candidate.stockQuantity <= 0 ? ' · Hết hàng' : ''}</option>)}</select>
+        {variants.length > 0 && (choosing || variantId) && <div ref={choiceRef} className="marketplace-variant-choice relative mt-3 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5]/80 p-2.5" data-required={needsSelection}>
+          <div className="flex items-start justify-between gap-2">
+            <label htmlFor={choiceId} className="block text-[10px] font-medium text-[#7D715E]">{choiceCopy.label}</label>
+            <button
+              type="button"
+              onClick={() => { setChoosing(false); setVariantId(''); setQuantity(1); }}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[#7D715E] transition hover:bg-white hover:text-[#1A1612]"
+              aria-label="Đóng chọn loại sản phẩm"
+              title="Đóng"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </div>
+          <select ref={selectRef} id={choiceId} aria-required="true" aria-invalid={needsSelection} aria-describedby={needsSelection ? `${choiceId}-hint` : undefined} value={variantId} onChange={(event) => setVariantId(event.target.value)} className="marketplace-variant-select mt-1 w-full rounded-xl border border-[#EAE4D7] bg-white text-xs font-medium text-[#1A1612] outline-[#C59B58]"><option value="">{choiceCopy.prompt}</option>{variants.map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.stockQuantity <= 0}>{candidate.name}{candidate.stockQuantity <= 0 ? ' · Hết hàng' : ''}</option>)}</select>
           {needsSelection && <p id={`${choiceId}-hint`} className="marketplace-variant-hint" role="alert"><CircleAlert size={13} aria-hidden="true" /><span>Vui lòng {choiceCopy.prompt.toLocaleLowerCase('vi-VN')} để tiếp tục.</span></p>}
         </div>}
         {variant && <label className="mt-3 flex items-center justify-between gap-2 text-[11px] text-[#7D715E]">

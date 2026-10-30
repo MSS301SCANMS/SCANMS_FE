@@ -95,6 +95,13 @@ function normalizeProduct(raw: any): Product {
     raw.stockQuantity ?? stockFromSizes(raw.sizesStock) ?? 0,
   );
   const status = String(raw.status || raw.moderationStatus || '').toUpperCase();
+  const isActive = raw.isActive ?? (status === 'ACTIVE' || status === 'APPROVED');
+  const commerceStatus =
+    status === 'OUT_OF_STOCK' || stockQuantity === 0
+      ? 'out_of_stock'
+      : status === 'INACTIVE' || status === 'PAUSED' || isActive === false
+        ? 'paused'
+        : 'active';
   return {
     ...metadata,
     ...raw,
@@ -105,20 +112,26 @@ function normalizeProduct(raw: any): Product {
     imageUrl,
     stockQuantity,
     ingredients: raw.ingredients ?? raw.material ?? metadata.ingredients,
-    isActive: raw.isActive ?? (status === 'ACTIVE' || status === 'APPROVED'),
+    isActive,
+    // Keep BE enum on `rawStatus`; expose UI-friendly value on `status`.
+    rawStatus: status || undefined,
+    status: commerceStatus,
     moderationStatus:
       status === 'ACTIVE' || status === 'APPROVED'
         ? 'APPROVED'
         : status === 'REJECTED'
           ? 'REJECTED'
-          : 'DRAFT',
+          : status === 'INACTIVE' || status === 'OUT_OF_STOCK'
+            ? 'APPROVED'
+            : 'DRAFT',
   } as Product;
 }
 
 function productMetadata(data: any) {
   const attributes = { ...(data.attributes || {}) };
   for (const key of ['sku', 'origin', 'labelInfo', 'barcode', 'packageWeight', 'packageLength', 'packageWidth',
-    'packageHeight', 'originProofLinks', 'originProofImages', 'labelProofLinks', 'labelProofImages', 'originalPrice']) {
+    'packageHeight', 'originProofLinks', 'originProofImages', 'labelProofLinks', 'labelProofImages', 'originalPrice',
+    'apparelType', 'fashionStyle', 'genderTarget', 'colorTags']) {
     if (data[key] !== undefined) attributes[key] = data[key];
   }
   return attributes;
@@ -212,31 +225,40 @@ export const productService = {
     storeId?: string;
     search?: string;
     category?: string;
+    status?: string;
+    /** UI 1-based page */
     page?: number;
     limit?: number;
   }, fresh = false) {
+    const uiPage = Math.max(1, params?.page ?? 1);
+    const size = Math.max(1, Math.min(params?.limit ?? 20, 100));
     const res: any = await api.get('/products', {
-      params,
+      params: {
+        // PageResponse / Spring Page dùng page 0-based
+        page: uiPage - 1,
+        size,
+        storeId: params?.storeId || undefined,
+        search: params?.search || undefined,
+        status: params?.status || undefined,
+      },
       headers: fresh ? { 'x-skip-cache': 'true' } : undefined,
     });
-    let items = await hydrateProducts(unwrapList(res));
-    if (params?.storeId) items = items.filter((p) => p.storeId === params.storeId);
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      items = items.filter(
-        (p) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.sku?.toLowerCase().includes(q),
-      );
-    }
-    const page = params?.page || 1;
-    const limit = params?.limit || 20;
-    const totalPages = Math.max(1, Math.ceil(items.length / limit));
+    const payload = unwrapApi<any>(res);
+    const items = await hydrateProducts(unwrapList(res));
+    const total = Number(payload?.totalElements ?? payload?.total ?? items.length);
+    const zeroBasedPage = Number(payload?.page ?? uiPage - 1);
+    const safeLimit = Number(payload?.size ?? size);
+    const totalPages = Math.max(1, Number(payload?.totalPages ?? Math.ceil(total / safeLimit) ?? 1));
     return {
       items,
       data: items,
-      total: items.length,
-      pagination: { total: items.length, page, limit, totalPages },
+      total,
+      pagination: {
+        total,
+        page: zeroBasedPage + 1,
+        limit: safeLimit,
+        totalPages,
+      },
     };
   },
 

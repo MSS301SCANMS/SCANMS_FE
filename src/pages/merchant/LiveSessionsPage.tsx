@@ -383,22 +383,51 @@ export default function LiveSessionsPage({
           partnershipInvitationsService.list('shop'),
         ]);
         if (!active) return;
-        const products = productsRes.items.filter(product => product.isActive).map(p => ({ ...p, variants: p.variants || [] }));
-        if (!Array.isArray(partnerCatalog?.creators)) throw new Error('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
-        const accepted = new Set(invitations.filter(invitation => invitation.storeId === sId && invitation.status === 'ACCEPTED').map(invitation => invitation.collaboratorId));
+        const products = productsRes.items
+          .filter((product) => product.isActive)
+          .map((p) => ({
+            id: p.id,
+            title: p.title,
+            imageUrl: p.imageUrl || null,
+            price: p.price,
+            variants: (p.variants || []).map((v) => ({
+              id: v.id,
+              name: v.name,
+              sku: v.sku,
+              price: v.price ?? null,
+            })),
+          }));
+        if (!Array.isArray(partnerCatalog?.creators)) {
+          throw new Error('Chưa tải được thông tin KOL đối tác. Vui lòng thử lại.');
+        }
+        const accepted = new Set(
+          invitations
+            .filter((invitation) => invitation.storeId === sId && invitation.status === 'ACCEPTED')
+            .map((invitation) => invitation.collaboratorId)
+        );
         const creators = partnerCatalog.creators
-          .filter(creator => accepted.has(creator.id))
-          .map(creator => ({
+          .filter((creator) => accepted.has(creator.id))
+          .map((creator) => ({
             id: creator.id,
             fullName: creator.name,
             avatarUrl: null,
             collaboratorProfile: { totalFollowers: creator.followers, kycStatus: 'VERIFIED' },
-            socialChannels: [{ platformName: creator.platform, channelName: creator.name, followerCount: creator.followers, channelUrl: creator.channelUrl || '' }],
+            socialChannels: [
+              {
+                platformName: creator.platform,
+                channelName: creator.name,
+                followerCount: creator.followers,
+                channelUrl: creator.channelUrl || '',
+              },
+            ],
           }));
         const nextCatalog = { products, creators, defaultCommissionRate: 10 } as Catalog;
-        catalogRef.current = nextCatalog;setCatalog(nextCatalog);
+        catalogRef.current = nextCatalog;
+        setCatalog(nextCatalog);
         const loadedSessions = await loadSessions(sId);
-        if (!loadedSessions) throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
+        if (!loadedSessions) {
+          throw new Error('Không tải được danh sách phiên. Vui lòng thử lại khi máy chủ kết nối lại.');
+        }
         setForm((prev) => ({
           ...prev,
           commissionRate: '10',

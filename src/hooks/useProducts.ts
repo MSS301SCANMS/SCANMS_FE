@@ -25,6 +25,13 @@ export interface AiStylePrediction {
   confidence: number;
 }
 
+export interface DetectedGarment {
+  className: string;
+  displayLabel: string;
+  garmentType: string;
+  confidence: number;
+}
+
 export interface AiAnalyzeProductResult {
   detections: AiDetectionItem[];
   topPrediction: AiTopPrediction | null;
@@ -33,6 +40,12 @@ export interface AiAnalyzeProductResult {
   detectionFallback: boolean;
   embeddingGenerated: boolean;
   inferenceTimeMs: number;
+  /** e.g. TOP, BOTTOM, or TOP+BOTTOM */
+  garmentType?: string;
+  displayLabel?: string;
+  suggestedCategory?: string | null;
+  clothingDetected?: boolean;
+  detectedGarments?: DetectedGarment[];
 }
 
 // ─── Query Keys ────────────────────────────────────────────────────────────────
@@ -191,6 +204,7 @@ export function useAiAnalyzeProduct() {
       body.append('image', imageFile);
       const res: any = await api.post('/products/ai-analyze', body, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60_000,
       });
       const payload = res?.result ?? res?.data ?? res;
       return {
@@ -201,6 +215,11 @@ export function useAiAnalyzeProduct() {
         detectionFallback: Boolean(payload?.detectionFallback),
         embeddingGenerated: Boolean(payload?.embeddingGenerated),
         inferenceTimeMs: Number(payload?.inferenceTimeMs || 0),
+        garmentType: payload?.garmentType || 'UNKNOWN',
+        displayLabel: payload?.displayLabel || payload?.topPrediction?.className || '',
+        suggestedCategory: payload?.suggestedCategory ?? null,
+        clothingDetected: Boolean(payload?.clothingDetected),
+        detectedGarments: Array.isArray(payload?.detectedGarments) ? payload.detectedGarments : [],
       };
     },
   });

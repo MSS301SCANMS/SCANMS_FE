@@ -372,6 +372,13 @@ export default function AdminSystemHealthPage() {
                 <span className="font-semibold text-[#1A1612]">Topic {kafka.data.topic}:</span> group {kafka.data.groupState} · {kafka.data.groupMembers ?? 0} consumer
               </p>
             )}
+            {kafka?.data?.aiGroupState && (
+              <p className="rounded-xl bg-[#FAF8F5] border border-[#F0EBE3] px-3 py-2 text-xs text-[#6B6358] truncate">
+                <span className="font-semibold text-[#1A1612]">Topic {kafka.data.aiTopic ?? 'ai.analysis.completed.v1'}:</span>{' '}
+                {kafka.data.aiGroupId ?? 'ai-service'} {kafka.data.aiGroupState} · {kafka.data.aiGroupMembers ?? 0} consumer
+                {kafka.data.aiLag != null ? ` · lag ${kafka.data.aiLag}` : ''}
+              </p>
+            )}
             {kafka && (
               <p
                 className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs border ${

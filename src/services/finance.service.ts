@@ -19,7 +19,25 @@ export interface MoneyPayment { paymentId: string; orderId: string | null; purpo
 export interface MoneyFee { feeConfigId: string; feeType: string; calculationType: 'PERCENTAGE' | 'FIXED'; ratePercent: number | null; fixedAmountVnd: number | null; minFeeVnd: number | null; maxFeeVnd: number | null; validFrom: string; validTo: string | null; status: string }
 export interface MoneyPage<T> { items: T[]; total: number; page: number; size: number }
 export interface Capabilities { minimumWithdrawalVnd: number; currency: string; paymentAvailable: boolean; payoutAvailable: boolean; sandboxTopUpAvailable: boolean }
-export interface KafkaStatus { up: boolean; bootstrapServers?: string; clusterId?: string; brokers?: number; consumerGroups?: number; topic?: string; groupId?: string; groupState?: string; groupMembers?: number; lag?: number; latencyMs?: number; message?: string }
+export interface KafkaStatus {
+  up: boolean;
+  bootstrapServers?: string;
+  clusterId?: string;
+  brokers?: number;
+  consumerGroups?: number;
+  topic?: string;
+  groupId?: string;
+  groupState?: string;
+  groupMembers?: number;
+  lag?: number;
+  latencyMs?: number;
+  message?: string;
+  aiGroupId?: string;
+  aiTopic?: string;
+  aiGroupState?: string;
+  aiGroupMembers?: number;
+  aiLag?: number;
+}
 export interface PendingFinanceEvents { configured: boolean; total: number; items: { eventId: string; eventKey: string; attempts: number; createdAt: string; nextAttemptAt: string; lastError?: string; lastHttpStatus?: number; blocked?: boolean }[] }
 export interface FinanceSourceOrder { orderId: string; publicOrderCode: string; storeName: string; status: string; paymentStatus: string; amountVnd: number; returnRequestId: string | null; returnStatus: string | null; commissionId: string | null; returnWindowClosesAt: string | null }
 async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>): Promise<T> {

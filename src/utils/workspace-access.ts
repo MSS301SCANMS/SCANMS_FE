@@ -1,5 +1,5 @@
 import type { UserProfile } from '../services/auth.service';
-import { safeLoginReturn } from './login-return';
+import { isMarketplaceLanding, safeLoginReturn } from './login-return';
 
 export type WorkspaceKey = 'customer' | 'kol' | 'shop' | 'admin';
 
@@ -70,10 +70,16 @@ export function canUseWorkspaceRoute(user: UserProfile | null | undefined, path:
 export function loginDestination(user: UserProfile | null | undefined, requested?: string | null) {
   const fallback = defaultWorkspace(user);
   const safe = safeLoginReturn(requested);
-  if (!safe || !canUseWorkspaceRoute(user, new URL(safe, 'https://scanms.invalid').pathname)) {
+  const pathname = safe ? new URL(safe, 'https://scanms.invalid').pathname : null;
+  // Login từ header sàn (redirect=/marketplace) không được nuốt home shop/KOL/admin.
+  if (
+    !safe ||
+    !pathname ||
+    !canUseWorkspaceRoute(user, pathname) ||
+    (fallback !== 'customer' && isMarketplaceLanding(safe))
+  ) {
     return { path: workspaceHome(fallback, user), workspace: fallback };
   }
-  const pathname = new URL(safe, 'https://scanms.invalid').pathname;
   const workspace = routeWorkspace(pathname) || (isShoppingRoute(pathname) ? 'customer' : fallback);
   return { path: safe, workspace };
 }

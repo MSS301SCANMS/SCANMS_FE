@@ -25,6 +25,7 @@ export function ManagerSidebar({
       editProfilePath="/admin/profile"
       editProfileLabel="Hồ sơ cá nhân"
       getItemBadge={getItemBadge}
+      showMarketplaceLink={false}
     />
   );
 }

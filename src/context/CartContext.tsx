@@ -129,24 +129,31 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isCurrent()) return;
         const account = mergeCartItems(remote.items || [], accountCache);
         const combined = mergeCartItems(account, guest, true);
-        const next = mergeCartItems(combined, cartRef.current);
-        // Persist the server-reconciled basket without remounting the checkout form.
-        localStorage.setItem(getCartStorageKey(nextId), JSON.stringify(next));
-        cartRef.current = next;
+        // Functional update so items added while getCart was in-flight are not wiped.
+        let reconciled: CartItem[] = combined;
         skipNextPushRef.current = true;
-        setCart(next);
+        setCart((prev) => {
+          reconciled = mergeCartItems(combined, prev);
+          cartRef.current = reconciled;
+          try {
+            localStorage.setItem(getCartStorageKey(nextId), JSON.stringify(reconciled));
+          } catch {
+            // Keep in-memory basket if storage is full.
+          }
+          return reconciled;
+        });
         setSelectedItemIds((previous) => {
           const selected = new Set(previous);
           for (const item of remote.items || []) {
             if (!accountCache.some((cached) => cached.cartItemId === item.cartItemId) && item.isActive && item.stockQuantity > 0) selected.add(item.cartItemId);
           }
-          return [...selected].filter((id) => next.some((item) => item.cartItemId === id));
+          return [...selected].filter((id) => reconciled.some((item) => item.cartItemId === id));
         });
         hydratedUserRef.current = nextId;
         localStorage.setItem(CART_OWNER_KEY, nextId);
         setCartSyncedAt(remote.syncedAt || new Date().toISOString());
-        if (guest.length || accountCache.length) {
-          const synced = await customerService.syncCart(next.map((item) => ({
+        if (guest.length || accountCache.length || reconciled.length) {
+          const synced = await customerService.syncCart(reconciled.map((item) => ({
             productId: item.productId, variantId: normalizeOrderVariantId(item.variantId), quantity: item.quantity,
           })), session);
           if (isCurrent()) setCartSyncedAt(synced.syncedAt || new Date().toISOString());
@@ -446,10 +453,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setCart((prev) => {
         const existingIndex = prev.findIndex((item) => item.cartItemId === cartItemId);
+        let next: CartItem[];
         if (existingIndex >= 0) {
           const existing = prev[existingIndex];
           const newQty = Math.min(existing.quantity + quantity, availableStock);
-          const next = [...prev];
+          next = [...prev];
           next[existingIndex] = {
             ...existing,
             quantity: newQty,
@@ -459,39 +467,38 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             liveCouponCode,
             liveCouponCodes,
           };
-          return next;
+        } else {
+          next = [...prev, {
+            liveCouponCodes,
+            liveSessionId,
+            liveCouponCode,
+            cartItemId,
+            productId: product.id,
+            variantId,
+            variantName: matchedVariant?.name,
+            title: prodTitle,
+            sku: finalSku,
+            price: finalPrice,
+            originalPrice: product.originalPrice ? Number(product.originalPrice) : (product.origPrice ? Number(product.origPrice) : undefined),
+            imageUrl: prodImage,
+            quantity: Math.min(quantity, availableStock),
+            stockQuantity: availableStock,
+            isActive: product.isActive !== false,
+            store: {
+              id: store.id,
+              name: store.name,
+              slug: store.slug,
+              logoUrl: store.logoUrl,
+              policyReturn: store.policyReturn,
+              policyWarranty: store.policyWarranty,
+              policyShipping: store.policyShipping,
+            },
+            availableVariants,
+          }];
         }
-
-        // Add new item
-        const newItem: CartItem = {
-          liveCouponCodes,
-          liveSessionId,
-          liveCouponCode,
-          cartItemId,
-          productId: product.id,
-          variantId,
-          variantName: matchedVariant?.name,
-          title: prodTitle,
-          sku: finalSku,
-          price: finalPrice,
-          originalPrice: product.originalPrice ? Number(product.originalPrice) : (product.origPrice ? Number(product.origPrice) : undefined),
-          imageUrl: prodImage,
-          quantity: Math.min(quantity, availableStock),
-          stockQuantity: availableStock,
-          isActive: product.isActive !== false,
-          store: {
-            id: store.id,
-            name: store.name,
-            slug: store.slug,
-            logoUrl: store.logoUrl,
-            policyReturn: store.policyReturn,
-            policyWarranty: store.policyWarranty,
-            policyShipping: store.policyShipping,
-          },
-          availableVariants,
-        };
-
-        return [...prev, newItem];
+        // Keep ref in sync immediately so in-flight getCart merges cannot drop this add.
+        cartRef.current = next;
+        return next;
       });
 
       // Auto-select this item for checkout

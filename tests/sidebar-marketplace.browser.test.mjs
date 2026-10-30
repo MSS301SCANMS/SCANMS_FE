@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import puppeteer from 'puppeteer-core';
 const base=process.env.GHN_UI_TEST_URL,executablePath=process.env.GHN_UI_BROWSER_PATH||'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-test('all five sidebar roles return through the real shopping guard to the marketplace hero without logging out',{
+test('customer/kol/shop sidebars return through the shopping guard to the marketplace hero without logging out',{
  skip:!base||!existsSync(executablePath),timeout:60000,
 },async()=>{
  const origin=new URL(base).origin;assert.ok(['localhost','127.0.0.1'].includes(new URL(base).hostname));
  const browser=await puppeteer.launch({executablePath,headless:true});
- const roles=[['CUSTOMER','customer','USER'],['COLLABORATOR','kol','KOL_CTV'],['SHOP_MANAGER','shop','SHOP_OWNER'],['SYSTEM_MANAGER','admin','MANAGER'],['SYSTEM_ADMIN','admin','ADMIN']];
+ const roles=[['CUSTOMER','customer','USER'],['COLLABORATOR','kol','KOL_CTV'],['SHOP_MANAGER','shop','SHOP_OWNER']];
  try{for(const [role,workspace,backendRole] of roles){
   const page=await browser.newPage(),errors=[];page.setDefaultTimeout(8000);await page.setViewport({width:1440,height:950});
   const user={id:'fixture-'+role,role,fullName:'Fixture '+role,roles:[backendRole]};
@@ -42,7 +42,6 @@ test('all five sidebar roles return through the real shopping guard to the marke
   });
   await page.goto(origin+'/__sidebar-marketplace');await page.waitForSelector('a[href="/marketplace"]');
   assert.equal(await page.$eval('a[href="/marketplace"]',el=>el.nextElementSibling.textContent.trim()),'Đăng xuất');
-  if(role==='SYSTEM_ADMIN')await page.screenshot({path:'../.run-logs/sidebar-return-marketplace.png',fullPage:true});
   await page.click('a[href="/marketplace"]');
   await page.waitForFunction(()=>location.pathname==='/marketplace'&&!!document.querySelector('h1')).catch(async error=>{throw Error(role+': '+error.message+' '+JSON.stringify({errors,body:await page.$eval('body',el=>el.innerText.slice(-1200)),path:await page.evaluate(()=>location.pathname)}))});
   assert.match(await page.$eval('h1',el=>el.textContent),/Một điểm đến/);
@@ -50,7 +49,6 @@ test('all five sidebar roles return through the real shopping guard to the marke
   assert.equal(await page.evaluate(()=>localStorage.getItem('token')),'back-to-marketplace-fixture');
   assert.equal(await page.evaluate(()=>window.logoutCalled),undefined);
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('user')).role),role);
-  if(role==='SYSTEM_ADMIN')await page.screenshot({path:'../.run-logs/sidebar-return-marketplace-destination.png',fullPage:true});
   assert.deepEqual(errors,[],role);await page.close();
  }}finally{await browser.close();}
 });

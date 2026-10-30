@@ -1,6 +1,6 @@
 import { useAuthUser } from '../../hooks/useAuthUser';
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
 import { authService, type UserProfile } from '../../services/auth.service';
 import { uploadService } from '../../services/upload.service';
@@ -8,6 +8,7 @@ import { toast } from '../../utils/toast';
 import { ScanMSLogo } from '../common/ScanMSLogo';
 import { HeaderAccountButton } from './HeaderAccountButton';
 import { AccountConnectionStatus } from './AccountConnectionStatus';
+import { useResolvedWorkspaceRole } from '../../hooks/useResolvedWorkspaceRole';
 
 export interface TopbarProps {
   currentUser: UserProfile | null;
@@ -29,15 +30,14 @@ export function Topbar({
     return () => observer.disconnect();
   }, []);
 
-  const location = useLocation();
   const navigate = useNavigate();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   useAuthUser();
-  const activeWorkspace = authService.getActiveWorkspace();
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { role, isShop, isCustomer, isAdmin } = useResolvedWorkspaceRole(currentUser);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -49,17 +49,6 @@ export function Topbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-
-  const role = activeWorkspace === 'shop'
-    ? 'SHOP_MANAGER'
-    : activeWorkspace === 'admin'
-    ? currentUser?.role === 'SYSTEM_MANAGER' ? 'SYSTEM_MANAGER' : 'SYSTEM_ADMIN'
-    : activeWorkspace === 'customer' || location.pathname.startsWith('/customer')
-    ? 'CUSTOMER'
-    : 'COLLABORATOR';
-  const isShop = role === 'SHOP_MANAGER';
-  const isCustomer = role === 'CUSTOMER';
-  const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
   // Trang chủ khu quản trị — khớp với điều hướng sau đăng nhập.
   const adminHomePath = role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
 
@@ -139,15 +128,17 @@ export function Topbar({
 
         {/* Right: Actions, Notifications & User Card */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {!isAdmin && (<button
-            type="button"
-            onClick={() => authService.switchWorkspace('customer', navigate)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
-            title="Đến Sàn Mua Sắm SCANMS"
-          >
-            <Store className="w-3.5 h-3.5 text-[#C59B58]" />
-            <span className="hidden sm:inline">Sàn mua sắm</span>
-          </button>)}
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => authService.switchWorkspace('customer', navigate)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
+              title="Đến Sàn Mua Sắm SCANMS"
+            >
+              <Store className="w-3.5 h-3.5 text-[#C59B58]" />
+              <span className="hidden sm:inline">Sàn mua sắm</span>
+            </button>
+          )}
 
           <AccountConnectionStatus userId={currentUser?.id} />
           {/* Notifications Nest không thuộc mainflow — đã gỡ */}
@@ -234,17 +225,19 @@ export function Topbar({
                     <span>Cài đặt & Hồ sơ</span>
                   </Link>
 
-                  {!isAdmin && (<button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      authService.switchWorkspace('customer', navigate);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
-                  >
-                    <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    <span>Sàn mua sắm chính</span>
-                  </button>)}
+                  {!isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        authService.switchWorkspace('customer', navigate);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
+                    >
+                      <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      <span>Sàn mua sắm chính</span>
+                    </button>
+                  )}
                 </div>
 
 

@@ -38,4 +38,7 @@ test('login redirects are checked against the actual account rather than role se
   assert.equal(access.loginDestination(user('KOL_CTV'), '/merchant/dashboard').path, '/collaborator/dashboard');
   assert.deepEqual(access.loginDestination(user('SHOP_OWNER'), '/customer/orders'), { path: '/customer/orders', workspace: 'customer' });
   assert.equal(access.loginDestination(user('ADMIN'), '/products/shared?live=one').path, '/products/shared?live=one');
+  assert.deepEqual(access.loginDestination(user('SHOP_OWNER'), '/marketplace'), { path: '/merchant/dashboard', workspace: 'shop' });
+  assert.deepEqual(access.loginDestination(user('KOL_CTV'), '/'), { path: '/collaborator/dashboard', workspace: 'kol' });
+  assert.deepEqual(access.loginDestination(user('ADMIN'), '/marketplace'), { path: '/admin/dashboard', workspace: 'admin' });
 });

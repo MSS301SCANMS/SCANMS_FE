@@ -32,6 +32,18 @@ export type ServiceDef = { id: string; name: string; url: string; port: number; 
  *  - gateway: /v3/api-docs/swagger-config (do chính gateway trả về)
  *  - service: /openapi/{svc} → gateway forward tới /v3/api-docs của service
  */
+const AI_SERVICE_ORIGIN = (() => {
+  const configured = import.meta.env.VITE_AI_SERVICE_URL as string | undefined;
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'http://localhost:8000';
+})();
+
 export const HEALTH_SERVICES: ServiceDef[] = [
   { id: 'scanms-gateway', name: 'API Gateway', url: `${GATEWAY_ORIGIN}/v3/api-docs/swagger-config`, port: 8080, role: 'Cổng vào duy nhất, định tuyến và xác thực JWT' },
   { id: 'user-service', name: 'User Service', url: `${GATEWAY_ORIGIN}/openapi/user`, port: 8081, role: 'Tài khoản, đăng nhập, phân quyền' },
@@ -39,6 +51,8 @@ export const HEALTH_SERVICES: ServiceDef[] = [
   { id: 'order-service', name: 'Order Service', url: `${GATEWAY_ORIGIN}/openapi/order`, port: 8083, role: 'Giỏ hàng, thanh toán đơn, giao hàng, đổi trả' },
   { id: 'payment-service', name: 'Payment Service', url: `${GATEWAY_ORIGIN}/openapi/payment`, port: 8084, role: 'Ví, thanh toán payOS, rút tiền, quyết toán' },
   { id: 'promotion-affiliate-service', name: 'Promotion Service', url: `${GATEWAY_ORIGIN}/openapi/promotion`, port: 8085, role: 'Khuyến mãi, voucher, tiếp thị liên kết' },
+  // AI không qua Spring OpenAPI — probe health FastAPI trực tiếp (kèm trạng thái Kafka trong payload).
+  { id: 'ai-service', name: 'AI Service', url: `${AI_SERVICE_ORIGIN}/api/v1/ai/health`, port: 8000, role: 'Nhận diện trang phục, màu sắc, style và gợi ý phối đồ' },
 ];
 
 export type ProbeResult = {

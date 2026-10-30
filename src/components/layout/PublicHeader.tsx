@@ -29,6 +29,7 @@ import { toast } from '../../utils/toast';
 import { useCart } from '../../context/CartContext';
 import { NotificationDropdown } from './NotificationDropdown';
 import { productLoginUrl } from '../../utils/login-return';
+import { useResolvedWorkspaceRole } from '../../hooks/useResolvedWorkspaceRole';
 
 export interface PublicHeaderProps {
   cartCount?: number;
@@ -132,11 +133,7 @@ export function PublicHeader({
     }
   };
 
-  const role = currentUser?.role;
-  const isCustomer = role === 'CUSTOMER';
-  const isKol = role === 'COLLABORATOR';
-  const isShop = role === 'SHOP_MANAGER';
-  const isAdmin = role === 'SYSTEM_ADMIN' || role === 'SYSTEM_MANAGER';
+  const { role, isCustomer, isKol, isShop, isAdmin } = useResolvedWorkspaceRole(currentUser);
   // Trang chủ khu quản trị — khớp với điều hướng sau đăng nhập.
   const adminHomePath = role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
 
@@ -153,10 +150,21 @@ export function PublicHeader({
     : isShop
     ? 'Vào Quản Lý Shop ↗'
     : isAdmin
-    ? 'Vào Ban Quản Trị ↗'
+    ? role === 'SYSTEM_MANAGER'
+      ? 'Vào Dashboard vận hành ↗'
+      : 'Vào Ban Quản Trị ↗'
     : 'Vào Không Gian KOL ↗';
 
   const storeName = currentUser?.stores?.[0]?.name || 'Gian Hàng Đối Tác';
+  const roleBadgeLabel = isCustomer
+    ? '🛍️ Khách Mua Sắm'
+    : isKol
+    ? '⭐ KOL / KOC Đối Tác'
+    : isShop
+    ? `🏪 Chủ Shop (${storeName})`
+    : role === 'SYSTEM_MANAGER'
+    ? '🛡️ Vận hành & tuân thủ'
+    : '🛡️ Quản Trị Hệ Thống';
 
   return (
     <header className="scanms-site-header sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#EAE4D7] shadow-2xs">
@@ -207,6 +215,17 @@ export function PublicHeader({
         </form>
 
         <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
+          <Link
+            to="/outfit-match"
+            className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-[#1A1612] bg-white border border-[#EAE4D7] hover:border-[#C59B58]/70 hover:bg-[#FAF8F5] transition-all duration-200 shadow-2xs hover:shadow-xs group active:scale-[0.98]"
+            title="AI nhận diện quần áo và gợi ý giày, nón"
+          >
+            <span className="w-6 h-6 rounded-lg bg-[#FAF8F5] border border-[#EAE4D7] group-hover:bg-[#F3EFE6] group-hover:border-[#C59B58]/40 flex items-center justify-center transition-colors">
+              <Sparkles className="w-3.5 h-3.5 text-[#B88E4F]" />
+            </span>
+            <span>AI phối đồ</span>
+          </Link>
+
           {/* Quick Tracking Button */}
           <button
             type="button"
@@ -253,7 +272,7 @@ export function PublicHeader({
               <div className="relative z-50" ref={userMenuRef}>
                 <HeaderAccountButton
                   user={currentUser}
-                  role={currentUser.role}
+                  role={role}
                   expanded={isUserMenuOpen}
                   menuId="public-account-menu"
                   detail={isShop ? storeName : undefined}
@@ -318,13 +337,7 @@ export function PublicHeader({
                       <div className="mt-2 pt-2 border-t border-[#EAE4D7] flex items-center justify-between text-[11px]">
                         <span className="text-[#7D715E] font-medium">Vai trò:</span>
                         <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-[#FBF5EB] text-[#B88E4F] border border-[#EAE4D7]">
-                          {isCustomer
-                            ? '🛍️ Khách Mua Sắm'
-                            : isKol
-                            ? '⭐ KOL / KOC Đối Tác'
-                            : isShop
-                            ? `🏪 Chủ Shop (${storeName})`
-                            : '🛡️ Quản Trị Hệ Thống'}
+                          {roleBadgeLabel}
                         </span>
                       </div>
                     </div>
