@@ -36,6 +36,7 @@ import {
   type Sample,
   type ServiceHistory,
 } from '../../services/system-health-history';
+import { KafkaDetailSection, ServiceOpsSections } from './ServiceOpsSections';
 
 /* ------------------------------------------------------------------ */
 /* UI helpers                                                          */
@@ -135,6 +136,7 @@ export default function AdminSystemHealthPage() {
   const [results, setResults] = useState<Record<string, ProbeResult>>({});
   const [keycloak, setKeycloak] = useState<ProbeResult | null>(null);
   const [kafka, setKafka] = useState<KafkaProbe | null>(null);
+  const [kafkaOpen, setKafkaOpen] = useState(false);
   const [history, setHistory] = useState<HistoryMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -392,6 +394,19 @@ export default function AdminSystemHealthPage() {
                 {kafka.state === 'up' ? <CheckCircle2 className="w-4 h-4" /> : kafka.state === 'down' ? <WifiOff className="w-4 h-4" /> : <MinusCircle className="w-4 h-4" />}
                 {kafka.message}
               </p>
+            )}
+            {kafka?.data && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setKafkaOpen((open) => !open)}
+                  aria-expanded={kafkaOpen}
+                  className="self-start rounded-xl border border-[#E4DDD2] bg-white px-3 py-1.5 text-xs font-semibold text-[#6B6358] hover:bg-[#FAF8F5]"
+                >
+                  {kafkaOpen ? 'Ẩn chi tiết topic' : 'Xem chi tiết topic và consumer'}
+                </button>
+                {kafkaOpen && <KafkaDetailSection data={kafka.data} />}
+              </>
             )}
           </Card>
 
@@ -726,13 +741,7 @@ function ServiceDetail({
         )}
       </div>
 
-      <div className="rounded-xl border border-dashed border-[#E4DDD2] bg-[#FAF8F5] px-3 py-2.5 text-xs text-[#6B6358]">
-        <p className="font-semibold text-[#1A1612]">Chưa có dữ liệu</p>
-        <p className="mt-0.5">
-          PID, bộ nhớ, thời điểm khởi động, log hoạt động, log lỗi và lý do tắt chính xác cần backend cung cấp thêm
-          (Actuator và bộ theo dõi). Hiện trang chỉ suy luận từ kết quả kiểm tra.
-        </p>
-      </div>
+      <ServiceOpsSections serviceId={def.id} tick={now} />
 
       <div className="flex justify-end">
         <button
