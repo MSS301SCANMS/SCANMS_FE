@@ -427,34 +427,94 @@ const CAUSE_STYLES = {
   idle: 'bg-[#F4F1EC] text-[#6B6358] border-[#E4DDD2]',
 } as const;
 
+const LATENCY_STEPS = [50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000];
+
+/** Làm tròn trần trục tung lên mốc dễ đọc để nhãn không bị lẻ. */
+function niceMax(value: number) {
+  return LATENCY_STEPS.find((step) => step >= value) ?? Math.ceil(value / 1000) * 1000;
+}
+
 function LatencyChart({ samples }: { samples: Sample[] }) {
   if (samples.length < 2) {
     return <p className="text-xs text-[#8A8175]">Cần ít nhất 2 lần kiểm tra để vẽ biểu đồ.</p>;
   }
-  const W = 600;
-  const H = 72;
-  const pad = 6;
+  const H = 96;
   const n = samples.length;
-  const max = Math.max(100, ...samples.map((s) => (s.up && s.ms != null ? s.ms : 0)));
-  const x = (i: number) => pad + (i / (n - 1)) * (W - 2 * pad);
-  const y = (v: number) => H - pad - (v / max) * (H - 2 * pad);
+  const values = samples.filter((s) => s.up && s.ms != null).map((s) => s.ms as number);
+  const top = niceMax(Math.max(1, ...values));
+  const xPct = (i: number) => (i / (n - 1)) * 100;
+  const yPct = (v: number) => 100 - (v / top) * 100;
   let path = '';
   let drawing = false;
   samples.forEach((s, i) => {
     if (s.up && s.ms != null) {
-      path += `${drawing ? 'L' : 'M'}${x(i).toFixed(1)} ${y(s.ms).toFixed(1)} `;
+      path += `${drawing ? 'L' : 'M'}${xPct(i).toFixed(2)} ${yPct(s.ms).toFixed(2)} `;
       drawing = true;
     } else {
       drawing = false;
     }
   });
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[72px]" role="img" aria-label="Biểu đồ thời gian phản hồi">
-      {samples.map((s, i) =>
-        s.up ? null : <rect key={s.t} x={x(i) - 3} y={0} width={6} height={H} className="fill-rose-200" />,
-      )}
-      <path d={path} fill="none" strokeWidth={2} className="stroke-[#B88E4F]" strokeLinejoin="round" />
-    </svg>
+    <div className="flex flex-col gap-1">
+      <div className="flex gap-2">
+        <div
+          className="flex w-14 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-[#8A8175]"
+          style={{ height: H }}
+        >
+          <span>{top} ms</span>
+          <span>{top / 2} ms</span>
+          <span>0 ms</span>
+        </div>
+        <div className="relative flex-1" style={{ height: H }}>
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="absolute inset-0 h-full w-full"
+            role="img"
+            aria-label="Biểu đồ thời gian phản hồi (ms)"
+          >
+            {[0, 50, 100].map((y) => (
+              <line
+                key={y}
+                x1={0}
+                x2={100}
+                y1={y}
+                y2={y}
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                vectorEffect="non-scaling-stroke"
+                className="stroke-[#EEE7DC]"
+              />
+            ))}
+            {samples.map((s, i) =>
+              s.up ? null : <rect key={s.t} x={xPct(i) - 0.6} y={0} width={1.2} height={100} className="fill-rose-200" />,
+            )}
+            <path
+              d={path}
+              fill="none"
+              strokeWidth={2}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              className="stroke-[#B88E4F]"
+            />
+          </svg>
+          {samples.map((s, i) =>
+            s.up && s.ms != null ? (
+              <span
+                key={s.t}
+                title={`${fmtClock(s.t)} · ${s.ms} ms`}
+                className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#B88E4F]"
+                style={{ left: `${xPct(i)}%`, top: `${yPct(s.ms)}%` }}
+              />
+            ) : null,
+          )}
+        </div>
+      </div>
+      <p className="pl-16 text-[11px] text-[#8A8175]">
+        Trục dọc là mili giây (ms), thấp hơn là nhanh hơn. Mỗi chấm là một lần kiểm tra, rê chuột để xem giờ và giá trị.
+        Vạch đỏ là lần kiểm tra lỗi.
+      </p>
+    </div>
   );
 }
 
@@ -623,15 +683,25 @@ function ServiceDetail({
         )}
         {api.state === 'ok' && api.data && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <StatBox label="Tên API" value={api.data.title ?? '—'} />
+            <div className={`grid grid-cols-2 gap-2 ${api.data.documents != null ? 'md:grid-cols-3' : 'md:grid-cols-5'}`}>
+              <StatBox label="Tên tài liệu" value={api.data.title ?? '—'} />
               <StatBox label="Phiên bản" value={api.data.version ?? '—'} />
-              <StatBox
-                label={api.data.documents != null ? 'Tài liệu gom' : 'Đường dẫn / thao tác'}
-                value={api.data.documents != null ? api.data.documents : `${api.data.endpoints} / ${api.data.operations}`}
-              />
-              <StatBox label="Nhóm API" value={api.data.tags.length || '—'} />
+              {api.data.documents != null ? (
+                <StatBox label="Tài liệu gom" value={api.data.documents} />
+              ) : (
+                <>
+                  <StatBox label="Endpoint" value={api.data.endpoints} />
+                  <StatBox label="API (GET, POST…)" value={api.data.operations} />
+                  <StatBox label="Nhóm API" value={api.data.tags.length || '—'} />
+                </>
+              )}
             </div>
+            {api.data.documents == null && (
+              <p className="text-[11px] text-[#8A8175]">
+                Endpoint là địa chỉ URL của service. API là mỗi cách gọi (GET, POST, PUT…) trên endpoint đó. Ví dụ /users có
+                GET và POST thì tính 1 endpoint và 2 API.
+              </p>
+            )}
             {api.data.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {api.data.tags.slice(0, 14).map((t) => (

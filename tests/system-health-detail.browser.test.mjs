@@ -85,7 +85,9 @@ test('system health detail explains a failing service and shows API info for a h
     await clickCard('User Service');
     await waitText(page, /SCANMS User Service API/);
     const apiText = await page.evaluate(() => document.body.innerText);
-    assert.match(apiText, /2 \/ 3/);
+    assert.match(apiText, /Endpoint\s*\n?\s*2/);
+    assert.match(apiText, /API \(GET, POST…\)\s*\n?\s*3/);
+    assert.doesNotMatch(apiText, /Đường dẫn \/ thao tác/);
     assert.match(apiText, /Auth/);
     assert.doesNotMatch(apiText, /Gateway không gọi được service/);
     await page.screenshot({ path: join(tmpdir(), 'scanms-health-detail-up.png') });
@@ -94,6 +96,13 @@ test('system health detail explains a failing service and shows API info for a h
     await page.waitForFunction(() => document.body.innerText.includes('Đang xem chi tiết'));
     await page.reload();
     await waitText(page, /Bấm để xem chi tiết/, [...errors, ...consoleErrors]);
+    await clickCard('User Service');
+    await waitText(page, /Trục dọc là mili giây/);
+    const axis = await page.evaluate(() => document.body.innerText);
+    assert.match(axis, /\b0 ms\b/);
+    assert.match(axis, /\b(50|100) ms\b/);
+    assert.ok(await page.$('span[title*=" ms"]'));
+    await page.screenshot({ path: join(tmpdir(), 'scanms-health-chart.png') });
     await clickCard('Payment Service');
     await page.waitForFunction(() => /Số lần kiểm tra\s*\n?\s*2/.test(document.body.innerText));
 
