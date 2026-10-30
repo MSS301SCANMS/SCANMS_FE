@@ -126,15 +126,17 @@ export function Topbar({
 
         {/* Right: Actions, Notifications & User Card */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => authService.switchWorkspace('customer', navigate)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
-            title="Đến Sàn Mua Sắm SCANMS"
-          >
-            <Store className="w-3.5 h-3.5 text-[#C59B58]" />
-            <span className="hidden sm:inline">Sàn mua sắm</span>
-          </button>
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => authService.switchWorkspace('customer', navigate)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] hover:border-[#C59B58] text-xs font-bold text-[#1A1612] transition shadow-2xs cursor-pointer"
+              title="Đến Sàn Mua Sắm SCANMS"
+            >
+              <Store className="w-3.5 h-3.5 text-[#C59B58]" />
+              <span className="hidden sm:inline">Sàn mua sắm</span>
+            </button>
+          )}
 
           <AccountConnectionStatus userId={currentUser?.id} />
           {/* Notifications Nest không thuộc mainflow — đã gỡ */}
@@ -221,17 +223,19 @@ export function Topbar({
                     <span>Cài đặt & Hồ sơ</span>
                   </Link>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      authService.switchWorkspace('customer', navigate);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
-                  >
-                    <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
-                    <span>Sàn mua sắm chính</span>
-                  </button>
+                  {!isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        authService.switchWorkspace('customer', navigate);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
+                    >
+                      <Store className="w-3.5 h-3.5 text-[#B88E4F]" />
+                      <span>Sàn mua sắm chính</span>
+                    </button>
+                  )}
                 </div>
 
 

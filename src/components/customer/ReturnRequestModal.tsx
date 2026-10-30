@@ -168,7 +168,7 @@ export function ReturnRequestModal({ order, onClose, onSubmitted }: Props) {
             <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(e) => { setVideo(e.target.files?.[0] || null); savedEvidence.current = null; }} />
             {video && <span className="block mt-2 text-xs text-[#B88E4F] font-bold truncate">{video.name}</span>}
           </label>
-        </div>
+        </fieldset>
 
         {requestStarted && !submitting && <p role="status" className="mt-4 rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-xs text-[#7D715E]">Đã gửi {completedIds.length}/{submission.current?.length || selectedIds.length} yêu cầu. Bấm thử lại để tiếp tục gửi các sản phẩm còn lại; những yêu cầu đã gửi sẽ được giữ nguyên.</p>}
 

@@ -25,6 +25,18 @@ export type ServiceDef = { id: string; name: string; url: string };
  *  - gateway: /v3/api-docs/swagger-config (do chính gateway trả về)
  *  - service: /openapi/{svc} → gateway forward tới /v3/api-docs của service
  */
+const AI_SERVICE_ORIGIN = (() => {
+  const configured = import.meta.env.VITE_AI_SERVICE_URL as string | undefined;
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'http://localhost:8000';
+})();
+
 export const HEALTH_SERVICES: ServiceDef[] = [
   { id: 'scanms-gateway', name: 'API Gateway', url: `${GATEWAY_ORIGIN}/v3/api-docs/swagger-config` },
   { id: 'user-service', name: 'User Service', url: `${GATEWAY_ORIGIN}/openapi/user` },
@@ -32,6 +44,8 @@ export const HEALTH_SERVICES: ServiceDef[] = [
   { id: 'order-service', name: 'Order Service', url: `${GATEWAY_ORIGIN}/openapi/order` },
   { id: 'payment-service', name: 'Payment Service', url: `${GATEWAY_ORIGIN}/openapi/payment` },
   { id: 'promotion-affiliate-service', name: 'Promotion Service', url: `${GATEWAY_ORIGIN}/openapi/promotion` },
+  // AI không qua Spring OpenAPI — probe health FastAPI trực tiếp (kèm trạng thái Kafka trong payload).
+  { id: 'ai-service', name: 'AI Service', url: `${AI_SERVICE_ORIGIN}/api/v1/ai/health` },
 ];
 
 export type ProbeResult = {

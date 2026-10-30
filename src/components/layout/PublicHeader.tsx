@@ -417,19 +417,6 @@ export function PublicHeader({
                         </Link>
                       )}
 
-                      {!isCustomer && !isShop && !isKol && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            authService.switchWorkspace('customer', navigate);
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#1A1612] rounded-xl hover:bg-[#F3EFE6] transition text-left cursor-pointer"
-                        >
-                          <ShoppingBag className="w-4 h-4 text-[#B88E4F]" />
-                          <span>Đơn mua cá nhân (Cổng Khách Hàng)</span>
-                        </button>
-                      )}
 
                       {isCustomer && (
                         <Link

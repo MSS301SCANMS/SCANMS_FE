@@ -21,7 +21,7 @@ import { AnimatedPasswordField, type PasswordAuthState } from '../../components/
 import './LoginPage.css';
 import { getDemoLogin } from '../../utils/demo-login';
 import { getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
-import { safeLoginReturn } from '../../utils/login-return';
+import { resolvePostLoginPath, safeLoginReturn } from '../../utils/login-return';
 
 type RoleType = 'customer' | 'kol' | 'shop' | 'manager' | 'admin';
 
@@ -103,26 +103,11 @@ export default function LoginPage() {
   };
 
   const navigateAfterLogin = (userRole?: string, _fromGoogle = false) => {
-    if (returnTo) {
-      navigate(returnTo);
-      return;
-    }
     const current = authService.getCurrentUser();
     const role = userRole || current?.role;
     const workspaces = authService.getUserAvailableWorkspaces(current).map((w) => w.key);
-
-    if (role === 'SHOP_MANAGER' || role === 'SHOP_OWNER' || workspaces.includes('shop')) {
-      navigate('/merchant/dashboard');
-    } else if (role === 'SYSTEM_MANAGER') {
-      navigate('/admin/ops-dashboard');
-    } else if (role === 'SYSTEM_ADMIN') {
-      navigate('/admin/dashboard');
-    } else if (role === 'COLLABORATOR' || workspaces.includes('kol')) {
-      navigate('/collaborator/dashboard');
-    } else {
-      // Customer (kể cả Google) → sàn mua sắm
-      navigate('/marketplace');
-    }
+    // Login từ header sàn thường có redirect=/marketplace — không nuốt mất home theo role.
+    navigate(resolvePostLoginPath(role, workspaces, returnTo));
   };
 
   const handleSubmit = async (e: FormEvent) => {
