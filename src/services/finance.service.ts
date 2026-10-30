@@ -37,6 +37,9 @@ export interface KafkaStatus {
   aiGroupState?: string;
   aiGroupMembers?: number;
   aiLag?: number;
+  topics?: { name: string; partitions: number; replicas: number }[];
+  partitions?: { partition: number; endOffset: number; committedOffset: number | null; lag: number }[];
+  members?: { clientId: string; host: string; partitions: string[] }[];
 }
 export interface PendingFinanceEvents { configured: boolean; total: number; items: { eventId: string; eventKey: string; attempts: number; createdAt: string; nextAttemptAt: string; lastError?: string; lastHttpStatus?: number; blocked?: boolean }[] }
 export interface FinanceSourceOrder { orderId: string; publicOrderCode: string; storeName: string; status: string; paymentStatus: string; amountVnd: number; returnRequestId: string | null; returnStatus: string | null; commissionId: string | null; returnWindowClosesAt: string | null }
