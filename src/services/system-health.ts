@@ -4,6 +4,13 @@
  */
 
 import { financeService, type KafkaStatus } from './finance.service';
+import {
+  loadHistory,
+  recordSample,
+  saveHistory,
+  type ErrorType,
+  type HistoryMap,
+} from './system-health-history';
 
 export const HEALTH_AUTO_REFRESH_MS = 30_000;
 const PROBE_TIMEOUT_MS = 6_000;
@@ -19,25 +26,27 @@ export const GATEWAY_ORIGIN = (() => {
 export const KEYCLOAK_ISSUER: string =
   import.meta.env.VITE_KEYCLOAK_ISSUER || 'http://localhost:8180/realms/scanms';
 
-export type ServiceDef = { id: string; name: string; url: string };
+export type ServiceDef = { id: string; name: string; url: string; port: number; role: string };
 
 /**
  *  - gateway: /v3/api-docs/swagger-config (do chính gateway trả về)
  *  - service: /openapi/{svc} → gateway forward tới /v3/api-docs của service
  */
 export const HEALTH_SERVICES: ServiceDef[] = [
-  { id: 'scanms-gateway', name: 'API Gateway', url: `${GATEWAY_ORIGIN}/v3/api-docs/swagger-config` },
-  { id: 'user-service', name: 'User Service', url: `${GATEWAY_ORIGIN}/openapi/user` },
-  { id: 'product-service', name: 'Product Service', url: `${GATEWAY_ORIGIN}/openapi/product` },
-  { id: 'order-service', name: 'Order Service', url: `${GATEWAY_ORIGIN}/openapi/order` },
-  { id: 'payment-service', name: 'Payment Service', url: `${GATEWAY_ORIGIN}/openapi/payment` },
-  { id: 'promotion-affiliate-service', name: 'Promotion Service', url: `${GATEWAY_ORIGIN}/openapi/promotion` },
+  { id: 'scanms-gateway', name: 'API Gateway', url: `${GATEWAY_ORIGIN}/v3/api-docs/swagger-config`, port: 8080, role: 'Cổng vào duy nhất, định tuyến và xác thực JWT' },
+  { id: 'user-service', name: 'User Service', url: `${GATEWAY_ORIGIN}/openapi/user`, port: 8081, role: 'Tài khoản, đăng nhập, phân quyền' },
+  { id: 'product-service', name: 'Product Service', url: `${GATEWAY_ORIGIN}/openapi/product`, port: 8082, role: 'Cửa hàng, sản phẩm, livestream, video ngắn' },
+  { id: 'order-service', name: 'Order Service', url: `${GATEWAY_ORIGIN}/openapi/order`, port: 8083, role: 'Giỏ hàng, thanh toán đơn, giao hàng, đổi trả' },
+  { id: 'payment-service', name: 'Payment Service', url: `${GATEWAY_ORIGIN}/openapi/payment`, port: 8084, role: 'Ví, thanh toán payOS, rút tiền, quyết toán' },
+  { id: 'promotion-affiliate-service', name: 'Promotion Service', url: `${GATEWAY_ORIGIN}/openapi/promotion`, port: 8085, role: 'Khuyến mãi, voucher, tiếp thị liên kết' },
 ];
 
 export type ProbeResult = {
   up: boolean;
   ms: number | null;
   httpStatus?: number;
+  /** Cách lần kiểm tra thất bại, dùng để gợi ý nguyên nhân. */
+  errorType?: ErrorType;
   message: string;
   json?: any;
 };
@@ -57,6 +66,8 @@ export type HealthSnapshot = {
   keycloak: ProbeResult;
   kafka: KafkaProbe;
   checkedAt: Date;
+  /** Lịch sử quan sát của trình duyệt này, đã gồm lần kiểm tra vừa rồi. */
+  history: HistoryMap;
   upCount: number;
   total: number;
   /** Thời gian phản hồi trung bình của các service đang hoạt động (ms). */
@@ -81,12 +92,17 @@ export async function probeService(url: string): Promise<ProbeResult> {
   try {
     const { res, ms } = await timedFetch(url);
     if (res.status >= 500) {
-      return { up: false, ms, httpStatus: res.status, message: `Không thể kết nối service (HTTP ${res.status})` };
+      return { up: false, ms, httpStatus: res.status, errorType: 'http5xx', message: `Không thể kết nối service (HTTP ${res.status})` };
     }
     return { up: true, ms, httpStatus: res.status, message: 'Service đang hoạt động' };
   } catch (err: any) {
     const timeout = err?.name === 'AbortError';
-    return { up: false, ms: null, message: timeout ? 'Quá thời gian phản hồi' : 'Không thể kết nối service' };
+    return {
+      up: false,
+      ms: null,
+      errorType: timeout ? 'timeout' : 'network',
+      message: timeout ? 'Quá thời gian phản hồi' : 'Không thể kết nối service',
+    };
   }
 }
 
@@ -128,6 +144,19 @@ export async function runHealthCheck(): Promise<HealthSnapshot> {
     probeKafka(),
   ]);
   const services = Object.fromEntries(entries) as Record<string, ProbeResult>;
+  const checkedAt = new Date();
+  const storage = typeof window !== 'undefined' ? window.localStorage : undefined;
+  const history = loadHistory(storage);
+  for (const [id, r] of Object.entries(services)) {
+    history[id] = recordSample(history[id], {
+      t: checkedAt.getTime(),
+      up: r.up,
+      ms: r.ms,
+      status: r.httpStatus,
+      err: r.errorType,
+    });
+  }
+  saveHistory(storage, history);
   const ups = Object.values(services).filter((r) => r.up);
   const upCount = ups.length;
   const total = HEALTH_SERVICES.length;
@@ -135,7 +164,7 @@ export async function runHealthCheck(): Promise<HealthSnapshot> {
   const avgMs = msList.length ? Math.round(msList.reduce((a, b) => a + b, 0) / msList.length) : null;
   const overall: OverallStatus =
     upCount === 0 ? 'DOWN' : upCount === total && keycloak.up && kafka.state !== 'down' ? 'HEALTHY' : 'DEGRADED';
-  return { services, keycloak, kafka, checkedAt: new Date(), upCount, total, avgMs, overall };
+  return { services, keycloak, kafka, checkedAt, history, upCount, total, avgMs, overall };
 }
 
 export const OVERALL_LABEL: Record<OverallStatus, string> = {
@@ -143,3 +172,40 @@ export const OVERALL_LABEL: Record<OverallStatus, string> = {
   DEGRADED: 'Không ổn định',
   DOWN: 'Ngừng hoạt động',
 };
+
+export type ApiInfo = {
+  title: string | null;
+  version: string | null;
+  endpoints: number;
+  operations: number;
+  tags: string[];
+  /** Gateway: số tài liệu API mà nó gom lại (swagger-config). */
+  documents?: number;
+};
+
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
+
+/** Đọc tài liệu OpenAPI công khai của service (chỉ có khi service đang chạy). */
+export async function fetchApiInfo(def: ServiceDef): Promise<ApiInfo> {
+  const { res } = await timedFetch(def.url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (Array.isArray(json?.urls)) {
+    return { title: 'Tài liệu API gom bởi Gateway', version: null, endpoints: 0, operations: 0, tags: [], documents: json.urls.length };
+  }
+  const paths = (json?.paths ?? {}) as Record<string, Record<string, unknown>>;
+  const operations = Object.values(paths).reduce(
+    (n, item) => n + HTTP_METHODS.filter((m) => item && m in item).length,
+    0,
+  );
+  const tags: string[] = Array.isArray(json?.tags)
+    ? json.tags.map((t: { name?: string }) => t?.name).filter(Boolean)
+    : [];
+  return {
+    title: json?.info?.title ?? null,
+    version: json?.info?.version ?? null,
+    endpoints: Object.keys(paths).length,
+    operations,
+    tags,
+  };
+}
