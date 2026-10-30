@@ -43,8 +43,8 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
   const price = variant?.price != null ? Number(variant.price) : product.price;
   const available = variants.length ? variants.some((candidate) => candidate.stockQuantity > 0) : (product.stockQuantity ?? 0) > 0;
   const selectedAvailable = !variant || variant.stockQuantity > 0;
-  const needsSelection = choosing && !variant;
   const selectedStock = Math.max(0, variant?.stockQuantity ?? product.stockQuantity ?? 0);
+  const needsSelection = choosing && !variant;
   const hasReviews = Number.isFinite(product.rating) && product.rating > 0 && product.rating <= 5
     && Number.isSafeInteger(product.reviews) && product.reviews > 0;
   const ratingLabel = hasReviews ? product.rating.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
@@ -104,7 +104,7 @@ export function MarketplaceProductCard({ product, wished, onWishlist, onPurchase
             <MessageCircle size={14} className="shrink-0" aria-hidden="true" /><span className="truncate">Nhắn tin</span>
           </button>}
         </div>
-        <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{available ? `Còn ${selectedStock} sản phẩm${variant ? ' ở phân loại này' : ''}` : 'Tạm hết hàng'}</p>
+        <p className="mb-2 mt-2 text-[10px] text-[#7D715E]">{product.soldCount == null ? 'Chưa cập nhật lượt bán' : `Đã bán ${Math.max(0, product.soldCount).toLocaleString('vi-VN')}`}{!available && ' · Tạm hết hàng'}</p>
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 border-t border-[#EAE4D7] pt-3"><strong className="text-sm text-[#1A1612] sm:text-base">{formatMoney(price)}</strong>{product.origPrice > price && <del className="text-[10px] text-[#7D715E]">{formatMoney(product.origPrice)}</del>}</div>
         {variants.length > 0 && (choosing || variantId) && <div ref={choiceRef} className="marketplace-variant-choice relative mt-3 rounded-xl border border-[#EAE4D7] bg-[#FAF8F5]/80 p-2.5" data-required={needsSelection}>
           <div className="flex items-start justify-between gap-2">

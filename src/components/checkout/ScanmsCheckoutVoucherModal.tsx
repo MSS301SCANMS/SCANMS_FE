@@ -22,6 +22,7 @@ import type { VoucherSlot } from '@/utils/voucher-intent';
 import { formatMoney } from '@/utils/marketplace.utils';
 import { authService } from '@/services/auth.service';
 import api from '@/services/api';
+import type { ShippingDestination } from '@/services/checkout.service';
 
 function formatVoucherRemainingTime(expiresAt?: string | null): { text: string; isUrgent: boolean } {
   if (!expiresAt) return { text: 'Vô thời hạn', isUrgent: false };
@@ -71,6 +72,7 @@ export interface ScanmsCheckoutVoucherModalProps {
   totalShippingFee: number;
   rawGoodsSubtotal: number;
   customerPhone?: string;
+  shippingDestination?: ShippingDestination;
 
   // Selected state
   appliedShopCoupons: Record<string, AppliedShopVoucher>;
@@ -95,6 +97,7 @@ export function ScanmsCheckoutVoucherModal({
   totalShippingFee,
   rawGoodsSubtotal,
   customerPhone,
+  shippingDestination,
   appliedShopCoupons,
   appliedPlatformCoupon,
   appliedShippingCoupon,
@@ -187,7 +190,7 @@ export function ScanmsCheckoutVoucherModal({
       setSavedShopCouponsMap(storeMap);
       const storeIds = new Set(groups.map(group => group.store.id));
       setPlatformCoupons(collectCheckoutVouchers([platform, ...publicGroups.map(group => group.coupons)])
-        .filter(c => storeIds.has(c.store?.id || c.storeId || '') || publicGroups.some(group => group.coupons.some(item => item.id === c.id))));
+        .filter(c => c.fundingSource === 'PLATFORM_FUNDED' || storeIds.has(c.store?.id || c.storeId || '') || publicGroups.some(group => group.coupons.some(item => item.id === c.id))));
       setLoadError([...new Set(errors)].join(' '));
       setLoadingCoupons(false);
     };
@@ -212,7 +215,7 @@ export function ScanmsCheckoutVoucherModal({
     try {
       const result = await validateCheckoutVoucher((path, body) => api.post(path, body), {
         code, slot, storeId, groups, shippingFees: shippingFeesByStore,
-        shopDiscounts: appliedShopCoupons, customerPhone,
+        shopDiscounts: appliedShopCoupons, customerPhone, shippingDestination,
       });
       if (revision !== revisionRef.current) return;
       if (result.slot === 'SHOP') onApplyShopCoupon(result.storeId, result);
@@ -285,6 +288,7 @@ export function ScanmsCheckoutVoucherModal({
           </button>
         </div>
 
+        <p className="border-b border-[#EAE4D7] bg-white px-6 py-2 text-xs text-[#7D715E]">Chọn 1 mã giảm tiền hàng từ shop hoặc sàn và 1 mã vận chuyển.</p>
         {/* 2. Ô Nhập Mã Giảm Giá Trực Tiếp */}
         <div className="p-3 sm:px-6 sm:py-3.5 bg-white border-b border-[#EAE4D7] shrink-0">
           <div className="flex items-center gap-2">

@@ -63,6 +63,7 @@ const ShopStorefrontPage = lazy(() => import('../pages/public/ShopStorefrontPage
 import { RouteContent } from './RouteContent';
 import { RoleGuard } from './RoleGuard';
 import { CustomerShoppingGuard } from './CustomerShoppingGuard';
+import { CustomerPortalGuard } from './CustomerPortalGuard';
 import { CartProvider, useCart } from '../context/CartContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { CartDrawer } from '../components/cart/CartDrawer';
@@ -84,12 +85,13 @@ function ShopApplicationEntry() {
 }
 
 function GlobalCheckoutModal() {
-  const { isCheckoutOpen, closeCheckout, checkoutItems, checkoutCouponCode } = useCart();
+  const { isCheckoutOpen, closeCheckout, returnFromCheckout, checkoutItems, checkoutCouponCode } = useCart();
   if (!isCheckoutOpen || !canAccessShopping()) return null;
   return (
     <GuestCheckoutModal
       isOpen={isCheckoutOpen}
       onClose={closeCheckout}
+      onBack={returnFromCheckout}
       checkoutItems={checkoutItems}
       initialCouponCode={checkoutCouponCode}
     />
@@ -174,22 +176,24 @@ function AppRoutes() {
               <Route path="/chat" element={<Navigate to="/customer/orders" replace />} />
 
               {/* Customer portal */}
-              <Route path="/customer" element={<CustomerPortalPage />} />
-              <Route path="/customer/portal" element={<CustomerPortalPage />} />
-              <Route path="/customer/orders" element={<CustomerPortalPage />} />
-              <Route path="/customer/profile" element={<CustomerPortalPage />} />
-              <Route path="/customer/identity" element={<CustomerPortalPage />} />
-              <Route path="/customer/addresses" element={<CustomerPortalPage />} />
-              <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
-              <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
-              <Route path="/customer/upgrade/shop" element={<ShopApplicationEntry />} />
-              <Route path="/customer/returns/:id" element={<ReturnDetailPage mode="customer" />} />
-              <Route path="/customer/vouchers" element={<CustomerPortalPage />} />
-              <Route path="/customer/security" element={<CustomerPortalPage />} />
-              <Route path="/customer/wallet" element={<CustomerPortalPage />} />
-              <Route path="/customer/wallet/topup" element={<CustomerPortalPage />} />
-              <Route path="/customer/wishlist" element={<CustomerPortalPage />} />
-              <Route path="/customer/notifications" element={<CustomerPortalPage />} />
+              <Route element={<CustomerPortalGuard />}>
+                <Route path="/customer" element={<CustomerPortalPage />} />
+                <Route path="/customer/portal" element={<CustomerPortalPage />} />
+                <Route path="/customer/orders" element={<CustomerPortalPage />} />
+                <Route path="/customer/profile" element={<CustomerPortalPage />} />
+                <Route path="/customer/identity" element={<CustomerPortalPage />} />
+                <Route path="/customer/addresses" element={<CustomerPortalPage />} />
+                <Route path="/customer/upgrade" element={<CustomerPortalPage />} />
+                <Route path="/customer/upgrade/kol" element={<CustomerPortalPage />} />
+                <Route path="/customer/upgrade/shop" element={<ShopApplicationEntry />} />
+                <Route path="/customer/returns/:id" element={<ReturnDetailPage mode="customer" />} />
+                <Route path="/customer/vouchers" element={<CustomerPortalPage />} />
+                <Route path="/customer/security" element={<CustomerPortalPage />} />
+                <Route path="/customer/wallet" element={<CustomerPortalPage />} />
+                <Route path="/customer/wallet/topup" element={<CustomerPortalPage />} />
+                <Route path="/customer/wishlist" element={<CustomerPortalPage />} />
+                <Route path="/customer/notifications" element={<CustomerPortalPage />} />
+              </Route>
 
               <Route element={<MainLayout />}>
                 <Route path="/portal" element={<DashboardDispatcher />} />

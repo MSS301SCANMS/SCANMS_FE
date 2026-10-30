@@ -1,19 +1,15 @@
 import { authService } from '@/services/auth.service';
+import { workspaceHome, workspaceKeys } from './workspace-access';
 
 /** Mua sắm chỉ dành cho khách (guest hoặc workspace customer). */
 export function canAccessShopping(): boolean {
   const user = authService.getCurrentUser();
   const token = localStorage.getItem('token');
   if (!user || !token) return true; // guest
-  return authService.getActiveWorkspace() === 'customer';
+  return workspaceKeys(user).includes('customer') && authService.getActiveWorkspace() === 'customer';
 }
 
 export function shoppingHomeForRole(): string {
   const ws = authService.getActiveWorkspace();
-  if (ws === 'shop') return '/merchant/dashboard';
-  if (ws === 'kol') return '/collaborator/dashboard';
-  if (ws === 'admin') {
-    return authService.getCurrentUser()?.role === 'SYSTEM_MANAGER' ? '/admin/ops-dashboard' : '/admin/dashboard';
-  }
-  return '/marketplace';
+  return workspaceHome(ws, authService.getCurrentUser());
 }

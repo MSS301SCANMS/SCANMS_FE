@@ -1,5 +1,7 @@
 import api from './api';
 import { unwrapApi } from '@/utils/api-response';
+import { serverDate } from '../utils/server-date';
+import { livestreamLifecycle } from '../utils/livestream-lifecycle.utils';
 
 const fresh = { headers: { 'x-skip-cache': 'true' } };
 
@@ -42,10 +44,11 @@ export const liveSessionService = {
     const creators = (Array.isArray(profiles) ? profiles : []).filter(profile => collaboratorIds.includes(profile.collaboratorId))
       .map(profile => ({ id: profile.userId, collaboratorId: profile.collaboratorId,
         canHost: profile.approvalStatus === 'APPROVED' && participants.collaboratorResponses?.[profile.collaboratorId] === 'ACCEPTED',
-        fullName: profile.applicationData?.channelName || participants.creatorName || 'Nhà sáng tạo' }));
+        fullName: [profile.applicationData?.channelName, participants.creatorName].find(value => typeof value === 'string' && value.trim() && !/^https?:\/\//i.test(value)) || 'Nhà sáng tạo' }));
     return {
-      ...raw, id: raw.livestreamId,
-      startsAt: raw.startedAt || raw.scheduledAt, endsAt: raw.endedAt || participants.endsAt,
+      ...raw, ...livestreamLifecycle(raw), id: raw.livestreamId,
+      pinnedProductId: raw.productRefs?.pinnedProductId ?? null,
+      startsAt: serverDate(raw.startedAt || raw.scheduledAt), endsAt: serverDate(raw.endedAt || participants.endsAt),
       store: { ...store, id: store.id || store.storeId || raw.storeId }, creators, creator: creators[0],
       products: productResponses.map(response => {
         const landing = unwrapApi<any>(response);

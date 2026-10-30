@@ -1,6 +1,8 @@
 import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { livestreamLifecycle, livestreamStatusLabel } from '../../utils/livestream-lifecycle.utils';
 import type { FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   CalendarClock,
   ExternalLink,
@@ -59,6 +61,7 @@ type Creator = {
 };
 
 type LiveSessionItem = {
+  lifecycleReason?: string;
   governance?: LiveGovernance;
   id: string;
   title: string;
@@ -194,6 +197,8 @@ export default function LiveSessionsPage({
   isActive?: boolean;
   refreshKey?: number;
 }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSessionId = searchParams.get('sessionId');
   const [storeId, setStoreId] = useState('');
   const [currentStoreName, setCurrentStoreName] = useState('');
   const [activeTab, setActiveTab] = useState<'history' | 'create'>('history');
@@ -216,6 +221,34 @@ export default function LiveSessionsPage({
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'SCHEDULED' | 'ENDED'>('ALL');
   const [detailModalSession, setDetailModalSession] = useState<LiveSessionItem | null>(null);
   const [endingSessionId, setEndingSessionId] = useState<string | null>(null);
+  const startLiveActionRef = useRef<HTMLButtonElement | null>(null);
+  const managementUrl = (id: string) => `/merchant/live-sessions?sessionId=${encodeURIComponent(id)}`;
+  const openSessionDetails = (session: LiveSessionItem) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sessionId', session.id);
+    setSearchParams(next);
+    setActiveTab('history');
+    setDetailModalSession(session);
+  };
+  const closeSessionDetails = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('sessionId');
+    setSearchParams(next, { replace: true });
+    setDetailModalSession(null);
+    setEndingSessionId(null);
+  };
+  useEffect(() => {
+    if (!requestedSessionId) { setDetailModalSession(null); return; }
+    if (loading || loadError) return;
+    // Only select from the current owner's loaded store; never fetch an arbitrary query ID.
+    const selected = sessions.find(session => session.id === requestedSessionId);
+    if (!selected) { setDetailModalSession(null); return; }
+    setActiveTab('history');
+    setDetailModalSession(current => current?.id === selected.id ? current : selected);
+  }, [requestedSessionId, sessions, loading, loadError]);
+  useEffect(() => {
+    if (requestedSessionId === detailModalSession?.id) startLiveActionRef.current?.focus();
+  }, [requestedSessionId, detailModalSession?.id, detailModalSession?.status]);
 
   const [form, setForm] = useState({
     creatorId: '',
@@ -271,7 +304,7 @@ export default function LiveSessionsPage({
       externalChannels: participants.externalChannels || [],
       startsAt: serverDate(raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
       endsAt: serverDate(raw.endedAt || participants.endsAt || raw.endsAt || raw.scheduledAt || raw.createdAt) || '',
-      status: raw.status || 'SCHEDULED',
+      ...livestreamLifecycle(raw),
       inviteStatus: participants.inviteStatus || 'PENDING',
       commissionRate: participants.commissionRate ?? 0,
       store: raw.store || { name: storeNameRef.current || 'Shop', slug: '', logoUrl: null },
@@ -294,7 +327,7 @@ export default function LiveSessionsPage({
     } as LiveSessionItem;
   }, []);
 
-  const loadSessions = useCallback(async (currentStore: string) => {
+  const loadSessions = useCallback(async (currentStore: string, notifyError = true) => {
     try {
       const response: any = await api.get('/livestreams', {
         params: { storeId: currentStore },
@@ -309,9 +342,22 @@ export default function LiveSessionsPage({
       setDetailModalSession((current) => current ? list.find((session) => session.id === current.id) || current : current);
       return list;
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || 'Không tải được danh sách phiên livestream.');
+      if (notifyError) toast.error(error?.response?.data?.message || error?.message || 'Không tải được danh sách phiên livestream.');
     }
   }, [mapLivestream]);
+
+  useEffect(() => {
+    if (!storeId || !_isActive) return;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || document.hidden) return;
+      refreshing = true;
+      try { await loadSessions(storeId, false); } finally { refreshing = false; }
+    };
+    const timer = window.setInterval(() => void refresh(), 15000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [storeId, _isActive, loadSessions]);
 
   useEffect(() => {
     let active = true;
@@ -682,7 +728,7 @@ export default function LiveSessionsPage({
       const refreshedSessions = await loadSessions(storeId);
       setActiveTab('history');
       const createdItem = mapLivestream(unwrapApi(res));
-      if (createdItem?.id) setDetailModalSession(refreshedSessions?.find(item => item.id === createdItem.id) || createdItem);
+      if (createdItem?.id) openSessionDetails(refreshedSessions?.find(item => item.id === createdItem.id) || createdItem);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message || 'Không tạo được phiên livestream.');
     } finally {
@@ -744,7 +790,7 @@ export default function LiveSessionsPage({
   };
 
   const endSession = (session: LiveSessionItem) => {
-    if (legacyLive) { setEndingSessionId(session.id);setDetailModalSession(session); return; }
+    if (legacyLive) { setEndingSessionId(session.id);openSessionDetails(session); return; }
     if (window.confirm('Kết thúc phiên livestream? Camera của người phát và video của người xem sẽ dừng.')) void changeState(session, 'end');
   };
 
@@ -798,6 +844,7 @@ export default function LiveSessionsPage({
 
   return (
     <div className="mx-auto w-full max-w-[1560px] space-y-4 pb-10 text-[#1A1612]">
+      {requestedSessionId && !sessions.some(session => session.id === requestedSessionId) && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Không tìm thấy phiên livestream này trong gian hàng của bạn.</p>}
       {/* Top Navigation Tabs */}
       <HubTabs
         tabs={hubTabsList}
@@ -925,11 +972,11 @@ export default function LiveSessionsPage({
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${conf.bg} ${conf.text} ${conf.border}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${conf.dot}`} />
-                            {conf.label}
+                            {livestreamStatusLabel(session.status, session.lifecycleReason)}
                           </span>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${invite.bg} ${invite.text} ${invite.border}`}>
+                          {!['ENDED', 'CANCELLED'].includes(session.status) && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${invite.bg} ${invite.text} ${invite.border}`}>
                             {invite.label}
-                          </span>
+                          </span>}
                         </div>
                         <span className="font-mono text-[10px] font-bold text-[#7D715E]">
                           {session.platform === 'SCANMS' ? 'SCANMS Live' : session.platform}
@@ -991,20 +1038,18 @@ export default function LiveSessionsPage({
                     {/* Action buttons */}
                     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#F0EAE0] pt-3">
                       {['LIVE', 'PAUSED'].includes(session.status) && <button type="button" disabled={changingId === session.id} onClick={() => endSession(session)} className="inline-flex h-8 w-full items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[11px] font-semibold text-[#1A1612] hover:bg-[#F3EFE6] cursor-pointer"><StopCircle className="h-3.5 w-3.5" /> Kết thúc phiên</button>}
-                      {session.liveUrl && (
-                        <a
-                          href={session.liveUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                      {session.liveUrl && !['ENDED', 'CANCELLED'].includes(session.status) && (
+                        <Link
+                          to={managementUrl(session.id)}
                           className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-[#EEDFC6] bg-[#FBF5EB] text-[11px] font-bold text-[#B88E4F] transition hover:bg-[#F3EFE6]"
                         >
                           <ExternalLink className="h-3.5 w-3.5" /> Mở live
-                        </a>
+                        </Link>
                       )}
 
                       <button
                         type="button"
-                        onClick={() => setDetailModalSession(session)}
+                        onClick={() => openSessionDetails(session)}
                         className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-[#EAE4D7] bg-[#FAF8F5] text-[11px] font-bold text-[#1A1612] transition hover:bg-[#F3EFE6]"
                       >
                         Chi tiết
@@ -1710,13 +1755,13 @@ export default function LiveSessionsPage({
       {/* DETAIL MODAL (Opens when clicking "Chi tiết" from any card in Tab 1) */}
       {detailModalSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl border border-[#EAE4D7] bg-white shadow-xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="live-management-title" className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl border border-[#EAE4D7] bg-white shadow-xl">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#EAE4D7] p-5">
               <div className="flex items-center gap-3">
                   <CreatorAvatar creator={detailModalSession.creator} className="h-10 w-10 shrink-0 text-sm" />
                 <div>
-                  <h3 className="text-base font-extrabold text-[#1A1612]">{detailModalSession.title}</h3>
+                  <h3 id="live-management-title" className="text-base font-extrabold text-[#1A1612]">{detailModalSession.title}</h3>
                   <p className="text-xs text-[#7D715E]">
                     KOL: <strong>{detailModalSession.creator.fullName}</strong> · {localDateTime(detailModalSession.startsAt)}
                   </p>
@@ -1725,7 +1770,7 @@ export default function LiveSessionsPage({
               <button
                 type="button"
                 aria-label="Đóng chi tiết phiên live"
-                onClick={() => { setDetailModalSession(null); setEndingSessionId(null); }}
+                onClick={closeSessionDetails}
                 className="rounded-xl p-2 text-[#7D715E] hover:bg-[#FAF8F5] cursor-pointer"
               >
                 <X className="h-5 w-5" />
@@ -1734,6 +1779,7 @@ export default function LiveSessionsPage({
 
             {/* Modal Body */}
             <div className="flex-1 space-y-4 overflow-y-auto p-5 text-xs">
+              {detailModalSession.status === 'SCHEDULED' && <p className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-[#7D715E]">{detailModalSession.inviteStatus === 'ACCEPTED' ? 'KOL đã xác nhận. Đến giờ phát, bấm Bắt đầu phát sóng ở bên dưới để mở phiên.' : 'Chờ KOL xác nhận lời mời trước khi bắt đầu phát sóng.'}</p>}
               {/* Luxury Voucher Row */}
               <div className="flex flex-col gap-3 rounded-2xl border border-[#EEDFC6] bg-gradient-to-r from-[#FBF5EB] via-white to-[#FBF5EB] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -1841,21 +1887,22 @@ export default function LiveSessionsPage({
             {/* Modal Footer Controls */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#EAE4D7] bg-[#FAF8F5] p-4">
               <div className="flex items-center gap-2">
-                {detailModalSession.liveUrl && (
-                  <a
-                    href={detailModalSession.liveUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                {detailModalSession.liveUrl && !['ENDED', 'CANCELLED'].includes(detailModalSession.status) && (
+                  <Link
+                    to={managementUrl(detailModalSession.id)}
+                    onClick={() => startLiveActionRef.current?.focus()}
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#EEDFC6] bg-white px-3.5 text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB]"
                   >
                     <ExternalLink className="h-3.5 w-3.5" /> Mở link live
-                  </a>
+                  </Link>
                 )}
+                {detailModalSession.status === 'LIVE' && <Link to={`/live/${encodeURIComponent(detailModalSession.id)}`} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#EEDFC6] bg-white px-3.5 text-xs font-bold text-[#B88E4F] hover:bg-[#FBF5EB]">Vào phòng đang phát</Link>}
               </div>
 
               <div className="flex items-center gap-2">
                 {detailModalSession.inviteStatus === 'ACCEPTED' && detailModalSession.status === 'SCHEDULED' && (
                   <button
+                    ref={startLiveActionRef}
                     type="button"
                     onClick={() => void changeState(detailModalSession, 'START_NOW')}
                     disabled={changingId === detailModalSession.id}

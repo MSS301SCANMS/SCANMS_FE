@@ -1,55 +1,26 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { authService, type UserProfile } from '../../services/auth.service';
+import { authService } from '../../services/auth.service';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { applyTheme } from '../../utils/theme.utils';
 import { SeedDataNotice } from '../common/SeedDataNotice';
+import { useAuthUser } from '../../hooks/useAuthUser';
 
 export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const currentUser = useAuthUser();
   useEffect(() => {
     applyTheme('light');
   }, []);
 
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-    }
-    const token = localStorage.getItem('token');
-    if (token) {
-      authService
-        .getMe()
-        .then((freshUser) => {
-          if (freshUser && freshUser.id) {
-            setCurrentUser(freshUser);
-          }
-        })
-        .catch(() => {
-          // Token expired or invalid
-        });
-    }
-
-    const handleUserUpdated = () => {
-      const updated = authService.getCurrentUser();
-      setCurrentUser(updated);
-      if (!updated && !localStorage.getItem('token')) {
-        const path = `${location.pathname}${location.search}${location.hash}`;
-        const role = path.startsWith('/merchant/') ? 'shop' : path.startsWith('/admin/') ? 'admin' : 'kol';
-        navigate(`/login?role=${role}&redirect=${encodeURIComponent(path)}`, { replace: true });
-      }
-    };
-
-    window.addEventListener('auth-user-updated', handleUserUpdated);
-    return () => window.removeEventListener('auth-user-updated', handleUserUpdated);
-  }, [location.pathname, location.search, location.hash, navigate]);
+    if (localStorage.getItem('token')) void authService.getMe().catch(() => {});
+  }, [location.pathname, currentUser?.id]);
 
   const handleLogout = () => {
     authService.logout();
-    setCurrentUser(null);
     navigate('/login');
   };
 

@@ -1,6 +1,12 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
-import { commissionSchedule } from '../src/utils/commission-schedule.ts';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+
+const compiled = ts.transpileModule(readFileSync(new URL('../src/utils/commission-schedule.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const { commissionSchedule } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const pending = { status: 'PENDING', timeline: { deliveredAt: '2026-10-27T03:00:00', returnDeadline: '2026-11-10T03:00:00', hasUnresolvedReturn: false } };
 test('uses the actual order deadline with UTC timestamps and counts remaining time', () => {

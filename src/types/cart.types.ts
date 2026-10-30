@@ -12,11 +12,13 @@ export interface CartItem {
   productId: string;
   liveSessionId?: string;
   liveCouponCode?: string;
+  liveCouponCodes?: string[];
   variantId?: string;
   variantName?: string;
   title: string;
   sku: string;
   price: number;
+  listPrice?: number;
   originalPrice?: number;
   imageUrl: string;
   quantity: number;
@@ -50,6 +52,7 @@ export interface StoreCartGroup {
 export interface AddItemParams {
   liveSessionId?: string;
   liveCouponCode?: string;
+  liveCouponCodes?: string[];
   product: {
     id: string;
     title?: string;
@@ -109,6 +112,7 @@ export interface CartContextType {
   editCheckoutCart: (items: CartItem[]) => void;
   continueShoppingFromCheckout: (items: CartItem[]) => void;
   closeCheckout: () => void;
+  returnFromCheckout: () => void;
   refreshCartStock: () => Promise<void>;
   isValidatingStock: boolean;
   isCartSyncing: boolean;

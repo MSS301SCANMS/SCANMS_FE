@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { checkoutService, usesLegacyCheckout } from '../services/checkout.service';
 import { normalizeOrderVariantId } from '../utils/order-variant.utils';
 import type { CartItem } from '../context/CartContext';
+import { listedGoodsTotals } from '../utils/checkout-amounts';
 
 interface StoreGroup {
   store: { id: string; name: string };
@@ -28,6 +29,7 @@ interface UseCheckoutQuoteOptions {
   appliedPlatformCoupon: any | null;
   appliedShippingCoupon: any | null;
   onVouchersAutoReset?: () => void;
+  onPricesQuoted?: (lines: any[]) => void;
 }
 
 /**
@@ -47,6 +49,7 @@ export function useCheckoutQuote({
   appliedPlatformCoupon,
   appliedShippingCoupon,
   onVouchersAutoReset,
+  onPricesQuoted,
 }: UseCheckoutQuoteOptions) {
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [shippingFeesByStore, setShippingFeesByStore] = useState<Record<string, number>>({});
@@ -54,6 +57,18 @@ export function useCheckoutQuote({
   const [shippingFeeError, setShippingFeeError] = useState<string | null>(null);
   const [shippingQuoteMode, setShippingQuoteMode] = useState<'FIXED' | 'SIMULATED' | 'GHN_SANDBOX'>('FIXED');
   const [shippingQuoteRetry, setShippingQuoteRetry] = useState(0);
+  const callbacks = useRef({ onVouchersAutoReset, onPricesQuoted });
+  callbacks.current = { onVouchersAutoReset, onPricesQuoted };
+  const provinceName = selectedProvince?.name;
+  const districtName = selectedDistrict?.name;
+  const wardName = selectedWard?.name;
+  const destinationProvince = shippingDestination?.province;
+  const destinationDistrict = shippingDestination?.district;
+  const destinationWard = shippingDestination?.ward;
+  const destinationDetail = shippingDestination?.detail;
+  const quoteDestination = useMemo(() => destinationProvince && destinationDistrict && destinationWard && destinationDetail
+    ? { province: destinationProvince, district: destinationDistrict, ward: destinationWard, detail: destinationDetail }
+    : undefined, [destinationProvince, destinationDistrict, destinationWard, destinationDetail]);
 
   // Tính tiền hàng thô (Subtotal)
   const rawSubtotal = useMemo(() => {
@@ -63,6 +78,7 @@ export function useCheckoutQuote({
   const activeUnitCount = useMemo(() => {
     return activeItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [activeItems]);
+  const { listedSubtotal, directDiscount } = useMemo(() => listedGoodsTotals(activeItems), [activeItems]);
 
   // Tổng hợp chiết khấu Voucher
   const totalShopDiscount = useMemo(() => {
@@ -87,9 +103,9 @@ export function useCheckoutQuote({
   useEffect(() => {
     if (
       !isOpen ||
-      !selectedProvince ||
-      !selectedDistrict ||
-      !selectedWard ||
+      !provinceName ||
+      !districtName ||
+      !wardName ||
       shippingAddress.trim().length < 5 ||
       !itemsGroupedByShop.length
     ) {
@@ -101,11 +117,11 @@ export function useCheckoutQuote({
     }
 
     let active = true;
-    const address = [shippingAddress.trim(), selectedWard.name, selectedDistrict.name, selectedProvince.name].join(', ');
+    const address = [shippingAddress.trim(), wardName, districtName, provinceName].join(', ');
     setShippingFee(null);
     setShippingFeesByStore({});
     if (!usesLegacyCheckout) {
-      onVouchersAutoReset?.();
+    callbacks.current.onVouchersAutoReset?.();
     }
     setShippingFeeError(null);
     setShippingFeeLoading(true);
@@ -121,11 +137,12 @@ export function useCheckoutQuote({
                 productId: item.productId,
                 variantId: normalizeOrderVariantId(item.variantId),
                 quantity: item.quantity,
+                liveSessionId: item.liveSessionId,
               })),
               group.store.id,
               address,
               controller.signal,
-              shippingDestination,
+              quoteDestination,
             );
           } catch (error: any) {
             const detail = error?.response?.data?.message || error?.message;
@@ -136,11 +153,12 @@ export function useCheckoutQuote({
           if (typeof quote.totalFee !== 'number' || !Number.isFinite(quote.totalFee) || quote.totalFee < 0) {
             throw new Error('Cước GHN không hợp lệ. Vui lòng thử tính lại phí vận chuyển.');
           }
-          return { storeId: group.store.id, fee: Number(quote.totalFee), mode: quote.mode };
+          return { storeId: group.store.id, fee: Number(quote.totalFee), mode: quote.mode, lines: quote.lines || [] };
         }),
       )
         .then((fees) => {
           if (active) {
+            callbacks.current.onPricesQuoted?.(fees.flatMap(fee => fee.lines));
             setShippingFeesByStore(Object.fromEntries(fees.map((item) => [item.storeId, item.fee])));
             setShippingFee(fees.reduce((sum, item) => sum + item.fee, 0));
             setShippingQuoteMode(
@@ -172,9 +190,10 @@ export function useCheckoutQuote({
   }, [
     isOpen,
     shippingAddress,
-    selectedProvince?.name,
-    selectedDistrict?.name,
-    selectedWard?.name,
+    provinceName,
+    districtName,
+    wardName,
+    quoteDestination,
     itemsGroupedByShop,
     shippingQuoteRetry,
   ]);
@@ -185,6 +204,8 @@ export function useCheckoutQuote({
 
   return {
     rawSubtotal,
+    listedSubtotal,
+    directDiscount,
     activeUnitCount,
     shippingFee,
     shippingFeesByStore,

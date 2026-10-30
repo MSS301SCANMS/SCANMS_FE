@@ -1,3 +1,4 @@
+import { apiCache } from '../utils/api-cache.utils';
 import api from './api';
 import { authService } from './auth.service';
 import { normalizeReturn, type ReturnDetail } from './return.service';
@@ -491,7 +492,9 @@ export const customerService = {
   },
 
   async cancelOrder(_orderId: string, _reason?: string): Promise<any> {
-    throw new Error('BE chưa hỗ trợ hủy đơn từ phía khách. Liên hệ shop hoặc admin.');
+    const result = unwrap(await api.post(`/orders/${encodeURIComponent(_orderId)}/cancellation`, { reason: _reason }));
+    apiCache.invalidate();
+    return result;
   },
 
   async requestReturnOrder(

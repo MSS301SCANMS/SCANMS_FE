@@ -21,7 +21,8 @@ import { AnimatedPasswordField, type PasswordAuthState } from '../../components/
 import './LoginPage.css';
 import { getDemoLogin } from '../../utils/demo-login';
 import { getRememberedLoginRole, rememberLoginIdentifier } from '../../utils/remembered-login';
-import { resolvePostLoginPath, safeLoginReturn } from '../../utils/login-return';
+import { safeLoginReturn } from '../../utils/login-return';
+import { loginDestination } from '../../utils/workspace-access';
 
 type RoleType = 'customer' | 'kol' | 'shop' | 'manager' | 'admin';
 
@@ -102,12 +103,15 @@ export default function LoginPage() {
     setIsRoleDropdownOpen(false);
   };
 
-  const navigateAfterLogin = (userRole?: string, _fromGoogle = false) => {
+  const navigateAfterLogin = (_userRole?: string, _fromGoogle = false) => {
     const current = authService.getCurrentUser();
-    const role = userRole || current?.role;
-    const workspaces = authService.getUserAvailableWorkspaces(current).map((w) => w.key);
-    // Login từ header sàn thường có redirect=/marketplace — không nuốt mất home theo role.
-    navigate(resolvePostLoginPath(role, workspaces, returnTo));
+    if (!current) {
+      setPasswordAuthState('error');
+      return;
+    }
+    const destination = loginDestination(current, returnTo);
+    authService.setActiveWorkspace(destination.workspace);
+    navigate(destination.path);
   };
 
   const handleSubmit = async (e: FormEvent) => {

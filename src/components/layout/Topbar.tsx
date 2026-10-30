@@ -1,3 +1,4 @@
+import { useAuthUser } from '../../hooks/useAuthUser';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, LogOut, Settings, Camera, Loader2, ShoppingBag } from 'lucide-react';
@@ -33,6 +34,7 @@ export function Topbar({
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  useAuthUser();
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { role, isShop, isCustomer, isAdmin } = useResolvedWorkspaceRole(currentUser);

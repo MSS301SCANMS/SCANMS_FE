@@ -4,6 +4,7 @@ import { formatMoney } from '@/utils/marketplace.utils';
 interface CheckoutSummaryTotalsProps {
   activeUnitCount: number;
   rawSubtotal: number;
+  directDiscount?: number;
   shippingAddressHint: string | null;
   shippingFeeError: string | null;
   shippingFeeLoading: boolean;
@@ -25,6 +26,7 @@ interface CheckoutSummaryTotalsProps {
 export const CheckoutSummaryTotals: React.FC<CheckoutSummaryTotalsProps> = ({
   activeUnitCount,
   rawSubtotal,
+  directDiscount = 0,
   shippingAddressHint,
   shippingFeeError,
   shippingFeeLoading,
@@ -71,6 +73,7 @@ export const CheckoutSummaryTotals: React.FC<CheckoutSummaryTotalsProps> = ({
           </dd>
         </div>
 
+        {directDiscount > 0 && <div className="checkout-total-discount"><dt>Ưu đãi giá sản phẩm / livestream</dt><dd>−{formatMoney(directDiscount)}</dd></div>}
         {totalShopDiscount > 0 && (
           <div className="checkout-total-discount">
             <dt>Voucher Gian hàng & KOL ({Object.values(appliedShopCoupons).map((c: any) => c.code).join(', ')})</dt>
