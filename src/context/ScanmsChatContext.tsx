@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { getChatSocket, isChatSocketEnabled } from '../services/chat-socket.service';
 import type {
@@ -12,6 +12,8 @@ import type {
   ScanmsChatContextType,
 } from '@/types/chat.types';
 import { toast } from '../utils/toast';
+import { StoreChatContext as ScanmsChatContext } from './store-chat-context';
+import { SpringStoreChatProvider } from './SpringStoreChatProvider';
 
 export type {
   ChatAttachmentType,
@@ -26,7 +28,6 @@ export type {
 
 const DEFAULT_CONVERSATIONS: ChatConversationItem[] = [];
 
-const ScanmsChatContext = createContext<ScanmsChatContextType | undefined>(undefined);
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -245,6 +246,12 @@ function mapServerMessage(raw: any, userId = getCurrentUserId()): ChatMessageIte
 }
 
 export function ScanmsChatProvider({ children }: { children: React.ReactNode }) {
+  return import.meta.env.VITE_COMMERCE_BACKEND === 'legacy'
+    ? <LegacyScanmsChatProvider>{children}</LegacyScanmsChatProvider>
+    : <SpringStoreChatProvider>{children}</SpringStoreChatProvider>;
+}
+
+function LegacyScanmsChatProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [conversations, setConversations] = useState<ChatConversationItem[]>(() =>
@@ -749,6 +756,7 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
   return (
     <ScanmsChatContext.Provider
       value={{
+        accountId: getCurrentUserId() || '',
         isOpen,
         isMinimized,
         activeConversationId,
@@ -760,6 +768,12 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
         toggleMinimize,
         selectConversation,
         sendMessage,
+        retryMessage: async () => false,
+        loadOlderMessages: async () => undefined,
+        hasOlderMessages: false,
+        loadingMessages: false,
+        connectionState: 'legacy',
+        chatError: '',
         sendAttachment,
         sendProductsInquiry,
         shareCouponVoucher,
@@ -774,7 +788,7 @@ export function ScanmsChatProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
-export function useScanmsChat() {
+export function useScanmsChat(): ScanmsChatContextType {
   const context = useContext(ScanmsChatContext);
   // Soft-fallback: tránh ErrorBoundary trắng khi provider chưa mount
   if (!context) {

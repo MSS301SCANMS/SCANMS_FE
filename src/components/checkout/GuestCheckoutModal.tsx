@@ -1137,7 +1137,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
               shippingFees={shippingFeesByStore}
               notes={orderNotes}
               onNotesChange={setOrderNotes}
-              onChat={(st) => openChat(st?.id || targetVoucherStoreId)}
+              onChat={(st) => { const id = st?.id || targetVoucherStoreId; if (id) openChat({ id, name: st?.name || 'Gian hàng' }); }}
               onEditCart={() => {
                 onClose();
                 editCheckoutCart(activeItems);

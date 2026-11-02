@@ -16,7 +16,7 @@ type LiveStreamTransportOptions = {
   isModerator?: boolean;
   localStream: MediaStream | null;
   onNewChatMessage?: (msg: any) => void;
-  onPinnedProductChange?: (data: { productIndex: number; productId?: string }) => void;
+  onPinnedProductChange?: (data: { productIndex: number; productId?: string | null; pinRevision?: number }) => void;
   onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 

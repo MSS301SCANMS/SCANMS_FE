@@ -38,6 +38,7 @@ import { ExclusiveDealCardBubble } from '../../components/chat/ExclusiveDealCard
 import { ProductInquiryCardBubble, type ProductInquiryCardData } from '../../components/chat/ProductInquiryCardBubble';
 import { productService } from '../../services/product.service';
 import { orderService } from '../../services/order.service';
+import { StoreChatWorkspace } from '@/components/chat/StoreChatWorkspace';
 
 function removeAccents(str: string): string {
   return str
@@ -962,7 +963,22 @@ const chatSessionCache: GlobalChatSessionCache = {
   activeConvId: null,
 };
 
-export default function ChatBoxPage({
+export default function ChatBoxPage(props: ChatBoxPageProps = {}) {
+  return import.meta.env.VITE_COMMERCE_BACKEND === 'legacy'
+    ? <LegacyChatBoxPage {...props} /> : <SpringChatEntry {...props} />;
+}
+
+function SpringChatEntry(props: ChatBoxPageProps) {
+  const [params] = useSearchParams();
+  return <StoreChatWorkspace storeId={props.targetStoreId || params.get('storeId') || undefined}
+    storeName={props.targetStoreName || params.get('storeName') || undefined}
+    customerId={params.get('customerId') || undefined} conversationId={params.get('conversationId') || undefined}
+    collaboratorId={props.targetCollaboratorId || params.get('collaboratorId') || undefined}
+    product={props.initialProductContext ? { id: props.initialProductContext.id, title: props.initialProductContext.title, price: props.initialProductContext.price || 0 }
+      : params.get('productId') ? { id: params.get('productId')!, title: params.get('productTitle') || 'Sản phẩm đang quan tâm', price: Number(params.get('productPrice')) || 0 } : undefined} />;
+}
+
+function LegacyChatBoxPage({
   embedded = false,
   targetStoreId,
   targetStoreName: _targetStoreName,

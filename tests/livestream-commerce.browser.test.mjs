@@ -31,7 +31,7 @@ test('shop sets live variant price and launches vouchers while customer chooses 
       return Response.json({result:url.endsWith('/stores/mine')?[{storeId:'store-a',approvalStatus:'APPROVED'}]:session});
     }});
   await new Promise((resolve,reject)=>{relay.http.once('error',reject);relay.http.listen(relayPort,'127.0.0.1',resolve)});
-  const browser=await puppeteer.launch({executablePath,headless:true});const errors=[];
+  const browser=await puppeteer.launch({executablePath,headless:true,args:['--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets']});const errors=[];
   const publisher=io(`http://127.0.0.1:${relayPort}/live-stream`,{transports:['websocket'],auth:{token:tokens.shop},reconnection:false});
   try{
     await new Promise((resolve,reject)=>{publisher.once('connect',resolve);publisher.once('connect_error',reject)});

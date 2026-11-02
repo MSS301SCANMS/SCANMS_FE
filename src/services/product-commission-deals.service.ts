@@ -4,7 +4,9 @@ export interface ProductCommissionDeal {
   id: string; collaboratorId: string; collaboratorName: string; storeId: string; storeName: string;
   productId: string; productName: string; imageUrl?: string; extraPoints: number;
   baseRate: number | string; totalRate: number | string | null;
-  message: string; response?: string; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUPERSEDED' | 'ENDED';
+  message: string; response?: string; status: 'PENDING' | 'COUNTERED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUPERSEDED' | 'ENDED';
+  version: number; proposedByUserId?: string;
+  negotiationHistory?: Array<{ actorId: string; action: string; extraPoints: number; baseRate: number; note: string; at: string }>;
   createdAt: string; approvedAt?: string; endedAt?: string;
 }
 export interface ProductCommissionRate { baseRate: number | string; currentPolicyRate?: number | string; extraPoints: number; totalRate: number | string; dealId?: string; policyId: string }

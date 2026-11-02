@@ -25,7 +25,7 @@ test('real WebRTC carries KOL camera/microphone to customer and shop, deduplicat
  const shopJoinRoles=[];
  server.io.of('/live-stream').on('connection',socket=>socket.on('join_live_room',payload=>{if(socket.data.claims.sub==='shop-user')shopJoinRoles.push(payload.requestedRole)}));
  await new Promise((resolve,reject)=>{server.http.once('error',reject);server.http.listen(relayPort,'127.0.0.1',resolve)});
- const browser=await puppeteer.launch({executablePath,headless:true,args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--autoplay-policy=no-user-gesture-required']});
+ const browser=await puppeteer.launch({executablePath,headless:true,args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--autoplay-policy=no-user-gesture-required','--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets']});
  const errors=[],apiWrites=[];let host,viewer,shop,observer;
  const artifacts=new URL('../.qa-artifacts/livestream-camera/',import.meta.url);
  await mkdir(artifacts,{recursive:true});

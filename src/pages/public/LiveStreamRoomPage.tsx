@@ -539,6 +539,10 @@ export default function LiveStreamRoomPage() {
       });
     },
     onPinnedProductChange: (data) => {
+      if (!legacyLive && typeof data.pinRevision === 'number') {
+        if (data.pinRevision < serverPinRevision.current) return;
+        serverPinRevision.current = data.pinRevision;
+      }
       pinRevision.current += 1;
       if (typeof data.productIndex === 'number') {
         setPinnedIndex(Math.max(0, data.productIndex));
@@ -585,7 +589,8 @@ export default function LiveStreamRoomPage() {
       const revision = pinRevision.current;
       try {
         const state = await liveCommerceService.get(sessionData.id);
-        if (active && revision === pinRevision.current && !pinMutationPending.current) {
+        if (active && revision === pinRevision.current && !pinMutationPending.current && (state.pinRevision ?? 0) >= serverPinRevision.current) {
+          serverPinRevision.current = state.pinRevision ?? 0;
           setCommerceError('');
           setCommerce(previous => JSON.stringify(previous) === JSON.stringify(state) ? previous : state);
           if (state.pinnedProductId !== undefined) setSessionData((previous: any) => previous?.pinnedProductId === state.pinnedProductId ? previous : { ...previous, pinnedProductId: state.pinnedProductId });
@@ -653,6 +658,7 @@ export default function LiveStreamRoomPage() {
 
   const [pinPendingId, setPinPendingId] = useState<string | null>(null);
   const pinRevision = useRef(0);
+  const serverPinRevision = useRef(0);
   const pinMutationPending = useRef(false);
   const [isVoucherDropOpen, setIsVoucherDropOpen] = useState(false);
   // Countdown timer toward session end or deal window
@@ -1106,7 +1112,7 @@ export default function LiveStreamRoomPage() {
           pinProduct(newIdx, productId);
         }
       }
-      setSessionData((prev: any) => ({ ...prev, pinnedProductId: productId }));
+      if (legacyLive) setSessionData((prev: any) => ({ ...prev, pinnedProductId: productId }));
       setIsPinnedDealCollapsed(false);
       toast.success(productId ? 'Đã chuyển sản phẩm đang giới thiệu.' : 'Đã bỏ ghim sản phẩm.');
     } catch (error: any) {
@@ -2678,6 +2684,8 @@ export default function LiveStreamRoomPage() {
             )}
 
             {studioTab === 'OFFERS' && isSessionOwner && !legacyLive && <div className="min-h-0 overflow-y-auto"><LiveCommercePanel sessionId={sessionData.id} storeId={sessionData.storeId} products={products} onChanged={state => {
+              if ((state.pinRevision ?? 0) < serverPinRevision.current) return;
+              serverPinRevision.current = state.pinRevision ?? 0;
               pinRevision.current += 1;
               setCommerce(state); setCommerceError('');
               if (state.pinnedProductId !== undefined) setSessionData((previous: any) => previous ? { ...previous, pinnedProductId: state.pinnedProductId } : previous);

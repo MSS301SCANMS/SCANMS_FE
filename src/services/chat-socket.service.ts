@@ -6,7 +6,7 @@ import { io, Socket } from 'socket.io-client';
  */
 export function isChatSocketEnabled(): boolean {
   const raw = String(import.meta.env.VITE_SOCKET_URL ?? '').trim();
-  if (!raw) return false;
+  if (!raw) return import.meta.env.VITE_COMMERCE_BACKEND !== 'legacy';
   const lowered = raw.toLowerCase();
   if (lowered === 'disabled' || lowered === 'false' || lowered === 'off' || lowered === '0') {
     return false;
@@ -14,7 +14,8 @@ export function isChatSocketEnabled(): boolean {
   return true;
 }
 
-const SOCKET_URL = String(import.meta.env.VITE_SOCKET_URL || '').trim();
+const SOCKET_URL = String(import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_LIVE_SOCKET_URL ||
+  (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:8090` : window.location.origin)).trim();
 
 let socket: Socket | null = null;
 let noOpSocket: Socket | null = null;
