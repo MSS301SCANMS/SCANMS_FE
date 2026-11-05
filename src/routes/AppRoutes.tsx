@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, type ComponentType, useSyncExternalStore } from 'react';
 
 function lazyRetry<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
@@ -32,6 +32,7 @@ const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboar
 const ShopApplicationPage = lazyRetry(() => import('../pages/merchant/ShopApplicationPage'));
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
 const ChatBoxPage = lazyRetry(() => import('../pages/chat/ChatBoxPage'));
+const ScanmsFloatingChatWidget = lazyRetry(() => import('../components/chat/ScanmsFloatingChatWidget'));
 const ChatSampleRequestsPage = lazyRetry(() => import('../pages/shared/ChatSampleRequestsPage'));
 const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage'));
@@ -72,6 +73,16 @@ import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
 import { StorePresenceHeartbeat } from '../components/store/StorePresenceHeartbeat';
 import { canAccessShopping } from '../utils/shopping-access';
 import { authService } from '../services/auth.service';
+import { useAuthUser } from '../hooks/useAuthUser';
+
+function ChatEntry() {
+  const user = useAuthUser();
+  const location = useLocation();
+  if (!user || !localStorage.getItem('token')) {
+    return <Navigate to={`/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
+  }
+  return <ChatBoxPage />;
+}
 
 function AdminUsersEntry() {
   const role = authService.getCurrentUser()?.role;
@@ -174,7 +185,7 @@ function AppRoutes() {
               <Route path="/app" element={<Navigate to="/" replace />} />
               <Route path="/app/:screenId" element={<Navigate to="/" replace />} />
               <Route path="/leaderboard" element={<Navigate to="/" replace />} />
-              <Route path="/chat" element={<Navigate to="/customer/orders" replace />} />
+              <Route path="/chat" element={<ChatEntry />} />
 
               {/* Customer portal */}
               <Route element={<CustomerPortalGuard />}>
@@ -306,6 +317,9 @@ function AppRoutes() {
           </Suspense>
         </ErrorBoundary>
         <ShoppingChrome />
+        <Suspense fallback={null}>
+          <ScanmsFloatingChatWidget />
+        </Suspense>
       </CartProvider>
     </Router>
   );
