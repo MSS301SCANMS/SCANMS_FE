@@ -112,6 +112,7 @@ export interface ChatChatMessageItem {
   timestamp: string;
   createdAt?: string;
   delivery?: 'sending' | 'sent' | 'failed';
+  uploadProgress?: number;
   product?: ChatProductInfo;
   products?: ChatProductInfo[];
   coupon?: ChatCouponVoucher;

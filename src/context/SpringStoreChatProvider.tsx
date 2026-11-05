@@ -8,6 +8,8 @@ import {
 import { disconnectChatSocket, getChatSocket } from '@/services/chat-socket.service';
 import type {ChatConversationItem, ChatMessageItem, ChatProductInfo, ChatStoreInfo} from '@/types/chat.types';
 import { toast } from '@/utils/toast';
+import { attachmentError, chatMessagePreview } from '@/utils/chat-attachment.utils';
+import type { ChatAttachmentType } from '@/types/chat.types';
 
 function account() {
   try {
@@ -50,7 +52,7 @@ function conversation(raw: StoreChatConversation): ChatConversationItem {
     peerName: raw.isStoreOwner ? raw.customer?.fullName || 'Khách hàng' : raw.store.name,
     store: {id: raw.storeId, name: raw.store.name, logoUrl: raw.store.logoUrl},
     unreadCount: raw._count?.chatMessages || 0, messages: [],
-    lastMessage: raw.chatMessages?.[0]?.messageText || 'Bắt đầu trò chuyện',
+    lastMessage: chatMessagePreview(raw.chatMessages?.[0]?.messageText || 'Bắt đầu trò chuyện'),
     lastTime: raw.chatMessages?.[0]?.createdAt ? new Date(raw.chatMessages[0].createdAt).toLocaleString('vi-VN') : ''
   };
 }
@@ -71,6 +73,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
   const generation = useRef(0);
   const inboxRequest = useRef(0);
   const rowsRef = useRef(conversations);
+  const pendingFiles = useRef(new Map<string, File>());
   rowsRef.current = conversations;
   const visible = useRef({id: activeConversationId, open: isOpen && !isMinimized});
   visible.current = {id: activeConversationId, open: isOpen && !isMinimized};
@@ -98,6 +101,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
       if (next !== scope.current) {
         scope.current = next;
         generation.current++;
+        pendingFiles.current.clear();
         setUserId(next);
         setConversations([]);
         setActive('');
@@ -124,8 +128,9 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
     const current = userId;
     const receive = (raw: StoreChatMessage) => {
       if (current !== scope.current) return;
+      pendingFiles.current.delete(raw.id);
       setConversations(previous => previous.map(row => row.id === raw.conversationId ? {
-        ...row, lastMessage: raw.messageText, lastTime: new Date(raw.createdAt).toLocaleString('vi-VN'),
+        ...row, lastMessage: chatMessagePreview(raw.messageText), lastTime: new Date(raw.createdAt).toLocaleString('vi-VN'),
         unreadCount: raw.senderId !== current && !(visible.current.open && visible.current.id === row.id) ? row.unreadCount + (row.messages.some(m => m.id === raw.id) ? 0 : 1) : row.unreadCount,
         messages: merge(row.messages, [message(raw, current)]),
       } : row));
@@ -168,6 +173,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
       try {
         const rows = await service.history(activeConversationId);
         if (cancelled || revision !== generation.current) return;
+        for (const raw of rows) pendingFiles.current.delete(raw.id);
         setConversations(previous => previous.map(row => row.id === activeConversationId ? {
           ...row,
           unreadCount: 0,
@@ -272,10 +278,61 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
     void deliver(activeConversationId, pending.content, id);
     return true;
   };
+  const deliverAttachment = async (conversationId: string, id: string, file: File) => {
+    const current = scope.current;
+    const update = (values: Partial<ChatMessageItem>) => {
+      if (current !== scope.current) return;
+      setConversations(previous => previous.map(row => row.id === conversationId ? {
+        ...row, messages: row.messages.map(item => item.id === id && item.delivery !== 'sent' ? { ...item, ...values } : item),
+      } : row));
+    };
+    update({ delivery: 'sending', uploadProgress: 0 });
+    try {
+      const raw = await service.upload(conversationId, file, id, percent => update({ uploadProgress: percent }));
+      if (current !== scope.current) return false;
+      pendingFiles.current.delete(id);
+      setConversations(previous => previous.map(row => row.id === conversationId ? {
+        ...row, messages: merge(row.messages, [message(raw, current)]),
+      } : row));
+      // The multipart endpoint already committed both file and message. Reuse that identity
+      // for the relay broadcast; a lost relay ACK cannot turn the saved message into a failure.
+      void service.send(conversationId, raw.messageText, raw.id).catch(() => undefined);
+      void refreshInbox();
+      return true;
+    } catch (error) {
+      if (current !== scope.current) return false;
+      if (rowsRef.current.find(row => row.id === conversationId)?.messages.some(item => item.id === id && item.delivery === 'sent')) {
+        pendingFiles.current.delete(id);
+        return true;
+      }
+      update({ delivery: 'failed', uploadProgress: undefined });
+      if (current === scope.current) setError(errorText(error));
+      return false;
+    }
+  };
+  const sendAttachment = async (file: File, _type: ChatAttachmentType) => {
+    const error = attachmentError(file);
+    if (error) throw new Error(error);
+    if (!activeConversationId) throw new Error('Chọn cuộc trò chuyện trước khi gửi tệp.');
+    const id = crypto.randomUUID();
+    pendingFiles.current.set(id, file);
+    const pending: ChatMessageItem = {
+      id, sender: 'user', delivery: 'sending', uploadProgress: 0,
+      timestamp: new Date().toLocaleString('vi-VN'), createdAt: new Date().toISOString(),
+      content: JSON.stringify({ type: 'ATTACHMENT', attachmentId: id, fileName: file.name,
+        contentType: file.type, sizeBytes: file.size, mediaType: /\.(jpe?g|png|webp)$/i.test(file.name) ? 'IMAGE' : 'DOCUMENT' }),
+    };
+    setConversations(previous => previous.map(row => row.id === activeConversationId ? {
+      ...row, messages: merge(row.messages, [pending]),
+    } : row));
+    void deliverAttachment(activeConversationId, id, file);
+  };
   const retryMessage = async (id: string) => {
     const row = rowsRef.current.find(c => c.messages.some(m => m.id === id));
     const item = row?.messages.find(m => m.id === id);
-    return row && item?.delivery === 'failed' ? deliver(row.id, item.content, id) : false;
+    const file = pendingFiles.current.get(id);
+    if (!row || item?.delivery !== 'failed') return false;
+    return file ? deliverAttachment(row.id, id, file) : deliver(row.id, item.content, id);
   };
   const loadOlderMessages = async () => {
     const id = activeConversationId, current = scope.current;
@@ -323,9 +380,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
       return true;
     },
     clearActiveProduct: () => setActiveProduct(null),
-    sendAttachment: async () => {
-      throw new Error('Hiện hỗ trợ tin nhắn văn bản và thẻ sản phẩm.');
-    },
+    sendAttachment,
     shareCouponVoucher: () => false,
     deleteConversation: async () => false,
     clearConversationMessages: async () => false,

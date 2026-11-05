@@ -36,6 +36,20 @@ export const storeChatService = {
     params: {take: 50, cursor}, headers: {'x-skip-cache': '1'},
   })),
   read: (id: string) => api.patch(`/chat/conversations/${id}/read`),
+  async upload(conversationId: string, file: File, messageId: string, progress: (percent: number) => void) {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('messageId', messageId);
+    return unwrap<StoreChatMessage>(await api.post(`/chat/conversations/${conversationId}/attachments`, body, {
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000,
+      onUploadProgress: event => progress(Math.min(99, Math.round(event.loaded / (event.total || file.size) * 100))),
+    }));
+  },
+  async download(conversationId: string, attachmentId: string): Promise<Blob> {
+    return await api.get(`/chat/conversations/${conversationId}/attachments/${encodeURIComponent(attachmentId)}`, {
+      responseType: 'blob', headers: { 'x-skip-cache': '1' }, timeout: 120000,
+    }) as unknown as Blob;
+  },
   async send(conversationId: string, messageText: string, messageId: string): Promise<StoreChatMessage> {
     const socket = getChatSocket();
     if (!isChatSocketEnabled() || !socket.connected)
