@@ -22,6 +22,7 @@ import {
 } from '../../services/analytics.service';
 import { productService, type Product } from '../../services/product.service';
 import { orderService, type StoreOrderRecord } from '../../services/order.service';
+import { orderDisplayCode } from '../../utils/order-display-code';
 
 import { StatCard } from '../../components/ui/StatCard';
 import { ListPagination } from '../../components/ui/ListPagination';
@@ -246,8 +247,11 @@ export default function ShopDashboardPage() {
                     <ShoppingBag className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <strong className="text-xs font-bold text-[#1A1612] block truncate">
-                      Đơn #{order.externalOrderSn}
+                    <strong
+                      className="text-xs font-bold text-[#1A1612] block truncate"
+                      title={`Mã đơn đầy đủ: ${order.externalOrderSn}`}
+                    >
+                      Đơn {orderDisplayCode(order.externalOrderSn)}
                     </strong>
                     <span className="text-[11px] text-[#7D715E] block truncate">
                       {order.customerName} • {order.items.length} món

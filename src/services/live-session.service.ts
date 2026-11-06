@@ -14,7 +14,7 @@ export const liveSessionService = {
     const profile = unwrapApi<any>(profileResponse);
     if (!Array.isArray(sessions)) throw new Error('Không tải được danh sách phiên livestream.');
     if (!profile?.collaboratorId) return [];
-    return sessions.filter(row => row.collaboratorRefs?.collaboratorIds?.includes(profile.collaboratorId)
+    const mine = sessions.filter(row => row.collaboratorRefs?.collaboratorIds?.includes(profile.collaboratorId)
       || (!row.livestreamId && row.creator?.id === profile.userId)).map(row => ({
       ...row,
       participantRefs: {
@@ -22,6 +22,22 @@ export const liveSessionService = {
         inviteStatus: row.participantRefs?.collaboratorResponses?.[profile.collaboratorId]
           || row.participantRefs?.inviteStatus || row.inviteStatus || 'PENDING',
       },
+    }));
+    // Cards show two products. Resolve only those previews, once per unique ID.
+    const previewIds = [...new Set<string>(mine.flatMap(row =>
+      (row.productRefs?.productIds || []).slice(0, 2),
+    ))];
+    const previews = await Promise.allSettled(previewIds.map(async id => {
+      const product = unwrapApi<any>(await api.get(`/public/products/${encodeURIComponent(id)}`));
+      return [id, product] as const;
+    }));
+    const products = new Map(previews.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+    return mine.map(row => ({
+      ...row,
+      products: (row.productRefs?.productIds || []).map((id: string) => {
+        const product = products.get(id);
+        return { product: { id, title: product?.title || product?.name || '', imageUrl: product?.imageUrl || null } };
+      }),
     }));
   },
 
