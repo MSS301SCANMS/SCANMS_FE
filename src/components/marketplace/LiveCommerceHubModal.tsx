@@ -18,6 +18,7 @@ import api from '../../services/api';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import { toast } from '../../utils/toast';
 import { liveBroadcastService } from '@/services/live-broadcast.service';
+import { resolveLivestreamShareUrl } from '../../utils/livestream-share-url';
 
 interface LiveCommerceHubModalProps {
   isOpen: boolean;
@@ -165,11 +166,12 @@ export function LiveCommerceHubModal({ isOpen, onClose }: LiveCommerceHubModalPr
     });
   };
 
-  const handleShare = (session: any) => {
-    const url = `${window.location.origin}/live/${session.id}`;
-    if (navigator.clipboard) {
-      void navigator.clipboard.writeText(url);
+  const handleShare = async (session: any) => {
+    try {
+      await navigator.clipboard.writeText(await resolveLivestreamShareUrl(session.id));
       toast.success('Đã sao chép liên kết phiên live!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Chưa sao chép được liên kết. Vui lòng thử lại.');
     }
   };
 

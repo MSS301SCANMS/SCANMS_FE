@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core';
 const base = process.env.GHN_UI_TEST_URL;
 const executablePath = process.env.GHN_UI_BROWSER_PATH;
 
-test('registration handles duplicate identities, validates confirmation and preserves successful registration when automatic login fails', {
+test('registration validates identities and returns to login with the shared destination without automatic login', {
   skip: !base || !executablePath || !existsSync(executablePath), timeout: 45000,
 }, async () => {
   const origin = new URL(base).origin;
@@ -87,7 +87,7 @@ test('registration handles duplicate identities, validates confirmation and pres
     assert.equal(destination.searchParams.get('email'), 'buyer@example.test');
     assert.equal(destination.searchParams.get('redirect'), '/marketplace');
     assert.equal(writes.filter(write => write.path.endsWith('/auth/register')).length, 3);
-    assert.equal(writes.filter(write => write.path.endsWith('/auth/login')).length, 1);
+    assert.equal(writes.filter(write => write.path.endsWith('/auth/login')).length, 0);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

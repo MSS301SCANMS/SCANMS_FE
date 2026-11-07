@@ -114,6 +114,7 @@
 .login-form-heading h2 > span { color: #B88E4F; }
 .login-form-panel input:not([type='checkbox']), .login-form-panel button.h-11 { min-height: 44px; font-size: 13px; }
 .login-form-panel input::placeholder { color: #7D715E; }
+.login-form-panel > * { width: 100%; max-width: 400px; margin-inline: auto; min-width: 0; }
 .login-form-panel label { font-weight: 500; }
 .login-form-panel form { display: flex; flex-direction: column; gap: 12px; }
 .login-form-panel form > * { margin-block: 0; }

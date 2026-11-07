@@ -4,7 +4,7 @@ import '../../components/live/LiveReactionFlight.css';
 import { LiveVoucherDropDialog } from '../../components/live/LiveVoucherDropDialog';
 import { HostStudioProducts } from '../../components/live/HostStudioProducts';
 import { LivePinnedProductCard, LiveReactionDock } from '../../components/live/LiveRoomCommerce';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Eye,
@@ -46,6 +46,8 @@ import { toast } from '../../utils/toast';
 import { cn } from '../../utils/cn';
 import { useLiveStreamTransport } from '../../hooks/useLiveStreamTransport';
 import { unwrapApi } from '../../utils/api-response';
+import { resolveLivestreamShareUrl } from '../../utils/livestream-share-url';
+import { productLoginUrl } from '../../utils/login-return';
 import { liveCommerceService, liveCommerceErrorMessage, isLiveOfferActive, type LiveCommerce } from '../../services/live-commerce.service';
 import { LiveCommercePanel } from '../../components/live/LiveCommercePanel';
 import { couponService } from '../../services/coupon.service';
@@ -375,6 +377,7 @@ const resolveUserProfile = (msg: ChatMessage, currentUser: any, sessionData?: an
 export default function LiveStreamRoomPage() {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addItem, buyNow, startCheckout, totalCount: cartTotalCount } = useCart();
   const currentUser = authService.getCurrentUser();
 
@@ -778,6 +781,11 @@ export default function LiveStreamRoomPage() {
   // Load session info from API
   useEffect(() => {
     let active = true;
+    const loginUrl = productLoginUrl(`${location.pathname}${location.search}${location.hash}`);
+    if (!legacyLive && identifier !== 'demo' && !localStorage.getItem('token')) {
+      navigate(loginUrl, { replace: true });
+      return;
+    }
     async function load() {
       try {
         setLoading(true);
@@ -787,6 +795,10 @@ export default function LiveStreamRoomPage() {
           setSessionData(data);
         }
       } catch (error: any) {
+        if (active && (error?.response?.status === 401 || error?.status === 401 || !localStorage.getItem('token'))) {
+          navigate(loginUrl, { replace: true });
+          return;
+        }
         if (active) setSessionLoadError(error?.message || 'Chưa tải được phiên livestream. Vui lòng thử lại.');
       } finally {
         if (active) setLoading(false);
@@ -796,7 +808,7 @@ export default function LiveStreamRoomPage() {
     return () => {
       active = false;
     };
-  }, [identifier]);
+  }, [identifier, navigate, location.pathname, location.search, location.hash]);
 
   // Clean up camera on unmount
   useEffect(() => {
@@ -1403,7 +1415,7 @@ export default function LiveStreamRoomPage() {
   if (!loading && !sessionData && identifier !== 'demo') {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[#FAF8F5] text-[#1A1612]">
-        <p className="text-lg font-bold">Không tìm thấy phiên SCANMS Live này.</p>
+        <p className="text-lg font-bold">Chưa mở được phiên SCANMS Live này.</p>
         {sessionLoadError && <p role="alert" className="max-w-lg px-4 text-center text-sm text-[#7D715E]">{sessionLoadError}</p>}
         <button type="button" onClick={() => navigate('/')} className="rounded-xl bg-[#C59B58] px-4 py-2 font-semibold text-white">Về trang chủ</button>
       </div>
@@ -1599,12 +1611,13 @@ export default function LiveStreamRoomPage() {
             <button
               type="button"
               onClick={isCameraActive ? stopCamera : startCamera}
+              disabled={!isCameraActive && !legacyLive && (sessionData?.status !== 'LIVE' || !roomJoined)}
               className={`live-room-camera live-room-tool ${
                 isCameraActive
                   ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                   : 'bg-white hover:bg-[#FAF8F5] text-[#1A1612] border border-[#EAE4D7]'
               }`}
-              title={isCameraActive ? 'Tắt camera trực tiếp' : 'Bật camera máy tính để phát sóng'}
+              title={isCameraActive ? 'Tắt camera trực tiếp' : !legacyLive && sessionData?.status !== 'LIVE' ? 'Chờ shop bắt đầu phiên livestream' : !legacyLive && !roomJoined ? 'Đang kết nối phòng livestream' : 'Bật camera máy tính để phát sóng'}
             >
               {isCameraActive ? (
                 <>
@@ -1683,10 +1696,12 @@ export default function LiveStreamRoomPage() {
           {/* Share Room */}
           <button
             type="button"
-            onClick={() => {
-              if (navigator.clipboard) {
-                void navigator.clipboard.writeText(window.location.href);
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(await resolveLivestreamShareUrl(identifier));
                 toast.success('Đã sao chép link phòng live');
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Chưa sao chép được liên kết. Vui lòng thử lại.');
               }
             }}
             className="live-room-tool live-room-share"

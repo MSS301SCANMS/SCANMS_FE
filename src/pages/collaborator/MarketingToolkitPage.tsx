@@ -32,8 +32,8 @@ export default function MarketingToolkitPage() {
       aria-label="Công cụ tiếp thị"
       className="flex flex-col gap-4 w-full min-w-0 text-[#1A1612] pb-16 md:pb-0"
     >
-      <div className="mb-1 grid w-full min-w-0 grid-cols-1 gap-2 rounded-2xl border border-[#EAE4D7] bg-white p-2.5 md:grid-cols-4">
-        <div role="tablist" aria-label="Công cụ tiếp thị" className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 md:col-span-3">
+      <div className="mb-1 grid w-full min-w-0 grid-cols-1 gap-2 rounded-2xl border border-[#EAE4D7] bg-white p-2.5 xl:grid-cols-5">
+        <div role="tablist" aria-label="Công cụ tiếp thị" className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const selected = activeTab === tab.id;

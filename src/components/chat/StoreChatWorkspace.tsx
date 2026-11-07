@@ -76,6 +76,9 @@ function ScopedStoreChatWorkspace({floating = false, storeId, customerId, storeN
     };
   }, []);
   if (floating && (!chat.accountId || location.pathname.includes('/chat') || location.pathname.includes('/messages') || location.pathname.includes('/admin') || location.pathname.includes('/login') || location.pathname.includes('/register'))) return null;
+  // The floating launcher would cover the live room's comment send button.
+  // Explicitly opening a shop conversation from the room still shows its panel.
+  if (floating && !chat.isOpen && /^\/live(?:\/|$)/.test(location.pathname)) return null;
   if (floating && !chat.isOpen) return <button aria-label="Mở chat"
                         className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-2xl bg-[#C59B58] px-4 py-3 text-white shadow-lg"
                         onClick={() => chat.openChat()}><MessageSquare

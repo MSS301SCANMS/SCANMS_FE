@@ -5,9 +5,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { createRequire } from 'node:module';
-import { createLiveServer } from '../../be/livestream-realtime/server.mjs';
-const require=createRequire(new URL('../../be/livestream-realtime/package.json',import.meta.url));
-const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('../../be/livestream-realtime/node_modules/jose/dist/webapi/index.js',import.meta.url).href);
+import { createLiveServer } from '../../SCANMS_BE/livestream-realtime/server.mjs';
+const require=createRequire(new URL('../../SCANMS_BE/livestream-realtime/package.json',import.meta.url));
+const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('../../SCANMS_BE/livestream-realtime/node_modules/jose/dist/webapi/index.js',import.meta.url).href);
 const base=process.env.GHN_UI_TEST_URL,executablePath=process.env.GHN_UI_BROWSER_PATH;
 const relayPort=Number(process.env.LIVE_TEST_RELAY_PORT||8090);
 
@@ -96,6 +96,7 @@ test('real WebRTC carries KOL camera/microphone to customer and shop, deduplicat
   await shop.screenshot({path:fileURLToPath(new URL('shop.png',artifacts))});
   await viewer.screenshot({path:fileURLToPath(new URL('viewer.png',artifacts))});
   await host.screenshot({path:fileURLToPath(new URL('host.png',artifacts))});
+  assert.equal(await viewer.$('button[aria-label="Mở chat"]'),null,'floating chat must not cover the live comment composer');
   await viewer.type('input[placeholder="Gửi bình luận hoặc hỏi KOC..."]','Customer sends from the real chat form');
   await viewer.click('button[aria-label="Gửi bình luận"]');
   await host.waitForFunction(()=>document.body.innerText.includes('Customer sends from the real chat form'));

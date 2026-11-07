@@ -1,6 +1,7 @@
 import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { livestreamLifecycle, livestreamStatusLabel } from '../../utils/livestream-lifecycle.utils';
+import { getLivestreamShareUrl } from '../../utils/livestream-share-url';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
@@ -300,7 +301,7 @@ export default function LiveSessionsPage({
       description: raw.description,
       platform: participants.platform || 'SCANMS',
       liveUrl: (participants.platform || 'SCANMS') === 'SCANMS'
-        ? `${window.location.origin}/live/${encodeURIComponent(raw.livestreamId || raw.id)}` : raw.playbackRef || participants.liveUrl || '',
+        ? getLivestreamShareUrl(raw.livestreamId || raw.id) : raw.playbackRef || participants.liveUrl || '',
       externalChannels: participants.externalChannels || [],
       startsAt: serverDate(raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
       endsAt: serverDate(raw.endedAt || participants.endsAt || raw.endsAt || raw.scheduledAt || raw.createdAt) || '',
@@ -346,18 +347,27 @@ export default function LiveSessionsPage({
     }
   }, [mapLivestream]);
 
+  const hasPendingInvitations = sessions.some(session => session.status === 'SCHEDULED' && session.inviteStatus === 'PENDING');
   useEffect(() => {
     if (!storeId || !_isActive) return;
     let refreshing = false;
+    let disposed = false;
     const refresh = async () => {
-      if (refreshing || document.hidden) return;
+      if (disposed || refreshing || document.hidden) return;
       refreshing = true;
       try { await loadSessions(storeId, false); } finally { refreshing = false; }
     };
-    const timer = window.setInterval(() => void refresh(), 15000);
+    const timer = window.setInterval(() => void refresh(), hasPendingInvitations ? 3000 : 15000);
     window.addEventListener('focus', refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [storeId, _isActive, loadSessions]);
+    document.addEventListener('visibilitychange', refresh);
+    void refresh();
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [storeId, _isActive, hasPendingInvitations, loadSessions]);
 
   useEffect(() => {
     let active = true;
@@ -384,7 +394,7 @@ export default function LiveSessionsPage({
         ]);
         if (!active) return;
         const products = productsRes.items
-          .filter((product) => product.isActive)
+          .filter((product) => product.isActive && product.storeId === sId)
           .map((p) => ({
             id: p.id,
             title: p.title,

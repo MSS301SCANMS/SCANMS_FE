@@ -20,7 +20,7 @@ type LiveStreamTransportOptions = {
   onReactionBroadcast?: (data: { emoji: string; iconUrl?: string }) => void;
 };
 
-const SOCKET_URL = String(import.meta.env.VITE_LIVE_SOCKET_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:8090` : '')).trim();
+const SOCKET_URL = String(import.meta.env.VITE_LIVE_SOCKET_URL || (['localhost', '127.0.0.1'].includes(window.location.hostname) ? `${window.location.protocol}//${window.location.hostname}:8090` : window.location.origin)).trim();
 const ICE_SERVERS: RTCIceServer[] = (() => { try {
   const servers = JSON.parse(import.meta.env.VITE_LIVE_ICE_SERVERS || 'null');
   if (Array.isArray(servers) && servers.length) return servers;

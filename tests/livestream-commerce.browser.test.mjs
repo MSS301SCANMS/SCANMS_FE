@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 import { io } from 'socket.io-client';
-import { createLiveServer } from '../../be/livestream-realtime/server.mjs';
-import { generateKeyPair, SignJWT, jwtVerify } from '../../be/livestream-realtime/node_modules/jose/dist/webapi/index.js';
+import { createLiveServer } from '../../SCANMS_BE/livestream-realtime/server.mjs';
+import { generateKeyPair, SignJWT, jwtVerify } from '../../SCANMS_BE/livestream-realtime/node_modules/jose/dist/webapi/index.js';
 const base=process.env.GHN_UI_TEST_URL, executablePath=process.env.GHN_UI_BROWSER_PATH;
 const relayPort=Number(process.env.LIVE_TEST_RELAY_PORT||8090);
 

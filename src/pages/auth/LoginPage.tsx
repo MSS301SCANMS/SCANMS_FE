@@ -35,11 +35,11 @@ interface RoleOption {
 }
 
 const ROLES: RoleOption[] = [
-  { id: 'customer', label: 'Khách mua', icon: ShoppingBag, email: 'customer01@scanms.com', badge: 'Hoàng Mai Anh (Khách mua)' },
-  { id: 'kol', label: 'KOL/KOC', icon: Sparkles, email: 'kolctv01@scanms.com', badge: 'Lê Hoàng Long (KOL/KOC)' },
-  { id: 'shop', label: 'Chủ Shop', icon: Store, email: 'shopowner01@scanms.com', badge: 'Nguyễn Văn Thịnh (Sora Fashion)' },
-  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: 'manager01@scanms.com', badge: 'Phạm Minh Đức (Quản Lý Sàn)' },
-  { id: 'admin', label: 'Quản trị', icon: Crown, email: 'admin@scanms.com', badge: 'Quản Trị Viên Hệ Thống' },
+  { id: 'customer', label: 'Khách mua', icon: ShoppingBag, email: import.meta.env.DEV ? 'customer01@scanms.com' : '', badge: 'Hoàng Mai Anh (Khách mua)' },
+  { id: 'kol', label: 'KOL/KOC', icon: Sparkles, email: import.meta.env.DEV ? 'kolctv01@scanms.com' : '', badge: 'Lê Hoàng Long (KOL/KOC)' },
+  { id: 'shop', label: 'Chủ Shop', icon: Store, email: import.meta.env.DEV ? 'shopowner01@scanms.com' : '', badge: 'Nguyễn Văn Thịnh (Sora Fashion)' },
+  { id: 'manager', label: 'Vận hành', icon: ShieldCheck, email: import.meta.env.DEV ? 'manager01@scanms.com' : '', badge: 'Phạm Minh Đức (Quản Lý Sàn)' },
+  { id: 'admin', label: 'Quản trị', icon: Crown, email: import.meta.env.DEV ? 'admin@scanms.com' : '', badge: 'Quản Trị Viên Hệ Thống' },
 ];
 
 export default function LoginPage() {
@@ -62,14 +62,13 @@ export default function LoginPage() {
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [identifier, setIdentifier] = useState(() => {
     if (registeredEmail) return registeredEmail;
-    const roleOpt = ROLES.find(r => r.id === role);
     const account = getDemoLogin(role);
-    return account?.identifier || roleOpt?.email || '';
+    return account?.identifier || '';
   });
   const [password, setPassword] = useState(() => {
     if (registeredEmail) return '';
     const account = getDemoLogin(role);
-    return account?.password || '123456';
+    return account?.password || (import.meta.env.DEV ? '123456' : '');
   });
   const [passwordAuthState, setPasswordAuthState] = useState<PasswordAuthState>('idle');
   const [rememberMe, setRememberMe] = useState(true);
@@ -91,10 +90,9 @@ export default function LoginPage() {
 
   const handleRoleSelect = (selectedRole: RoleType) => {
     if (loading || passwordAuthState === 'success') return;
-    const roleOpt = ROLES.find(r => r.id === selectedRole);
     const account = getDemoLogin(selectedRole);
-    const targetEmail = account?.identifier || roleOpt?.email || '';
-    const targetPassword = account?.password || '123456';
+    const targetEmail = account?.identifier || '';
+    const targetPassword = account?.password || (import.meta.env.DEV ? '123456' : '');
     setIdentifier(targetEmail);
     setPassword(targetPassword);
     setPasswordAuthState('idle');
@@ -280,9 +278,11 @@ export default function LoginPage() {
                               <div className="text-xs font-bold leading-tight">
                                 {r.label} · <span className="text-[#7D715E] font-normal">{r.badge}</span>
                               </div>
-                              <div className="text-[10px] text-[#7D715E] font-mono">
-                                {r.email}
-                              </div>
+                              {import.meta.env.DEV && r.email && (
+                                <div className="text-[10px] text-[#7D715E] font-mono">
+                                  {r.email}
+                                </div>
+                              )}
                             </div>
                           </div>
                           {isSelected && (
