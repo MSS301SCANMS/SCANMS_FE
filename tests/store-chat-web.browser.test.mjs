@@ -34,10 +34,14 @@ test('web chat sends through relay, retries the same message, reloads and negoti
     if (path.endsWith('/messages')) return reply([...messages.values()]);
     if (path.endsWith('/read')) return reply(null);
     if (path.endsWith('/stores/mine')) return reply(user === 'owner' ? [{ storeId: 'shop', name: 'Fixture Shop' }] : []);
-    if (path.endsWith('/partners')) return reply([{ storeId: 'shop', customerId: 'kol', name: 'Fixture KOL' }]);
+    if (path.endsWith('/partners')) return reply([{ storeId: 'shop', customerId: 'kol', collaboratorId: 'kol-profile', name: 'Fixture KOL' }]);
+    if (path.includes('/invitations/') && method === 'GET') return reply([{ id: 'invitation', storeId: 'shop', storeName: 'Fixture Shop',
+      collaboratorId: 'kol-profile', collaboratorName: 'Fixture KOL', status: 'ACCEPTED', message: 'Partnership fixture', createdAt: new Date().toISOString() }]);
+    if ((path.endsWith('/commission-deals/mine') || path.endsWith('/commission-deals/shop')) && method === 'GET') return reply(deal ? [deal] : []);
+    if ((path.endsWith('/sample-requests/my') || path.endsWith('/sample-requests/shop')) && method === 'GET') return reply(sample ? [sample] : []);
     if (path.endsWith('/public/products')) return reply({ items: [{ id: 'shirt', name: 'Fixture Shirt', title: 'Fixture Shirt' }] });
     if (path.endsWith('/commission-deals') && method === 'POST') {
-      deal = { id: 'deal', productId: 'shirt', productName: 'Fixture Shirt', collaboratorName: 'Fixture KOL', baseRate: 10, extraPoints: body.extraPoints, message: body.message,
+      deal = { id: 'deal', storeId: 'shop', collaboratorId: 'kol-profile', productId: 'shirt', productName: 'Fixture Shirt', collaboratorName: 'Fixture KOL', baseRate: 10, extraPoints: body.extraPoints, message: body.message,
         status: 'PENDING', version: 0, proposedByUserId: 'kol', negotiationHistory: [{ actorId: 'kol', action: 'PROPOSE', baseRate: 10, extraPoints: body.extraPoints, note: body.message, at: new Date().toISOString() }] };
       return reply(deal);
     }
@@ -101,7 +105,7 @@ test('web chat sends through relay, retries the same message, reloads and negoti
     page.on('close', () => {});
     return page;
   }
-  const click = async (page, text) => page.evaluate(text => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === text); if (!button) throw new Error('Missing button: ' + text); button.click(); }, text);
+  const click = async (page, text) => page.evaluate(text => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === text || button.getAttribute('aria-label') === text); if (!button) throw new Error('Missing button: ' + text); button.click(); }, text);
   try {
     const kol = await pageFor('kol'), shop = await pageFor('owner');
     await kol.waitForSelector('textarea[aria-label="Tin nhắn"]');

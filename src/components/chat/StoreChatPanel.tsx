@@ -5,11 +5,15 @@ import { Button } from '@/components/ui/Button';
 import { CollaborationChatComposer } from './CollaborationChatComposer';
 import { CollaborationResourceCard } from './CollaborationResourceCard';
 import { parseCollaborationResource } from '@/utils/chat-resource.utils';
-import { ImagePlus, Paperclip, X } from 'lucide-react';
+import { CheckCheck, Handshake, ImagePlus, Loader2, Package, Paperclip, Send, X } from 'lucide-react';
+import type { ResourceKind } from '@/services/collaboration-chat.service';
+import { ChatAvatar } from './ChatAvatar';
 import { StoreChatAttachment } from './StoreChatAttachment';
 import { attachmentError, attachmentSize, CHAT_DOCUMENT_ACCEPT, CHAT_IMAGE_ACCEPT, parseChatAttachment } from '@/utils/chat-attachment.utils';
 
-export function StoreChatPanel() {
+export function StoreChatPanel({ canCollaborate = false, composerMode = '', onComposerModeChange }: {
+  canCollaborate?: boolean; composerMode?: ResourceKind | ''; onComposerModeChange?: (value: ResourceKind | '') => void;
+}) {
   const chat = useScanmsChat();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const scroll = useRef<HTMLDivElement>(null);
@@ -54,15 +58,11 @@ export function StoreChatPanel() {
     if (!text.trim()) return;
     if (await chat.sendMessage(text)) setDrafts(value => ({...value, [id]: value[id] === text ? '' : value[id]}));
   };
-  return <section className="flex h-full min-h-0 flex-col bg-white" aria-label="Nội dung cuộc trò chuyện">
-    <header className="border-b border-[#EAE4D7] px-4 py-3"><strong>{row.peerName || row.store.name}</strong><p
-      className="text-xs text-[#7D715E]" role="status">{chat.connectionState}</p></header>
-    {chat.chatError && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700"
-               role="alert">{chat.chatError}</p>}
+  return <section className="store-chat-thread" aria-label="Nội dung cuộc trò chuyện">
     <div ref={scroll} onScroll={event => {
       const el = event.currentTarget;
       nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    }} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[#FAF8F5] p-4" data-testid="chat-history">
+    }} className="store-chat-history" data-testid="chat-history">
       {chat.hasOlderMessages &&
         <Button size="sm" variant="ghost" loading={chat.loadingMessages} onClick={async () => {
           const previous = scroll.current?.scrollHeight || 0, top = scroll.current?.scrollTop || 0;
@@ -73,15 +73,17 @@ export function StoreChatPanel() {
           });
         }}>Xem tin nhắn cũ hơn</Button>}
       {chat.loadingMessages && !row.messages.length && <p role="status">Đang tải tin nhắn…</p>}
-      {!chat.loadingMessages && !row.messages.length &&
-        <p className="text-sm text-[#7D715E]">Chưa có tin nhắn. Hãy gửi lời chào.</p>}
+      {!chat.loadingMessages && !row.messages.length && <div className="store-chat-panel-empty"><Handshake size={30} />
+        <h3>Cùng bắt đầu cuộc trò chuyện</h3><p>Gửi lời chào hoặc chọn một sản phẩm để trao đổi với {row.peerName || row.store.name}.</p></div>}
       {row.messages.map(message => {
         const card = parseCollaborationResource(message.content);
         const attachment = parseChatAttachment(message.content);
-        return <div key={message.id}
-              className={`flex flex-col ${message.sender === 'user' ? 'items-end' : 'items-start'}`}
+        return <div key={message.id} id={card ? `chat-resource-${card.resourceId}` : undefined}
+              className={`store-chat-message${message.sender === 'user' ? ' store-chat-message--own' : ''}`}
               data-message-id={message.id}>
-          <div className="max-w-[90%] space-y-2">
+          {message.sender !== 'user' && <ChatAvatar small name={message.senderName || row.peerName || row.store.name} src={!row.isStoreOwner ? row.store.logoUrl : undefined} />}
+          <div className="store-chat-message-body">
+            <span className="store-chat-message-author">{message.sender === 'user' ? 'Bạn' : message.senderName || row.peerName || row.store.name}</span>
             {attachment ? <StoreChatAttachment card={attachment} conversationId={id} sent={message.delivery === 'sent'} />
               : card ? <CollaborationResourceCard kind={card.type} id={card.resourceId}
                              isStoreOwner={Boolean(row.isStoreOwner)}/>
@@ -90,35 +92,35 @@ export function StoreChatPanel() {
                   <p>{Number(message.product.price).toLocaleString('vi-VN')} ₫</p><span
                     className="text-[#B88E4F]">Xem sản phẩm</span></Link>
                 :
-                <p className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-sm ${message.sender === 'user' ? 'bg-[#C59B58] text-white' : 'border border-[#EAE4D7] bg-white'}`}>{message.content}</p>}
-            <p className="text-xs text-[#7D715E]">{message.timestamp} · {message.delivery === 'sending' ? `Đang gửi${message.uploadProgress !== undefined ? ` ${message.uploadProgress}%` : ''}` : message.delivery === 'failed' ? 'Gửi thất bại' : 'Đã gửi'}{message.delivery === 'failed' &&
+                <p className="store-chat-message-text">{message.content}</p>}
+            <p className="store-chat-message-meta">{message.timestamp} · {message.delivery === 'sending' ? `Đang gửi${message.uploadProgress !== undefined ? ` ${message.uploadProgress}%` : ''}` : message.delivery === 'failed' ? 'Gửi thất bại' : 'Đã gửi'}
+              {message.delivery === 'sending' ? <Loader2 size={11} className="animate-spin" /> : message.delivery !== 'failed' && message.sender === 'user' ? <CheckCheck size={12} /> : null}
+              {message.delivery === 'failed' &&
               <button className="ml-2 underline" onClick={() => void chat.retryMessage(message.id)}>Gửi
                 lại</button>}</p>
           </div>
         </div>;
       })}
     </div>
-    <CollaborationChatComposer/>
+    {canCollaborate && <CollaborationChatComposer mode={composerMode} onModeChange={onComposerModeChange} hideActions />}
     {chat.activeProduct &&
       <div className="flex items-center justify-between border-t border-[#EAE4D7] px-3 py-2 text-sm"><span>Đang hỏi: {chat.activeProduct.title}</span><Button
         size="sm" onClick={async () => {
         if (chat.activeProduct && await chat.sendProductsInquiry([chat.activeProduct])) chat.clearActiveProduct();
       }}>Gửi sản phẩm</Button></div>}
-    {selectedFile && <div className="flex items-center gap-3 border-t border-[#EAE4D7] px-3 py-2" data-testid="chat-attachment-preview">
+    <form className="store-chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+    {selectedFile && <div className="store-chat-file-preview" data-testid="chat-attachment-preview">
       {preview && <img src={preview} alt="Ảnh chuẩn bị gửi" className="h-14 w-14 rounded-lg object-cover" />}
-      <div className="min-w-0 flex-1 text-sm"><p className="truncate">{selectedFile.name}</p>
-        <span className="text-xs text-[#7D715E]">{attachmentSize(selectedFile.size)}</span></div>
+      <div><p>{selectedFile.name}</p><small>{attachmentSize(selectedFile.size)}</small></div>
       <Button type="button" size="sm" variant="ghost" aria-label="Bỏ tệp đính kèm" onClick={() => setFiles(value => ({ ...value, [id]: undefined }))}><X size={16} /></Button>
     </div>}
     {fileError && <p role="alert" className="px-3 py-1 text-xs text-red-700">{fileError}</p>}
-    <form className="border-t border-[#EAE4D7] p-3" onSubmit={event => {
-      event.preventDefault();
-      void send();
-    }}>
-      <div className="mb-2 flex items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" aria-label="Gửi ảnh" onClick={() => imageInput.current?.click()}><ImagePlus size={18} /> Ảnh</Button>
-        <Button type="button" variant="ghost" size="sm" aria-label="Gửi tài liệu" onClick={() => documentInput.current?.click()}><Paperclip size={18} /> Tài liệu</Button>
-        <span className="ml-auto text-xs text-[#7D715E]">Tối đa 10 MB/tệp</span>
+      <div className="store-chat-composer-tools">
+        <button type="button" aria-label="Gửi ảnh" onClick={() => imageInput.current?.click()}><ImagePlus size={18} />Ảnh</button>
+        <button type="button" aria-label="Gửi tài liệu" onClick={() => documentInput.current?.click()}><Paperclip size={18} />Tài liệu</button>
+        {canCollaborate && <><button type="button" aria-label="Đề xuất hoa hồng" onClick={() => onComposerModeChange?.(composerMode === 'COMMISSION_DEAL' ? '' : 'COMMISSION_DEAL')}><Handshake size={18} />Hoa hồng</button>
+          <button type="button" aria-label="Xin hàng dùng thử" onClick={() => onComposerModeChange?.(composerMode === 'SAMPLE_REQUEST' ? '' : 'SAMPLE_REQUEST')}><Package size={18} />Hàng mẫu</button></>}
+        <small>Tối đa 10 MB/tệp</small>
         {([['Ảnh', CHAT_IMAGE_ACCEPT, imageInput], ['Tài liệu', CHAT_DOCUMENT_ACCEPT, documentInput]] as const).map(([label, accept, ref]) =>
           <input key={label} ref={ref} type="file" accept={accept} className="hidden" aria-label={`Chọn ${label.toLowerCase()}`} onChange={event => {
             const file = event.target.files?.[0];
@@ -129,7 +131,7 @@ export function StoreChatPanel() {
             if (!error) setFiles(value => ({ ...value, [id]: file }));
           }} />)}
       </div>
-      <div className="flex gap-2">
+      <div className="store-chat-composer-row">
         <textarea aria-label="Tin nhắn" value={drafts[id] || ''} maxLength={10000}
           onChange={event => setDrafts(value => ({...value, [id]: event.target.value}))}
           onKeyDown={event => {
@@ -137,9 +139,8 @@ export function StoreChatPanel() {
               event.preventDefault();
               void send();
             }
-          }} placeholder="Nhập tin nhắn…" rows={2}
-          className="min-w-0 flex-1 resize-none rounded-xl border border-[#EAE4D7] p-2 text-sm" />
-        <Button type="submit" disabled={!drafts[id]?.trim() && !selectedFile}>Gửi</Button>
+          }} placeholder="Nhập tin nhắn…" rows={1} />
+        <button type="submit" className="store-chat-send" aria-label="Gửi tin nhắn" disabled={!drafts[id]?.trim() && !selectedFile}><Send size={20} /><span className="sr-only">Gửi</span></button>
       </div>
     </form>
   </section>;

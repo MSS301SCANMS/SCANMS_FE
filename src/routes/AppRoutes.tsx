@@ -240,7 +240,7 @@ function AppRoutes() {
                     <Route path="merchant/kol-hub" element={<Navigate to="/merchant/collaborations" replace />} />
                     <Route path="merchant/customer-messages" element={<ChatBoxPage />} />
                     <Route path="merchant/campaigns" element={<Navigate to="/merchant/promotions" replace />} />
-                    <Route path="merchant/messages" element={<Navigate to="/merchant/orders" replace />} />
+                    <Route path="merchant/messages" element={<ChatBoxPage />} />
                     <Route path="merchant/sample-requests" element={<ChatSampleRequestsPage shop />} />
                     <Route path="merchant/collaborators" element={<Navigate to="/merchant/collaborations" replace />} />
                     <Route path="merchant/analytics" element={<Navigate to="/merchant/dashboard" replace />} />
@@ -269,7 +269,7 @@ function AppRoutes() {
                     <Route path="collaborator/live-sessions" element={<Navigate to="/collaborator/marketing?tab=live" replace />} />
                     <Route path="collaborator/samples" element={<ChatSampleRequestsPage />} />
                     <Route path="collaborator/sample-requests" element={<ChatSampleRequestsPage />} />
-                    <Route path="collaborator/messages" element={<Navigate to="/collaborator/dashboard" replace />} />
+                    <Route path="collaborator/messages" element={<ChatBoxPage />} />
                     <Route path="collaborator/media-hub" element={<Navigate to="/collaborator/marketing?tab=links" replace />} />
                     <Route path="collaborator/campaigns" element={<Navigate to="/collaborator/marketing" replace />} />
                     <Route path="collaborator/social-channels" element={<Navigate to="/collaborator/profile" replace />} />

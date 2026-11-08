@@ -1,20 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { productCommissionDeals } from '@/services/product-commission-deals.service';
 import { collaborationChat } from '@/services/collaboration-chat.service';
 import { useScanmsChat } from '@/context/ScanmsChatContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import type { ResourceKind } from '@/services/collaboration-chat.service';
 
 interface ProductChoice {
   id: string;
   name: string
 }
 
-export function CollaborationChatComposer() {
+export function CollaborationChatComposer({ mode: controlledMode, onModeChange, hideActions = false }: {
+  mode?: ResourceKind | ''; onModeChange?: (mode: ResourceKind | '') => void; hideActions?: boolean;
+}) {
   const {activeConversation: conversation, sendMessage} = useScanmsChat();
+  const cache = useQueryClient();
   const storeId = conversation?.store.id;
-  const [mode, setMode] = useState<'COMMISSION_DEAL' | 'SAMPLE_REQUEST' | ''>('');
+  const [localMode, setLocalMode] = useState<ResourceKind | ''>('');
+  const mode = controlledMode ?? localMode;
+  const changeMode = onModeChange || setLocalMode;
+  const modeRef = useRef(changeMode);
+  modeRef.current = changeMode;
   const [products, setProducts] = useState<ProductChoice[]>([]);
   const [productId, setProduct] = useState('');
   const [points, setPoints] = useState(1);
@@ -32,10 +41,11 @@ export function CollaborationChatComposer() {
   } catch { /* Server remains authoritative. */
   }
   useEffect(() => {
-    setMode('');
+    modeRef.current('');
     setProducts([]);
     setProduct('');
     setError('');
+    setNote(''); setName(''); setPhone(''); setAddress(''); setPoints(1);
   }, [conversation?.id]);
   useEffect(() => {
     if (!mode || !storeId) return;
@@ -84,8 +94,10 @@ export function CollaborationChatComposer() {
           shippingAddress: address
         })).id;
       }
-      await sendMessage(JSON.stringify({type: mode, resourceId: id}));
-      setMode('');
+      if (!await sendMessage(JSON.stringify({type: mode, resourceId: id}))) throw new Error('Chưa đưa được đề xuất vào cuộc trò chuyện. Vui lòng thử lại.');
+      void cache.invalidateQueries({ queryKey: ['chat-deals'] });
+      void cache.invalidateQueries({ queryKey: ['chat-samples'] });
+      changeMode('');
       setNote('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Chưa gửi được đề xuất.');
@@ -93,12 +105,14 @@ export function CollaborationChatComposer() {
       setPending(false);
     }
   };
-  return <div className="border-t border-[#EAE4D7] p-3 text-sm">
-    <div className="flex gap-2"><Button size="sm" variant="outline"
-                      onClick={() => setMode(mode === 'COMMISSION_DEAL' ? '' : 'COMMISSION_DEAL')}>Đề
+  if (hideActions && !mode) return null;
+  return <div className="store-chat-collaboration-form border-t border-[#EAE4D7] bg-[#FFFCF5] p-4 text-sm">
+    {!hideActions && <div className="flex gap-2"><Button size="sm" variant="outline"
+                      onClick={() => changeMode(mode === 'COMMISSION_DEAL' ? '' : 'COMMISSION_DEAL')}>Đề
       xuất hoa hồng</Button><Button size="sm" variant="outline"
-                     onClick={() => setMode(mode === 'SAMPLE_REQUEST' ? '' : 'SAMPLE_REQUEST')}>Xin
-      hàng dùng thử</Button></div>
+                     onClick={() => changeMode(mode === 'SAMPLE_REQUEST' ? '' : 'SAMPLE_REQUEST')}>Xin
+      hàng dùng thử</Button></div>}
+    {hideActions && <p className="font-semibold text-[#947845]">{mode === 'COMMISSION_DEAL' ? 'Đề xuất hoa hồng cho sản phẩm' : 'Yêu cầu hàng dùng thử'}</p>}
     {mode && <form className="mt-3 grid grid-cols-2 gap-2" onSubmit={event => {
       event.preventDefault();
       void submit();
@@ -128,7 +142,7 @@ export function CollaborationChatComposer() {
         className="col-span-2 text-xs text-[#7D715E]">Chỉ bạn và shop được xem địa chỉ. Xin hàng mẫu không thay
         đổi hoa hồng.</p></>}
       <Button type="submit" size="sm" loading={pending} disabled={!productId}>Gửi đề xuất</Button><Button
-      size="sm" variant="ghost" disabled={pending} onClick={() => setMode('')}>Đóng</Button>
+      type="button" size="sm" variant="ghost" disabled={pending} onClick={() => changeMode('')}>Đóng</Button>
     </form>}
     {error && <p role="alert" className="mt-2 text-red-600">{error}</p>}
   </div>;

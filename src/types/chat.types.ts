@@ -70,6 +70,7 @@ export interface ChatStoreInfo {
   logoUrl?: string;
   isVerified?: boolean;
   customerId?: string;
+  slug?: string;
 }
 
 export interface ChatCouponVoucher {
@@ -113,6 +114,7 @@ export interface ChatChatMessageItem {
   createdAt?: string;
   delivery?: 'sending' | 'sent' | 'failed';
   uploadProgress?: number;
+  senderName?: string;
   product?: ChatProductInfo;
   products?: ChatProductInfo[];
   coupon?: ChatCouponVoucher;
@@ -131,6 +133,7 @@ export interface ChatConversationItem {
   peerName?: string;
   lastMessage: string;
   lastTime: string;
+  lastCreatedAt?: string;
   unreadCount: number;
   messages: ChatMessageItem[];
 }
@@ -154,6 +157,8 @@ export interface ScanmsChatContextType {
   loadingMessages: boolean;
   connectionState: string;
   chatError: string;
+  loadingConversations?: boolean;
+  refreshConversations?: () => Promise<void>;
   sendAttachment: (file: File, type: ChatAttachmentType, caption?: string) => Promise<void>;
   sendProductsInquiry: (products: ChatProductInfo[]) => Promise<boolean>;
   shareCouponVoucher: (coupon: ChatCouponVoucher) => boolean;

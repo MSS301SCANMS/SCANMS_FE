@@ -52,6 +52,7 @@ export function CollaborationResourceCard({kind, id, isStoreOwner}: {
       if (sample) await service.sampleDecision(sample, action, note, carrier, tracking);
       await cache.invalidateQueries({queryKey: key});
       await cache.invalidateQueries({queryKey: ['chat-samples']});
+      await cache.invalidateQueries({queryKey: ['chat-deals']});
       if (deal) window.dispatchEvent(new Event('commission-deals-updated'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Chưa xử lý được yêu cầu.');

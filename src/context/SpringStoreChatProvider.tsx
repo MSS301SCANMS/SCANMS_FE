@@ -6,6 +6,7 @@ import {
   type StoreChatMessage
 } from '@/services/store-chat.service';
 import { disconnectChatSocket, getChatSocket } from '@/services/chat-socket.service';
+import { isChatSocketEnabled } from '@/services/chat-socket.service';
 import type {ChatConversationItem, ChatMessageItem, ChatProductInfo, ChatStoreInfo} from '@/types/chat.types';
 import { toast } from '@/utils/toast';
 import { attachmentError, chatMessagePreview } from '@/utils/chat-attachment.utils';
@@ -13,7 +14,8 @@ import type { ChatAttachmentType } from '@/types/chat.types';
 
 function account() {
   try {
-    return String(JSON.parse(localStorage.getItem('user') || '{}').id || '');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return String(user.id || user.userId || '');
   } catch {
     return '';
   }
@@ -36,6 +38,7 @@ function message(raw: StoreChatMessage, userId: string): ChatMessageItem {
   return {
     id: raw.id, sender: raw.senderId === userId ? 'user' : 'shop', content: raw.messageText,
     createdAt: raw.createdAt, timestamp: new Date(raw.createdAt).toLocaleString('vi-VN'), delivery: 'sent',
+    senderName: raw.sender?.fullName,
     ...(product ? {product, products: [product]} : {})
   };
 }
@@ -50,10 +53,11 @@ function conversation(raw: StoreChatConversation): ChatConversationItem {
   return {
     id: raw.id, customerId: raw.customerId, isStoreOwner: raw.isStoreOwner,
     peerName: raw.isStoreOwner ? raw.customer?.fullName || 'Khách hàng' : raw.store.name,
-    store: {id: raw.storeId, name: raw.store.name, logoUrl: raw.store.logoUrl},
+    store: {id: raw.storeId, name: raw.store.name, logoUrl: raw.store.logoUrl, slug: raw.store.slug, isVerified: raw.store.isVerified},
     unreadCount: raw._count?.chatMessages || 0, messages: [],
     lastMessage: chatMessagePreview(raw.chatMessages?.[0]?.messageText || 'Bắt đầu trò chuyện'),
-    lastTime: raw.chatMessages?.[0]?.createdAt ? new Date(raw.chatMessages[0].createdAt).toLocaleString('vi-VN') : ''
+    lastTime: raw.chatMessages?.[0]?.createdAt ? new Date(raw.chatMessages[0].createdAt).toLocaleString('vi-VN') : '',
+    lastCreatedAt: raw.chatMessages?.[0]?.createdAt,
   };
 }
 
@@ -68,6 +72,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
   const [connectionState, setConnection] = useState('Đang kết nối');
   const [chatError, setError] = useState('');
   const [loadingMessages, setLoading] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [hasOlderMessages, setHasOlder] = useState(false);
   const scope = useRef(userId);
   const generation = useRef(0);
@@ -80,7 +85,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
   const refreshInbox = useCallback(async () => {
     const current = scope.current;
     const request = ++inboxRequest.current;
-    if (!current || !localStorage.getItem('token')) return;
+    if (!current || !localStorage.getItem('token')) { setLoadingConversations(false); return; }
     try {
       const rows = await service.list();
       if (current !== scope.current || request !== inboxRequest.current) return;
@@ -91,6 +96,8 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
       setError('');
     } catch (error) {
       if (current === scope.current) setError(errorText(error));
+    } finally {
+      if (current === scope.current && request === inboxRequest.current) setLoadingConversations(false);
     }
   }, []);
 
@@ -104,6 +111,8 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
         pendingFiles.current.clear();
         setUserId(next);
         setConversations([]);
+        setLoadingConversations(true);
+        setError('');
         setActive('');
         setActiveProduct(null);
         setIsOpen(false);
@@ -124,13 +133,14 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId || !localStorage.getItem('token')) return;
+    if (!isChatSocketEnabled()) { setConnection('Đồng bộ qua máy chủ'); return; }
     const socket = getChatSocket();
     const current = userId;
     const receive = (raw: StoreChatMessage) => {
       if (current !== scope.current) return;
       pendingFiles.current.delete(raw.id);
       setConversations(previous => previous.map(row => row.id === raw.conversationId ? {
-        ...row, lastMessage: chatMessagePreview(raw.messageText), lastTime: new Date(raw.createdAt).toLocaleString('vi-VN'),
+        ...row, lastMessage: chatMessagePreview(raw.messageText), lastTime: new Date(raw.createdAt).toLocaleString('vi-VN'), lastCreatedAt: raw.createdAt,
         unreadCount: raw.senderId !== current && !(visible.current.open && visible.current.id === row.id) ? row.unreadCount + (row.messages.some(m => m.id === raw.id) ? 0 : 1) : row.unreadCount,
         messages: merge(row.messages, [message(raw, current)]),
       } : row));
@@ -228,6 +238,7 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
         messages: previous.find(c => c.id === row.id)?.messages || []
       }, ...previous.filter(c => c.id !== row.id)]);
       setActive(row.id);
+      setLoadingConversations(false);
       setError('');
     } catch (error) {
       setError(errorText(error));
@@ -372,6 +383,8 @@ export function SpringStoreChatProvider({children}: { children: ReactNode }) {
     loadingMessages,
     connectionState,
     chatError,
+    loadingConversations,
+    refreshConversations: async () => { setLoadingConversations(true); await refreshInbox(); },
     sendProductsInquiry: async products => {
       for (const p of products) if (!await sendMessage(JSON.stringify({
         type: 'PRODUCT_INQUIRY',

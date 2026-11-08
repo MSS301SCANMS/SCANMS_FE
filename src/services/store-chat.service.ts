@@ -13,6 +13,7 @@ export interface StoreChatMessage {
   messageText: string;
   createdAt: string;
   isRead: boolean;
+  sender?: { fullName?: string };
 }
 
 export interface StoreChatConversation {
@@ -21,7 +22,7 @@ export interface StoreChatConversation {
   customerId: string;
   isStoreOwner: boolean;
   customer: { fullName: string };
-  store: { id?: string; storeId?: string; name: string; logoUrl?: string };
+  store: { id?: string; storeId?: string; name: string; logoUrl?: string; slug?: string; isVerified?: boolean };
   chatMessages: StoreChatMessage[];
   _count: { chatMessages: number };
 }
