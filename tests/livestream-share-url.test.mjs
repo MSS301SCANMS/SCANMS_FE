@@ -51,3 +51,14 @@ test('a failed backend proxy does not produce a supposedly ready share link', as
   t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 502 }));
   await assert.rejects(resolveLivestreamShareUrl('live-id'));
 });
+
+test('without a public deployment the local URL is available, but is never advertised as an Internet link', async t => {
+  browser(t, 'http://localhost:5173');
+  const localSource = readFileSync(new URL('../src/utils/livestream-share-url.ts', import.meta.url), 'utf8')
+    .replaceAll('import.meta.env.VITE_PUBLIC_SITE_URL', "''");
+  const localCode = ts.transpileModule(localSource, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+  const local = await import('data:text/javascript,' + encodeURIComponent(localCode));
+  t.mock.method(globalThis, 'fetch', async () => new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+  assert.equal(local.getLivestreamShareUrl('session'), 'http://localhost:5173/live/session');
+  await assert.rejects(local.resolveLivestreamShareUrl('session'), /HTTPS công khai/);
+});

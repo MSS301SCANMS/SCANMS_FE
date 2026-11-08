@@ -303,7 +303,7 @@ export default function LiveSessionsPage({
       liveUrl: (participants.platform || 'SCANMS') === 'SCANMS'
         ? getLivestreamShareUrl(raw.livestreamId || raw.id) : raw.playbackRef || participants.liveUrl || '',
       externalChannels: participants.externalChannels || [],
-      startsAt: serverDate(raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
+      startsAt: serverDate(raw.startedAt || raw.scheduledAt || raw.startsAt || raw.createdAt) || '',
       endsAt: serverDate(raw.endedAt || participants.endsAt || raw.endsAt || raw.scheduledAt || raw.createdAt) || '',
       ...livestreamLifecycle(raw),
       inviteStatus: participants.inviteStatus || 'PENDING',
@@ -750,9 +750,11 @@ export default function LiveSessionsPage({
     if (changing.current.has(session.id)) return;
     changing.current.add(session.id);setChangingId(session.id);
     try {
+      let broadcastEndsAt = session.endsAt;
       if (action === 'START_NOW' || action === 'start' || action === 'START' || action === 'go_live') {
         const saved = unwrapApi<any>(await api.post(`/livestreams/${session.id}/start`));
         if (saved.status !== 'LIVE') throw new Error('Máy chủ chưa xác nhận bắt đầu phiên.');
+        broadcastEndsAt = serverDate(saved.participantRefs?.endsAt || saved.endsAt) || session.endsAt;
       } else if (action === 'end' || action === 'END' || action === 'stop') {
         const saved = unwrapApi<any>(await api.post(`/livestreams/${session.id}/end`));
         if (saved.status !== 'ENDED') throw new Error('Máy chủ chưa xác nhận kết thúc phiên.');
@@ -769,7 +771,7 @@ export default function LiveSessionsPage({
           creatorName: session.creator?.fullName || 'KOL',
           liveUrl: session.liveUrl || `/live/${session.id}`,
           discountText: session.coupon?.discountValue ? `Giảm ${session.coupon.discountValue}%` : 'Ưu đãi live',
-          endsAt: session.endsAt,
+          endsAt: broadcastEndsAt,
         });
       } else if (['CANCELLED', 'end', 'END', 'stop'].includes(action)) {
         liveBroadcastService.endBroadcast(session.id);
@@ -826,7 +828,9 @@ export default function LiveSessionsPage({
         s.creator.fullName.toLowerCase().includes(q) ||
         s.coupon.displayCode.toLowerCase().includes(q)
       );
-    });
+    }).sort((left, right) =>
+      (Date.parse(right.startsAt) || 0) - (Date.parse(left.startsAt) || 0) || right.id.localeCompare(left.id)
+    );
   }, [sessions, statusFilter, searchQuery]);
 
   const hubTabsList: HubTabItem[] = [
@@ -1073,7 +1077,7 @@ export default function LiveSessionsPage({
                           className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-[#C59B58] px-2.5 text-[11px] font-bold text-white transition hover:bg-[#B88E4F]"
                           title="Bắt đầu phiên live ngay"
                         >
-                          <Play className="h-3 w-3" /> Live
+                          <Play className="h-3 w-3" /> Bắt đầu
                         </button>
                       )}
                     </div>
@@ -1789,7 +1793,7 @@ export default function LiveSessionsPage({
 
             {/* Modal Body */}
             <div className="flex-1 space-y-4 overflow-y-auto p-5 text-xs">
-              {detailModalSession.status === 'SCHEDULED' && <p className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-[#7D715E]">{detailModalSession.inviteStatus === 'ACCEPTED' ? 'KOL đã xác nhận. Đến giờ phát, bấm Bắt đầu phát sóng ở bên dưới để mở phiên.' : 'Chờ KOL xác nhận lời mời trước khi bắt đầu phát sóng.'}</p>}
+              {detailModalSession.status === 'SCHEDULED' && <p className="rounded-xl border border-[#EEDFC6] bg-[#FBF5EB] p-3 text-[#7D715E]">{detailModalSession.inviteStatus === 'ACCEPTED' ? 'KOL đã xác nhận. Bạn có thể bắt đầu sớm hoặc muộn hơn giờ hẹn. Thời lượng phiên được tính từ lúc bấm Bắt đầu phát sóng.' : 'Chờ KOL xác nhận lời mời trước khi bắt đầu phát sóng. Giờ hẹn là thời gian dự kiến.'}</p>}
               {/* Luxury Voucher Row */}
               <div className="flex flex-col gap-3 rounded-2xl border border-[#EEDFC6] bg-gradient-to-r from-[#FBF5EB] via-white to-[#FBF5EB] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">

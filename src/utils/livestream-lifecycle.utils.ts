@@ -3,11 +3,10 @@ import { serverDate } from './server-date';
 export function livestreamLifecycle(raw: any, now = Date.now()): { status: string; lifecycleReason?: string } {
   const status = raw?.status || 'SCHEDULED';
   const reason = raw?.participantRefs?.lifecycle?.reason || raw?.lifecycleReason;
-  if (!['SCHEDULED', 'LIVE', 'PENDING_CREATOR'].includes(status)) return { status, lifecycleReason: reason };
+  if (status !== 'LIVE') return { status, lifecycleReason: reason };
   const end = Date.parse(serverDate(raw?.participantRefs?.endsAt || raw?.endsAt) || '');
   if (!Number.isFinite(end) || end > now) return { status, lifecycleReason: reason };
-  const broadcast = status === 'LIVE' || Boolean(raw?.startedAt);
-  return { status: broadcast ? 'ENDED' : 'CANCELLED', lifecycleReason: broadcast ? 'TIME_LIMIT_REACHED' : 'SCHEDULE_EXPIRED' };
+  return { status: 'ENDED', lifecycleReason: 'TIME_LIMIT_REACHED' };
 }
 
 export function livestreamStatusLabel(status: string, lifecycleReason?: string) {

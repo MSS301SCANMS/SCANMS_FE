@@ -32,6 +32,7 @@ export interface CheckoutStoreInfo {
 }
 
 export interface GuestCheckoutModalProps {
+  navigationMode?: 'modal' | 'page';
   isOpen: boolean;
   onClose: () => void;
   onBack?: () => void;

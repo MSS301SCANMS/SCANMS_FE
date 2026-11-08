@@ -46,12 +46,15 @@ import { toast } from '../../utils/toast';
 import { cn } from '../../utils/cn';
 import { useLiveStreamTransport } from '../../hooks/useLiveStreamTransport';
 import { unwrapApi } from '../../utils/api-response';
-import { resolveLivestreamShareUrl } from '../../utils/livestream-share-url';
+import { LiveShareDialog } from '../../components/live/LiveShareDialog';
 import { productLoginUrl } from '../../utils/login-return';
-import { liveCommerceService, liveCommerceErrorMessage, isLiveOfferActive, type LiveCommerce } from '../../services/live-commerce.service';
+import { liveCommerceService, liveCommerceErrorMessage, type LiveCommerce } from '../../services/live-commerce.service';
 import { LiveCommercePanel } from '../../components/live/LiveCommercePanel';
 import { couponService } from '../../services/coupon.service';
 import { LiveVariantPicker, type LiveVariant } from '../../components/live/LiveVariantPicker';
+import { livePurchaseService } from '../../services/live-purchase.service';
+import { getLivePurchase } from '../../services/live-purchase-access';
+import { normalizeLiveVariants, liveVariantQuote, type LiveVariantQuote } from '../../utils/live-purchase.utils';
 import { FACE_FILTERS, useLiveFaceFilter, type FaceFilter } from '../../hooks/useLiveFaceFilter';
 import { FaceFilterPreview } from '../../components/live/FaceFilterPreview';
 import type { FilterCategory } from '@/components/live/faceFilters';
@@ -76,6 +79,7 @@ interface LiveProduct {
   stockLeft?: number;
   category?: string;
   badge?: string;
+  priceFrom?: boolean;
 }
 
 interface ChatMessage {
@@ -96,8 +100,8 @@ export interface UserProfileData {
   avatar?: string;
   bio: string;
   verified: boolean;
-  trustScore: number;
-  memberSince: string;
+  trustScore?: number;
+  memberSince?: string;
   city?: string;
   metrics: {
     label: string;
@@ -274,103 +278,16 @@ export const TIKTOK_HEARTS = [
 
 
 const resolveUserProfile = (msg: ChatMessage, currentUser: any, sessionData?: any): UserProfileData => {
-  const isMe =
-    (currentUser?.fullName && msg.sender.includes(currentUser.fullName)) ||
-    msg.sender.includes('Bạn') ||
-    msg.sender === currentUser?.fullName;
-
-  if (isMe && currentUser) {
-    const roleTitle =
-      currentUser.role === 'SHOP_MANAGER'
-        ? 'Chủ Gian Hàng Đối Tác'
-        : currentUser.role === 'COLLABORATOR'
-        ? 'Nhà Sáng Tạo KOC/KOL'
-        : currentUser.role === 'ADMIN'
-        ? 'Quản Trị Viên Sàn'
-        : 'Khách Hàng SCANMS';
-
-    return {
-      name: currentUser.fullName || 'Bạn',
-      handle: `@${(currentUser.email || 'user').split('@')[0]}`,
-      role: msg.role,
-      badgeTitle: roleTitle,
-      avatar: currentUser.avatar || currentUser.avatarUrl || undefined,
-      bio: 'Thành viên chính thức trên Sàn Tiếp Thị Liên Kết SCANMS. Tài khoản đã xác thực thông tin và tham gia giao dịch an toàn.',
-      verified: true,
-      trustScore: 100,
-      memberSince: 'Tháng 01/2026',
-      city: 'Việt Nam',
-      metrics: [
-        { label: 'Cấp bậc', value: 'VIP Pro' },
-        { label: 'Tín nhiệm', value: '100/100' },
-        { label: 'eKYC', value: 'Đã duyệt' },
-      ],
-      tags: ['Tài khoản của bạn', 'eKYC Đã duyệt', 'Bảo mật 2FA'],
-    };
-  }
-
-  if (msg.role === 'HOST') {
-    const hostName = sessionData?.creator?.fullName || sessionData?.creator?.name || msg.sender;
-    return {
-      name: hostName,
-      handle: `@${(sessionData?.creator?.email || 'koc.host').split('@')[0]}`,
-      role: 'HOST',
-      badgeTitle: '👑 Host KOC Phiên Live',
-      avatar: sessionData?.creator?.avatarUrl || msg.avatar,
-      bio: 'Nhà sáng tạo KOC/KOL đối tác của Sàn SCANMS. Chia sẻ trải nghiệm sản phẩm thực tế và trợ giá deal độc quyền cho người xem.',
-      verified: true,
-      trustScore: 100,
-      memberSince: 'Tháng 08/2025',
-      city: 'TP. Hồ Chí Minh',
-      metrics: [
-        { label: 'Followers', value: '120K+' },
-        { label: 'Lượt thích', value: '850K+' },
-        { label: 'KOC Verfied', value: '100%' },
-      ],
-      tags: ['Top Creator', 'KOC Đối Tác', 'KYC Verified'],
-    };
-  }
-
-  if (msg.role === 'SHOP') {
-    const shopName = sessionData?.store?.name || msg.sender;
-    return {
-      name: shopName,
-      handle: `@${(sessionData?.store?.slug || 'shop.mall').toLowerCase()}`,
-      role: 'SHOP',
-      badgeTitle: '🏪 Gian Hàng Đối Tác Chính Hãng',
-      avatar: sessionData?.store?.logoUrl || msg.avatar,
-      bio: sessionData?.store?.description || 'Gian hàng đối tác kinh doanh chính hãng trên Sàn SCANMS. Cam kết 100% nguồn gốc xuất xứ và đồng kiểm khi nhận hàng.',
-      verified: true,
-      trustScore: 100,
-      memberSince: 'Tháng 01/2025',
-      city: 'Việt Nam',
-      metrics: [
-        { label: 'Đánh giá', value: '4.9 ★' },
-        { label: 'Phản hồi', value: '100%' },
-        { label: 'Hàng chính hãng', value: '100%' },
-      ],
-      tags: ['Chính hãng 100%', 'Giao nhanh 24h', 'Đồng kiểm nhận hàng'],
-    };
-  }
-
-  const cleanHandle = msg.sender.toLowerCase().replace(/[^a-z0-9]/g, '') || 'viewer';
+  const creator = msg.role === 'HOST' ? sessionData?.creator : undefined;
+  const isMe = msg.sender === currentUser?.fullName;
+  const source = creator || (isMe ? currentUser : undefined);
   return {
-    name: msg.sender,
-    handle: `@${cleanHandle}`,
-    role: msg.role,
-    badgeTitle: '🛍️ Thành Viên Tương Tác',
-    avatar: msg.avatar,
-    bio: 'Khách hàng thân thiết tham gia giao dịch và theo dõi livestream trên hệ thống SCANMS.',
-    verified: true,
-    trustScore: 100,
-    memberSince: 'Tháng 02/2026',
-    city: 'Việt Nam',
-    metrics: [
-      { label: 'Tương tác', value: 'Tích cực' },
-      { label: 'Nhận hàng', value: '100%' },
-      { label: 'Uy tín', value: '100/100' },
-    ],
-    tags: ['Thành viên Live', 'Đã xác thực'],
+    name: source?.fullName || msg.sender, handle: source?.handle || '', role: msg.role,
+    badgeTitle: msg.role === 'HOST' ? 'KOL phát sóng' : msg.role === 'SHOP' ? 'Gian hàng' : 'Người xem',
+    avatar: source?.avatarUrl || msg.avatar, bio: source?.bio || 'Chưa có thông tin giới thiệu.',
+    verified: creator?.canHost === true, metrics: [], tags: [],
+    memberSince: source?.createdAt ? new Date(source.createdAt).toLocaleDateString('vi-VN') : undefined,
+    city: source?.city || undefined,
   };
 };
 
@@ -378,7 +295,7 @@ export default function LiveStreamRoomPage() {
   const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addItem, buyNow, startCheckout, totalCount: cartTotalCount } = useCart();
+  const { addItem, buyNow, openCart, totalCount: cartTotalCount } = useCart();
   const currentUser = authService.getCurrentUser();
 
   const identifier = slug || id || 'demo';
@@ -409,8 +326,23 @@ export default function LiveStreamRoomPage() {
   const [commerceError, setCommerceError] = useState('');
   const [commerceReloadAttempt, setCommerceReloadAttempt] = useState(0);
   const [platformVouchers, setPlatformVouchers] = useState<any[]>([]);
-  const [variantChoice, setVariantChoice] = useState<{ product: LiveProduct; action: 'cart' | 'buy' } | null>(null);
+  const [variantChoice, setVariantChoice] = useState<{
+    product: LiveProduct; action: 'cart' | 'buy'; loading: boolean; error?: string; notice?: string;
+    selection?: Awaited<ReturnType<typeof livePurchaseService.selection>>;
+  } | null>(null);
+  const [purchaseSubmitting, setPurchaseSubmitting] = useState(false);
+  const purchaseBusy = useRef(false);
+  const purchaseRequest = useRef(0);
+  const purchaseContext = useRef('');
+  purchaseContext.current = `${currentUser?.id || ''}|${sessionData?.id || ''}|${identifier}`;
+  const purchaseAvailable = useRef(false);
+  useEffect(() => {
+    purchaseRequest.current++;
+    setVariantChoice(null);
+    return () => { purchaseRequest.current++; };
+  }, [identifier, currentUser?.id]);
   const [sessionLoadError, setSessionLoadError] = useState('');
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const isSessionHost =
     currentUser?.role === 'COLLABORATOR' &&
     Boolean(currentUser.id) &&
@@ -418,7 +350,6 @@ export default function LiveStreamRoomPage() {
       || sessionData?.creators?.some((creator: any) => creator.id === currentUser.id && creator.canHost !== false));
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
 
   // SỐ LIỆU THỰC TẾ: Người xem & Lượt thả tim
   const [viewerCount, setViewerCount] = useState<number>(0);
@@ -446,7 +377,7 @@ export default function LiveStreamRoomPage() {
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isMirror, setIsMirror] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [activeBackdropUrl, setActiveBackdropUrl] = useState<string>(BACKDROP_PRESETS[0].url);
+  const [activeBackdropUrl, setActiveBackdropUrl] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -581,7 +512,8 @@ export default function LiveStreamRoomPage() {
   }, [sessionEnded]);
 
   const isStreamEnded = Boolean(sessionEnded || ['ENDED', 'CANCELLED'].includes(sessionData?.status));
-  const livePurchasingAvailable = legacyLive || roomJoined && hostOnline && isStreamLive && broadcast?.state !== 'RECONNECTING';
+  const livePurchasingAvailable = sessionData?.status === 'LIVE' && (legacyLive || roomJoined && hostOnline && isStreamLive && broadcast?.state !== 'RECONNECTING');
+  purchaseAvailable.current = livePurchasingAvailable && !isStreamEnded;
   useEffect(() => {
     if (legacyLive || !sessionData?.id) return;
     let active = true;
@@ -604,7 +536,7 @@ export default function LiveStreamRoomPage() {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 3000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [legacyLive, sessionData?.id, commerceReloadAttempt]);
+  }, [sessionData?.id, commerceReloadAttempt]);
   useEffect(() => {
     let active = true;
     if (sessionData?.storeId) void couponService.getPublicPlatformCoupons(sessionData.storeId).then(rows => { if (active) setPlatformVouchers(rows); }).catch(() => {});
@@ -650,12 +582,24 @@ export default function LiveStreamRoomPage() {
     return `${minutes}p ${seconds < 10 ? '0' : ''}${seconds}s`;
   };
 
-  // Real business stats from backend
-  const liveOrdersCount = sessionData?.liveStats?.report?.ordersCount ?? sessionData?.ordersCount ?? 0;
-  const liveGrossRevenue = sessionData?.liveStats?.report?.grossRevenue ?? sessionData?.totalRevenue ?? 0;
-  const liveCommissionRate = sessionData?.commissionRate ? Number(sessionData.commissionRate) : 10;
-  const liveKocCommission = Math.round(liveGrossRevenue * (liveCommissionRate / 100));
-  const liveShopEarnings = liveGrossRevenue - liveKocCommission;
+  const [liveSales, setLiveSales] = useState<{ orderCount: number; buyerCount: number; soldQuantity: number; gmvVnd: number; netSalesVnd: number } | null>(null);
+  useEffect(() => {
+    setLiveSales(null);
+    if (!sessionData?.id || !isSessionOwner && !isSessionHost) return;
+    let active = true, running = false;
+    const refresh = async () => {
+      if (running || document.hidden) return;
+      running = true;
+      try {
+        const result = unwrapApi<any>(await api.get('/livestream-sales/' + encodeURIComponent(sessionData.id), { headers: { 'x-skip-cache': 'true' } }));
+        if (!['orderCount', 'buyerCount', 'soldQuantity', 'gmvVnd', 'netSalesVnd'].every(key => Number.isFinite(result?.[key]))) throw new Error('Invalid sales summary');
+        if (active) setLiveSales(result);
+      } catch { if (active) setLiveSales(null); }
+      finally { running = false; }
+    };
+    void refresh(); const timer = window.setInterval(() => void refresh(), 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [sessionData?.id, isSessionOwner, isSessionHost]);
   const liveShopName = sessionData?.store?.name || 'Gian Hàng Đối Tác';
   const liveHostName = sessionData?.creator?.fullName || sessionData?.creator?.name || 'KOC Host';
 
@@ -664,29 +608,13 @@ export default function LiveStreamRoomPage() {
   const serverPinRevision = useRef(0);
   const pinMutationPending = useRef(false);
   const [isVoucherDropOpen, setIsVoucherDropOpen] = useState(false);
-  // Countdown timer toward session end or deal window
-  const [dealCountdownSeconds, setDealCountdownSeconds] = useState<number>(() => {
-    if (sessionData?.endsAt) {
-      const diff = Math.max(0, Math.floor((new Date(sessionData.endsAt).getTime() - Date.now()) / 1000));
-      return diff > 0 ? diff : 300;
-    }
-    return 300;
-  });
-
+  const [dealCountdownSeconds, setDealCountdownSeconds] = useState(0);
   useEffect(() => {
-    if (sessionData?.endsAt) {
-      const diff = Math.max(0, Math.floor((new Date(sessionData.endsAt).getTime() - Date.now()) / 1000));
-      if (diff > 0) setDealCountdownSeconds(diff);
-    }
+    const refresh = () => setDealCountdownSeconds(sessionData?.endsAt
+      ? Math.max(0, Math.floor((Date.parse(sessionData.endsAt) - Date.now()) / 1000)) || 0 : 0);
+    refresh(); const timer = window.setInterval(refresh, 1000);
+    return () => window.clearInterval(timer);
   }, [sessionData?.endsAt]);
-
-  useEffect(() => {
-    if (isStreamEnded) return;
-    const timer = setInterval(() => {
-      setDealCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 300));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isStreamEnded]);
 
   const formatCountdown = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -696,7 +624,6 @@ export default function LiveStreamRoomPage() {
 
   const { openChat } = useScanmsChat();
   const [selectedProfile, setSelectedProfile] = useState<UserProfileData | null>(null);
-  const [followedUsers, setFollowedUsers] = useState<Record<string, boolean>>({});
 
   const handleViewProfile = (msg: ChatMessage) => {
     if (msg.role === 'SHOP') {
@@ -705,18 +632,6 @@ export default function LiveStreamRoomPage() {
     }
     const profile = resolveUserProfile(msg, currentUser, sessionData);
     setSelectedProfile(profile);
-  };
-
-  const handleToggleFollow = (handle: string) => {
-    setFollowedUsers((prev) => {
-      const isFollowing = !prev[handle];
-      if (isFollowing) {
-        toast.success(`Đã theo dõi ${selectedProfile?.name || handle}`);
-      } else {
-        toast.info(`Đã bỏ theo dõi ${selectedProfile?.name || handle}`);
-      }
-      return { ...prev, [handle]: isFollowing };
-    });
   };
 
   const handleDirectMessage = (profile: UserProfileData) => {
@@ -730,42 +645,11 @@ export default function LiveStreamRoomPage() {
       toast.success(`Đang mở hộp chat với ${profile.name}`);
     } else {
       openChat();
-      toast.success(`Đang kết nối khung chat riêng với ${profile.name}`);
     }
   };
 
-  // MỞ HỒ SƠ CHI TIẾT CỦA KOC / KOL ĐANG LIVESTREAM
   const handleOpenKolProfile = () => {
-    const kolName = sessionData?.creator?.fullName || sessionData?.creator?.name || (currentUser?.fullName ? `${currentUser.fullName} (Host)` : 'KOC Host');
-    const kolAvatar =
-      sessionData?.creator?.avatarUrl ||
-      (currentUser as any)?.avatar ||
-      (currentUser as any)?.avatarUrl ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80';
-
-    const kolProfile: UserProfileData = {
-      name: kolName,
-      handle: `@${(sessionData?.creator?.email || currentUser?.email || 'koc.host').split('@')[0]}`,
-      role: 'HOST',
-      badgeTitle: '👑 Top 1 KOC Livestream • Đối Tác SCANMS',
-      avatar: kolAvatar,
-      bio: 'Nhà sáng tạo KOC/KOL đối tác của Sàn SCANMS. Chia sẻ trải nghiệm sản phẩm thực tế và trợ giá deal độc quyền cho người xem.',
-      verified: true,
-      trustScore: 100,
-      memberSince: 'Tháng 08/2025',
-      city: 'TP. Hồ Chí Minh',
-      metrics: [
-        { label: 'Followers', value: '120K+' },
-        { label: 'Lượt thích', value: '850K+' },
-        { label: 'KOC Verfied', value: '100%' },
-      ],
-      socials: [
-        { platform: 'TikTok', handle: `@${(sessionData?.creator?.email || 'koc').split('@')[0]}` },
-        { platform: 'Instagram', handle: `@${(sessionData?.creator?.email || 'koc').split('@')[0]}.beauty` },
-      ],
-      tags: ['Top Creator', 'KOC Đối Tác', 'KYC Verified'],
-    };
-    setSelectedProfile(kolProfile);
+    setSelectedProfile(resolveUserProfile({ id: 'host', sender: liveHostName, role: 'HOST', text: '', time: '', avatar: sessionData?.creator?.avatarUrl }, currentUser, sessionData));
   };
 
   // ĐIỀU HƯỚNG TRỰC TIẾP TỚI GIAN HÀNG CỦA CHỦ SHOP (STOREFRONT) KHI BẤM VÀO AVATAR HOẶC TÊN SHOP
@@ -1051,23 +935,20 @@ export default function LiveStreamRoomPage() {
   // Derived products from actual session data
   const products: LiveProduct[] = useMemo(() => {
     if (sessionData?.products && sessionData.products.length > 0) {
-      return sessionData.products.map((p: any, idx: number) => {
+      return sessionData.products.filter((row: any) => Boolean(row.product?.id)).map((p: any) => {
         const prod = p.product || {};
-        const variants: LiveVariant[] = (prod.variants || []).map((variant: any) => ({ ...variant, id: variant.id || variant.variantId, price: Number(variant.price ?? variant.priceVnd), name: variant.name || [variant.color, variant.size].filter(Boolean).join(' / ') }));
-        const now = Date.now();
-        const offer = commerce.offers.filter(row => row.productId === prod.id && isLiveOfferActive(row, now)
-          && variants.some(variant => variant.id === row.variantId && variant.isActive !== false && variant.stockQuantity > 0))
-          .sort((a, b) => a.priceVnd - b.priceVnd)[0];
-        const basePrice = Number(p.variant?.price ?? variants.find(row => row.id === offer?.variantId)?.price ?? prod.price ?? 0);
-        const discountVal = sessionData.coupon?.discountValue ? Number(sessionData.coupon.discountValue) : 0;
-        const discountType = sessionData.coupon?.discountType || 'PERCENTAGE';
-        const livePrice = !legacyLive ? offer?.priceVnd ?? basePrice : discountType === 'PERCENTAGE'
-            ? Math.round(basePrice * (1 - discountVal / 100))
-            : Math.max(1000, basePrice - discountVal);
+        const variants = normalizeLiveVariants(prod);
+        const available = variants.map(variant => ({ variant, quote: liveVariantQuote(variant, commerce.offers.filter(row => row.productId === prod.id)) }))
+          .filter(row => row.quote.stockQuantity > 0).sort((left, right) => left.quote.price - right.quote.price);
+        const preview = available[0];
+        const offer = commerce.offers.find(row => row.id === preview?.quote.offerId);
+        const basePrice = preview?.quote.listPrice ?? Number(prod.price ?? 0);
+        const livePrice = preview?.quote.price ?? basePrice;
         return {
-          id: prod.id || `session-prod-${idx}`,
-          variantId: p.variantId || p.variant?.id || (variants.length === 1 ? variants[0].id : undefined),
-          variantName: p.variant?.name || (variants.length === 1 ? variants[0].name : undefined),
+          id: prod.id,
+          variantId: undefined,
+          variantName: undefined,
+          priceFrom: available.some(row => row.quote.price !== livePrice),
           variants,
           offerEndsAt: offer?.endsAt,
           offerVariantName: offer ? variants.find(row => row.id === offer.variantId)?.name : undefined,
@@ -1077,22 +958,22 @@ export default function LiveStreamRoomPage() {
             const best = eligible.sort((a, b) => amount(b) - amount(a))[0];
             return best ? [`${best.code} · ${benefit === 'SHIPPING' ? 'Giảm ship tối đa ' : 'Giảm tối đa '}${amount(best).toLocaleString('vi-VN')}đ`] : [];
           }),
-          title: prod.title || prod.name || `Sản phẩm Deal Live #${idx + 1}`,
-          imageUrl: prod.imageUrl || sessionData?.store?.logoUrl || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&auto=format&fit=crop&q=80',
+          title: prod.title || prod.name || 'Sản phẩm',
+          imageUrl: prod.imageUrl || '/assets/product-placeholder.svg',
           price: basePrice,
           livePrice,
           discountPercentage: basePrice > 0 ? Math.round(((basePrice - livePrice) / basePrice) * 100) : 0,
           storeName: sessionData.store?.name || 'Gian Hàng Đối Tác',
           storeId: sessionData.store?.id,
           soldPercent: 0,
-          stockLeft: p.variant?.stockQuantity ?? prod.stockQuantity ?? 0,
+          stockLeft: available.reduce((sum, row) => sum + row.quote.stockQuantity, 0),
           category: prod.categoryName || prod.category || 'Sản phẩm',
           badge: offer ? 'Giá live' : undefined,
         };
       });
     }
     return [];
-  }, [sessionData, commerce.offers, platformVouchers, legacyLive, liveElapsedSeconds]);
+  }, [sessionData, commerce.offers, platformVouchers]);
 
   useEffect(() => {
     if (sessionData?.pinnedProductId) {
@@ -1142,10 +1023,6 @@ export default function LiveStreamRoomPage() {
     products.forEach((p) => {
       if (p.category) cats.add(p.category);
     });
-    if (cats.size < 2) {
-      cats.add('Mỹ phẩm');
-      cats.add('Chăm sóc da');
-    }
     return Array.from(cats);
   }, [products]);
 
@@ -1169,12 +1046,16 @@ export default function LiveStreamRoomPage() {
     return list;
   }, [products, pinnedProduct, bagFilterTab, bagSearchQuery]);
 
-  const couponCode = sessionData?.coupon?.displayCode || '';
-  const couponDiscount = sessionData?.coupon
+  const advertisedVoucher = commerce.voucherDrops.find(row => row.status === 'PUBLISHED'
+    && Date.parse(row.releaseAt) <= Date.now() && Date.parse(row.expiresAt) > Date.now());
+  const couponCode = legacyLive ? sessionData?.coupon?.displayCode || '' : advertisedVoucher?.code || '';
+  const couponDiscount = !legacyLive && advertisedVoucher
+    ? advertisedVoucher.discountType === 'PERCENTAGE' ? `${advertisedVoucher.value}%` : `${advertisedVoucher.value.toLocaleString('vi-VN')} ₫`
+    : sessionData?.coupon
     ? sessionData.coupon.discountType === 'PERCENTAGE'
       ? `${Number(sessionData.coupon.discountValue)}%`
       : `${Number(sessionData.coupon.discountValue).toLocaleString('vi-VN')} ₫`
-    : '25.000 ₫';
+    : '';
 
   // TRIGGER FLOATING EMOJI REACTION (TikTok / Facebook Live style)
   const triggerReaction = (emoji: string, e?: React.MouseEvent, customIconUrl?: string, isRemoteBroadcast = false) => {
@@ -1296,11 +1177,17 @@ export default function LiveStreamRoomPage() {
   // Claim voucher
   const handleClaimVoucher = async () => {
     if (isVoucherClaimed) {
-      toast.success(`Bạn đã nhận mã ${couponCode}.`);
+      toast.info(`Mã ${couponCode} được kiểm tra khi thanh toán.`);
       return;
     }
     setVoucherClaimLoading(true);
     try {
+      if (!legacyLive) {
+        if (!advertisedVoucher || !couponCode) throw new Error('Voucher không còn được phát trong phiên.');
+        await navigator.clipboard.writeText(couponCode);
+        toast.success('Đã sao chép mã voucher. Điều kiện áp dụng được kiểm tra khi thanh toán.');
+        return;
+      }
       if (sessionData?.id) {
         await api.post(`/livestreams/${sessionData.id}/claim`, {
           claimKey: `claim_${currentUser?.id || 'guest'}_${Date.now()}`,
@@ -1348,59 +1235,76 @@ export default function LiveStreamRoomPage() {
     finally { setIsSendingComment(false); }
   };
 
-  // Add to cart
-  const handleAddToCart = (product: LiveProduct) => {
-    if (!livePurchasingAvailable || isStreamEnded) { toast.warning('Phiên đang gián đoạn hoặc chưa phát camera. Vui lòng chờ KOL kết nối lại.'); return; }
-    if (!product.variantId) { setVariantChoice({ product, action: 'cart' }); return; }
-    addItem({
-      variantId: product.variantId,
-      liveSessionId: sessionData?.id,
-      liveCouponCode: commerce.voucherDrops.find(row => row.benefitType === 'GOODS')?.code || sessionData?.coupon?.displayCode,
-      liveCouponCodes: commerce.voucherDrops.map(row => row.code),
-      product: {
-        id: product.id,
-        title: product.title,
-        price: product.livePrice ?? product.price,
-        imageUrl: product.imageUrl || '',
-        stockQuantity: product.stockLeft ?? 9999,
-        variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.livePrice ?? product.price, stockQuantity: product.stockLeft ?? 0 }] : undefined,
-      },
-      store: {
-        id: product.storeId || sessionData?.store?.id,
-        name: product.storeName || sessionData?.store?.name || liveShopName,
-      },
-      openCartAfterAdd: false,
-    });
-    toast.success(`Đã thêm "${product.title}" vào giỏ hàng deal live!`);
+  const closePurchase = () => {
+    if (purchaseBusy.current) return;
+    purchaseRequest.current++;
+    setVariantChoice(null);
   };
 
-  // Instant Buy (Chốt đơn trực tiếp tại phiên live)
-  const handleInstantBuy = (product: LiveProduct) => {
-    if (!livePurchasingAvailable || isStreamEnded) { toast.warning('Phiên đang gián đoạn hoặc chưa phát camera. Vui lòng chờ KOL kết nối lại.'); return; }
-    if (!product.variantId) { setVariantChoice({ product, action: 'buy' }); return; }
-    buyNow(
-      {
-        variantId: product.variantId,
-        liveSessionId: sessionData?.id,
-        liveCouponCode: commerce.voucherDrops.find(row => row.benefitType === 'GOODS')?.code || sessionData?.coupon?.displayCode,
-        liveCouponCodes: commerce.voucherDrops.map(row => row.code),
+  const openPurchase = async (product: LiveProduct, action: 'cart' | 'buy') => {
+    if (!purchaseAvailable.current || !sessionData?.id) {
+      toast.warning('Phiên chưa phát hoặc đang gián đoạn. Vui lòng chờ KOL kết nối lại.'); return;
+    }
+    const request = ++purchaseRequest.current, context = purchaseContext.current;
+    setVariantChoice({ product, action, loading: true });
+    try {
+      const selection = await livePurchaseService.selection(sessionData.id, product.id);
+      if (request !== purchaseRequest.current || context !== purchaseContext.current) return;
+      setVariantChoice({ product: { ...product, title: selection.product.title || selection.product.name, imageUrl: selection.product.imageUrl }, action, loading: false, selection });
+    } catch (error: any) {
+      if (request === purchaseRequest.current && context === purchaseContext.current)
+        setVariantChoice({ product, action, loading: false, error: error?.message || 'Chưa tải được phân loại. Vui lòng thử lại.' });
+    }
+  };
+  const handleAddToCart = (product: LiveProduct) => { void openPurchase(product, 'cart'); };
+  const handleInstantBuy = (product: LiveProduct) => { void openPurchase(product, 'buy'); };
+
+  const confirmPurchase = async (chosen: LiveVariant, displayed: LiveVariantQuote, quantity: number) => {
+    if (!variantChoice || purchaseBusy.current || !purchaseAvailable.current || !sessionData?.id) return;
+    const context = purchaseContext.current, request = purchaseRequest.current, choice = variantChoice;
+    purchaseBusy.current = true; setPurchaseSubmitting(true);
+    try {
+      const selection = await livePurchaseService.selection(sessionData.id, choice.product.id);
+      if (context !== purchaseContext.current || request !== purchaseRequest.current) return;
+      if (!purchaseAvailable.current) throw new Error('Phiên vừa gián đoạn. Vui lòng chờ KOL kết nối lại.');
+      const variant = selection.variants.find(row => row.id === chosen.id);
+      if (!variant) throw new Error('Phân loại không còn được bán. Vui lòng chọn lại.');
+      const quote = liveVariantQuote(variant, selection.commerce.offers);
+      setCommerce(selection.commerce);
+      setSessionData((previous: any) => previous ? { ...previous, products: previous.products.map((row: any) => row.product?.id === choice.product.id ? { ...row, product: selection.product } : row) } : previous);
+      if (quote.price !== displayed.price || quote.listPrice !== displayed.listPrice || quote.offerId !== displayed.offerId
+          || !Number.isSafeInteger(quantity) || quantity <= 0 || quantity > quote.stockQuantity) {
+        setVariantChoice({ ...choice, selection, notice: 'Giá, ưu đãi hoặc tồn kho vừa thay đổi. Vui lòng kiểm tra và xác nhận lại.', error: undefined });
+        return;
+      }
+      if (quote.offerId && !getLivePurchase(sessionData.id)) throw new Error('Chưa xác minh được quyền mua giá live. Vui lòng kết nối lại phòng live.');
+      const drops = selection.commerce.voucherDrops.filter(row => row.status === 'PUBLISHED'
+        && Date.parse(row.releaseAt) <= Date.now() && Date.parse(row.expiresAt) > Date.now());
+      const goodsCode = drops.find(row => row.benefitType === 'GOODS')?.code;
+      const data = {
+        variantId: variant.id, quantity, liveSessionId: sessionData.id,
+        liveCouponCode: goodsCode, liveCouponCodes: drops.map(row => row.code),
         product: {
-          id: product.id,
-          title: product.title,
-          price: Number(product.livePrice ?? product.price ?? 0),
-          originalPrice: product.price ? Number(product.price) : undefined,
-          imageUrl: product.imageUrl || '',
-          stockQuantity: product.stockLeft ?? 0,
-          variants: product.variantId ? [{ id: product.variantId, name: product.variantName || 'Phân loại live', sku: '', price: product.livePrice ?? product.price, stockQuantity: product.stockLeft ?? 0 }] : undefined,
+          id: selection.product.id, title: selection.product.title || selection.product.name,
+          price: quote.price, originalPrice: quote.listPrice, imageUrl: selection.product.imageUrl,
+          stockQuantity: quote.stockQuantity, isActive: true,
+          variants: [{ id: variant.id, name: variant.name || [variant.color, variant.size].filter(Boolean).join(' / ') || 'Tiêu chuẩn',
+            sku: variant.sku || '', price: quote.price, stockQuantity: quote.stockQuantity, isActive: true }],
         },
-        store: {
-          id: product.storeId || sessionData?.store?.id || 'sora-skin',
-          name: product.storeName || sessionData?.store?.name || liveShopName,
-        },
+        store: { ...sessionData.store, id: selection.product.storeId, name: sessionData.store?.name || liveShopName },
         openCartAfterAdd: false,
-      },
-      legacyLive ? couponCode : undefined,
-    );
+      };
+      setVariantChoice(null);
+      if (choice.action === 'buy') {
+        setIsBagOpen(false);
+        buyNow(data, goodsCode || '', 'page');
+        navigate('/checkout', { state: { liveCheckoutFrom: `${location.pathname}${location.search}${location.hash}` } });
+      }
+      else addItem(data);
+    } catch (error: any) {
+      if (context === purchaseContext.current && request === purchaseRequest.current)
+        setVariantChoice(previous => previous ? { ...previous, error: error?.message || 'Chưa kiểm tra được giá và tồn kho.' } : previous);
+    } finally { purchaseBusy.current = false; setPurchaseSubmitting(false); }
   };
 
   if (loading && !sessionData && identifier !== 'demo') {
@@ -1424,12 +1328,12 @@ export default function LiveStreamRoomPage() {
 
   return (
     <div className="relative w-screen h-screen bg-[#FAF8F5] text-[#1A1612] overflow-hidden flex flex-col font-sans select-none">
-      {variantChoice && <LiveVariantPicker title={variantChoice.product.title} variants={variantChoice.product.variants || []} offers={commerce.offers.filter(row => row.productId === variantChoice.product.id)} onClose={() => setVariantChoice(null)} onChoose={(variant, price) => {
-        const offer = commerce.offers.find(row => row.variantId === variant.id && isLiveOfferActive(row));
-        const selected = { ...variantChoice.product, variantId: variant.id, variantName: variant.name, price: Number(variant.price), livePrice: price, stockLeft: Math.min(variant.stockQuantity, offer ? offer.quantityLimit - offer.reservedQuantity : variant.stockQuantity) };
-        const action = variantChoice.action; setVariantChoice(null);
-        if (action === 'buy') handleInstantBuy(selected); else handleAddToCart(selected);
-      }} />}
+      {isShareOpen && <LiveShareDialog sessionId={identifier} onClose={() => setIsShareOpen(false)} />}
+      {variantChoice && <LiveVariantPicker key={variantChoice.product.id} title={variantChoice.product.title} imageUrl={variantChoice.product.imageUrl}
+        variants={variantChoice.selection?.variants || []} offers={(variantChoice.selection?.commerce.offers || []).filter(row => row.productId === variantChoice.product.id)}
+        action={variantChoice.action} loading={variantChoice.loading} submitting={purchaseSubmitting} error={variantChoice.error} notice={variantChoice.notice}
+        disabledReason={!livePurchasingAvailable || isStreamEnded ? 'Phiên đang gián đoạn hoặc đã kết thúc. Chưa thể mua hàng lúc này.' : undefined}
+        onClose={closePurchase} onRetry={() => void openPurchase(variantChoice.product, variantChoice.action)} onChoose={(variant, quote, quantity) => void confirmPurchase(variant, quote, quantity)} />}
       {!legacyLive && commerceError && <div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span>{isSessionOwner ? commerceError : 'Chưa cập nhật được ưu đãi của phiên. Vui lòng thử lại.'}</span><button type="button" onClick={() => setCommerceReloadAttempt(attempt => attempt + 1)} className="shrink-0 font-semibold underline">Thử lại</button></div>}
       {/* Hidden file input for custom backdrop upload */}
       <input
@@ -1478,7 +1382,7 @@ export default function LiveStreamRoomPage() {
                     sessionData?.creator?.avatarUrl ||
                     (currentUser as any)?.avatar ||
                     (currentUser as any)?.avatarUrl ||
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
+                    '/assets/product-placeholder.svg'
                   }
                   alt="Host"
                   className="w-full h-full object-cover group-hover/kol:scale-110 transition-transform"
@@ -1502,7 +1406,7 @@ export default function LiveStreamRoomPage() {
                   <span className="truncate group-hover/kolname:underline">
                     {sessionData?.creator?.fullName || 'Nhà sáng tạo'}
                   </span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />
+                  {sessionData?.creator?.canHost === true && <CheckCircle2 className="w-3.5 h-3.5 text-[#B88E4F] shrink-0" />}
                 </button>
               </div>
 
@@ -1517,7 +1421,7 @@ export default function LiveStreamRoomPage() {
                   <img
                     src={
                       sessionData?.store?.logoUrl ||
-                      'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=100&auto=format&fit=crop&q=80'
+                      '/assets/product-placeholder.svg'
                     }
                     alt="Shop"
                     className="w-full h-full object-cover"
@@ -1532,18 +1436,7 @@ export default function LiveStreamRoomPage() {
               </button>
             </div>
 
-            {/* Nút Theo dõi */}
-            <button
-              type="button"
-              onClick={() => setIsFollowing((v) => !v)}
-              className={`live-room-follow ${
-                isFollowing
-                  ? 'bg-[#F3EFE6] text-[#7D715E] border border-[#EAE4D7]'
-                  : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] text-white shadow-xs hover:opacity-95'
-              }`}
-            >
-              {isFollowing ? 'Đã theo dõi' : '+ Theo dõi'}
-            </button>
+            <button type="button" onClick={handleOpenShopProfile} className="live-room-follow border border-[#EEDFC6] bg-[#FBF5EB] text-[#9B7137]">Xem gian hàng</button>
           </div>
         </div>
 
@@ -1568,7 +1461,7 @@ export default function LiveStreamRoomPage() {
                   : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] text-white'
               }`}
             >
-              {isStreamEnded ? 'Đã kết thúc' : voucherClaimLoading ? 'Đang lưu…' : isVoucherClaimed ? 'Đã lưu' : 'Lưu mã'}
+              {isStreamEnded ? 'Đã kết thúc' : voucherClaimLoading ? 'Đang xử lý…' : legacyLive && isVoucherClaimed ? 'Đã lưu' : 'Sao chép mã'}
             </button>
           </div>
         )}
@@ -1696,14 +1589,7 @@ export default function LiveStreamRoomPage() {
           {/* Share Room */}
           <button
             type="button"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(await resolveLivestreamShareUrl(identifier));
-                toast.success('Đã sao chép link phòng live');
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : 'Chưa sao chép được liên kết. Vui lòng thử lại.');
-              }
-            }}
+            onClick={() => setIsShareOpen(true)}
             className="live-room-tool live-room-share"
             title="Chia sẻ phiên livestream"
           >
@@ -1729,7 +1615,7 @@ export default function LiveStreamRoomPage() {
         <div role="status" className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-b border-[#EEDFC6] bg-[#FBF5EB] px-4 py-2 text-xs text-[#1A1612]">
           <Ticket size={16} className="text-[#B88E4F]" />
           <span>Vừa tung ưu đãi <strong>{sessionData.voucherDrop.code}</strong> · {sessionData.voucherDrop.quantity} lượt được giới thiệu</span>
-          <button type="button" onClick={() => void handleClaimVoucher()} disabled={voucherClaimLoading || isVoucherClaimed} className="rounded-lg border border-[#EEDFC6] bg-white px-3 py-1 font-semibold text-[#B88E4F] disabled:opacity-50">{isVoucherClaimed ? 'Đã lưu mã' : 'Nhận voucher'}</button>
+          <button type="button" onClick={() => void handleClaimVoucher()} disabled={voucherClaimLoading || isVoucherClaimed} className="rounded-lg border border-[#EEDFC6] bg-white px-3 py-1 font-semibold text-[#B88E4F] disabled:opacity-50">{legacyLive && isVoucherClaimed ? 'Đã lưu mã' : 'Sao chép mã'}</button>
         </div>
       )}
 
@@ -1780,7 +1666,7 @@ export default function LiveStreamRoomPage() {
               )}
             />
 
-            {!(isSessionHost && isCameraActive) && !remoteStream && (
+            {activeBackdropUrl && !(isSessionHost && isCameraActive) && !remoteStream && (
               <img
                 src={activeBackdropUrl}
                 alt="Stage Backdrop"
@@ -1801,7 +1687,7 @@ export default function LiveStreamRoomPage() {
                       src={
                         sessionData?.creator?.avatarUrl ||
                         sessionData?.store?.logoUrl ||
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80'
+                        '/assets/product-placeholder.svg'
                       }
                       alt="Host Avatar"
                       className="w-full h-full object-cover rounded-full"
@@ -1901,7 +1787,7 @@ export default function LiveStreamRoomPage() {
 
           {pinnedProduct && (!isBagOpen || bagPosition !== 'left') && (
             <div onClick={(event) => event.stopPropagation()} className="absolute bottom-[84px] left-3 sm:left-4 z-20 pointer-events-auto">
-              <LivePinnedProductCard product={pinnedProduct} index={pinnedIndex} countdown={formatCountdown(dealCountdownSeconds)} collapsed={isPinnedDealCollapsed} onCollapsedChange={setIsPinnedDealCollapsed} onAddToCart={() => handleAddToCart(pinnedProduct)} onBuy={() => handleInstantBuy(pinnedProduct)} disabled={isStreamEnded || !livePurchasingAvailable} />
+              <LivePinnedProductCard product={pinnedProduct} index={pinnedIndex} countdown={sessionData?.endsAt ? formatCountdown(dealCountdownSeconds) : '—'} collapsed={isPinnedDealCollapsed} onCollapsedChange={setIsPinnedDealCollapsed} onAddToCart={() => handleAddToCart(pinnedProduct)} onBuy={() => handleInstantBuy(pinnedProduct)} disabled={isStreamEnded || !livePurchasingAvailable || !pinnedProduct.stockLeft} disabledReason={isStreamEnded ? 'Phiên đã kết thúc' : !livePurchasingAvailable ? 'Chờ kết nối' : !pinnedProduct.stockLeft ? 'Hết hàng' : undefined} />
             </div>
           )}
 
@@ -2117,7 +2003,7 @@ export default function LiveStreamRoomPage() {
                     <img
                       src={
                         sessionData?.store?.logoUrl ||
-                        'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=100&auto=format&fit=crop&q=80'
+                        '/assets/product-placeholder.svg'
                       }
                       alt="Shop"
                       className="w-full h-full object-cover"
@@ -2128,23 +2014,19 @@ export default function LiveStreamRoomPage() {
                       <h3
                         className="text-[13px] font-bold text-[#1A1612] tracking-tight uppercase group-hover:text-[#C59B58] transition-colors truncate max-w-[150px] sm:max-w-[190px]"
                       >
-                        {sessionData?.store?.name ? sessionData.store.name.toUpperCase() : 'SORA SKIN OFFICIAL'}
+                        {liveShopName}
                       </h3>
-                      <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[9px] font-black tracking-tight leading-none inline-flex items-center shrink-0">
-                        Mall
-                      </span>
+                      {sessionData?.store?.isVerified === true && <span className="rounded border border-[#EEDFC6] px-1.5 py-0.5 text-[9px] font-semibold text-[#9B7137]">Đã xác minh</span>}
                       <ChevronRight className="w-3.5 h-3.5 text-[#7D715E] group-hover:text-[#1A1612] transition-colors shrink-0" />
                     </div>
                   </div>
                 </button>
                 <p className="text-[10.5px] text-[#7D715E] m-0 mt-0.5 flex items-center gap-1.5 font-medium truncate">
-                  <span className="text-amber-500 font-bold flex items-center gap-0.5">
-                    ★ 4.5
-                  </span>
-                  <span className="text-[#D8D0C3]">|</span>
-                  <span>Đã bán 419.1K</span>
-                  <span className="text-[#D8D0C3]">|</span>
-                  <span>80.1K+ theo dõi</span>
+                  {Number(sessionData?.store?.ratingCount) > 0 && Number.isFinite(Number(sessionData?.store?.ratingAverage)) && <>
+                    <span className="font-bold text-amber-600">★ {Number(sessionData.store.ratingAverage).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</span>
+                    <span>({Number(sessionData.store.ratingCount).toLocaleString('vi-VN')} đánh giá)</span><span>·</span>
+                  </>}
+                  <span>{products.length} sản phẩm trong live</span>
                 </p>
               </div>
 
@@ -2166,15 +2048,15 @@ export default function LiveStreamRoomPage() {
                   type="button"
                   onClick={() => {
                     setIsBagOpen(false);
-                    startCheckout(undefined, couponCode);
+                    openCart();
                   }}
                   className="p-1.5 rounded-full hover:bg-[#F3EFE6] text-[#7D715E] hover:text-[#1A1612] transition-colors relative cursor-pointer"
                   title="Giỏ hàng & thanh toán"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.2 rounded-full bg-[#C59B58] text-white text-[9px] font-black min-w-[16px] text-center shadow-xs">
-                    {cartTotalCount > 0 ? (cartTotalCount > 99 ? '99+' : cartTotalCount) : '99'}
-                  </span>
+                  {cartTotalCount > 0 && <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.2 rounded-full bg-[#C59B58] text-white text-[9px] font-black min-w-[16px] text-center shadow-xs">
+                    {cartTotalCount > 99 ? '99+' : cartTotalCount}
+                  </span>}
                 </button>
 
                 {/* Dock side toggle on desktop */}
@@ -2247,7 +2129,7 @@ export default function LiveStreamRoomPage() {
                 }`}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
-                <span>Đang LIVE</span>
+                <span>Đang giới thiệu</span>
               </button>
               {availableCategories.map((cat) => (
                 <button
@@ -2288,7 +2170,7 @@ export default function LiveStreamRoomPage() {
                       : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] text-white shadow-2xs'
                   }`}
                 >
-                  {isVoucherClaimed ? 'Đã lưu' : 'Lưu mã'}
+                  {legacyLive && isVoucherClaimed ? 'Đã lưu' : 'Sao chép mã'}
                 </button>
               </div>
             )}
@@ -2399,7 +2281,7 @@ export default function LiveStreamRoomPage() {
                         <div className="mt-1.5 flex items-end justify-between gap-2">
                           <div className="flex items-baseline gap-1.5 flex-wrap">
                             <span className="text-sm sm:text-[15px] font-black text-[#1A1612] tracking-tight">
-                              {Number(item.livePrice ?? item.price).toLocaleString('vi-VN')}₫
+                              {item.priceFrom && 'Từ '}{Number(item.livePrice ?? item.price).toLocaleString('vi-VN')}₫
                             </span>
                             {item.livePrice && item.livePrice < item.price && (
                               <>
@@ -2418,6 +2300,7 @@ export default function LiveStreamRoomPage() {
                             <button
                               type="button"
                               onClick={() => handleAddToCart(item)}
+                              disabled={isStreamEnded || !livePurchasingAvailable || !item.stockLeft}
                               className="w-7 h-7 rounded-full bg-white hover:bg-[#F3EFE6] border border-[#EAE4D7] flex items-center justify-center text-[#7D715E] hover:text-[#1A1612] active:scale-90 transition-all cursor-pointer shadow-2xs"
                               title="Thêm vào giỏ hàng"
                             >
@@ -2426,9 +2309,10 @@ export default function LiveStreamRoomPage() {
                             <button
                               type="button"
                               onClick={() => handleInstantBuy(item)}
+                              disabled={isStreamEnded || !livePurchasingAvailable || !item.stockLeft}
                               className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] active:scale-95 text-white text-xs font-black shadow-xs cursor-pointer transition-all flex items-center justify-center"
                             >
-                              Mua
+                              {item.stockLeft ? 'Mua' : 'Hết hàng'}
                             </button>
                           </div>
                         </div>
@@ -2500,7 +2384,7 @@ export default function LiveStreamRoomPage() {
                     {formatLiveDuration(liveElapsedSeconds)}
                   </div>
                   <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
-                    ● Đang phát liên tục
+                    {isStreamLive ? '● Đang phát hình' : 'Chưa nhận được camera'}
                   </div>
                 </div>
 
@@ -2510,10 +2394,10 @@ export default function LiveStreamRoomPage() {
                     Đơn Đã Chốt
                   </div>
                   <div className="text-base sm:text-lg font-black text-rose-600 mt-1 tracking-tight">
-                    {liveOrdersCount} đơn
+                    {liveSales ? liveSales.orderCount.toLocaleString('vi-VN') + ' đơn' : 'Chưa tải được'}
                   </div>
                   <div className="text-[10px] text-[#7D715E] font-medium mt-0.5">
-                    Tỉ lệ chốt: <strong className="text-[#1A1612]">8.4%</strong>
+                    Đơn đã thanh toán trong phiên
                   </div>
                 </div>
 
@@ -2523,23 +2407,23 @@ export default function LiveStreamRoomPage() {
                     Doanh Số Live
                   </div>
                   <div className="text-base sm:text-lg font-black text-[#1A1612] mt-1 tracking-tight">
-                    {liveGrossRevenue.toLocaleString('vi-VN')} ₫
+                    {liveSales ? liveSales.gmvVnd.toLocaleString('vi-VN') + ' ₫' : 'Chưa tải được'}
                   </div>
                   <div className="text-[10px] text-[#7D715E] font-medium mt-0.5 truncate">
-                    Shop nhận: <strong className="text-[#1A1612]">{liveShopEarnings.toLocaleString('vi-VN')} ₫</strong>
+                    Sau giảm giá: <strong className="text-[#1A1612]">{liveSales ? liveSales.netSalesVnd.toLocaleString('vi-VN') + ' ₫' : '—'}</strong>
                   </div>
                 </div>
 
                 {/* 4. Hoa hồng KOC */}
                 <div className="sm:px-3 text-center sm:text-left last:pr-0">
                   <div className="text-[10px] font-bold text-[#B88E4F] uppercase tracking-wider">
-                    Hoa Hồng KOC ({liveCommissionRate}%)
+                    Sản phẩm đã bán
                   </div>
                   <div className="text-base sm:text-lg font-black text-[#B88E4F] mt-1 tracking-tight">
-                    +{liveKocCommission.toLocaleString('vi-VN')} ₫
+                    {liveSales ? liveSales.soldQuantity.toLocaleString('vi-VN') + ' sản phẩm' : 'Chưa tải được'}
                   </div>
                   <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
-                    ✓ Tự cộng ví khi hoàn tất
+                    {liveSales ? liveSales.buyerCount.toLocaleString('vi-VN') + ' người mua' : 'Chờ dữ liệu đơn hàng'}
                   </div>
                 </div>
               </div>
@@ -2787,36 +2671,13 @@ export default function LiveStreamRoomPage() {
                   {selectedProfile.verified && (
                     <span
                       className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#059669] text-white flex items-center justify-center border-2 border-white shadow-xs"
-                      title="Đã xác thực danh tính"
+                      title="KOL được duyệt cho phiên live"
                     >
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
                     </span>
                   )}
                 </div>
 
-                {/* Quick Action Button: Follow / Đang theo dõi */}
-                <div className="flex items-center gap-2 mb-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleFollow(selectedProfile.handle)}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                      followedUsers[selectedProfile.handle]
-                        ? 'bg-[#FAF8F5] border border-[#EAE4D7] text-[#7D715E] hover:text-[#DC2626] hover:border-red-200'
-                        : 'bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-white'
-                    }`}
-                  >
-                    {followedUsers[selectedProfile.handle] ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Đang theo dõi</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>+ Theo dõi</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
 
               {/* Name, Handle & Badge */}
@@ -2878,19 +2739,19 @@ export default function LiveStreamRoomPage() {
 
               {/* Badges / Trust Details */}
               <div className="mt-3 pt-2.5 border-t border-[#EAE4D7] space-y-1.5 text-xs text-[#7D715E]">
-                <div className="flex items-center gap-2">
+                {selectedProfile.trustScore != null && <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-[#059669] shrink-0" />
                   <span className="text-[#1A1612] font-semibold">Điểm uy tín tài khoản:</span>
                   <span className="font-extrabold text-[#059669] ml-auto">{selectedProfile.trustScore}/100</span>
-                </div>
-                <div className="flex items-center gap-2">
+                </div>}
+                {selectedProfile.city && <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-[#B88E4F] shrink-0" />
                   <span>Khu vực: <strong className="text-[#1A1612]">{selectedProfile.city || 'Việt Nam'}</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
+                </div>}
+                {selectedProfile.memberSince && <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-[#B88E4F] shrink-0" />
                   <span>Thành viên từ: <strong className="text-[#1A1612]">{selectedProfile.memberSince}</strong></span>
-                </div>
+                </div>}
               </div>
 
               {/* Tags */}
@@ -2912,7 +2773,7 @@ export default function LiveStreamRoomPage() {
                     type="button"
                     onClick={() => {
                       setSelectedProfile(null);
-                      navigate(`/shop/${sessionData?.storeId || 'sora-skin'}`);
+                      handleOpenShopProfile();
                     }}
                     className="px-3 py-2 rounded-xl bg-[#FBF5EB] hover:bg-[#F3EFE6] border border-[#EEDFC6] text-[#B88E4F] text-xs font-black transition flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs shrink-0"
                     title="Ghé thăm cửa hàng chính thức của Shop"
@@ -2941,15 +2802,15 @@ export default function LiveStreamRoomPage() {
                   className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#C59B58] to-[#B88E4F] hover:from-[#B88E4F] hover:to-[#A77D3E] text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>{selectedProfile.role === 'SHOP' ? 'Chat với Shop' : 'Nhắn tin riêng'}</span>
+                  <span>{selectedProfile.role === 'SHOP' ? 'Chat với Shop' : 'Mở tin nhắn'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    toast.success(`Đã sao chép liên kết hồ sơ của ${selectedProfile.name}!`);
-                  }}
+                  onClick={() => { void navigator.clipboard.writeText(window.location.href)
+                    .then(() => toast.success('Đã sao chép liên kết phòng live.'))
+                    .catch(() => toast.error('Chưa sao chép được liên kết.')); }}
                   className="p-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#EAE4D7] text-[#1A1612] transition cursor-pointer"
-                  title="Chia sẻ hồ sơ"
+                  title="Chia sẻ phòng live"
                 >
                   <Share2 className="w-4 h-4" />
                 </button>

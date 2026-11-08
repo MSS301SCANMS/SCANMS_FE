@@ -45,6 +45,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutMode, setCheckoutMode] = useState<'modal' | 'page'>('modal');
   const checkoutFromCart = useRef(false);
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [checkoutCouponCode, setCheckoutCouponCode] = useState<string>('');
@@ -643,7 +644,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Start checkout flow (Requirement 4 & 5)
   const startCheckout = useCallback(
-    (customItems?: CartItem[], couponCode?: string) => {
+    (customItems?: CartItem[], couponCode?: string, mode: 'modal' | 'page' = 'modal') => {
       const itemsToCheckout = customItems && customItems.length > 0 ? customItems : selectedItems;
       if (new Set(itemsToCheckout.map(item => `${item.productId}_${item.variantId || 'base'}`)).size !== itemsToCheckout.length) {
         toast.warning('Bạn đang chọn cùng phân loại ở giỏ thường và giỏ live. Hãy chọn một nguồn mua cho phân loại này.');
@@ -670,6 +671,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!isCheckoutOpen) checkoutFromCart.current = isCartOpen;
       setCheckoutItems(itemsToCheckout);
+      setCheckoutMode(mode);
       if (couponCode !== undefined) {
         setCheckoutCouponCode(couponCode);
       }
@@ -681,7 +683,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Mua ngay sản phẩm trực tiếp (Instant Buy): lập tức mở thanh toán cho sản phẩm được chọn mà không cần chờ chọn checkbox
   const buyNow = useCallback(
-    (params: AddItemParams, couponCode?: string) => {
+    (params: AddItemParams, couponCode?: string, mode: 'modal' | 'page' = 'modal') => {
       const prodTitle = params.product.title || params.product.name || 'Sản phẩm';
       const prodImage = getSafeProductImageUrl(params.product.imageUrl || params.product.image, prodTitle);
       const availableVariants = params.product.variants || [];
@@ -762,7 +764,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSelectedItemIds((prev) => (prev.includes(cartItemId) ? prev : [...prev, cartItemId]));
 
       // Kích hoạt ngay thanh toán với món hàng này
-      startCheckout([directItem], couponCode);
+      startCheckout([directItem], couponCode, mode);
     },
     [startCheckout],
   );
@@ -885,6 +887,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       groupedByStore,
       selectedItems,
       isCheckoutOpen,
+      checkoutMode,
       setIsCheckoutOpen,
       checkoutItems,
       checkoutCouponCode,
@@ -921,6 +924,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       groupedByStore,
       selectedItems,
       isCheckoutOpen,
+      checkoutMode,
       checkoutItems,
       checkoutCouponCode,
       startCheckout,

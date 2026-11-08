@@ -27,13 +27,13 @@ export async function resolveLivestreamShareUrl(sessionId: string): Promise<stri
   }
   const url = new URL(shareUrl);
   if (isLocalHostname(url.hostname)) {
-    throw new Error('Chưa có link Internet để chia sẻ. Hãy bật bản demo public rồi thử lại.');
+    throw new Error('Chưa cấu hình địa chỉ HTTPS công khai cho web và livestream. Hiện bạn vẫn có thể sao chép link local để thử trên máy này.');
   }
   try {
     const response = await fetch(new URL('/live-health', url), { cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(6000) });
     if (!response.ok || (await response.json()).service !== 'livestream-realtime') throw new Error('Relay unavailable');
   } catch {
-    throw new Error('Link public hoặc relay đang tắt. Hãy Run lại hệ thống trong IntelliJ rồi chia sẻ lại.');
+    throw new Error('Đường dẫn công khai chưa kết nối được máy chủ livestream. Cần chạy máy chủ và cấu hình đường dẫn công khai trước khi gửi cho người khác.');
   }
   return shareUrl;
 }

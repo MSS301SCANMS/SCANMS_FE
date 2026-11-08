@@ -6,9 +6,10 @@ import vm from 'node:vm';
 const load=(name,imports={})=>{const module={exports:{}};const code=ts.transpileModule(fs.readFileSync(new URL('../src/utils/'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;vm.runInNewContext(code,{module,exports:module.exports,require:key=>imports[key]});return module.exports;};
 const helpers=load('livestream-lifecycle.utils',{'./server-date':load('server-date')});
 const now=Date.parse('2026-10-26T18:00:00Z');
-test('overdue pending schedules show expired rather than awaiting invitation',()=>{
+test('unstarted appointments remain scheduled when the planned end passes',()=>{
  const raw={status:'SCHEDULED',participantRefs:{endsAt:'2026-10-27T01:00:00+07:00',inviteStatus:'PENDING'}};
- const state=helpers.livestreamLifecycle(raw,now);assert.equal(state.status,'CANCELLED');assert.equal(state.lifecycleReason,'SCHEDULE_EXPIRED');assert.equal(helpers.livestreamStatusLabel(state.status,state.lifecycleReason),'Đã hết lịch');assert.equal(raw.status,'SCHEDULED');
+ const state=helpers.livestreamLifecycle(raw,now);assert.equal(state.status,'SCHEDULED');assert.equal(state.lifecycleReason,undefined);assert.equal(helpers.livestreamStatusLabel(state.status),'Đã lên lịch');assert.equal(raw.status,'SCHEDULED');
+ assert.equal(helpers.livestreamLifecycle({...raw,status:'PENDING_CREATOR'},now).status,'PENDING_CREATOR');
 });
 test('running sessions end at the deadline with UTC and offset date contracts',()=>{
  for(const end of ['2026-10-26T18:00:00','2026-10-26T18:00:00Z','2026-10-27T01:00:00+07:00'])assert.equal(helpers.livestreamLifecycle({status:'LIVE',participantRefs:{endsAt:end}},now).status,'ENDED');

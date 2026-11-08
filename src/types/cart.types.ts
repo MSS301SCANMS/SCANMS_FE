@@ -104,11 +104,12 @@ export interface CartContextType {
   groupedByStore: StoreCartGroup[];
   selectedItems: CartItem[];
   isCheckoutOpen: boolean;
+  checkoutMode: 'modal' | 'page';
   setIsCheckoutOpen: (open: boolean) => void;
   checkoutItems: CartItem[];
   checkoutCouponCode?: string;
-  startCheckout: (customItems?: CartItem[], couponCode?: string) => void;
-  buyNow: (params: AddItemParams, couponCode?: string) => void;
+  startCheckout: (customItems?: CartItem[], couponCode?: string, mode?: 'modal' | 'page') => void;
+  buyNow: (params: AddItemParams, couponCode?: string, mode?: 'modal' | 'page') => void;
   editCheckoutCart: (items: CartItem[]) => void;
   continueShoppingFromCheckout: (items: CartItem[]) => void;
   closeCheckout: () => void;

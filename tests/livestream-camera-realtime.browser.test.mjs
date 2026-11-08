@@ -5,9 +5,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { createRequire } from 'node:module';
-import { createLiveServer } from '../../SCANMS_BE/livestream-realtime/server.mjs';
-const require=createRequire(new URL('../../SCANMS_BE/livestream-realtime/package.json',import.meta.url));
-const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('../../SCANMS_BE/livestream-realtime/node_modules/jose/dist/webapi/index.js',import.meta.url).href);
+const relayRoot = ['../../be/livestream-realtime/', '../../SCANMS_BE/livestream-realtime/']
+ .map(path => new URL(path, import.meta.url)).find(path => existsSync(new URL('server.mjs', path)));
+if (!relayRoot) throw new Error('Missing BE livestream-realtime beside the FE repository.');
+const { createLiveServer } = await import(new URL('server.mjs', relayRoot).href);
+const require=createRequire(new URL('package.json',relayRoot));
+const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('node_modules/jose/dist/webapi/index.js',relayRoot).href);
 const base=process.env.GHN_UI_TEST_URL,executablePath=process.env.GHN_UI_BROWSER_PATH;
 const relayPort=Number(process.env.LIVE_TEST_RELAY_PORT||8090);
 

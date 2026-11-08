@@ -640,7 +640,7 @@ export default function CustomerPortalPage() {
         navigate('/customer/orders');
       } else if (type.startsWith('KYC_') || type.startsWith('IDENTITY_')) {
         navigate('/customer/identity');
-      } else if (type.startsWith('LIVE_') || type.includes('LIVE')) {
+      } else if (type.startsWith('LIVE_')) {
         const sId = (notif.data as any)?.sessionId;
         if (sId) {
           navigate(`/live/${sId}`);

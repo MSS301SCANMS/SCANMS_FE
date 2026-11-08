@@ -30,6 +30,7 @@ export const NotificationDropdown: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ORDER' | 'PROMOTION' | 'SYSTEM'>('ALL');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -117,7 +118,10 @@ export const NotificationDropdown: React.FC = () => {
           backendItems = res.items || [];
           backendUnread = res.unreadCount || 0;
         } catch {
-          backendItems = [];
+          if (requestId === listRequest.current && user.id === authService.getCurrentUser()?.id) {
+            setLoadError('Chưa tải được thông báo. Vui lòng thử lại.');
+          }
+          return;
         }
       }
       if (user?.id !== authService.getCurrentUser()?.id || requestId !== listRequest.current) return;
@@ -127,7 +131,7 @@ export const NotificationDropdown: React.FC = () => {
       const now = Date.now();
       // Lọc bỏ bất kỳ thông báo phiên live nào từ backend mà đã hết thời gian endsAt hoặc đã kết thúc
       const validBackendItems = backendItems.filter((item) => {
-        if (item.type.startsWith('LIVE_') || item.type.includes('LIVE')) {
+        if (item.type.startsWith('LIVE_')) {
           if (item.type === 'LIVE_SESSION_ENDED') {
             return false;
           }
@@ -150,7 +154,7 @@ export const NotificationDropdown: React.FC = () => {
       const liveSessionIds = new Set(liveItems.map((i) => i.data?.sessionId).filter(Boolean));
       const deduplicatedBackend = validBackendItems.filter((item) => {
         if (item.type === 'LIVE_GOVERNANCE') return true;
-        if (item.type.startsWith('LIVE_') || item.type.includes('LIVE')) {
+        if (item.type.startsWith('LIVE_')) {
           const sId = (item.data as any)?.sessionId;
           if (sId && liveSessionIds.has(sId)) {
             return false;
@@ -175,6 +179,7 @@ export const NotificationDropdown: React.FC = () => {
       }
 
       setNotifications(combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setLoadError('');
       const unreadBroadcasts = liveBroadcastService.getUnreadBroadcasts().length;
       setUnreadCount(backendUnread + unreadBroadcasts);
     } catch {
@@ -191,7 +196,11 @@ export const NotificationDropdown: React.FC = () => {
   useEffect(() => {
     fetchUnreadCount();
     // Tự động kiểm tra unread định kỳ mỗi 10 giây (khi hết giờ kết thúc phiên live, chuông lập tức hạ số)
-    const interval = setInterval(fetchUnreadCount, 10000);
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (isOpen) void fetchNotifications();
+      else void fetchUnreadCount();
+    }, 10000);
 
     // Lắng nghe sự kiện livestream phát sóng thời gian thực cho mọi Role
     const handleNewLive = () => {
@@ -204,7 +213,7 @@ export const NotificationDropdown: React.FC = () => {
       void fetchNotifications();
       void fetchUnreadCount();
     };
-    const handleFocus = () => { void fetchUnreadCount(); };
+    const handleFocus = () => { if (isOpen) void fetchNotifications(); else void fetchUnreadCount(); };
 
     window.addEventListener('scanms-new-live-broadcast', handleNewLive);
     window.addEventListener('scanms-live-broadcast-read', handleLiveRead);
@@ -216,7 +225,21 @@ export const NotificationDropdown: React.FC = () => {
       window.removeEventListener('scanms-live-broadcast-read', handleLiveRead);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchUnreadCount, fetchNotifications, playChime]);
+  }, [fetchUnreadCount, fetchNotifications, playChime, isOpen]);
+
+  const notificationAccount = useRef(authService.getCurrentUser()?.id);
+  useEffect(() => {
+    const changed = () => {
+      const id = authService.getCurrentUser()?.id;
+      if (id === notificationAccount.current) return;
+      notificationAccount.current = id;
+      listRequest.current++;
+      setNotifications([]); setUnreadCount(0); setLoadError(''); setIsOpen(false); setActiveTab('ALL'); setLoading(false);
+    };
+    const events = ['auth-user-updated', 'scanms_auth_changed', 'storage'];
+    events.forEach(event => window.addEventListener(event, changed));
+    return () => events.forEach(event => window.removeEventListener(event, changed));
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -240,23 +263,30 @@ export const NotificationDropdown: React.FC = () => {
   }, [isOpen]);
 
   const handleMarkAllRead = async () => {
+    const actor = authService.getCurrentUser()?.id;
+    if (authService.getCurrentUser() && !await notificationsService.markAllAsRead()) {
+      setLoadError('Chưa lưu được trạng thái đã đọc. Vui lòng thử lại.');
+      return;
+    }
+    if (actor !== authService.getCurrentUser()?.id) return;
     liveBroadcastService.markAllAsRead();
-    try {
-      await notificationsService.markAllAsRead();
-    } catch {}
+    setLoadError('');
     setUnreadCount(0);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
   const handleNotificationClick = async (notif: AppNotification) => {
+    const actor = authService.getCurrentUser()?.id;
     if (!notif.isRead) {
-      if (notif.type.startsWith('LIVE_') || notif.type.includes('LIVE')) {
+      if (notif.type === 'LIVE_SESSION_BROADCAST') {
         liveBroadcastService.markAsRead(notif.id);
       } else {
-        try {
-          await notificationsService.markAsRead(notif.id);
-        } catch {}
+        if (!await notificationsService.markAsRead(notif.id)) {
+          setLoadError('Chưa lưu được trạng thái đã đọc. Vui lòng thử lại.');
+          return;
+        }
       }
+      if (actor !== authService.getCurrentUser()?.id) return;
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)),
       );
@@ -274,7 +304,7 @@ export const NotificationDropdown: React.FC = () => {
     }
 
     // 1. Live stream broadcast notification -> dẫn thẳng vào phòng livestream
-    if ((notif.type.startsWith('LIVE_') || notif.type.includes('LIVE')) && !notif.type.startsWith('LIVE_ORDER_')) {
+    if (notif.type.startsWith('LIVE_') && !notif.type.startsWith('LIVE_ORDER_')) {
       const liveUrl = notif.data?.liveUrl;
       if (liveUrl) {
         if (liveUrl.startsWith('http')) {
@@ -372,7 +402,7 @@ export const NotificationDropdown: React.FC = () => {
     if (type.startsWith('ORDER_') || type.startsWith('LIVE_ORDER_')) {
       return <ShoppingBag className="w-4 h-4 text-[#C59B58]" />;
     }
-    if (type.startsWith('LIVE_') || type.includes('LIVE')) {
+    if (type.startsWith('LIVE_')) {
       return (
         <div className="relative">
           <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
@@ -505,10 +535,18 @@ export const NotificationDropdown: React.FC = () => {
           </div>
 
           <div className="scanms-notifications-list" ref={notificationListRef} role="region" aria-label="Danh sách thông báo" tabIndex={0} aria-busy={loading}>
+            {loadError && notifications.length > 0 && <div role="alert" className="border-b border-[#EAE4D7] bg-[#FFFAF2] px-4 py-3 text-xs text-[#946C35]">
+              {loadError} <button type="button" className="underline" onClick={() => void fetchNotifications()}>Tải lại</button>
+            </div>}
             {loading ? (
               <div className="flex flex-col items-center justify-center gap-[7px] p-[34px_16px] text-[#7D715E] text-center" role="status">
                 <Loader2 size={22} className="animate-spin text-[#B88E4F]" />
                 <p className="text-[11px] leading-[1.6] m-0">Đang tải thông báo…</p>
+              </div>
+            ) : loadError && !notifications.length ? (
+              <div role="alert" className="flex flex-col items-center gap-3 p-6 text-center text-xs text-[#7D715E]">
+                <ShieldAlert size={24} className="text-[#B88E4F]" /><p>{loadError}</p>
+                <button type="button" className="text-[#B88E4F] underline" onClick={() => void fetchNotifications()}>Thử tải lại</button>
               </div>
             ) : !notifications.length ? (
               <div className="flex flex-col items-center justify-center gap-[7px] p-[34px_16px] text-[#7D715E] text-center">
@@ -518,7 +556,7 @@ export const NotificationDropdown: React.FC = () => {
               </div>
             ) : (
               notifications.map(n => {
-                const isLive = n.type.startsWith('LIVE_') || n.type.includes('LIVE');
+                const isLive = n.type.startsWith('LIVE_') && !n.type.startsWith('LIVE_ORDER_');
                 const expanded = expandedMessages.has(n.id);
                 return (
                   <article key={n.id} className="scanms-notification-item" data-notification-id={n.id} data-read={n.isRead}>
