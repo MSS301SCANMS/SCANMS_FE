@@ -11,7 +11,7 @@ export interface LiveVoucherDrop {
   quantity: number; releaseAt: string; expiresAt: string; status: string;
 }
 export interface LiveCommerce {
-  offers: LiveOffer[]; voucherDrops: LiveVoucherDrop[]; pinnedProductId?: string | null;
+  offers: LiveOffer[]; voucherDrops: LiveVoucherDrop[]; pinnedProductId?: string | null; pinRevision?: number;
 }
 export const isLiveOfferActive = (offer: LiveOffer, now = Date.now()) => offer.status === 'ACTIVE'
   && (!offer.startsAt || Date.parse(offer.startsAt) <= now) && (!offer.endsAt || Date.parse(offer.endsAt) > now)

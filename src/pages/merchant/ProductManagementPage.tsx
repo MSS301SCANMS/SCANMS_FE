@@ -51,6 +51,9 @@ import {
   GENDER_TARGETS,
   FASHION_COLOR_OPTIONS,
   readFashionTags,
+  type ApparelType,
+  type FashionStyle,
+  type GenderTarget,
 } from '@/utils/fashion-tags.utils';
 
 import { useAiAnalyzeProduct, type AiAnalyzeProductResult } from '../../hooks/useProducts';
@@ -575,9 +578,9 @@ export default function ProductManagementPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formCustomCategory, setFormCustomCategory] = useState('');
-  const [formApparelType, setFormApparelType] = useState('');
-  const [formFashionStyle, setFormFashionStyle] = useState('');
-  const [formGenderTarget, setFormGenderTarget] = useState('');
+  const [formApparelType, setFormApparelType] = useState<ApparelType | ''>('');
+  const [formFashionStyle, setFormFashionStyle] = useState<FashionStyle | ''>('');
+  const [formGenderTarget, setFormGenderTarget] = useState<GenderTarget | ''>('');
   const [formColorTags, setFormColorTags] = useState<string[]>([]);
   const [formDescription, setFormDescription] = useState('');
   const [formIngredients, setFormIngredients] = useState('');
@@ -2308,7 +2311,7 @@ export default function ProductManagementPage() {
                     <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">
                       Loại sản phẩm (AI) <span className="text-rose-500">*</span>
                     </label>
-                    <Select value={formApparelType} onChange={(e) => setFormApparelType(e.target.value)} required className="w-full text-xs">
+                    <Select value={formApparelType} onChange={(e) => setFormApparelType(APPAREL_TYPES.find((option) => option.value === e.target.value)?.value || '')} required className="w-full text-xs">
                       <option value="" disabled>Chọn loại</option>
                       {APPAREL_TYPES.map((item) => (
                         <option key={item.value} value={item.value}>{item.label}</option>
@@ -2317,7 +2320,7 @@ export default function ProductManagementPage() {
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">Phong cách</label>
-                    <Select value={formFashionStyle} onChange={(e) => setFormFashionStyle(e.target.value)} className="w-full text-xs">
+                    <Select value={formFashionStyle} onChange={(e) => setFormFashionStyle(FASHION_STYLES.find((option) => option.value === e.target.value)?.value || '')} className="w-full text-xs">
                       <option value="">Chọn phong cách</option>
                       {FASHION_STYLES.map((item) => (
                         <option key={item.value} value={item.value}>{item.label}</option>
@@ -2326,7 +2329,7 @@ export default function ProductManagementPage() {
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-[#1A1612]">Đối tượng</label>
-                    <Select value={formGenderTarget} onChange={(e) => setFormGenderTarget(e.target.value)} className="w-full text-xs">
+                    <Select value={formGenderTarget} onChange={(e) => setFormGenderTarget(GENDER_TARGETS.find((option) => option.value === e.target.value)?.value || '')} className="w-full text-xs">
                       <option value="">Chọn đối tượng</option>
                       {GENDER_TARGETS.map((item) => (
                         <option key={item.value} value={item.value}>{item.label}</option>

@@ -89,7 +89,7 @@ function subscribeCheckoutSession(callback: () => void) {
 
 export const GuestCheckoutModal: React.FC<GuestCheckoutModalProps> = (props) => {
   const session = useSyncExternalStore(subscribeCheckoutSession, getSessionId, () => null);
-  const navigation = useCheckoutNavigation(props.isOpen, props.onClose, props.onBack);
+  const navigation = useCheckoutNavigation(props.isOpen, props.onClose, props.onBack, props.navigationMode);
   return <CheckoutForm key={session || 'guest'} {...props} onClose={navigation.close} onBack={navigation.back} />;
 };
 
@@ -1137,7 +1137,7 @@ const CheckoutForm: React.FC<GuestCheckoutModalProps> = ({
               shippingFees={shippingFeesByStore}
               notes={orderNotes}
               onNotesChange={setOrderNotes}
-              onChat={(st) => openChat(st?.id || targetVoucherStoreId)}
+              onChat={(st) => { const id = st?.id || targetVoucherStoreId; if (id) openChat({ id, name: st?.name || 'Gian hàng' }); }}
               onEditCart={() => {
                 onClose();
                 editCheckoutCart(activeItems);

@@ -1,5 +1,6 @@
 import api from './api';
-const notificationsEnabled = import.meta.env.VITE_COMMERCE_BACKEND === 'legacy';
+import { unwrapApi } from '@/utils/api-response';
+const fresh = { headers: { 'x-skip-cache': '1' } };
 
 export type NotificationCategory = 'ALL' | 'ORDER' | 'PROMOTION' | 'SYSTEM';
 
@@ -34,18 +35,18 @@ export const notificationsService = {
     page = 1,
     limit = 20,
   ): Promise<NotificationResponse> {
-    if (!notificationsEnabled) return { items: [], total: 0, page, limit, totalPages: 0, unreadCount: 0 };
     const res: any = await api.get('/notifications', {
       params: { category, page, limit },
+      ...fresh,
     });
-    return res?.data?.data || res?.data || res;
+    const result = unwrapApi<NotificationResponse>(res);
+    if (!Array.isArray(result?.items)) throw new Error('Chưa tải được danh sách thông báo hợp lệ.');
+    return result;
   },
 
   async getUnreadCount(): Promise<number | null> {
-    if (!notificationsEnabled) return 0;
     try {
-      const res: any = await api.get('/notifications/unread-count');
-      const data = res?.data?.data || res?.data || res;
+      const data = unwrapApi<{ unreadCount?: number }>(await api.get('/notifications/unread-count', fresh));
       return typeof data?.unreadCount === 'number' ? data.unreadCount : null;
     } catch {
       return null;
@@ -60,10 +61,8 @@ export const notificationsService = {
       SYSTEM: number;
     };
   } | null> {
-    if (!notificationsEnabled) return null;
     try {
-      const res: any = await api.get('/notifications/unread-count');
-      const data = res?.data?.data || res?.data || res;
+      const data = unwrapApi<{ unreadCount?: number; categoryUnreadCounts?: { ORDER: number; PROMOTION: number; SYSTEM: number } }>(await api.get('/notifications/unread-count', fresh));
       if (typeof data?.unreadCount !== 'number') return null;
       return {
         unreadCount: data.unreadCount,
@@ -75,9 +74,8 @@ export const notificationsService = {
   },
 
   async markAsRead(notificationId: string): Promise<boolean> {
-    if (!notificationsEnabled) return false;
     try {
-      await api.patch(`/notifications/${notificationId}/read`);
+      await api.patch(`/notifications/${encodeURIComponent(notificationId)}/read`);
       return true;
     } catch {
       return false;
@@ -85,7 +83,6 @@ export const notificationsService = {
   },
 
   async markAllAsRead(): Promise<boolean> {
-    if (!notificationsEnabled) return false;
     try {
       await api.patch('/notifications/read-all');
       return true;

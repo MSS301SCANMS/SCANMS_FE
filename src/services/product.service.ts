@@ -1,7 +1,8 @@
 import api from './api';
 import { unwrapApi, unwrapList } from '@/utils/api-response';
+import type { FashionProductTags } from '@/utils/fashion-tags.utils';
 
-export interface Product {
+export interface Product extends FashionProductTags {
   id: string;
   storeId?: string;
   sku: string;

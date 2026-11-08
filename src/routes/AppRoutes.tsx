@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, type ComponentType, useSyncExternalStore } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, type ComponentType, type ReactNode, useEffect, useRef, useSyncExternalStore } from 'react';
 
 function lazyRetry<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
   return lazy(async () => {
@@ -27,11 +27,14 @@ const SearchPage = lazyRetry(() => import('../pages/public/SearchPage'));
 const OutfitMatchPage = lazyRetry(() => import('../pages/public/OutfitMatchPage'));
 const PayosReturnPage = lazyRetry(() => import('../pages/public/PayosReturnPage'));
 const LiveStreamRoomPage = lazyRetry(() => import('../pages/public/LiveStreamRoomPage'));
+const CustomerCheckoutPage = lazyRetry(() => import('../pages/customer/CustomerCheckoutPage'));
 const ProductManagementPage = lazyRetry(() => import('../pages/merchant/ProductManagementPage'));
 const ShopDashboardPage = lazyRetry(() => import('../pages/merchant/ShopDashboardPage'));
 const ShopApplicationPage = lazyRetry(() => import('../pages/merchant/ShopApplicationPage'));
 const ShopSettingsPage = lazyRetry(() => import('../pages/merchant/ShopSettingsPage'));
 const ChatBoxPage = lazyRetry(() => import('../pages/chat/ChatBoxPage'));
+const ScanmsFloatingChatWidget = lazyRetry(() => import('../components/chat/ScanmsFloatingChatWidget'));
+const ChatSampleRequestsPage = lazyRetry(() => import('../pages/shared/ChatSampleRequestsPage'));
 const AdminUsersPage = lazyRetry(() => import('../pages/admin/AdminUsersPage'));
 const KycApprovalPage = lazyRetry(() => import('../pages/admin/KycApprovalPage'));
 const OrdersManagementPage = lazyRetry(() => import('../pages/merchant/OrdersManagementPage'));
@@ -71,6 +74,17 @@ import { GuestCheckoutModal } from '../components/checkout/GuestCheckoutModal';
 import { StorePresenceHeartbeat } from '../components/store/StorePresenceHeartbeat';
 import { canAccessShopping } from '../utils/shopping-access';
 import { authService } from '../services/auth.service';
+import { useAuthUser } from '../hooks/useAuthUser';
+import { checkoutDraftKey, liveCheckoutOrigin, readCheckoutDraft } from '../utils/checkout-page.utils';
+
+function ChatEntry() {
+  const user = useAuthUser();
+  const location = useLocation();
+  if (!user || !localStorage.getItem('token')) {
+    return <Navigate to={`/login?redirect=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
+  }
+  return <ChatBoxPage />;
+}
 
 function AdminUsersEntry() {
   const role = authService.getCurrentUser()?.role;
@@ -85,8 +99,19 @@ function ShopApplicationEntry() {
 }
 
 function GlobalCheckoutModal() {
-  const { isCheckoutOpen, closeCheckout, returnFromCheckout, checkoutItems, checkoutCouponCode } = useCart();
-  if (!isCheckoutOpen || !canAccessShopping()) return null;
+  const location = useLocation();
+  const previousPath = useRef(location.pathname);
+  const { isCheckoutOpen, checkoutMode, closeCheckout, returnFromCheckout, checkoutItems, checkoutCouponCode } = useCart();
+  useEffect(() => {
+    if (previousPath.current === '/checkout' && location.pathname !== '/checkout') {
+      closeCheckout();
+      const user = authService.getCurrentUser();
+      if (user?.id) sessionStorage.removeItem(checkoutDraftKey(user.id));
+    }
+    previousPath.current = location.pathname;
+  }, [location.pathname, closeCheckout]);
+  const leavingCheckoutPage = previousPath.current === '/checkout' && location.pathname !== '/checkout';
+  if (checkoutMode === 'page' || location.pathname === '/checkout' || leavingCheckoutPage || !isCheckoutOpen || !canAccessShopping()) return null;
   return (
     <GuestCheckoutModal
       isOpen={isCheckoutOpen}
@@ -96,6 +121,20 @@ function GlobalCheckoutModal() {
       initialCouponCode={checkoutCouponCode}
     />
   );
+}
+
+function CheckoutAwareRoutes({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const user = useAuthUser();
+  const background = location.pathname === '/checkout' && canAccessShopping()
+    ? liveCheckoutOrigin(location.state?.liveCheckoutFrom) || (user?.id ? readCheckoutDraft(user.id)?.returnTo : undefined) : undefined;
+  // Keep the signed live-room connection during checkout and rejoin it on a checkout reload.
+  return <>
+    <div hidden={Boolean(background)} aria-hidden={background ? true : undefined}>
+      <Routes location={background || location}>{children}</Routes>
+    </div>
+    {background && <CustomerCheckoutPage />}
+  </>;
 }
 
 function ShoppingChrome() {
@@ -137,11 +176,12 @@ function AppRoutes() {
               </div>
             }
           >
-            <Routes>
+            <CheckoutAwareRoutes>
               {/* ===== Mua sắm: chỉ guest + workspace customer ===== */}
               <Route element={<CustomerShoppingGuard />}>
                 <Route path="/" element={<MarketplacePage />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
+                <Route path="/checkout" element={<CustomerCheckoutPage />} />
                 <Route path="/shops/:shopId" element={<ShopPage />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/marketplace/search" element={<SearchPage />} />
@@ -173,7 +213,7 @@ function AppRoutes() {
               <Route path="/app" element={<Navigate to="/" replace />} />
               <Route path="/app/:screenId" element={<Navigate to="/" replace />} />
               <Route path="/leaderboard" element={<Navigate to="/" replace />} />
-              <Route path="/chat" element={<Navigate to="/customer/orders" replace />} />
+              <Route path="/chat" element={<ChatEntry />} />
 
               {/* Customer portal */}
               <Route element={<CustomerPortalGuard />}>
@@ -228,8 +268,8 @@ function AppRoutes() {
                     <Route path="merchant/kol-hub" element={<Navigate to="/merchant/collaborations" replace />} />
                     <Route path="merchant/customer-messages" element={<ChatBoxPage />} />
                     <Route path="merchant/campaigns" element={<Navigate to="/merchant/promotions" replace />} />
-                    <Route path="merchant/messages" element={<Navigate to="/merchant/orders" replace />} />
-                    <Route path="merchant/sample-requests" element={<Navigate to="/merchant/promotions" replace />} />
+                    <Route path="merchant/messages" element={<ChatBoxPage />} />
+                    <Route path="merchant/sample-requests" element={<ChatSampleRequestsPage shop />} />
                     <Route path="merchant/collaborators" element={<Navigate to="/merchant/collaborations" replace />} />
                     <Route path="merchant/analytics" element={<Navigate to="/merchant/dashboard" replace />} />
                     <Route path="merchant/stats" element={<Navigate to="/merchant/dashboard" replace />} />
@@ -255,9 +295,9 @@ function AppRoutes() {
                     {/* Out of scope KOL UI */}
                     <Route path="collaborator/collaboration" element={<Navigate to="/collaborator/marketing" replace />} />
                     <Route path="collaborator/live-sessions" element={<Navigate to="/collaborator/marketing?tab=live" replace />} />
-                    <Route path="collaborator/samples" element={<Navigate to="/collaborator/dashboard" replace />} />
-                    <Route path="collaborator/sample-requests" element={<Navigate to="/collaborator/dashboard" replace />} />
-                    <Route path="collaborator/messages" element={<Navigate to="/collaborator/dashboard" replace />} />
+                    <Route path="collaborator/samples" element={<ChatSampleRequestsPage />} />
+                    <Route path="collaborator/sample-requests" element={<ChatSampleRequestsPage />} />
+                    <Route path="collaborator/messages" element={<ChatBoxPage />} />
                     <Route path="collaborator/media-hub" element={<Navigate to="/collaborator/marketing?tab=links" replace />} />
                     <Route path="collaborator/campaigns" element={<Navigate to="/collaborator/marketing" replace />} />
                     <Route path="collaborator/social-channels" element={<Navigate to="/collaborator/profile" replace />} />
@@ -301,10 +341,13 @@ function AppRoutes() {
 
                 <Route path="analytics" element={<Navigate to="/dashboard" replace />} />
               </Route>
-            </Routes>
+            </CheckoutAwareRoutes>
           </Suspense>
         </ErrorBoundary>
         <ShoppingChrome />
+        <Suspense fallback={null}>
+          <ScanmsFloatingChatWidget />
+        </Suspense>
       </CartProvider>
     </Router>
   );

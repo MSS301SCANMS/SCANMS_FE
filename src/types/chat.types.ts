@@ -69,6 +69,8 @@ export interface ChatStoreInfo {
   name: string;
   logoUrl?: string;
   isVerified?: boolean;
+  customerId?: string;
+  slug?: string;
 }
 
 export interface ChatCouponVoucher {
@@ -109,6 +111,10 @@ export interface ChatChatMessageItem {
   sender: 'user' | 'shop';
   content: string;
   timestamp: string;
+  createdAt?: string;
+  delivery?: 'sending' | 'sent' | 'failed';
+  uploadProgress?: number;
+  senderName?: string;
   product?: ChatProductInfo;
   products?: ChatProductInfo[];
   coupon?: ChatCouponVoucher;
@@ -122,13 +128,18 @@ export type ChatMessageItem = ChatChatMessageItem;
 export interface ChatConversationItem {
   id: string;
   store: ChatStoreInfo;
+  customerId?: string;
+  isStoreOwner?: boolean;
+  peerName?: string;
   lastMessage: string;
   lastTime: string;
+  lastCreatedAt?: string;
   unreadCount: number;
   messages: ChatMessageItem[];
 }
 
 export interface ScanmsChatContextType {
+  accountId: string;
   isOpen: boolean;
   isMinimized: boolean;
   activeConversationId: string;
@@ -140,6 +151,14 @@ export interface ScanmsChatContextType {
   toggleMinimize: () => void;
   selectConversation: (id: string) => void;
   sendMessage: (content: string) => Promise<boolean>;
+  retryMessage: (id: string) => Promise<boolean>;
+  loadOlderMessages: () => Promise<void>;
+  hasOlderMessages: boolean;
+  loadingMessages: boolean;
+  connectionState: string;
+  chatError: string;
+  loadingConversations?: boolean;
+  refreshConversations?: () => Promise<void>;
   sendAttachment: (file: File, type: ChatAttachmentType, caption?: string) => Promise<void>;
   sendProductsInquiry: (products: ChatProductInfo[]) => Promise<boolean>;
   shareCouponVoucher: (coupon: ChatCouponVoucher) => boolean;

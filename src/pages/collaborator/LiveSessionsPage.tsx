@@ -1,6 +1,6 @@
 ﻿import { LiveGovernancePanel, type LiveGovernance } from '../../components/live/LiveGovernancePanel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { livestreamLifecycle, livestreamStatusLabel } from '../../utils/livestream-lifecycle.utils';
+import { livestreamLifecycle, livestreamStatusLabel, sortLivestreamSessions } from '../../utils/livestream-lifecycle.utils';
 import { serverDate } from '../../utils/server-date';
 import {
   CalendarClock,
@@ -26,6 +26,7 @@ import api from '../../services/api';
 import { liveSessionService } from '../../services/live-session.service';
 import { toast } from '../../utils/toast';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
+import { productDisplayCode } from '../../utils/product-display-code';
 
 type Session = {
   lifecycleReason?: string;
@@ -115,8 +116,8 @@ export default function CollaboratorLiveSessionsPage() {
             usageLimitTotal: participants.usageLimitTotal ?? null,
             usageCount: 0,
           },
-          products: (productIds as string[]).map((pid) => ({
-            product: { id: pid, title: pid, imageUrl: null },
+          products: raw.products || (productIds as string[]).map((pid) => ({
+            product: { id: pid, title: '', imageUrl: null },
           })),
           report: raw.report,
           governance: raw.governance,
@@ -173,7 +174,7 @@ export default function CollaboratorLiveSessionsPage() {
   };
 
   const filteredSessions = useMemo(() => {
-    return sessions.filter((s) => {
+    return sortLivestreamSessions(sessions.filter((s) => {
       if (statusFilter === 'LIVE') {
         return s.status === 'LIVE';
       }
@@ -192,7 +193,7 @@ export default function CollaboratorLiveSessionsPage() {
         return s.status === 'ENDED' || s.status === 'CANCELLED';
       }
       return true;
-    });
+    }));
   }, [sessions, statusFilter]);
 
   const counts = useMemo(() => {
@@ -478,7 +479,7 @@ export default function CollaboratorLiveSessionsPage() {
                       {session.products.slice(0, 2).map((item, index) => (
                         <span
                           key={item.product.id || index}
-                          title={item.product.title}
+                          title={`${item.product.title || 'Sản phẩm'} · Mã đầy đủ: ${item.product.id}`}
                           className="inline-flex items-center gap-1.5 min-w-0 max-w-full text-[#1A1612] text-xs font-medium"
                         >
                           <img
@@ -487,7 +488,14 @@ export default function CollaboratorLiveSessionsPage() {
                             loading="lazy"
                             className="w-5 h-5 rounded object-cover border border-[#EAE4D7] bg-white shrink-0"
                           />
-                          <span className="max-w-[200px] truncate">{item.product.title}</span>
+                          <span className="min-w-0 max-w-[200px]">
+                            {item.product.title && item.product.title !== item.product.id && (
+                              <span className="block truncate">{item.product.title}</span>
+                            )}
+                            <span className="block truncate text-[10px] text-[#7D715E]">
+                              {productDisplayCode(item.product.id)}
+                            </span>
+                          </span>
                         </span>
                       ))}
                       {session.products.length > 2 && (

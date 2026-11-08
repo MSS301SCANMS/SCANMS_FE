@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { CHECKOUT_HISTORY_KEY, checkoutNavigationState } from '../utils/checkout-navigation';
 
-export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBack = onClose) {
+export function useCheckoutNavigation(
+  isOpen: boolean,
+  onClose: () => void,
+  onBack = onClose,
+  mode: 'modal' | 'page' = 'modal',
+) {
   const location = useLocation();
   const navigate = useNavigate();
   const action = useNavigationType();
@@ -13,6 +18,10 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
   const backRequested = useRef(false);
 
   useEffect(() => {
+    if (mode === 'page' || window.location.pathname !== location.pathname) {
+      entry.current = null;
+      return;
+    }
     if (!isOpen) {
       entry.current = null;
       closing.current = false;
@@ -41,9 +50,13 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
     entry.current = null;
     if (action === 'POP') callbacks.current.onBack();
     else callbacks.current.onClose();
-  }, [isOpen, location, action, navigate]);
+  }, [isOpen, location, action, navigate, mode]);
 
   const close = useCallback(() => {
+    if (mode === 'page') {
+      callbacks.current.onClose();
+      return;
+    }
     closing.current = true;
     entry.current = null;
     if (location.state?.[CHECKOUT_HISTORY_KEY]) {
@@ -52,9 +65,13 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
       navigate(location.pathname + location.search + location.hash, { replace: true, state, preventScrollReset: true });
     }
     callbacks.current.onClose();
-  }, [location, navigate]);
+  }, [location, navigate, mode]);
 
   const back = useCallback(() => {
+    if (mode === 'page') {
+      callbacks.current.onBack();
+      return;
+    }
     if (backRequested.current) return;
     if (entry.current && location.state?.[CHECKOUT_HISTORY_KEY] === entry.current.token) {
       backRequested.current = true;
@@ -63,7 +80,7 @@ export function useCheckoutNavigation(isOpen: boolean, onClose: () => void, onBa
       closing.current = true;
       callbacks.current.onBack();
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, mode]);
 
   return { close, back };
 }

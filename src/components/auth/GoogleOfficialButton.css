@@ -1,5 +1,8 @@
 .google-official-button-target {
+  width: 100%;
+  max-width: 400px;
   min-width: 0;
+  margin-inline: auto;
 }
 
 /* The SDK adds its own wrappers and an inline pixel width to the button. */

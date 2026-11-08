@@ -91,8 +91,8 @@ test('shop creates a Spring session with owned products and accepted KOL, then s
   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('button')].some(button=>button.textContent.trim()==='Bắt đầu phát sóng')),false,'pending consent cannot start');
   await page.click('[aria-label="Đóng chi tiết phiên live"]');
   sessions[0].participantRefs={...sessions[0].participantRefs,inviteStatus:'ACCEPTED',collaboratorResponses:{'kol-a':'ACCEPTED'}};
-  await page.reload({waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.title==='Bắt đầu phiên live ngay'));
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.title==='Bắt đầu phiên live ngay'),{timeout:6500});
+  assert.match(await page.evaluate(()=>document.body.innerText),/KOL đồng ý/,'shop observes KOL acceptance automatically without a reload');
   const tabsBefore=(await browser.pages()).length;
   await page.evaluate(()=>[...document.querySelectorAll('a')].find(link=>link.textContent.trim()==='Mở live').click());
   await page.waitForSelector('[role="dialog"]');

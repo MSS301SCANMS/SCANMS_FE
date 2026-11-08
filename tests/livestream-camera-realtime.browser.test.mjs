@@ -5,9 +5,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { createRequire } from 'node:module';
-import { createLiveServer } from '../../be/livestream-realtime/server.mjs';
-const require=createRequire(new URL('../../be/livestream-realtime/package.json',import.meta.url));
-const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('../../be/livestream-realtime/node_modules/jose/dist/webapi/index.js',import.meta.url).href);
+const relayRoot = ['../../be/livestream-realtime/', '../../SCANMS_BE/livestream-realtime/']
+ .map(path => new URL(path, import.meta.url)).find(path => existsSync(new URL('server.mjs', path)));
+if (!relayRoot) throw new Error('Missing BE livestream-realtime beside the FE repository.');
+const { createLiveServer } = await import(new URL('server.mjs', relayRoot).href);
+const require=createRequire(new URL('package.json',relayRoot));
+const { generateKeyPair, SignJWT, jwtVerify }=await import(new URL('node_modules/jose/dist/webapi/index.js',relayRoot).href);
 const base=process.env.GHN_UI_TEST_URL,executablePath=process.env.GHN_UI_BROWSER_PATH;
 const relayPort=Number(process.env.LIVE_TEST_RELAY_PORT||8090);
 
@@ -25,7 +28,7 @@ test('real WebRTC carries KOL camera/microphone to customer and shop, deduplicat
  const shopJoinRoles=[];
  server.io.of('/live-stream').on('connection',socket=>socket.on('join_live_room',payload=>{if(socket.data.claims.sub==='shop-user')shopJoinRoles.push(payload.requestedRole)}));
  await new Promise((resolve,reject)=>{server.http.once('error',reject);server.http.listen(relayPort,'127.0.0.1',resolve)});
- const browser=await puppeteer.launch({executablePath,headless:true,args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--autoplay-policy=no-user-gesture-required']});
+ const browser=await puppeteer.launch({executablePath,headless:true,args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--autoplay-policy=no-user-gesture-required','--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets']});
  const errors=[],apiWrites=[];let host,viewer,shop,observer;
  const artifacts=new URL('../.qa-artifacts/livestream-camera/',import.meta.url);
  await mkdir(artifacts,{recursive:true});
@@ -96,6 +99,7 @@ test('real WebRTC carries KOL camera/microphone to customer and shop, deduplicat
   await shop.screenshot({path:fileURLToPath(new URL('shop.png',artifacts))});
   await viewer.screenshot({path:fileURLToPath(new URL('viewer.png',artifacts))});
   await host.screenshot({path:fileURLToPath(new URL('host.png',artifacts))});
+  assert.equal(await viewer.$('button[aria-label="Mở chat"]'),null,'floating chat must not cover the live comment composer');
   await viewer.type('input[placeholder="Gửi bình luận hoặc hỏi KOC..."]','Customer sends from the real chat form');
   await viewer.click('button[aria-label="Gửi bình luận"]');
   await host.waitForFunction(()=>document.body.innerText.includes('Customer sends from the real chat form'));

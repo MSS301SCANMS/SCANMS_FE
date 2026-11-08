@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import vm from 'node:vm';
 const code=ts.transpileModule(readFileSync(new URL('../src/services/live-session.service.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-function service(fixtures){
+function service(fixtures,requests=[]){
  const utility=(name,imports={})=>{const target={exports:{}};const compiled=ts.transpileModule(readFileSync(new URL('../src/utils/'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;vm.runInNewContext(compiled,{module:target,exports:target.exports,require:key=>imports[key]});return target.exports;};
  const dates=utility('server-date');
  const lifecycle=utility('livestream-lifecycle.utils',{'./server-date':dates});
  const module={exports:{}};
- vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='../utils/server-date'?dates:name==='../utils/livestream-lifecycle.utils'?lifecycle:name==='./api'?{__esModule:true,default:{get:async path=>{assert.ok(path in fixtures,'Unexpected endpoint: '+path);return {result:fixtures[path]};}}}:{unwrapApi:r=>r.result}});
+ vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='../utils/server-date'?dates:name==='../utils/livestream-lifecycle.utils'?lifecycle:name==='./api'?{__esModule:true,default:{get:async path=>{requests.push(path);assert.ok(path in fixtures,'Unexpected endpoint: '+path);if(fixtures[path] instanceof Error)throw fixtures[path];return {result:fixtures[path]};}}}:{unwrapApi:r=>r.result}});
  return module.exports.liveSessionService;
 }
 test('KOL sees only their invitations and their own decision in a multi-KOL session',async()=>{
@@ -29,4 +29,28 @@ test('Spring room resolves business IDs, store, current product prices and accep
 test('invalid room data is reported and legacy room objects retain their contract',async()=>{
  await assert.rejects(service({'/livestreams/missing':{}}).room('missing'),/Không tìm thấy/);
  assert.equal((await service({'/livestreams/legacy':{id:'legacy',products:[]}}).room('legacy')).id,'legacy');
+});
+
+test('invitation product previews use catalog names, deduplicate reads and preserve missing references', async () => {
+ const requests = [];
+ const api = service({
+  '/livestreams': [
+   { livestreamId: 'one', collaboratorRefs: { collaboratorIds: ['kol'] }, productRefs: { productIds: ['shirt', 'missing', 'third'] } },
+   { livestreamId: 'two', collaboratorRefs: { collaboratorIds: ['kol'] }, productRefs: { productIds: ['shirt'] } },
+   { livestreamId: 'private', collaboratorRefs: { collaboratorIds: ['other'] }, productRefs: { productIds: ['unrelated'] } },
+  ],
+  '/collaborators/me': { collaboratorId: 'kol' },
+  '/public/products/shirt': { id: 'shirt', name: 'Sơ mi caro xanh đen', imageUrl: '/shirt.png' },
+  '/public/products/missing': new Error('Product unavailable'),
+ }, requests);
+ const rows = await api.mine();
+ assert.equal(rows.length, 2);
+ assert.equal(rows[0].products.length, 3);
+ assert.equal(rows[0].products[0].product.title, 'Sơ mi caro xanh đen');
+ assert.equal(rows[0].products[0].product.imageUrl, '/shirt.png');
+ assert.equal(rows[0].products[1].product.id, 'missing');
+ assert.equal(rows[0].products[1].product.title, '');
+ assert.equal(requests.filter(path => path === '/public/products/shirt').length, 1);
+ assert.equal(requests.includes('/public/products/third'), false);
+ assert.equal(requests.includes('/public/products/unrelated'), false);
 });

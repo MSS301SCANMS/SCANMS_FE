@@ -18,6 +18,7 @@ import { ScanMSLogo } from '../../components/common/ScanMSLogo';
 import { toast } from '../../utils/toast';
 import { registrationErrorMessage } from '../../utils/registration-error';
 import { loginDestination } from '../../utils/workspace-access';
+import { safeLoginReturn } from '../../utils/login-return';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -25,10 +26,7 @@ export default function RegisterPage() {
 
   const requestedRedirect = searchParams.get('redirect');
   const initialRef = searchParams.get('ref') || '';
-  const returnTo =
-    requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') && !requestedRedirect.includes('\\')
-      ? requestedRedirect
-      : null;
+  const returnTo = safeLoginReturn(requestedRedirect);
   const loginUrl = returnTo ? `/login?redirect=${encodeURIComponent(returnTo)}` : '/login';
 
   // Các trường khớp với BE RegisterRequest: username, email, password, firstName, lastName.
@@ -88,19 +86,10 @@ export default function RegisterPage() {
         lastName: lastName.trim(),
       });
 
-      toast.success('Đăng ký tài khoản thành công! Đang tự động đăng nhập...');
-
-      try {
-        await authService.login(normalizedEmail, password);
-        const destination = loginDestination(authService.getCurrentUser(), returnTo || '/customer/orders');
-        authService.setActiveWorkspace(destination.workspace);
-        navigate(destination.path);
-      } catch {
-        const dest = returnTo
-          ? `/login?registered=email&email=${encodeURIComponent(normalizedEmail)}&redirect=${encodeURIComponent(returnTo)}`
-          : `/login?registered=email&email=${encodeURIComponent(normalizedEmail)}`;
-        navigate(dest);
-      }
+      toast.success('Đăng ký tài khoản thành công! Vui lòng đăng nhập để tiếp tục.');
+      const params = new URLSearchParams({ role: 'customer', registered: 'email', email: normalizedEmail });
+      if (returnTo) params.set('redirect', returnTo);
+      navigate(`/login?${params}`, { replace: true });
     } catch (err: any) {
       setError(registrationErrorMessage(err));
     } finally {

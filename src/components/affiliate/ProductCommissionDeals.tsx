@@ -6,8 +6,9 @@ import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { toast } from '../../utils/toast';
 import './ProductCommissionDeals.css';
+import { CollaborationResourceCard } from '../chat/CollaborationResourceCard';
 
-const labels: Record<string,string> = { PENDING: 'Chờ shop duyệt', APPROVED: 'Đang áp dụng', REJECTED: 'Đã từ chối', CANCELLED: 'Đã thu hồi', SUPERSEDED: 'Đã thay thế', ENDED: 'Đã kết thúc' };
+const labels: Record<string,string> = { PENDING: 'Chờ shop duyệt', COUNTERED: 'Shop đề xuất lại', APPROVED: 'Đang áp dụng', REJECTED: 'Đã từ chối', CANCELLED: 'Đã thu hồi', SUPERSEDED: 'Đã thay thế', ENDED: 'Đã kết thúc' };
 const percent = (value: number | string) => Number(value).toLocaleString('vi-VN') + '%';
 const date = (value?: string) => value ? new Date(value).toLocaleString('vi-VN') : '—';
 const reason = (error: unknown) => error instanceof Error ? error.message : 'Chưa xử lý được đề xuất. Vui lòng thử lại.';
@@ -59,17 +60,19 @@ export function ProductCommissionDeals({ mode }: { mode: 'kol' | 'shop' }) {
     </article>)}</div>}
     {compose && <DealComposer onClose={() => setCompose(false)} onSent={() => { setCompose(false); void load(); }} />}
     {selected && <Modal isOpen stickyHeader maxWidth="lg" title="Chi tiết deal hoa hồng" subtitle={selected.productName} onClose={() => { if (!busy) setSelected(null); }} footer={<div className="product-deals-footer">
-      {mode === 'kol' && selected.status === 'PENDING' && <button type="button" className="product-deals-button" disabled={busy} onClick={() => void act('CANCELLED')}>Thu hồi đề xuất</button>}
-      {mode === 'shop' && selected.status === 'PENDING' && <><button type="button" className="product-deals-button" disabled={busy} onClick={() => void act('REJECTED')}><X size={15} />Từ chối</button><button type="button" className="product-deals-button primary" disabled={busy} onClick={() => void act('APPROVED')}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}Duyệt {percent(Number(selected.baseRate) + selected.extraPoints)}</button></>}
+      {mode === 'kol' && selected.status === 'PENDING' && (selected.negotiationHistory?.length || 0) <= 1 && <button type="button" className="product-deals-button" disabled={busy} onClick={() => void act('CANCELLED')}>Thu hồi đề xuất</button>}
+      {mode === 'shop' && selected.status === 'PENDING' && (selected.negotiationHistory?.length || 0) <= 1 && <><button type="button" className="product-deals-button" disabled={busy} onClick={() => void act('REJECTED')}><X size={15} />Từ chối</button><button type="button" className="product-deals-button primary" disabled={busy} onClick={() => void act('APPROVED')}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}Duyệt {percent(Number(selected.baseRate) + selected.extraPoints)}</button></>}
       {mode === 'shop' && selected.status === 'APPROVED' && <button type="button" className="product-deals-button" disabled={busy} onClick={() => void act('ENDED')}>Kết thúc cho đơn mới</button>}
     </div>}><div className="product-deals-detail">
       {error && <p role="alert" className="product-deals-error">{error}</p>}
+      {(selected.negotiationHistory?.length || 0) > 1 ? <CollaborationResourceCard kind="COMMISSION_DEAL" id={selected.id} isStoreOwner={mode === 'shop'} /> : <>
       <div className="product-deals-summary"><span>Hoa hồng {selected.status === 'PENDING' ? 'đề xuất' : 'đã ghi nhận'}</span><strong>{percent(selected.totalRate ?? Number(selected.baseRate) + selected.extraPoints)}</strong><p>Cơ bản {percent(selected.baseRate)} + tăng thêm {selected.extraPoints} điểm phần trăm</p></div>
       <dl><div><dt>Gian hàng</dt><dd>{selected.storeName}</dd></div><div><dt>KOL</dt><dd>{selected.collaboratorName}</dd></div><div><dt>Trạng thái</dt><dd>{labels[selected.status]}</dd></div><div><dt>Áp dụng từ</dt><dd>{date(selected.approvedAt)}</dd></div></dl>
       <div><strong>Lời đề xuất</strong><p className="product-deals-message">{selected.message}</p></div>
       {selected.response && <div><strong>Phản hồi của shop</strong><p className="product-deals-message">{selected.response}</p></div>}
       {mode === 'shop' && ['PENDING','APPROVED'].includes(selected.status) && <label>Phản hồi cho KOL<textarea maxLength={1000} rows={3} value={response} onChange={e => setResponse(e.target.value)} placeholder="Nội dung phản hồi (không bắt buộc)" /></label>}
       <p className="product-deals-note">Duyệt hoặc kết thúc deal không thay đổi tỷ lệ đã ghi nhận cho đơn cũ. Hoàn toàn bộ tiền hàng thì hoa hồng còn 0đ.</p>
+      </>}
     </div></Modal>}
   </section>;
 }

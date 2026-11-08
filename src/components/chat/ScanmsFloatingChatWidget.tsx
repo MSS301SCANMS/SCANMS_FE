@@ -30,6 +30,7 @@ import { authService, type UserProfile } from '../../services/auth.service';
 import { getSafeProductImageUrl } from '@/utils/marketplace.utils';
 import type { ChatAttachmentType } from '@/types/chat.types';
 import { ExclusiveDealCardBubble } from './ExclusiveDealCardBubble';
+import { StoreChatWorkspace } from './StoreChatWorkspace';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 const emojiCategories: NonNullable<PickerProps['categories']> = [
@@ -81,6 +82,10 @@ function currentUserCanSeeAffiliateDeals() {
 }
 
 export function ScanmsFloatingChatWidget() {
+  return import.meta.env.VITE_COMMERCE_BACKEND === 'legacy' ? <LegacyFloatingChatWidget /> : <StoreChatWorkspace floating />;
+}
+
+function LegacyFloatingChatWidget() {
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
 
